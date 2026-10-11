@@ -14,7 +14,7 @@ from src.hrb_chatbot.common.logging.logger import get_logger
 from src.hrb_chatbot.common.rate_limiting.rate_limiter import enforce_rate_limit
 from src.hrb_chatbot.models.common import ToolCallInfo
 from src.hrb_chatbot.models.multi_agentic_rag import AgentTaskInfo, MultiAgenticRagRequest, MultiAgenticRagResponse
-from src.hrb_chatbot.models.rag import EvalScores, ExplainabilityInfo, LatencyInfo
+from src.hrb_chatbot.models.rag import EvalScores, ExplainabilityInfo, LatencyInfo, LlmContextInfo
 
 logger = get_logger("multi_agentic_rag.query_agent")
 
@@ -37,6 +37,7 @@ async def query(payload: MultiAgenticRagRequest, request: Request):
         return json_error(422, str(error), code=error_codes.INPUT_GUARDRAIL_BLOCKED)
 
     eval_scores = result.get("eval_scores")
+    llm_context = result.get("llm_context")
     return MultiAgenticRagResponse(
         query=payload.query,
         answer=result["answer"],
@@ -50,6 +51,7 @@ async def query(payload: MultiAgenticRagRequest, request: Request):
             llm_call_count=result["llm_call_count"],
             latency_ms=LatencyInfo(**result["latency_ms"]),
             token_usage=None,
+            llm_context=LlmContextInfo(**llm_context) if llm_context else None,
             routed_to=None,
             eval_scores=EvalScores(**eval_scores) if eval_scores else None,
         ),

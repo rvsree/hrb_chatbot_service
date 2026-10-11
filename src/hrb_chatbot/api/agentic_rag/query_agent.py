@@ -12,7 +12,7 @@ from src.hrb_chatbot.common.logging.logger import get_logger
 from src.hrb_chatbot.common.rate_limiting.rate_limiter import enforce_rate_limit
 from src.hrb_chatbot.models.agentic_rag import AgenticRagRequest, AgenticRagResponse
 from src.hrb_chatbot.models.common import ToolCallInfo
-from src.hrb_chatbot.models.rag import EvalScores, ExplainabilityInfo, LatencyInfo, TokenUsageInfo
+from src.hrb_chatbot.models.rag import EvalScores, ExplainabilityInfo, LatencyInfo, LlmContextInfo, TokenUsageInfo
 
 logger = get_logger("query_agent")
 
@@ -37,6 +37,7 @@ async def query(payload: AgenticRagRequest, request: Request):
 
     token_usage = result.get("token_usage")
     eval_scores = result.get("eval_scores")
+    llm_context = result.get("llm_context")
     return AgenticRagResponse(
         query=payload.query,
         answer=result["answer"],
@@ -48,6 +49,7 @@ async def query(payload: AgenticRagRequest, request: Request):
             llm_call_count=result["llm_call_count"],
             latency_ms=LatencyInfo(**result["latency_ms"]),
             token_usage=TokenUsageInfo(**token_usage) if token_usage else None,
+            llm_context=LlmContextInfo(**llm_context) if llm_context else None,
             routed_to=None,
             eval_scores=EvalScores(**eval_scores) if eval_scores else None,
         ),
