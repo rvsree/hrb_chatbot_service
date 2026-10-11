@@ -12608,3 +12608,86 @@ Explicitly deferred to a later, separate wave - not part of the above:
       what was *sent*, not how Gmail *displays* it. Both need the user's
       own visual confirmation, same standing limitation as Phase 152's
       attachment check.
+
+- [x] **Phase 159 — User-reported (production): GenAI Chat Workflow sends
+  (or offers to send) an email on turns that never asked for one, because
+  the "Email the answer to" field is sticky across turns.**
+  - **Spec:** Reproduced directly, not assumed - a 2-turn local test
+    matching the user's exact production screenshots. Turn 1: attach a
+    file, ask "summarize the offer details" (no mention of email) - the
+    agent emailed it anyway. Turn 2 (adhoc-chat has no conversation
+    memory - confirmed, separate, known limitation): ask "did you sent
+    the email to given id" - the agent called `SendEmailWithAnswer`
+    *again*, this time emailing a message whose own body says "I have
+    not sent any email yet" - a direct contradiction between what the
+    email claims and what sending it just did, confirmed via the real
+    backend log showing both the tool call and `ses_client`'s
+    `send_email succeeded`. Root cause, found in
+    `api/adhoc_chat/adhoc_document_chat.py` (lines ~103-105):
+    ```python
+    agent_question = checked_question
+    if recipient_email:
+        agent_question = f"{checked_question}\n\n(Please email the answer to {recipient_email}.)"
+    ```
+    This appends an unconditional *directive* to every single message,
+    for as long as the UI's recipient-email field stays filled in - and
+    that field is sticky (persists across turns in the same chat,
+    confirmed in the user's own screenshots), so one genuine "email me
+    this" request leaves every *later*, unrelated message carrying the
+    same "please email the answer" instruction, regardless of what the
+    user actually typed that turn. The model mostly complies with an
+    injected directive, which is why it fires even on questions that
+    are *about* email status, not requests for one. Not non-deterministic
+    LLM flakiness - a deterministic code behavior triggering model
+    behavior that happens to vary in exactly how it complies.
+    - **Fix:** change the appended text from a directive to a
+      conditional, informational framing - something like "(If - and
+      only if - this message itself explicitly asks you to email the
+      answer, the address to use is {recipient_email}. Do not send an
+      email unless this message asks for one.)" - keeps the address
+      available to the agent without implying every turn is itself an
+      email request.
+    - **Verification plan:** re-run the exact same 2-turn scenario
+      locally after the fix - Turn 1 (no email language) should not
+      trigger a send; Turn 2 ("did you sent the email") should not
+      trigger a send or offer one framed as already-sent confusion.
+      Confirm a genuine "summarize this and email it to X" request
+      still works (regression check - the fix must not make the agent
+      stop emailing when actually asked). Existing
+      `test_adhoc_document_agent.py` tests are unaffected (they test
+      `run_agent()` directly with hand-built questions, not this
+      route-level string construction) - any new test belongs in
+      `test_adhoc_document_chat.py` instead, asserting what
+      `agent_question` looks like for both cases.
+  - **Built and verified, NOT pushed or deployed** (same standing
+    instruction): `api/adhoc_chat/adhoc_document_chat.py`'s
+    `agent_question` construction changed from an unconditional directive
+    to a purely informational note. 2 new route-level tests
+    (`test_recipient_email_is_appended_informationally_not_as_a_directive`,
+    `test_no_recipient_email_leaves_the_question_unchanged`). Full suite:
+    527 passed, 0 failed.
+    - **A real overcorrection caught and fixed before shipping, not
+      after**: the first fix attempt used a conditional directive
+      ("If - and only if - this message itself explicitly asks...").
+      Live-tested 3x each for all 3 scenarios, not assumed safe from one
+      run: the original bug (false-positive send) was fixed, but a NEW
+      failure mode appeared - 2 of 3 explicit "summarize this and email
+      it to me" requests silently stopped sending at all, a false
+      negative. Simplified to pure information ("For reference, if
+      needed: the user's email address is {recipient_email}."), trusting
+      the system prompt's own existing instruction to be the one place
+      governing the decision instead of re-stating the condition twice
+      (likely source of the model's confusion). Re-verified 3x each,
+      all 3 scenarios: explicit request sent 3/3, no-email-language
+      question never sent 3/3, "did you send the email" follow-up never
+      sent and never self-contradicted 3/3 - the exact bug from the
+      user's production screenshots (an email whose own body said "I
+      have not sent any email yet") no longer reproduces.
+  - **Separately flagged, not fixed here**: the user's Explainability ->
+    LLM Context panel showing "Not tracked for this pipeline mode yet"
+    for Multi-Agent RAG is not a bug - confirmed directly against Phase
+    132's own spec, which explicitly scoped real LLM Context capture to
+    `genai-rag` only, with `llm_context: null` deliberately for single/
+    multi-agentic-rag (same established pattern as `temperature`/
+    `latency_ms`). Asked the user whether to extend this now as new,
+    separately-scoped work - not done as part of this phase.

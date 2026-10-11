@@ -99,10 +99,24 @@ async def adhoc_document_chat(
 
     # The agent gets the recipient_email folded into the question itself
     # when given, since SendEmailWithAnswer is a real tool call the agent
-    # decides to make, not something this route drives directly.
+    # decides to make, not something this route drives directly. Phase 159:
+    # purely informational, not a directive - the UI's recipient-email
+    # field is sticky across turns, so an unconditional "please email the
+    # answer" here used to get appended to every later message too,
+    # including ones with nothing to do with email (e.g. "did you send the
+    # email?"), and the model mostly complied with it anyway - confirmed
+    # live. A first attempt at a conditional directive ("only if this
+    # message asks...") overcorrected into false negatives on genuine email
+    # requests (also confirmed live, 2 of 3 explicit "email it to me"
+    # requests silently didn't send) - likely the double conditional
+    # (system prompt's own instruction plus this one re-explaining the same
+    # condition) confusing the model rather than clarifying it. Staying
+    # purely informational here and trusting the system prompt's own
+    # existing instruction (already states "only call this if the user
+    # explicitly asked") to be the one place that governs the decision.
     agent_question = checked_question
     if recipient_email:
-        agent_question = f"{checked_question}\n\n(Please email the answer to {recipient_email}.)"
+        agent_question = f"{checked_question}\n\n(For reference, if needed: the user's email address is {recipient_email}.)"
 
     try:
         result = await adhoc_document_agent.run_agent(agent_question, file_texts, file_bytes)
