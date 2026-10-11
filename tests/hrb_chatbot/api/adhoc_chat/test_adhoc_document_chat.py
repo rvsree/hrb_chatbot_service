@@ -160,3 +160,72 @@ def test_email_sent_to_is_surfaced_when_the_agent_actually_sent_one(monkeypatch)
 
     assert response.status_code == 200
     assert response.json()["email_sent_to"] == "someone@example.com"
+
+
+# Phase 159 - the recipient-email field is sticky across turns in the UI,
+# so what gets appended to the agent's question must stay purely
+# informational, never a directive - a directive gets appended to every
+# later, unrelated turn too, and the model mostly complies with it
+# regardless of what that turn's own question actually says (confirmed
+# live: an unconditional "please email the answer" caused a send on an
+# unrelated follow-up question; an over-corrected conditional directive
+# then caused the opposite failure, silently not sending on 2 of 3
+# explicit "email it to me" requests - both confirmed by live
+# reproduction, not assumed).
+
+
+def test_recipient_email_is_appended_informationally_not_as_a_directive(monkeypatch):
+    captured_questions = []
+
+    async def _capturing_run_agent(question, file_texts, file_bytes):
+        captured_questions.append(question)
+        return {
+            "answer": "Done.",
+            "files_used": [],
+            "web_searches": [],
+            "email_sent_to": None,
+            "model_used": "gpt-4.1-mini-fake",
+            "iterations": 1,
+            "llm_call_count": 1,
+            "token_usage": None,
+            "latency_ms": {"total": 100.0},
+        }
+
+    _patch_guardrails_and_agent(monkeypatch)
+    monkeypatch.setattr(adhoc_document_chat.adhoc_document_agent, "run_agent", _capturing_run_agent)
+
+    _post(
+        question="did you sent the email to given id",
+        files=[("files", ("a.csv", b"a,b\n1,2", "text/csv"))],
+        recipient_email="someone@example.com",
+    )
+
+    sent_question = captured_questions[0]
+    assert "someone@example.com" in sent_question
+    assert "please email" not in sent_question.lower()
+    assert "do not send" not in sent_question.lower()
+
+
+def test_no_recipient_email_leaves_the_question_unchanged(monkeypatch):
+    captured_questions = []
+
+    async def _capturing_run_agent(question, file_texts, file_bytes):
+        captured_questions.append(question)
+        return {
+            "answer": "Done.",
+            "files_used": [],
+            "web_searches": [],
+            "email_sent_to": None,
+            "model_used": "gpt-4.1-mini-fake",
+            "iterations": 1,
+            "llm_call_count": 1,
+            "token_usage": None,
+            "latency_ms": {"total": 100.0},
+        }
+
+    _patch_guardrails_and_agent(monkeypatch)
+    monkeypatch.setattr(adhoc_document_chat.adhoc_document_agent, "run_agent", _capturing_run_agent)
+
+    _post(question="What's in this file?", files=[("files", ("a.csv", b"a,b\n1,2", "text/csv"))])
+
+    assert captured_questions[0] == "What's in this file?"
