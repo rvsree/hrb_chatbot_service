@@ -45,6 +45,19 @@ def _fake_eval_judges(monkeypatch):
     )
 
 
+@pytest.fixture(autouse=True)
+def _fake_decompose(monkeypatch):
+    """Phase 130: generate() now calls decompose() on every live call, a real
+    OpenAI structured-output call - fake it as a no-op (always 1 sub-question,
+    the original query unchanged) for every test in this file except the ones
+    that explicitly test decomposition itself, which override this."""
+
+    async def _passthrough_decompose(query):
+        return [query]
+
+    monkeypatch.setattr(pipeline, "decompose", _passthrough_decompose)
+
+
 def _patch_conversation_store(monkeypatch, conversation_store=None):
     gateway = FakeDBGateway(conversation_store=conversation_store or FakeConversationStore())
     monkeypatch.setattr(conversation_memory, "get_db_gateway", lambda: gateway)
@@ -147,6 +160,17 @@ async def test_explicit_nonzero_temperature_passes_through(monkeypatch):
     assert captured["temperature"] == 0.7
 
 
+async def test_result_echoes_back_the_resolved_temperature(monkeypatch):
+    # Phase 127 - Explainability needs the actual value used, not just what was requested.
+    _patch_guardrails(monkeypatch)
+    monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve_chunks_capturing({}))
+    monkeypatch.setattr(pipeline, "generate_answer", _fake_generate_answer_capturing({}))
+
+    result = await pipeline.answer_query(RagQueryParams(query="test", temperature=0.7))
+
+    assert result["temperature"] == 0.7
+
+
 # Phase 49: a matched query short-circuits before retrieve_chunks/generate_answer
 # are ever called - the two spies below prove retrieval/generation were skipped.
 async def test_mcp_routable_query_skips_retrieval_and_generation(monkeypatch):
@@ -162,7 +186,8 @@ async def test_mcp_routable_query_skips_retrieval_and_generation(monkeypatch):
 
     async def _fake_try_route_to_mcp(query, employee_id):
         return {"query": query, "answer": "MCP answer", "model_used": None, "sources": [],
-                "vector_db": None, "search_strategy": None, "applied_filter": None, "routed_to": "get_leave_balance"}
+                "vector_db": None, "search_strategy": None, "applied_filter": None, "routed_to": "get_leave_balance",
+                "mcp_arguments": {"employee_id": employee_id}, "mcp_raw_result": ["MCP answer"]}
 
     _patch_guardrails(monkeypatch)
     monkeypatch.setattr(pipeline, "retrieve_chunks", _spy_retrieve_chunks)
@@ -183,6 +208,7 @@ async def test_mcp_routed_answer_builds_a_real_tools_used_entry(monkeypatch):
             "query": query, "answer": "You have 12 days left.", "model_used": "mcp:get_leave_balance", "sources": [],
             "vector_db": None, "search_strategy": None, "applied_filter": None,
             "routed_to": "get_leave_balance", "tool_latency_ms": 42.5,
+            "mcp_arguments": {"employee_id": employee_id}, "mcp_raw_result": ["You have 12 days left."],
         }
 
     _patch_guardrails(monkeypatch)
@@ -223,13 +249,21 @@ async def test_enabling_conversation_memory_generates_and_saves_a_turn(monkeypat
     assert [m.content for m in saved] == ["test question", "fake answer"]
 
 
-async def test_mcp_routed_answer_echoes_conversation_id_but_does_not_save_a_turn(monkeypatch):
+async def test_mcp_routed_answer_saves_a_turn_like_any_other_answer(monkeypatch):
+    # Phase 151: a separate top-level MCP shortcut used to bypass
+    # run_guarded_pipeline() entirely (and so never called
+    # conversation_memory.save_turn() for an MCP-routed answer) - removed
+    # because it also silently dropped the rest of a compound query. MCP
+    # routing now always goes through _answer_sub_question() -> the shared
+    # core, so it saves a turn like every other answer, matching how
+    # single/multi-agentic-rag already save MCP-routed answers too.
     _patch_conversation_store(monkeypatch)
 
     async def _fake_try_route_to_mcp(query, employee_id):
         return {"query": query, "answer": "MCP answer", "model_used": "mcp:x", "sources": [],
                 "vector_db": "n/a (mcp)", "search_strategy": "n/a (mcp)", "applied_filter": None,
-                "routed_to": "x", "tool_latency_ms": 50.0}
+                "routed_to": "x", "tool_latency_ms": 50.0,
+                "mcp_arguments": {"employee_id": employee_id}, "mcp_raw_result": ["MCP answer"]}
 
     _patch_guardrails(monkeypatch)
     monkeypatch.setattr(pipeline, "try_route_to_mcp", _fake_try_route_to_mcp)
@@ -239,7 +273,8 @@ async def test_mcp_routed_answer_echoes_conversation_id_but_does_not_save_a_turn
     )
 
     assert result["conversation_id"] is not None
-    assert await conversation_memory.load_history(result["conversation_id"]) == []
+    saved = await conversation_memory.load_history(result["conversation_id"])
+    assert [m.content for m in saved] == ["What's my PTO balance?", "MCP answer"]
 
 
 async def test_an_existing_conversation_id_is_passed_to_generate_answer_as_chat_history(monkeypatch):
@@ -393,8 +428,8 @@ async def test_a_different_employee_in_a_different_conversation_shares_the_cache
 
 async def test_live_generation_reports_real_explainability_fields(monkeypatch):
     """Phase 107 - a live (non-cached) call reports served_from_cache=False,
-    llm_call_count=1, real retrieval/generation timing, and whatever
-    token_usage generate_answer() returned."""
+    llm_call_count=2 (Phase 130: +1 for the decompose call), real retrieval/
+    generation timing, and whatever token_usage generate_answer() returned."""
     _patch_guardrails(monkeypatch)
 
     async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
@@ -413,7 +448,7 @@ async def test_live_generation_reports_real_explainability_fields(monkeypatch):
     result = await pipeline.answer_query(RagQueryParams(query="explainability check one"))
 
     assert result["served_from_cache"] is False
-    assert result["llm_call_count"] == 1
+    assert result["llm_call_count"] == 2
     assert result["token_usage"] == {"prompt_tokens": 42, "completion_tokens": 8, "total_tokens": 50}
     assert result["latency_ms"]["retrieval"] is not None
     assert result["latency_ms"]["generation"] is not None
@@ -528,3 +563,164 @@ async def test_cache_hit_reuses_eval_scores_without_rejudging(monkeypatch):
     assert judge_call_count == {"groundedness": 1, "completeness": 1}  # only the first call judged
     assert second["served_from_cache"] is True
     assert second["eval_scores"] == first["eval_scores"]
+
+
+# Phase 130 - query decomposition
+
+
+async def test_atomic_question_behaves_exactly_like_before_decomposition(monkeypatch):
+    # The _fake_decompose autouse fixture already returns [query] unchanged -
+    # this just confirms that single-sub-question path costs exactly 1 retrieve + 1 generate.
+    _patch_guardrails(monkeypatch)
+    call_count = {"retrieve": 0, "generate": 0}
+
+    async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
+        call_count["retrieve"] += 1
+        return ([{"filename": "x", "chunk_index": 0, "text": "y"}], None)
+
+    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None):
+        call_count["generate"] += 1
+        return {"answer": "single answer", "model_used": "gpt-4.1-mini"}
+
+    monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve)
+    monkeypatch.setattr(pipeline, "generate_answer", _fake_generate)
+
+    result = await pipeline.answer_query(RagQueryParams(query="what is the dental plan?"))
+
+    assert call_count == {"retrieve": 1, "generate": 1}
+    assert result["answer"] == "single answer"
+    assert result["llm_call_count"] == 2  # 1 decompose + 1 generate
+
+
+async def test_compound_kb_question_merges_two_sub_answers(monkeypatch):
+    _patch_guardrails(monkeypatch)
+
+    async def _fake_decompose_compound(query):
+        return ["what is the dental plan?", "what is the vision plan?"]
+
+    monkeypatch.setattr(pipeline, "decompose", _fake_decompose_compound)
+
+    async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
+        return ([{"filename": "x", "chunk_index": 0, "text": f"chunk for {query}"}], None)
+
+    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None):
+        if "dental" in query:
+            return {"answer": "Dental is MetLife PPO.", "model_used": "gpt-4.1-mini"}
+        return {"answer": "Vision is VSP.", "model_used": "gpt-4.1-mini"}
+
+    async def _fake_review(query, agent_results):
+        assert len(agent_results) == 2
+        assert agent_results[0]["result"] == "Dental is MetLife PPO."
+        assert agent_results[1]["result"] == "Vision is VSP."
+        return "Dental is MetLife PPO. Vision is VSP."
+
+    monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve)
+    monkeypatch.setattr(pipeline, "generate_answer", _fake_generate)
+    monkeypatch.setattr(pipeline.reviewer_agent, "review", _fake_review)
+
+    result = await pipeline.answer_query(RagQueryParams(query="what is the dental plan and the vision plan?"))
+
+    assert result["answer"] == "Dental is MetLife PPO. Vision is VSP."
+    assert len(result["sources"]) == 2
+    assert result["llm_call_count"] == 4  # 1 decompose + 2 generate + 1 merge
+
+
+async def test_compound_kb_and_mcp_question_gets_both_halves_right(monkeypatch):
+    # The actual live failure this phase fixes: a 401k (KB) + PTO balance (MCP) compound question.
+    _patch_guardrails(monkeypatch)
+
+    async def _fake_decompose_compound(query):
+        # Decomposition's own LLM paraphrase normalizes "how many days of PTO I have"
+        # into wording that actually matches the real MCP keyword list - the real,
+        # deliberate side benefit this phase's spec calls out, not an accident here.
+        return ["Is the 401k employer match immediately vested?", "What is my PTO balance?"]
+
+    monkeypatch.setattr(pipeline, "decompose", _fake_decompose_compound)
+
+    async def _fake_try_route_to_mcp(sub_question, employee_id):
+        # Mirrors the real keyword list's precision (mcp_tools/__init__.py) - the
+        # full, undecomposed compound query must NOT match this, only the
+        # decomposed sub-question should, same as production's real behavior.
+        if "pto balance" in sub_question.lower():
+            return {
+                "answer": "You have 12 PTO days left.", "model_used": "mcp:get_leave_balance",
+                "routed_to": "get_leave_balance", "tool_latency_ms": 40.0,
+                "mcp_arguments": {"employee_id": employee_id}, "mcp_raw_result": ["You have 12 PTO days left."],
+            }
+        return None
+
+    async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
+        return ([{"filename": "401k.pdf", "chunk_index": 0, "text": "100% immediately vested."}], None)
+
+    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None):
+        return {"answer": "Employer match is 100% immediately vested.", "model_used": "gpt-4.1-mini"}
+
+    async def _fake_review(query, agent_results):
+        assert {r["result"] for r in agent_results} == {
+            "Employer match is 100% immediately vested.",
+            "You have 12 PTO days left.",
+        }
+        return "Employer match is 100% immediately vested. You have 12 PTO days left."
+
+    monkeypatch.setattr(pipeline, "try_route_to_mcp", _fake_try_route_to_mcp)
+    monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve)
+    monkeypatch.setattr(pipeline, "generate_answer", _fake_generate)
+    monkeypatch.setattr(pipeline.reviewer_agent, "review", _fake_review)
+
+    result = await pipeline.answer_query(
+        RagQueryParams(query="Is the 401k match vested and how many PTO days do I have?")
+    )
+
+    assert "100% immediately vested" in result["answer"]
+    assert "12 PTO days" in result["answer"]
+    assert len(result["tools_used"]) == 1
+    assert result["tools_used"][0]["tool_name"] == "get_leave_balance"
+    assert result["tools_used"][0]["tool_type"] == "mcp"
+
+
+async def test_a_compound_kb_and_mcp_answer_is_never_cached(monkeypatch):
+    """Phase 140 - the real bug this closes: a decomposed query's merged
+    result used to be cached unconditionally even when one sub-question's
+    answer came from live MCP data (e.g. a point-in-time PTO balance),
+    baking a stale number into a 6h cache entry. Same compound-query setup
+    as test_compound_kb_and_mcp_question_gets_both_halves_right above, but
+    called twice: the second call must still hit the real fakes, not a
+    cached result."""
+    _patch_guardrails(monkeypatch)
+    call_count = {"mcp": 0, "generate": 0}
+
+    async def _fake_decompose_compound(query):
+        return ["Is the 401k employer match immediately vested?", "What is my PTO balance?"]
+
+    async def _fake_try_route_to_mcp(sub_question, employee_id):
+        if "pto balance" in sub_question.lower():
+            call_count["mcp"] += 1
+            return {
+                "answer": "You have 12 PTO days left.", "model_used": "mcp:get_leave_balance",
+                "routed_to": "get_leave_balance", "tool_latency_ms": 40.0,
+                "mcp_arguments": {"employee_id": employee_id}, "mcp_raw_result": ["You have 12 PTO days left."],
+            }
+        return None
+
+    async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
+        return ([{"filename": "401k.pdf", "chunk_index": 0, "text": "100% immediately vested."}], None)
+
+    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None):
+        call_count["generate"] += 1
+        return {"answer": "Employer match is 100% immediately vested.", "model_used": "gpt-4.1-mini"}
+
+    async def _fake_review(query, agent_results):
+        return "Employer match is 100% immediately vested. You have 12 PTO days left."
+
+    monkeypatch.setattr(pipeline, "decompose", _fake_decompose_compound)
+    monkeypatch.setattr(pipeline, "try_route_to_mcp", _fake_try_route_to_mcp)
+    monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve)
+    monkeypatch.setattr(pipeline, "generate_answer", _fake_generate)
+    monkeypatch.setattr(pipeline.reviewer_agent, "review", _fake_review)
+
+    query_text = "Is the 401k match vested and how many PTO days do I have?"
+    await pipeline.answer_query(RagQueryParams(query=query_text))
+    second = await pipeline.answer_query(RagQueryParams(query=query_text))
+
+    assert call_count == {"mcp": 2, "generate": 2}  # both calls did real work - never cache-served
+    assert second["served_from_cache"] is False

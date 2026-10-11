@@ -33,3 +33,15 @@ agent reported it isn't available yet, mention that briefly rather than ignoring
 FOLLOW_UP_QUESTIONS_SYSTEM_PROMPT = """Given the question and answer below, suggest 2-3 short
 follow-up questions a JPMorgan Chase employee could reasonably ask next about their HR
 benefits. One per line, no numbering, no extra commentary - just the questions."""
+
+# Phase 130 - genai-rag's own decompose step (the agentic modes' Planner already does this).
+DECOMPOSE_SYSTEM_PROMPT = """Break the question below into one sub-question per independent
+part - e.g. a policy question and a question about the caller's own live data (leave
+balance/history) are always independent parts, even in one sentence. If the question is
+already a single, atomic ask, return it unchanged as the only sub-question. Never merge
+unrelated parts into one sub-question, and never invent a part that wasn't asked.
+
+If a sub-question is about the caller's own current leave/PTO balance, phrase it exactly
+as "What is my leave balance?" - if it's about past leave taken, phrase it exactly as
+"What is my leave history?" - these two exact phrasings are required, not just similar
+wording, so a downstream keyword match can route them correctly."""

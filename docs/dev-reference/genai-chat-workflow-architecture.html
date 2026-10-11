@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Chat GenAI Workflow Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef0f4; --surface: #ffffff; --surface-alt: #f4f5f9; --border: #d9dce4;
+    --text: #191d28; --text-muted: #565f72; --text-faint: #8992a4;
+    --done: #1f8a4c; --done-bg: #e6f5ec; --done-border: #b9e2c9;
+    --missing: #b23a2f; --missing-bg: #fbebe8; --missing-border: #f0c4bc;
+    --planned: #3a6ea8; --planned-bg: #e8f0fa; --planned-border: #bcd5f0;
+    --ribbon-bg: #191d28; --ribbon-text: #ffffff;
+    --shadow: 0 2px 4px rgba(20,24,34,0.06), 0 12px 26px rgba(20,24,34,0.08);
+    --layer-dark: #33465e; --layer-mid: #4e6580; --lib-chip-bg: #eef1f5; --lib-chip-text: #46536b;
+    --model-chip-bg: #fdf0e2; --model-chip-text: #92561a; --model-chip-border: #f3d7b3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1218; --surface: #1a1f29; --surface-alt: #1c212c; --border: #2b3140;
+      --text: #e8eaf0; --text-muted: #a3aac0; --text-faint: #6d7488;
+      --done: #4fbd80; --done-bg: #15281d; --done-border: #23492f;
+      --missing: #e2776a; --missing-bg: #2c1815; --missing-border: #4a2620;
+      --planned: #7badea; --planned-bg: #15202c; --planned-border: #294257;
+      --ribbon-bg: #e8eaf0; --ribbon-text: #14161e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --layer-dark: #29354a; --layer-mid: #3d5068; --lib-chip-bg: #222836; --lib-chip-text: #aab4c8;
+      --model-chip-bg: #322515; --model-chip-text: #e0a355; --model-chip-border: #4d3a1e;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1218; --surface: #1a1f29; --surface-alt: #1c212c; --border: #2b3140;
+    --text: #e8eaf0; --text-muted: #a3aac0; --text-faint: #6d7488;
+    --done: #4fbd80; --done-bg: #15281d; --done-border: #23492f;
+    --missing: #e2776a; --missing-bg: #2c1815; --missing-border: #4a2620;
+    --planned: #7badea; --planned-bg: #15202c; --planned-border: #294257;
+    --ribbon-bg: #e8eaf0; --ribbon-text: #14161e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --layer-dark: #29354a; --layer-mid: #3d5068; --lib-chip-bg: #222836; --lib-chip-text: #aab4c8;
+    --model-chip-bg: #322515; --model-chip-text: #e0a355; --model-chip-border: #4d3a1e;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    padding-inline: 16px; padding-block: 32px 56px;
+  }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+
+  .wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-faint); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(26px, 4.2vw, 36px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 74ch; line-height: 1.55; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); padding: 5px 10px 5px 8px; border-radius: 999px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot.planned { background: var(--planned); } .dot.done { background: var(--done); } .dot.missing { background: var(--missing); }
+
+  .ribbon { display: flex; align-items: center; gap: 10px; justify-content: center; background: var(--ribbon-bg); color: var(--ribbon-text); border-radius: 12px; padding: 12px 18px; font-size: 13.5px; font-weight: 600; text-align: center; box-shadow: var(--shadow); flex-wrap: wrap; }
+  .ribbon .mono { font-weight: 500; opacity: 0.85; font-size: 12.5px; }
+
+  .stack { display: flex; flex-direction: column; gap: 0; }
+  .stack .connect { flex: none; width: 2px; height: 18px; background: var(--border); margin: 0 0 0 42px; }
+
+  .layer-row { display: flex; align-items: stretch; }
+  .layer-num {
+    flex: none; width: 52px; display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 19px; color: #fff; background: var(--layer-dark);
+    border-radius: 16px 0 0 16px; margin-right: -16px; z-index: 2; box-shadow: var(--shadow);
+  }
+  .layer {
+    flex: 1; min-width: 0; border-radius: 20px; overflow: hidden; box-shadow: var(--shadow); padding-left: 16px;
+    background: radial-gradient(ellipse 120% 140% at 0% 20%, rgba(255,255,255,0.22), transparent 55%), linear-gradient(180deg, var(--layer-dark) 0%, var(--layer-mid) 40%, var(--surface) 40%, var(--surface) 100%);
+  }
+  .layer-head { padding: 15px 20px 12px 26px; text-align: center; }
+  .layer-head .name { display: block; color: #fff; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 16.5px; text-shadow: 0 1px 3px rgba(0,0,0,0.18); }
+  .layer-head .sub { display: block; color: rgba(255,255,255,0.88); font-size: 11px; margin-top: 3px; }
+
+  .card-row { display: flex; gap: 10px; padding: 13px 18px 17px 26px; overflow-x: auto; flex-wrap: wrap; }
+  .card { flex: 1 1 220px; min-width: 200px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 11px; display: flex; flex-direction: column; gap: 7px; background: var(--surface-alt); }
+  .card-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .card-icon { width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; flex: none; }
+  .card-icon svg { width: 15px; height: 15px; }
+  .card.done .card-icon { background: var(--done-bg); color: var(--done); border: 1px solid var(--done-border); }
+  .card.missing .card-icon { background: var(--missing-bg); color: var(--missing); border: 1px solid var(--missing-border); }
+  .card.planned .card-icon { background: var(--planned-bg); color: var(--planned); border: 1px solid var(--planned-border); }
+  .status-pill { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
+  .card.done .status-pill { color: var(--done); background: var(--done-bg); border: 1px solid var(--done-border); }
+  .card.missing .status-pill { color: var(--missing); background: var(--missing-bg); border: 1px solid var(--missing-border); }
+  .card.planned .status-pill { color: var(--planned); background: var(--planned-bg); border: 1px solid var(--planned-border); }
+  .card-label { font-size: 12.5px; font-weight: 600; line-height: 1.3; }
+  .card-ref { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-faint); line-height: 1.4; word-break: break-word; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 1px; }
+  .chip { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; padding: 2px 6px; border-radius: 5px; }
+  .chip.lib { background: var(--lib-chip-bg); color: var(--lib-chip-text); }
+  .chip.model { background: var(--model-chip-bg); color: var(--model-chip-text); border: 1px solid var(--model-chip-border); }
+
+  .decisions { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+  .decisions h2 { font-family: 'Archivo', sans-serif; font-size: 16px; margin: 0; padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--surface-alt); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 9px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-faint); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  td.num { font-family: 'IBM Plex Mono', monospace; color: var(--text-faint); width: 28px; }
+  tr:last-child td { border-bottom: none; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+
+  @media (max-width: 720px) {
+    .layer-num { width: 38px; font-size: 15px; border-radius: 12px 0 0 12px; margin-right: -12px; }
+    .layer { padding-left: 12px; border-radius: 16px; }
+    .layer-head { padding: 12px 14px 10px 18px; }
+    .card-row { padding: 11px 12px 14px 18px; }
+    .stack .connect { margin-left: 24px; }
+    table { font-size: 11.5px; }
+    th, td { padding: 7px 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">hrb_chatbot_v2 &middot; design doc companion (see docs/dev-reference/genai_chat_workflow.md for the full write-up)</div>
+    <h1 class="display">Chat GenAI Workflow</h1>
+    <p class="subtitle">Ad-hoc document Q&amp;A, attached directly in the chat composer &mdash; up to 3 files (PDF/Word/CSV), answered by a ReAct agent with LLM-only tool calls. Deliberately separate from the main RAG pipeline: <strong>no S3, no vector store, no persisted metadata</strong>. Design only as of this page &mdash; nothing below is built yet.</p>
+    <div class="legend">
+      <span class="legend-item"><span class="dot planned"></span>Planned (spec'd, not yet built)</span>
+      <span class="legend-item"><span class="dot missing"></span>Explicitly out of scope</span>
+    </div>
+  </header>
+
+  <div class="ribbon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h16v16H4z"/><path d="M4 8h16"/></svg>
+    Chat composer (attach &le;3 files + question) &rarr; <span class="mono">POST /v1/adhoc-document-chat/query</span>
+  </div>
+
+  <div class="stack">
+
+    <div class="layer-row">
+      <div class="layer-num display">01</div>
+      <div class="layer">
+        <div class="layer-head">
+          <span class="name display">API Layer</span>
+          <span class="sub">one multipart request - files and question together, nothing held server-side between steps</span>
+        </div>
+        <div class="card-row">
+          <div class="card planned">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg></div><span class="status-pill">Planned</span></div>
+            <div class="card-label">New route</div>
+            <div class="card-ref">api/adhoc_chat/adhoc_document_chat.py</div>
+            <div class="chip-row"><span class="chip lib">FastAPI</span></div>
+          </div>
+          <div class="card planned">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><span class="status-pill">Planned</span></div>
+            <div class="card-label">Rate limiting (reused, not new)</div>
+            <div class="card-ref">rate_limiting/rate_limiter.py :: enforce_rate_limit()</div>
+            <div class="chip-row"><span class="chip lib">existing, no change</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="connect"></div>
+
+    <div class="layer-row">
+      <div class="layer-num display">02</div>
+      <div class="layer">
+        <div class="layer-head">
+          <span class="name display">Guardrails</span>
+          <span class="sub">reused as-is from genai-rag - same real concern applies, file content still reaches the LLM</span>
+        </div>
+        <div class="card-row">
+          <div class="card planned">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 4v5c0 5-3 7.5-7 9-4-1.5-7-4-7-9V7z"/></svg></div><span class="status-pill">Planned</span></div>
+            <div class="card-label">check_input() / check_output()</div>
+            <div class="card-ref">ai/pre_processing/guardrails_input.py, rag_pipeline/response_generation/guardrails_output/</div>
+            <div class="chip-row"><span class="chip lib">nemoguardrails (existing)</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="connect"></div>
+
+    <div class="layer-row">
+      <div class="layer-num display">03</div>
+      <div class="layer">
+        <div class="layer-head">
+          <span class="name display">Text Extraction</span>
+          <span class="sub">in-request only - nothing written to disk or S3, zero new runtime dependencies</span>
+        </div>
+        <div class="card-row">
+          <div class="card planned">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div><span class="status-pill">Planned</span></div>
+            <div class="card-label">PDF extraction (reused)</div>
+            <div class="card-ref">doc_processing/chunking/text_chunker.py :: extract_text_from_pdf()</div>
+            <div class="chip-row"><span class="chip lib">pypdf (existing)</span></div>
+          </div>
+          <div class="card planned">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div><span class="status-pill">Planned</span></div>
+            <div class="card-label">DOCX extraction (new)</div>
+            <div class="card-ref">paragraph text from word/document.xml</div>
+            <div class="chip-row"><span class="chip lib">stdlib zipfile + ElementTree - no new dependency</span></div>
+          </div>
+          <div class="card planned">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div><span class="status-pill">Planned</span></div>
+            <div class="card-label">CSV extraction (new)</div>
+            <div class="card-ref">stdlib csv module, rendered as plain text rows</div>
+            <div class="chip-row"><span class="chip lib">stdlib csv - no new dependency</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="connect"></div>
+
+    <div class="layer-row">
+      <div class="layer-num display">04</div>
+      <div class="layer">
+        <div class="layer-head">
+          <span class="name display">ReAct Agent</span>
+          <span class="sub">LLM tool-calling loop, LLM calls only - no vector DB tool, no MCP tool, no web-search tool exist in this agent at all</span>
+        </div>
+        <div class="card-row">
+          <div class="card planned">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12h6M4 6h10M4 18h16"/></svg></div><span class="status-pill">Planned</span></div>
+            <div class="card-label">Agent loop (new module)</div>
+            <div class="card-ref">ai/agents/workflow_agents/adhoc_document_agent.py</div>
+            <div class="chip-row"><span class="chip lib">GatewayChatModel (existing)</span><span class="chip model">gpt-4.1-mini</span></div>
+          </div>
+          <div class="card planned">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div><span class="status-pill">Planned</span></div>
+            <div class="card-label">Tool: ReadDocument(filename)</div>
+            <div class="card-ref">returns one attached file's extracted text, truncated past ~12k chars/file</div>
+          </div>
+          <div class="card planned">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 7L2 7"/></svg></div><span class="status-pill">Planned</span></div>
+            <div class="card-label">Tool: SendEmailWithAnswer(recipient)</div>
+            <div class="card-ref">only called if the user asked to email the answer</div>
+            <div class="chip-row"><span class="chip lib">boto3 SES (existing dependency)</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="connect"></div>
+
+    <div class="layer-row">
+      <div class="layer-num display">05</div>
+      <div class="layer">
+        <div class="layer-head">
+          <span class="name display">Response</span>
+          <span class="sub">a small, separate shape - no vector_db/search_strategy/citations fields, because none apply</span>
+        </div>
+        <div class="card-row">
+          <div class="card planned">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><span class="status-pill">Planned</span></div>
+            <div class="card-label">AdhocDocumentChatResponse</div>
+            <div class="card-ref">question, answer, files_used, email_sent_to, model_used, latency_ms, token_usage</div>
+            <div class="chip-row"><span class="chip lib">Pydantic v2</span></div>
+          </div>
+          <div class="card planned">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></div><span class="status-pill">Planned</span></div>
+            <div class="card-label">Lightweight Explainability view</div>
+            <div class="card-ref">frontend only - files read, question, system prompt, answer, latency/tokens</div>
+            <div class="chip-row"><span class="chip lib">no Knowledge Sources / Citations sections - there is no KB</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="decisions">
+    <h2 class="display">Decisions made without waiting for approval, flagged for review</h2>
+    <table>
+      <thead><tr><th class="num">#</th><th>Decision</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td class="num">1</td><td>One combined request, not attach-then-ask</td><td>No server-side temp storage needed between steps - simplest shape, nothing to leak or clean up</td></tr>
+        <tr><td class="num">2</td><td>DOCX via stdlib zipfile+ElementTree, not python-docx</td><td>Avoids a new-library approval while the user is away; cruder (no tables/formatting) - flagged as a future upgrade</td></tr>
+        <tr><td class="num">3</td><td>Open to all roles, not just HR_SUPPORT</td><td>Personal ephemeral tool, doesn't touch shared KB state</td></tr>
+        <tr><td class="num">4</td><td>Reuse existing guardrails, don't build new ones</td><td>Same content-safety concern as the earlier "upload guardrails" ask - file content still reaches the LLM</td></tr>
+        <tr><td class="num">5</td><td>~12k chars/file truncation cap</td><td>Protects the model's context window; truncation is shown to the user, never silent</td></tr>
+        <tr><td class="num">6</td><td>Stateless across turns - re-attach each message</td><td>Simplest to start; flagged as a real limitation, not solved here</td></tr>
+        <tr><td class="num">7</td><td>AWS SES for email, via boto3</td><td>Already a dependency, same AWS account as everything else - needs one real one-time step: verifying a sending identity in the SES console (starts in sandbox mode)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    Full write-up: <span class="mono">docs/dev-reference/genai_chat_workflow.md</span>. Companion pages: <span class="mono">rag-architecture-layers.html</span> (the existing RAG pipeline, same layer-view style) and <span class="mono">rag-validation-gates.html</span> (the existing pipeline's governance view).
+  </footer>
+
+</div>
+</body>
+</html>

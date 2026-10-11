@@ -154,6 +154,9 @@ langchain-pinecone==0.2.13
 # at all (a real langchain-core/anthropic version deadlock), and
 # common/clients/llm_client/langchain_chat_model.py for the workaround.
 lark==1.3.1
+# Phase 131: real BM25 ranking for the Keyword/Hybrid search strategies -
+# the workshop's own course library, not a hand-rolled scorer.
+rank-bm25==0.2.2
 
 
 # -----------------------------------------------------------------------------

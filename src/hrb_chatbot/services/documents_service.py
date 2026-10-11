@@ -1,5 +1,6 @@
 """Saves uploaded files to disk and records their metadata - rejections are data, not raised."""
 
+import asyncio
 import json
 import shutil
 import uuid
@@ -14,6 +15,7 @@ from src.hrb_chatbot.common import error_codes
 from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 from src.hrb_chatbot.common.clients.storage_client.s3_upload_client import (
     delete_uploaded_object,
+    download_for_reprocessing,
     generate_presigned_upload_url,
 )
 from src.hrb_chatbot.common.config.settings import read_setting
@@ -246,7 +248,12 @@ async def _index_now(
         return result
     except Exception as error:
         logger.error("Indexing failed for document %s: %s: %s", document_id, type(error).__name__, error)
-        await get_db_gateway().metadata_store().update_status(document_id, "failed", str(error))
+        # Phase 134: the document's current status is the last stage it
+        # actually reached - read it before overwriting it to "failed" so
+        # the stage isn't lost, and prefix it onto the real error text.
+        existing = await get_db_gateway().metadata_store().get_document(document_id)
+        failed_stage = existing["status"] if existing else "unknown"
+        await get_db_gateway().metadata_store().update_status(document_id, "failed", f"[{failed_stage}] {error}")
         return {"error": "Upload succeeded, but indexing failed.", "error_code": error_codes.INDEXING_FAILED}
 
 
@@ -335,6 +342,54 @@ async def reindex_document(
         error=index_outcome.get("error"),
         error_code=index_outcome.get("error_code"),
         file_size_bytes=size,
+        chunk_info=ChunkInfoResult(
+            chunking_strategy=index_outcome.get("chunking_strategy"),
+            chunk_size=index_outcome.get("chunk_size"),
+            chunk_overlap=index_outcome.get("chunk_overlap"),
+            action=index_outcome.get("action"),
+            chunks_indexed=index_outcome.get("chunks_indexed"),
+            chunks_removed=index_outcome.get("chunks_removed"),
+        ),
+        versioning_info=VersioningInfo(
+            document_version=index_outcome.get("document_version", existing["document_version"]),
+            is_current=True,
+            supersedes=existing.get("supersedes"),
+            superseded_by=existing.get("superseded_by"),
+        ),
+    )
+
+
+async def rechunk_document(
+    document_id: str,
+    chunking_strategy: str | None = None,
+    chunk_size: int | None = None,
+    chunk_overlap: int | None = None,
+) -> DocumentUploadResult | None:
+    """Phase 129: re-chunk/embed/index an existing document's already-stored
+    file with new settings - no file upload, no content-hash check (the
+    whole point is reprocessing the same bytes). Returns None if document_id
+    doesn't exist - the route turns that into a 404."""
+    existing = await get_db_gateway().metadata_store().get_document(document_id)
+    if existing is None:
+        return None
+
+    # Phase 135: existing["file_path"] may be an s3:// URI (every document
+    # uploaded through the presigned-upload path) - extract_text_from_pdf()
+    # only understands a real local path, so download to one first.
+    file_path = download_for_reprocessing(existing["file_path"], document_id, existing["filename"])
+    logger.info("Re-chunking document %s with new settings (file unchanged)", document_id)
+
+    index_outcome = await _index_now(
+        document_id, file_path, chunking_strategy=chunking_strategy, chunk_size=chunk_size, chunk_overlap=chunk_overlap
+    )
+
+    return DocumentUploadResult(
+        filename=existing["filename"],
+        document_id=document_id,
+        status="reindexed",
+        error=index_outcome.get("error"),
+        error_code=index_outcome.get("error_code"),
+        file_size_bytes=existing["file_size_bytes"],
         chunk_info=ChunkInfoResult(
             chunking_strategy=index_outcome.get("chunking_strategy"),
             chunk_size=index_outcome.get("chunk_size"),
@@ -469,7 +524,15 @@ async def delete_document(document_id: str, deleted_by: str | None = None) -> di
     if chunk_ids:
         vector_store = gateway.vector_store(provider=document.get("vector_db"))
         # LlamaIndex indexing prefixes Pinecone ids - storage_chunk_ids() is a no-op for Chroma, real for Pinecone.
-        vector_store.delete(
+        # Phase 139: vector_store.delete() is a plain synchronous SDK call
+        # (Pinecone/Chroma, not async) - calling it directly here blocked
+        # the whole event loop for its network round-trip, serializing a
+        # bulk delete's concurrent requests even though the frontend
+        # already fires them with Promise.all. Same asyncio.to_thread()
+        # pattern conversation_store.py/feedback_store.py already use for
+        # this exact reason.
+        await asyncio.to_thread(
+            vector_store.delete,
             collection_name=COLLECTION_NAME,
             ids=storage_chunk_ids(vector_store.PROVIDER_NAME, document_id, chunk_ids),
         )
@@ -480,7 +543,9 @@ async def delete_document(document_id: str, deleted_by: str | None = None) -> di
     document_directory = UPLOAD_DIRECTORY / document_id
     shutil.rmtree(document_directory, ignore_errors=True)
 
-    _delete_s3_object_best_effort(document_id, document["filename"])
+    # Phase 139: delete_uploaded_object() is a synchronous boto3 S3 call -
+    # same event-loop-blocking issue as the vector delete above.
+    await asyncio.to_thread(_delete_s3_object_best_effort, document_id, document["filename"])
     await _clear_answer_cache_best_effort()
 
     logger.info("Deleted document %s (%r) - %d chunk(s) removed", document_id, document["filename"], len(chunk_ids))

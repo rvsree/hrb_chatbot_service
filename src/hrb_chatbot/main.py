@@ -5,6 +5,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.hrb_chatbot.api.adhoc_chat import adhoc_document_chat
 from src.hrb_chatbot.api.admin import routes_health
 from src.hrb_chatbot.api.agentic_rag import query_agent
 from src.hrb_chatbot.api.auth import login
@@ -70,6 +71,7 @@ app.include_router(query_agent.router_query_agent, prefix="/v1/single-agentic-ra
 app.include_router(multi_query_agent.router_query_agent, prefix="/v1/multi-agentic-rag-retrieval")
 app.include_router(manage_conversations.router_manage_conversations, prefix="/v1/conversations")
 app.include_router(manage_feedback.router_manage_feedback, prefix="/v1/feedback")
+app.include_router(adhoc_document_chat.router_adhoc_document_chat, prefix="/v1/adhoc-document-chat")
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):

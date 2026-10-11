@@ -84,13 +84,17 @@ async def index_document(
     # Phase 100: both the sync upload path and the async Lambda path call
     # this one function - setting status here gives both the same granular
     # progress for free, instead of duplicating these calls in each caller.
-    await get_db_gateway().metadata_store().update_status(document_id, "chunking")
+    # Phase 134: "parsing" (PDF text extraction) split out from "chunking" -
+    # these used to share one status, set before extraction even started.
+    await get_db_gateway().metadata_store().update_status(document_id, "parsing")
 
     text = extract_text_from_pdf(file_path)
     # Computed here (possibly again) only so the response can report what
     # actually ran - decide_chunking_strategy()/decide_chunk_size() are pure, so this always agrees.
     resolved_chunking_strategy = chunking_strategy or decide_chunking_strategy(text)
     resolved_chunk_size = chunk_size or decide_chunk_size(text)
+
+    await get_db_gateway().metadata_store().update_status(document_id, "chunking")
     # Phase 124 - section_ids is [None] * len(chunks) for every strategy
     # except "document_structure"; write_chunks() stores it as the new
     # per-chunk section_id metadata, omitted entirely when None.
@@ -105,6 +109,10 @@ async def index_document(
     # Module 1's own explicit step (Phase 44) - embeddings are computed here,
     # not inside write_chunks(), and attached directly to each chunk's node.
     embeddings = await generate_embeddings(chunks, embedding_model=resolved_embedding_model)
+
+    # Phase 134: the actual vector-store write - its own stage, distinct
+    # from "embedding" (computing the vectors) and "indexed" (done).
+    await get_db_gateway().metadata_store().update_status(document_id, "indexing")
     result = await write_chunks(
         document_id,
         chunks,

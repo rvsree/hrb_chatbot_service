@@ -1,6 +1,6 @@
 """Request/response contracts for the document upload API - see docs/agent-reference/endpoint-request-response-contracts.md."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from src.hrb_chatbot.common.config.settings import read_setting
 from src.hrb_chatbot.common.enums import ChunkingStrategy
@@ -16,13 +16,34 @@ PAYLOAD_MAX_LENGTH = 20000
 # A structural test-noise signal - real documents are far larger, test-generated files are short fake strings.
 TEST_NOISE_MAX_FILE_SIZE_BYTES = int(read_setting(None, "TEST_NOISE_MAX_FILE_SIZE_BYTES", 1024))
 
+# Phase 156 - user-agreed bounds for the now-editable chunk_size/chunk_overlap
+# (Indexed Documents page): below 200 chars a chunk is too fragmented to
+# carry real context; above 4000 risks the same diluted-embedding problem
+# Phase 149 found at 15,000+ chars for "semantic" (same mechanism, just a
+# much lower ceiling here since nothing legitimate needs to go that high).
+MIN_CHUNK_SIZE = 200
+MAX_CHUNK_SIZE = 4000
+
 
 class ChunkInfoInput(BaseModel):
     chunking_strategy: ChunkingStrategy | None = Field(
         None, description="Override auto-selected chunking - applies to every file in this batch."
     )
-    chunk_size: int | None = Field(None, ge=1, description="Override CHUNK_DEFAULT_SIZE for this batch.")
+    chunk_size: int | None = Field(
+        None, ge=MIN_CHUNK_SIZE, le=MAX_CHUNK_SIZE, description="Override CHUNK_DEFAULT_SIZE for this batch."
+    )
     chunk_overlap: int | None = Field(None, ge=0, description="Override CHUNK_DEFAULT_OVERLAP for this batch.")
+
+    @model_validator(mode="after")
+    def _overlap_must_fit_within_half_the_chunk_size(self) -> "ChunkInfoInput":
+        # Only checked when both are given - a caller overriding just one of
+        # the two is comparing against the other's server-side default,
+        # which this model has no way to know.
+        if self.chunk_size is not None and self.chunk_overlap is not None and self.chunk_overlap > self.chunk_size // 2:
+            raise ValueError(
+                f"chunk_overlap ({self.chunk_overlap}) can be at most half of chunk_size ({self.chunk_size})."
+            )
+        return self
 
 
 class DocumentMetadataInput(BaseModel):

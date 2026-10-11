@@ -1,0 +1,36 @@
+What's AmazingBank's 401(k) employer match policy, what is the current IRS annual 401(k) contribution limit, and how many PTO days do I have left?
+
+-----------
+
+
+1. All-in-one: VectorDB + Tavily + MCP (Multi-Agent RAG mode)
+"What's AmazingBank's dental coverage policy, what's the current federal mileage reimbursement rate, and how many PTO days do I have left?"
+
+Dental coverage → vector_kb_agent → ChromaDB
+Federal mileage rate → web_search_agent → Tavily (external/current fact, not in your KB)
+PTO days → lms_ops_agent → MCP get_leave_balance
+Check Agent Tasks in Explainability — you should see all 3 agents listed.
+
+2. Redis answer cache (GenAI RAG mode) — run twice, same exact text
+"What is the eligibility waiting period for AmazingBank's tuition assistance program?"
+
+1st run: real VectorDB retrieval + LLM call, Redis SET.
+2nd run (paste the identical text again): Redis GET hit — Explainability should show Served from cache, LLM calls: 0.
+3. Decomposition + MCP + VectorDB in one call (GenAI RAG mode)
+"What's the 401(k) vesting schedule, and what is my leave history?"
+
+Tests Phase 130's query decomposition splitting this into two sub-questions — one routed to ChromaDB, the other to MCP get_leave_history. Check LLM Context for two separate "Q1"/"Q2" turns.
+
+4. ReAct tool-calling loop (Single-Agent RAG mode)
+"Look up my current PTO balance, and also tell me if AmazingBank offers critical caregiver leave."
+
+The agent should call both GetLeaveBalance (MCP) and SearchKnowledgeBase (VectorDB) within the same reasoning loop — check Reasoning steps > 1.
+
+5. Conversation memory / Postgres (GenAI RAG mode, same conversation, 2 turns)
+Turn 1: "What are AmazingBank's healthcare plan options?"
+Turn 2: "Which of those has the lowest premium?"
+
+Turn 2's "those" only resolves correctly if conversation history round-tripped. One correction on my part: conversation history is Postgres-backed (conversation_turns table), not SQLite — I checked the actual client code rather than assume. SQLite is the document metadata store, which every query above already touches automatically (filename lookups happen on every retrieved chunk) — no separate query needed to exercise it.
+
+6. Rate limiter (Redis) — not really a "query"
+Fire the same request ~15–20 times in a tight loop (curl loop, not through the UI) against any endpoint — you should eventually get a 429. Skip this unless you specifically want to see the limiter trip.

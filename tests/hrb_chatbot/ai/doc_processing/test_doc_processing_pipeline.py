@@ -1,8 +1,8 @@
-"""Tests for Phase 100's granular indexing status - index_document() itself
-sets "chunking" then "embedding" before write_chunks() (faked here) would
-set "indexed". Every heavy dependency (PDF extraction, chunking, embedding,
-vector write) is faked - no real network call, matching every other test
-in this project."""
+"""Tests for the granular indexing status (Phase 100, refined Phase 134) -
+index_document() itself sets "parsing" -> "chunking" -> "embedding" ->
+"indexing" before write_chunks() (faked here) would set "indexed". Every
+heavy dependency (PDF extraction, chunking, embedding, vector write) is
+faked - no real network call, matching every other test in this project."""
 
 from src.hrb_chatbot.ai.doc_processing import pipeline
 
@@ -58,10 +58,10 @@ def _patch_pipeline_dependencies(monkeypatch, metadata_store):
     metadata_store.record_document_metadata = _fake_record_document_metadata
 
 
-async def test_chunking_then_embedding_are_set_in_order_before_indexed(monkeypatch):
+async def test_parsing_chunking_embedding_indexing_are_set_in_order(monkeypatch):
     metadata_store = _RecordingMetadataStore()
     _patch_pipeline_dependencies(monkeypatch, metadata_store)
 
     await pipeline.index_document("doc-123", "data/uploads/doc-123/policy.pdf")
 
-    assert metadata_store.status_history == ["chunking", "embedding"]
+    assert metadata_store.status_history == ["parsing", "chunking", "embedding", "indexing"]

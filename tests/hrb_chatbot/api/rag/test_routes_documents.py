@@ -845,3 +845,152 @@ def test_reindex_removes_the_old_file_from_disk():
 
     assert not old_file_path.exists()
     assert (Path("data/uploads") / document_id / "updated.pdf").exists()
+
+
+# Phase 129 - POST /documents/{document_id}/rechunk
+
+
+def test_rechunk_reprocesses_the_existing_file_with_new_settings():
+    upload_response = client.post(
+        "/v1/genai-rag/ingest-document/documents", files=_pdf_file(filename="policy.pdf"), data=_payload()
+    )
+    document_id = upload_response.json()["results"][0]["document_id"]
+
+    response = client.post(
+        f"/v1/genai-rag/ingest-document/documents/{document_id}/rechunk",
+        json={"user_profile": HR_SUPPORT_USER_PROFILE, "chunk_info": {"chunking_strategy": "fixed"}},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["document_id"] == document_id
+    assert body["status"] == "reindexed"
+
+
+def test_rechunk_unknown_document_id_is_404():
+    response = client.post(
+        "/v1/genai-rag/ingest-document/documents/does-not-exist/rechunk",
+        json={"user_profile": HR_SUPPORT_USER_PROFILE, "chunk_info": {"chunking_strategy": "fixed"}},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "DOCUMENT_NOT_FOUND"
+
+
+def test_rechunk_requires_hr_support_role():
+    upload_response = client.post(
+        "/v1/genai-rag/ingest-document/documents", files=_pdf_file(), data=_payload()
+    )
+    document_id = upload_response.json()["results"][0]["document_id"]
+    employee_profile = {"employee_id": "EMP052", "full_name": "Eddy Employee", "role": "employee"}
+
+    response = client.post(
+        f"/v1/genai-rag/ingest-document/documents/{document_id}/rechunk",
+        json={"user_profile": employee_profile, "chunk_info": {"chunking_strategy": "fixed"}},
+    )
+
+    assert response.status_code == 403
+
+
+def test_rechunk_downloads_from_s3_first_when_the_document_was_uploaded_that_way(monkeypatch):
+    # Phase 135 - the real bug: every document uploaded through presigned-
+    # upload has an s3:// file_path, which extract_text_from_pdf() can't
+    # open directly. Confirms rechunk_document() converts it to a real
+    # local path before indexing, instead of handing the s3:// URI straight
+    # through (that failure mode is exactly "[Errno 22] Invalid argument").
+    presigned_response = client.post(
+        "/v1/genai-rag/ingest-document/documents/presigned-upload",
+        json={"user_profile": HR_SUPPORT_USER_PROFILE, "filename": "s3-doc.pdf", "content_type": "application/pdf"},
+    )
+    document_id = presigned_response.json()["document_id"]
+
+    captured = {}
+
+    def _fake_download_for_reprocessing(file_path, doc_id, filename):
+        captured["file_path"] = file_path
+        captured["document_id"] = doc_id
+        captured["filename"] = filename
+        return "data/uploads/fake-local-copy.pdf"
+
+    monkeypatch.setattr(documents_service, "download_for_reprocessing", _fake_download_for_reprocessing)
+
+    response = client.post(
+        f"/v1/genai-rag/ingest-document/documents/{document_id}/rechunk",
+        json={"user_profile": HR_SUPPORT_USER_PROFILE, "chunk_info": {"chunking_strategy": "fixed"}},
+    )
+
+    assert response.status_code == 200
+    assert captured["file_path"].startswith("s3://")
+    assert captured["document_id"] == document_id
+    assert captured["filename"] == "s3-doc.pdf"
+
+
+# Phase 156 - chunk_size/chunk_overlap validation bounds, user-agreed.
+
+
+def test_rechunk_rejects_a_chunk_size_below_the_minimum():
+    upload_response = client.post(
+        "/v1/genai-rag/ingest-document/documents", files=_pdf_file(), data=_payload()
+    )
+    document_id = upload_response.json()["results"][0]["document_id"]
+
+    response = client.post(
+        f"/v1/genai-rag/ingest-document/documents/{document_id}/rechunk",
+        json={
+            "user_profile": HR_SUPPORT_USER_PROFILE,
+            "chunk_info": {"chunking_strategy": "fixed", "chunk_size": 100},
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_rechunk_rejects_a_chunk_size_above_the_maximum():
+    upload_response = client.post(
+        "/v1/genai-rag/ingest-document/documents", files=_pdf_file(), data=_payload()
+    )
+    document_id = upload_response.json()["results"][0]["document_id"]
+
+    response = client.post(
+        f"/v1/genai-rag/ingest-document/documents/{document_id}/rechunk",
+        json={
+            "user_profile": HR_SUPPORT_USER_PROFILE,
+            "chunk_info": {"chunking_strategy": "fixed", "chunk_size": 5000},
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_rechunk_rejects_an_overlap_over_half_the_chunk_size():
+    upload_response = client.post(
+        "/v1/genai-rag/ingest-document/documents", files=_pdf_file(), data=_payload()
+    )
+    document_id = upload_response.json()["results"][0]["document_id"]
+
+    response = client.post(
+        f"/v1/genai-rag/ingest-document/documents/{document_id}/rechunk",
+        json={
+            "user_profile": HR_SUPPORT_USER_PROFILE,
+            "chunk_info": {"chunking_strategy": "fixed", "chunk_size": 1000, "chunk_overlap": 600},
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_rechunk_accepts_an_overlap_at_exactly_half_the_chunk_size():
+    upload_response = client.post(
+        "/v1/genai-rag/ingest-document/documents", files=_pdf_file(), data=_payload()
+    )
+    document_id = upload_response.json()["results"][0]["document_id"]
+
+    response = client.post(
+        f"/v1/genai-rag/ingest-document/documents/{document_id}/rechunk",
+        json={
+            "user_profile": HR_SUPPORT_USER_PROFILE,
+            "chunk_info": {"chunking_strategy": "fixed", "chunk_size": 1000, "chunk_overlap": 500},
+        },
+    )
+
+    assert response.status_code == 200

@@ -10,8 +10,14 @@ from src.hrb_chatbot.common.clients.db_client.feedback_store import FeedbackStor
 from src.hrb_chatbot.common.clients.db_client.pinecone_client import PineconeClient
 from src.hrb_chatbot.common.clients.db_client.postgres_client import PostgresClient
 from src.hrb_chatbot.common.clients.db_client.sqlite_client import SQLiteClient
-from src.hrb_chatbot.common.config.settings import get_active_vector_db, read_setting
+from src.hrb_chatbot.common.config.settings import get_active_vector_db, get_app_environment, read_setting
 from src.hrb_chatbot.common.enums import MetadataStore, VectorDB
+
+# Phase 137: chromadb/sqlite are local-disk stores - never shared across App
+# Runner's multiple instances, never reachable by the separate Lambda
+# ingestion worker. A production request/default that resolves to either is
+# never a legitimate choice there, only a silent split-brain footgun.
+_LOCAL_ONLY_STORES_BLOCKED_IN_PRODUCTION = "{provider!r} is a local-disk store and is disabled when APP_ENVIRONMENT=production (Phase 137) - use {expected!r} instead."
 
 
 class DBGateway:
@@ -44,6 +50,10 @@ class DBGateway:
         provider = get_active_vector_db(provider)
 
         if provider == VectorDB.CHROMADB:
+            if get_app_environment() == "production":
+                raise ValueError(
+                    _LOCAL_ONLY_STORES_BLOCKED_IN_PRODUCTION.format(provider=provider, expected=VectorDB.PINECONE.value)
+                )
             return self.chroma()
         if provider == VectorDB.PINECONE:
             return self.pinecone()
@@ -91,6 +101,10 @@ class DBGateway:
         provider = provider or read_setting(None, "RAG_METADATA_STORE", MetadataStore.SQLITE)
 
         if provider == MetadataStore.SQLITE:
+            if get_app_environment() == "production":
+                raise ValueError(
+                    _LOCAL_ONLY_STORES_BLOCKED_IN_PRODUCTION.format(provider=provider, expected=MetadataStore.POSTGRES.value)
+                )
             return self.sqlite()
         if provider == MetadataStore.POSTGRES:
             return self.postgres()

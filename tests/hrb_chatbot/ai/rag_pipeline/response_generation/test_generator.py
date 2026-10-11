@@ -180,3 +180,57 @@ def test_tabular_instruction_absent_for_a_plain_query(monkeypatch):
 
     system_message, _ = fake_llm.calls[0]
     assert "markdown table" not in system_message.content
+
+
+# --- Phase 132: llm_context_turn - the real rendered prompt, captured for Explainability ---
+
+
+def test_llm_context_turn_is_none_when_no_llm_call_happened(monkeypatch):
+    fake_llm = _FakeGatewayChatModel()
+    monkeypatch.setattr(response_generator, "GatewayChatModel", lambda **kwargs: fake_llm)
+
+    result = response_generator.generate_answer("any question", chunks=[])
+
+    assert result["llm_context_turn"] is None
+
+
+def test_llm_context_turn_captures_the_real_rendered_prompt(monkeypatch):
+    fake_llm = _FakeGatewayChatModel(response_text="16 weeks of parental leave.")
+    monkeypatch.setattr(response_generator, "GatewayChatModel", lambda **kwargs: fake_llm)
+
+    result = response_generator.generate_answer("How much leave?", SAMPLE_CHUNKS)
+
+    turn = result["llm_context_turn"]
+    assert turn["label"] == "answer"
+    assert "ONLY the context" in turn["system_prompt"]
+    assert "policy.pdf" in turn["system_prompt"]
+    assert turn["human_message"] == "How much leave?"
+    assert turn["chat_history"] == []
+    assert turn["response"] == "16 weeks of parental leave."
+
+
+def test_llm_context_turn_includes_chat_history_as_role_content_pairs(monkeypatch):
+    fake_llm = _FakeGatewayChatModel()
+    monkeypatch.setattr(response_generator, "GatewayChatModel", lambda **kwargs: fake_llm)
+    history = [HumanMessage(content="What's the tuition cap?"), AIMessage(content="$5,250/year.")]
+
+    result = response_generator.generate_answer("How much leave?", SAMPLE_CHUNKS, chat_history=history)
+
+    assert result["llm_context_turn"]["chat_history"] == [
+        {"role": "human", "content": "What's the tuition cap?"},
+        {"role": "ai", "content": "$5,250/year."},
+    ]
+
+
+def test_llm_context_turn_captured_on_the_conversational_fallback_path_too(monkeypatch):
+    fake_llm = _FakeGatewayChatModel(response_text="You asked about parental leave a moment ago.")
+    monkeypatch.setattr(response_generator, "GatewayChatModel", lambda **kwargs: fake_llm)
+    history = [HumanMessage(content="How much parental leave do I get?"), AIMessage(content="16 weeks.")]
+
+    result = response_generator.generate_answer("What did I just ask you about?", chunks=[], chat_history=history)
+
+    turn = result["llm_context_turn"]
+    assert turn is not None
+    assert turn["human_message"] == "What did I just ask you about?"
+    assert turn["response"] == "You asked about parental leave a moment ago."
+    assert "prior conversation" in turn["system_prompt"]

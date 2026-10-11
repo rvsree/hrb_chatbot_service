@@ -69,8 +69,9 @@ class FakeEmbeddingClient:
     per text, and a record of every call so a test can assert on what was
     actually asked for (which model, how many texts)."""
 
-    def __init__(self, dimension: int = 4):
+    def __init__(self, dimension: int = 4, model: str = "fake-embedding-model"):
         self.dimension = dimension
+        self.model = model
         self.calls: list[dict] = []
 
     def get_embeddings(self, texts: list[str], model: str | None = None) -> list[list[float]]:
@@ -79,6 +80,9 @@ class FakeEmbeddingClient:
         for _ in texts:
             embeddings.append([0.1] * self.dimension)
         return embeddings
+
+    def get_configuration(self) -> dict:
+        return {"base_url": "https://fake", "model": self.model, "organization": None, "project": None}
 
 
 class FakeChatClient:
@@ -205,6 +209,13 @@ class FakeVectorStore(BaseVectorDBClient):
         for chunk_id, metadata in zip(ids, metadatas, strict=True):
             if chunk_id in collection:
                 collection[chunk_id]["metadata"] = metadata
+
+    def get_all_chunks(self, collection_name):
+        collection = self.collections.get(collection_name, {})
+        return [
+            {"id": chunk_id, "text": entry["document"], "metadata": entry["metadata"]}
+            for chunk_id, entry in collection.items()
+        ]
 
     def health_check(self):
         return {"provider": self.PROVIDER_NAME, "status": "healthy"}

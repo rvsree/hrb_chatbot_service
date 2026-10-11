@@ -194,6 +194,27 @@ class PineconeClient(BaseVectorDBClient):
             for id_, metadata in zip(ids, metadatas, strict=True):
                 index.update(id=id_, set_metadata=metadata, namespace=collection_name)
 
+    def get_all_chunks(self, collection_name: str) -> list[dict]:
+        """Pinecone has no single "list everything" call - list() yields id batches, fetch() gets the rest."""
+        index = self.get_index()
+
+        with log_backend_call(logger, "pinecone", "vector.get_all_chunks", namespace=collection_name):
+            all_ids = []
+            for id_batch in index.list(namespace=collection_name):
+                all_ids.extend(id_batch)
+
+            chunks = []
+            fetch_batch_size = 100
+            for start in range(0, len(all_ids), fetch_batch_size):
+                id_batch = all_ids[start : start + fetch_batch_size]
+                response = index.fetch(ids=id_batch, namespace=collection_name)
+                for chunk_id, vector in response.vectors.items():
+                    metadata = dict(vector.metadata or {})
+                    text = metadata.pop("document", "") or _text_from_llama_index_node_content(metadata)
+                    chunks.append({"id": chunk_id, "text": text, "metadata": metadata})
+
+        return chunks
+
     def health_check(self) -> dict:
         """Lists indexes then calls _ensure_index() - creates it on first call (billable), a no-op after."""
         result = {"provider": self.PROVIDER_NAME}

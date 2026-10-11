@@ -135,6 +135,26 @@ async def reindex_document(
     return result
 
 
+@router_ingest_document.post("/documents/{document_id}/rechunk", response_model=DocumentUploadResult)
+async def rechunk_document(document_id: str, payload: ReindexDocumentPayload, request: Request):
+    # Phase 129: re-chunk the already-stored file with new settings - no file upload needed.
+    require_role(payload.user_profile, Role.HR_SUPPORT)
+    await enforce_rate_limit(request)
+
+    chunk_info = payload.chunk_info
+    result = await documents_service.rechunk_document(
+        document_id,
+        chunking_strategy=chunk_info.chunking_strategy if chunk_info else None,
+        chunk_size=chunk_info.chunk_size if chunk_info else None,
+        chunk_overlap=chunk_info.chunk_overlap if chunk_info else None,
+    )
+
+    if result is None:
+        return json_error(404, f"No document found with id {document_id!r}", code=error_codes.DOCUMENT_NOT_FOUND)
+
+    return result
+
+
 @router_ingest_document.post("/documents/presigned-upload", response_model=PresignedUploadResponse)
 async def request_presigned_upload(body: PresignedUploadRequest, request: Request):
     # Phase 89: additive, alongside upload_documents() above - that endpoint is unchanged.

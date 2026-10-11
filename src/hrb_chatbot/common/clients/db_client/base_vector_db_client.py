@@ -44,6 +44,12 @@ class BaseVectorDBClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_all_chunks(self, collection_name: str) -> list[dict]:
+        """Phase 131: every chunk in the collection, no filtering (is_current
+        filtering happens in retriever.py) - [{"id", "text", "metadata"}, ...]. Needed for BM25's corpus."""
+        raise NotImplementedError
+
+    @abstractmethod
     def health_check(self) -> dict:
         """Report whether this client is usable - one cheap real call, never raises."""
         raise NotImplementedError

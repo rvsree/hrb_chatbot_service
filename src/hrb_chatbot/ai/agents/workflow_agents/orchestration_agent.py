@@ -19,6 +19,7 @@ from src.hrb_chatbot.ai.rag_pipeline.tools.agentic_tools import (
     get_leave_history_tool,
     search_knowledge_base,
 )
+from src.hrb_chatbot.ai.rag_pipeline.tools.mcp_tools import is_leave_balance_query, is_leave_history_query
 from src.hrb_chatbot.common.clients.cache_client.answer_cache import build_cache_key
 from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 from src.hrb_chatbot.common.logging.call_logger import log_backend_call
@@ -214,7 +215,18 @@ async def run_agent(
     result["latency_ms"]["eval"] = eval_ms
     result["latency_ms"]["total"] = _elapsed_ms(started_at)
 
-    cache_eligible = not any(call["tool_name"] in LIVE_DATA_TOOLS for call in result["tools_used"])
+    # Phase 140: a non-deterministic LLM tool choice must not get a free
+    # pass into a 6h cache - if the query itself looks like it's asking for
+    # live personal data (same heuristic genai-rag's MCP fast-path and
+    # multi-agentic-rag's lms_ops_agent already use for this), it stays
+    # uncached even when this one run happened not to call the live-data
+    # tool. Closes the loophole where one wrong tool-skip gets served back
+    # as "correct" for 6 hours to every identical future query.
+    cache_eligible = (
+        not any(call["tool_name"] in LIVE_DATA_TOOLS for call in result["tools_used"])
+        and not is_leave_balance_query(query)
+        and not is_leave_history_query(query)
+    )
     if cache_eligible:
         await get_db_gateway().answer_cache().set(cache_key, query, result)
         if result.get("conversation_id"):

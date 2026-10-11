@@ -3,6 +3,7 @@
 from fastapi import Query
 from fastapi.responses import JSONResponse
 
+from src.hrb_chatbot.common.config.settings import get_active_vector_db, read_setting
 from src.hrb_chatbot.common.enums import LlmProvider, MetadataStore, VectorDB
 
 # Query()'s enum default makes /docs render a dropdown and rejects a typo with a 422 before any check runs.
@@ -11,21 +12,22 @@ PROVIDER_QUERY = Query(
     description="Which LLM provider to check.",
 )
 
+# Phase 137: these two now follow the actually-active backend
+# (ACTIVE_VECTOR_DB/RAG_METADATA_STORE) instead of a hardcoded chromadb/
+# sqlite literal - a bare GET /health (what a real uptime monitor calls)
+# was checking the wrong store in production, since it never read env vars.
 METADATA_PROVIDER_QUERY = Query(
-    default=MetadataStore.SQLITE,
-    description=(
-        "Which document-metadata store to check: 'sqlite' (the active store) "
-        "or 'postgres' (a fully working alternative, not yet the active one)."
-    ),
+    default=read_setting(None, "RAG_METADATA_STORE", MetadataStore.SQLITE),
+    description="Which document-metadata store to check - defaults to whichever is actually active (RAG_METADATA_STORE).",
 )
 
 VECTOR_PROVIDER_QUERY = Query(
-    default=VectorDB.CHROMADB,
+    default=get_active_vector_db(),
     description=(
-        "Which vector store to check: 'chromadb' (the active store) or "
-        "'pinecone' (a fully working alternative, not yet the active one - "
-        "checking it will create the configured index on first call if it "
-        "doesn't exist yet)."
+        "Which vector store to check - defaults to whichever is actually "
+        "active (ACTIVE_VECTOR_DB). Checking a non-default provider will "
+        "create its configured index/collection on first call if it "
+        "doesn't exist yet."
     ),
 )
 

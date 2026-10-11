@@ -50,6 +50,7 @@ async def _fake_answer_query(params):
         "llm_call_count": 1,
         "token_usage": {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120},
         "latency_ms": {"total": 500.0, "retrieval": 150.0, "generation": 350.0},
+        "temperature": params.temperature if params.temperature is not None else 0.0,
     }
 
 
@@ -99,6 +100,18 @@ def test_non_mcp_answer_has_null_routed_to(monkeypatch):
     response = client.post("/v1/genai-rag-retrieval/query", json=_body(query="How many weeks of PTO do I get?"))
 
     assert response.json()["explainability_info"]["routed_to"] is None
+
+
+def test_temperature_actually_used_reaches_explainability(monkeypatch):
+    # Phase 127
+    monkeypatch.setattr(retrieve_document.pipeline, "answer_query", _fake_answer_query)
+
+    response = client.post(
+        "/v1/genai-rag-retrieval/query",
+        json=_body(query="test", generation_options={"temperature": 0.6}),
+    )
+
+    assert response.json()["explainability_info"]["temperature"] == 0.6
 
 
 def test_empty_query_string_is_rejected_before_reaching_the_pipeline():

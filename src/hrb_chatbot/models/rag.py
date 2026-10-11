@@ -14,7 +14,14 @@ class SearchOptions(BaseModel):
     search_strategy: SearchStrategy | None = Field(
         None,
         description="Which retrieval technique to use - 'similarity' is the default when omitted. "
-        "'mmr' trades some relevance for more diverse, less redundant results.",
+        "'mmr' trades some relevance for more diverse, less redundant results. 'keyword' is plain "
+        "BM25 lexical ranking. 'hybrid' merges 'keyword' and 'similarity' via Reciprocal Rank Fusion.",
+    )
+    lambda_mult: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="'mmr' only - 1.0 is pure relevance, 0.0 is pure diversity. Defaults to 0.5 when omitted.",
     )
     use_multi_query: bool = Field(
         False,
@@ -98,6 +105,9 @@ class LatencyInfo(BaseModel):
     retrieval: float | None = Field(None, description="Time spent retrieving chunks, in milliseconds. Null on a cache hit.")
     generation: float | None = Field(None, description="Time spent generating the answer, in milliseconds. Null on a cache hit.")
     eval: float | None = Field(None, description="Time spent on live eval-judge scoring, in milliseconds. Null when no eval ran this call (cache hit, MCP, or no context).")
+    decomposition: float | None = Field(
+        None, description="Phase 130 - genai-rag only; time spent splitting the question into sub-questions. Null elsewhere."
+    )
 
 
 class TokenUsageInfo(BaseModel):
@@ -119,6 +129,37 @@ class EvalScores(BaseModel):
     completeness_verdict: str = Field(..., description="COMPLETE (>=0.7), PARTIAL (>=0.4), or INCOMPLETE.")
 
 
+class ChatHistoryMessage(BaseModel):
+    role: str = Field(..., description="'human' or 'ai'.")
+    content: str
+
+
+class McpToolCallDetail(BaseModel):
+    """Phase 132 - the raw MCP call, not just the summary ToolCallInfo already carries."""
+
+    tool_name: str
+    arguments: dict
+    raw_result: list[str] = Field(..., description="The MCP tool's raw text blocks, before being joined into the answer.")
+
+
+class LlmContextTurn(BaseModel):
+    """Phase 132 - one real LLM call's actual rendered prompt, not a re-derived guess -
+    captured from the exact same inputs the real chain.invoke() call used."""
+
+    label: str = Field(..., description="e.g. 'answer' (single question) or the sub-question text (decomposed).")
+    system_prompt: str | None = None
+    human_message: str | None = None
+    chat_history: list[ChatHistoryMessage] = Field(default_factory=list)
+    response: str | None = Field(None, description="The raw answer text this turn's LLM call returned.")
+
+
+class LlmContextInfo(BaseModel):
+    """Phase 132 - genai-rag only (null for single/multi-agentic-rag, same pattern as temperature)."""
+
+    turns: list[LlmContextTurn] = Field(default_factory=list)
+    mcp_tool_calls: list[McpToolCallDetail] = Field(default_factory=list)
+
+
 class ExplainabilityInfo(BaseModel):
     """Phase 107/109 - real latency/token/cache-vs-live/eval numbers,
     genai-rag only. Dollar cost is deliberately excluded (see BACKLOG.md)."""
@@ -127,8 +168,14 @@ class ExplainabilityInfo(BaseModel):
     llm_call_count: int = Field(..., description="How many LLM calls this request made - 0 on a cache hit or MCP fast-path, 1 otherwise. Excludes eval-judge calls.")
     latency_ms: LatencyInfo
     token_usage: TokenUsageInfo | None = Field(None, description="Null on a cache hit, MCP fast-path, or a no-context answer that never called the LLM.")
+    llm_context: LlmContextInfo | None = Field(
+        None, description="Phase 132 - genai-rag only; null for single/multi-agentic-rag and on a cache hit (nothing was actually sent this call)."
+    )
     routed_to: str | None = Field(None, description="The MCP tool name if this answer was dynamically routed there instead of RAG (Phase 49/108). Null otherwise.")
     eval_scores: EvalScores | None = Field(None, description="Null for an MCP answer or a no-context answer (nothing to check groundedness against). Reused as-is on a cache hit - same answer, same score, not re-judged.")
+    temperature: float | None = Field(
+        None, description="Phase 127 - genai-rag only; null for single/multi-agentic-rag, which hardcode temperature=0, not user-configurable."
+    )
 
 
 class RagQueryResponse(BaseModel):
