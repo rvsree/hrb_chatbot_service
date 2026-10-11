@@ -9,6 +9,7 @@ See docs/dev-reference/genai_chat_workflow.md for the original design."""
 
 import asyncio
 import time
+from datetime import UTC, datetime
 
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 
@@ -127,8 +128,11 @@ async def run_agent(question: str, file_texts: dict[str, str], file_bytes: dict[
     uploaded bytes} - the same files, kept in two forms since ReadDocument
     needs text and SendEmailWithAnswer's attach_files (Phase 152) needs the
     original bytes to attach exactly as uploaded. Returns
-    {answer, files_used, web_searches, email_sent_to, model_used,
-    iterations, llm_call_count, token_usage, latency_ms}. Still never
+    {answer, files_used, web_searches, email_sent_to, email_evidence,
+    model_used, iterations, llm_call_count, token_usage, latency_ms}.
+    email_evidence (Phase 161) is set whenever SendEmailWithAnswer was
+    called, sent or failed - None only if it was never called at all.
+    Still never
     touches a vector store or MCP - ReadDocument only ever reads from
     file_texts, nothing else exists for it to call. SearchWeb (Phase 145)
     is the one deliberate exception to "no external access", reusing
@@ -151,6 +155,9 @@ async def run_agent(question: str, file_texts: dict[str, str], file_bytes: dict[
     files_used: list[str] = []
     web_searches: list[str] = []
     email_sent_to: str | None = None
+    # Phase 161 - real evidence of the SendEmailWithAnswer attempt, sent or
+    # failed, for the Explainability view - None only if the tool was never called.
+    email_evidence: dict | None = None
     # Phase 157: a response that both writes real content AND calls a tool
     # (OpenAI allows both on one turn) only has that content appended to
     # message history here, not returned - only the *next* turn's response
@@ -192,6 +199,7 @@ async def run_agent(question: str, file_texts: dict[str, str], file_bytes: dict[
                 "files_used": files_used,
                 "web_searches": web_searches,
                 "email_sent_to": email_sent_to,
+                "email_evidence": email_evidence,
                 "model_used": getattr(llm, "model_name", None) or "unknown",
                 "iterations": i + 1,
                 "llm_call_count": llm_call_count,
@@ -239,12 +247,24 @@ async def run_agent(question: str, file_texts: dict[str, str], file_bytes: dict[
                 # the ones ReadDocument happened to be called on - "attach
                 # the file(s)" means what was uploaded, not what was read.
                 attachments = list(file_bytes.items()) if tool_args.get("attach_files") else None
+                # Phase 161: captured right before the send, since the attempt
+                # itself - not whatever time check_output()/send_email() take -
+                # is what "when was this sent" should reflect.
+                sent_at = datetime.now(UTC).isoformat()
                 result = send_email(
                     recipient, subject, safe_answer_text, attachments=attachments, html_body=safe_html_body
                 )
                 tool_output = result["message"]
                 if result["sent"]:
                     email_sent_to = recipient
+                email_evidence = {
+                    "recipient_email": recipient,
+                    "subject": subject,
+                    "sent": result["sent"],
+                    "message": result["message"],
+                    "attached_files": [filename for filename, _ in attachments] if attachments else [],
+                    "sent_at": sent_at,
+                }
             else:
                 tool_output = f"Error: unknown tool {tool_name!r}"
 
@@ -256,6 +276,7 @@ async def run_agent(question: str, file_texts: dict[str, str], file_bytes: dict[
         "files_used": files_used,
         "web_searches": web_searches,
         "email_sent_to": email_sent_to,
+        "email_evidence": email_evidence,
         "model_used": getattr(llm, "model_name", None) or "unknown",
         "iterations": DEFAULT_MAX_ITERATIONS,
         "llm_call_count": llm_call_count,

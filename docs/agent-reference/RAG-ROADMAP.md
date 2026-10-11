@@ -12808,3 +12808,134 @@ Explicitly deferred to a later, separate wave - not part of the above:
       (`planner`/`reviewer`, same real-content shape). A repeat of the
       same single-agentic-rag query came back `served_from_cache: true`
       with `llm_context: null`, confirming the cache-hit path.
+
+- [x] **Phase 161 — User-reported: GenAI Chat Workflow emails look silently
+  ignored; surface real send evidence in Explainability.**
+  - **Context**: user reported "Summarize Accenture offer concisely. also
+    send email with the details to given id" not emailing anything in
+    AWS, describing it as the agent "not able to understand" the email
+    part of the request. Investigated directly, not assumed:
+    - Reproduced the exact scenario against production
+      (`adhoc-document-chat/query`) and pulled live CloudWatch logs for
+      both the user's own real attempts (19:44-19:50 UTC the same day)
+      and this reproduction. `SendEmailWithAnswer` was called correctly
+      every single time, with a real recipient/subject/body - the
+      agent's own intent recognition is not the problem.
+    - `aws apprunner describe-service` on the live `hrb-chatbot` service
+      confirms `SES_SENDER_EMAIL` has never been set in production -
+      `ses_client.send_email()` hits that check and returns
+      `{"sent": False, "message": "SES_SENDER_EMAIL is not configured."}`
+      immediately, before ever entering its own `log_backend_call()`
+      block - explaining why there's no SES log line at all for any of
+      these attempts. This was already flagged to the user as a pending,
+      awaiting-go-ahead config decision before this phase; still
+      unresolved, not fixed here (see note below).
+    - A separate, real code bug in `adhoc_document_agent.py`'s
+      `run_agent()`: whenever `SendEmailWithAnswer` is called, the
+      returned chat answer is unconditionally overwritten with that tool
+      call's own `answer` argument (written by the model assuming
+      success) via `last_emailed_answer_text` - regardless of whether
+      `send_email()` actually succeeded. Any later turn where the model
+      acknowledges a failure gets silently discarded. Combined with the
+      missing config above, this is why the user sees a clean summary
+      with zero mention of email at all - not a failure to understand,
+      a failure to surface.
+    - **User's immediate ask, this phase's actual scope**: regardless of
+      the SES config decision (separate, still pending), capture
+      structured evidence of every `SendEmailWithAnswer` attempt - sent
+      or failed - and show it in the Chat GenAI Workflow's own
+      Explainability view, in a new expandable/collapsible group, not
+      folded into the existing plain success-only "Email" `<div>`.
+  - **Spec:**
+    - **`models/adhoc_chat.py`**: new `EmailEvidence` model -
+      `recipient_email: str`, `subject: str`, `sent: bool`,
+      `message: str` (SES's own success/failure text, as returned by
+      `send_email()` - never re-derived), `attached_files: list[str]`
+      (empty when `attach_files` wasn't set), `sent_at: str` (UTC
+      ISO-8601, captured right before calling `send_email()` - matches
+      this project's existing `datetime.now(UTC).isoformat()`
+      convention, e.g. `vector_indexer.py`). Add
+      `email_evidence: EmailEvidence | None` to
+      `AdhocDocumentChatResponse` - `None` only when
+      `SendEmailWithAnswer` was never called this turn at all.
+    - **`ai/agents/workflow_agents/adhoc_document_agent.py`**: inside
+      `run_agent()`'s `SendEmailWithAnswer` branch, build an
+      `email_evidence` dict (recipient/subject/`result["sent"]`/
+      `result["message"]`/attached filenames/timestamp) alongside the
+      existing `email_sent_to` (unchanged - still success-only, kept for
+      backward compatibility with the plain chat-answer text). Thread it
+      through all 3 of `run_agent()`'s return points (no-tool-call
+      early return, max-iterations fallback, and the implicit case where
+      the loop never got there) as `"email_evidence": email_evidence`
+      (`None` by default). Does NOT touch `last_emailed_answer_text` or
+      the SES config gap - both flagged above, explicitly out of scope
+      for this phase; this phase only adds visibility, it doesn't change
+      what gets sent or when.
+    - **`api/adhoc_chat/adhoc_document_chat.py`**: wire
+      `result.get("email_evidence")` into
+      `AdhocDocumentChatResponse(...)`.
+    - **Frontend (`hrb_chatbot_ui`)**:
+      - `src/types.ts`: new `EmailEvidence` interface mirroring the
+        backend model; add `emailEvidence: EmailEvidence | null` to
+        `ChatMessage.adhoc`.
+      - `src/pages/ChatPage.tsx`: capture `response.email_evidence` into
+        the assistant message's `adhoc` metadata (camelCase, same
+        mapping every other adhoc field already gets).
+      - `src/components/ExplainabilityModal.tsx`: replace the current
+        plain `{adhoc.emailSentTo && (<div className="panel
+        panel-success">...)}` block in `AdhocExplainability` with a new
+        `CollapsibleSection` (the same component already defined in this
+        file and used by the main Explainability view's "Metrics"/"LLM
+        Context"/"Citations" sections) titled "Email", rendered whenever
+        `adhoc.emailEvidence` is non-null (sent OR failed - the whole
+        point is making a failed attempt visible, not just a successful
+        one). Shows recipient, subject, a sent/failed badge, the SES
+        message text, attached files (if any), and the timestamp.
+        Default open on a failed attempt (so the user doesn't have to
+        know to expand it to see why nothing arrived); default closed on
+        success (same low-friction default the rest of this view uses
+        for non-headline sections).
+  - **Verification plan:** backend unit tests for `adhoc_document_agent.py`
+    covering `email_evidence` on a successful send, a failed send (SES
+    not configured), and the no-email-requested case (`None`). Route
+    test confirming `AdhocDocumentChatResponse.email_evidence` round-trips
+    correctly. Full suite green. Frontend: manual check in a local dev
+    build that the new collapsible section renders for both a successful
+    and a failed send, collapsed/expanded as designed.
+  - **Built and verified, NOT pushed or deployed** (standing instruction -
+    local review first): `models/adhoc_chat.py` gained `EmailEvidence`
+    and the `email_evidence` field; `adhoc_document_agent.py` captures it
+    (recipient/subject/sent/message/attached_files/UTC ISO `sent_at`) in
+    the `SendEmailWithAnswer` branch and threads it through all 3 return
+    points; `api/adhoc_chat/adhoc_document_chat.py` wires it into the
+    response. Frontend: `types.ts` gained the `EmailEvidence` interface
+    and `ChatMessage.adhoc.emailEvidence`; `ChatPage.tsx` captures
+    `response.email_evidence`; `ExplainabilityModal.tsx`'s
+    `AdhocExplainability` replaced the old plain success-only `<div>`
+    with a `CollapsibleSection` ("Email" + a sent/failed badge),
+    rendered whenever `emailEvidence` is non-null, default-open on a
+    failure and default-closed on success, showing recipient, subject,
+    timestamp, attachments, and the real status message.
+    - **Tests**: 2 new assertions on the existing success/failure
+      `adhoc_document_agent.py` tests plus a new no-email-requested test
+      and an attached-files evidence assertion; 3 new route tests in
+      `test_adhoc_document_chat.py` (success, failure, none-requested).
+      Full suite: 533 passed, 0 failed (4 net new tests). Frontend:
+      `tsc --noEmit` clean, `npm run lint` shows only pre-existing
+      warnings unrelated to these files, `npm run build` succeeds.
+    - **Live-verified** against a local backend with real SES calls (not
+      mocked): a request to a verified recipient
+      (`rv.sreedharan@gmail.com`, already verified in SES from earlier
+      setup) returned `email_evidence.sent: true` with a real SES
+      confirmation message, and the email actually arrived. A second
+      request to an unverified address returned
+      `email_evidence.sent: false` with SES's own real rejection text
+      ("Email address is not verified... in region US-EAST-1:
+      some-unverified-test-address@example.com") - concrete proof the
+      evidence capture surfaces a real SES failure end to end, not just
+      a happy-path unit test. This also independently confirms the
+      still-separate, still-pending finding from this phase's own
+      investigation: even once `SES_SENDER_EMAIL` is configured in
+      production, the account's SES sandbox mode means only pre-verified
+      recipients can actually receive mail - a distinct, still-open
+      decision from the config gap itself.
