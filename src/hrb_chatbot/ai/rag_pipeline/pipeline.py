@@ -21,13 +21,15 @@ from src.hrb_chatbot.common.rag_query_params import RagQueryParams
 
 logger = get_logger("rag_pipeline.pipeline")
 
-# Phase 140: a decomposed sub-question that correctly used live MCP data
-# must not have that result cached - the top-level try_route_to_mcp() short
-# -circuit above is already safe (deterministic, never cached), but a
-# multi-sub-question query's MERGED result was being cached unconditionally
-# even when one sub-question's answer came from here. snake_case to match
-# try_route_to_mcp()'s own tool_name convention (mcp_tools/__init__.py),
-# distinct from orchestration_agent.py's PascalCase LIVE_DATA_TOOLS.
+# Phase 140: a decomposed sub-question that used live MCP data must not
+# have the overall result cached - a multi-sub-question query's MERGED
+# result was being cached unconditionally even when one sub-question's
+# answer came from here (Phase 151 removed the separate top-level MCP
+# shortcut this comment used to also cover; every MCP call now goes
+# through this same per-sub-question path, so this is the only guard
+# needed). snake_case to match try_route_to_mcp()'s own tool_name
+# convention (mcp_tools/__init__.py), distinct from orchestration_agent.py's
+# PascalCase LIVE_DATA_TOOLS.
 LIVE_DATA_MCP_TOOLS = {"get_leave_balance", "get_leave_history"}
 
 
@@ -140,54 +142,29 @@ async def _answer_sub_question(
 
 
 async def answer_query(params: RagQueryParams) -> dict:
-    """Run the full pipeline: MCP fast-path (own routing, not a shared-core
-    concern), else guardrail/retrieve/generate/guardrail/save via the
-    Phase 98 shared core - GuardrailBlockedError becomes a 422 upstream."""
+    """Run the full pipeline: guardrail/decompose/(MCP-route-or-retrieve+
+    generate per sub-question)/merge/guardrail/save via the Phase 98
+    shared core - GuardrailBlockedError becomes a 422 upstream.
+
+    Phase 151: there used to be a second, top-level MCP fast-path here,
+    checked against the whole undecomposed query before decompose() ever
+    ran - it matched on a leave-balance/leave-history keyword anywhere in
+    the query and returned that MCP call's raw result as the ENTIRE
+    answer, silently discarding the rest of a compound question (e.g.
+    "look up my PTO balance, and also tell me about caregiver leave"
+    answered only the PTO half). Removed - decompose() already returns a
+    single-item list unchanged for a genuinely single-part question, so a
+    plain "what's my PTO balance?" still reaches _answer_sub_question()'s
+    own try_route_to_mcp() call below and gets the identical raw-MCP-data
+    answer, at the cost of one added decompose() LLM call it didn't
+    previously make. A compound question now gets decomposed first, so
+    each part is routed - MCP or RAG - on its own merits."""
     started_at = time.perf_counter()
-    # The MCP fast-path needs the checked query before deciding whether to
-    # short-circuit at all - checked once here, then handed to the shared
-    # core below as pre_checked_query so it isn't checked a second time.
     checked_query = await check_input(params.query)
 
-    # Resolved up front so only the MCP path (which never calls the shared
-    # core) can echo it - the normal RAG path below gets its own
-    # resolution from run_guarded_pipeline().
     resolved_conversation_id = None
     if params.enable_conversation_memory:
         resolved_conversation_id = params.conversation_id or conversation_memory.new_conversation_id()
-
-    mcp_result = await try_route_to_mcp(checked_query, params.employee_id)
-    if mcp_result is not None:
-        mcp_result["conversation_id"] = resolved_conversation_id
-        mcp_result["served_from_cache"] = False
-        mcp_result["llm_call_count"] = 0
-        mcp_result["token_usage"] = None
-        mcp_result["latency_ms"] = {
-            "total": _elapsed_ms(started_at), "retrieval": None, "generation": None, "eval": None
-        }
-        mcp_result["eval_scores"] = None
-        mcp_result["temperature"] = None  # Phase 127 - no LLM call happened, nothing to report
-        mcp_result["llm_context"] = {
-            "turns": [],
-            "mcp_tool_calls": [
-                {
-                    "tool_name": mcp_result["routed_to"],
-                    "arguments": mcp_result["mcp_arguments"],
-                    "raw_result": mcp_result["mcp_raw_result"],
-                }
-            ],
-        }
-        # Phase 126 - one-entry tools_used, same shape single/multi-agentic-rag already use.
-        mcp_result["tools_used"] = [
-            {
-                "tool_name": mcp_result["routed_to"],
-                "tool_input": checked_query,
-                "tool_type": classify_tool(mcp_result["routed_to"]),
-                "latency_ms": mcp_result.get("tool_latency_ms"),
-                "success": True,  # try_route_to_mcp() already returned None on failure, falling through to RAG instead
-            }
-        ]
-        return mcp_result
 
     resolved_vector_db = get_active_vector_db(params.vector_db)
     resolved_search_strategy = params.search_strategy or read_setting(

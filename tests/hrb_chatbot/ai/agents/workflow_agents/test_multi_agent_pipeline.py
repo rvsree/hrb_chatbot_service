@@ -25,6 +25,18 @@ def _fake_cache_and_eval_judges(monkeypatch):
 
     monkeypatch.setattr(multi_agent_pipeline.reviewer_agent, "generate_follow_ups", _fake_generate_follow_ups)
 
+    # Phase 150: review() always calls a real LLM now (even for 1 result -
+    # see reviewer_agent.py), so every test needs it faked, not just the
+    # ones that happen to check result["answer"]'s exact text. Default
+    # behavior joins agent results, matching the old (buggy) 1-result
+    # shortcut's output exactly, so tests that don't care about synthesis
+    # keep working unchanged; a test that wants real merge behavior
+    # overrides this locally, same as several already do.
+    async def _default_review(query, agent_results):
+        return " ".join(r["result"] for r in agent_results)
+
+    monkeypatch.setattr(multi_agent_pipeline.reviewer_agent, "review", _default_review)
+
     def _fake_evaluate_groundedness(answer, context_texts):
         # Phase 120 regression guard - a tuple here means some domain agent's
         # "result" wasn't unpacked before joining into agent_result_texts.
@@ -56,7 +68,9 @@ def _patch_conversation_store(monkeypatch, conversation_store=None):
     return gateway
 
 
-async def test_single_task_query_runs_one_domain_agent_and_skips_the_reviewer_llm(monkeypatch):
+async def test_single_task_query_runs_one_domain_agent_and_still_goes_through_review(monkeypatch):
+    # Phase 150: a single domain agent no longer skips the Reviewer's LLM -
+    # the fixture's default fake just passes the result through unchanged.
     _patch_guardrails(monkeypatch)
 
     async def _fake_plan(query):

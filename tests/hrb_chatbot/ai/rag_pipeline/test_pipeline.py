@@ -249,7 +249,14 @@ async def test_enabling_conversation_memory_generates_and_saves_a_turn(monkeypat
     assert [m.content for m in saved] == ["test question", "fake answer"]
 
 
-async def test_mcp_routed_answer_echoes_conversation_id_but_does_not_save_a_turn(monkeypatch):
+async def test_mcp_routed_answer_saves_a_turn_like_any_other_answer(monkeypatch):
+    # Phase 151: a separate top-level MCP shortcut used to bypass
+    # run_guarded_pipeline() entirely (and so never called
+    # conversation_memory.save_turn() for an MCP-routed answer) - removed
+    # because it also silently dropped the rest of a compound query. MCP
+    # routing now always goes through _answer_sub_question() -> the shared
+    # core, so it saves a turn like every other answer, matching how
+    # single/multi-agentic-rag already save MCP-routed answers too.
     _patch_conversation_store(monkeypatch)
 
     async def _fake_try_route_to_mcp(query, employee_id):
@@ -266,7 +273,8 @@ async def test_mcp_routed_answer_echoes_conversation_id_but_does_not_save_a_turn
     )
 
     assert result["conversation_id"] is not None
-    assert await conversation_memory.load_history(result["conversation_id"]) == []
+    saved = await conversation_memory.load_history(result["conversation_id"])
+    assert [m.content for m in saved] == ["What's my PTO balance?", "MCP answer"]
 
 
 async def test_an_existing_conversation_id_is_passed_to_generate_answer_as_chat_history(monkeypatch):

@@ -19,6 +19,10 @@ class AdhocDocumentChatResponse(BaseModel):
     question: str
     answer: str
     files_used: list[str] = Field(..., description="Which attached files the agent actually read via ReadDocument.")
+    web_searches: list[str] = Field(
+        default_factory=list,
+        description="Phase 145 - which queries the agent actually ran via SearchWeb, reusing multi-agentic-rag's Tavily integration. Empty when the question didn't need the web.",
+    )
     email_sent_to: str | None = Field(None, description="Set only if SendEmailWithAnswer actually succeeded.")
     model_used: str
     iterations: int

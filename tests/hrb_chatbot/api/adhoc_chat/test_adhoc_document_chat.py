@@ -22,10 +22,11 @@ def _patch_guardrails_and_agent(monkeypatch, agent_result=None):
     async def _passthrough_check_output(query, answer):
         return answer
 
-    async def _fake_run_agent(question, file_texts):
+    async def _fake_run_agent(question, file_texts, file_bytes):
         return agent_result or {
             "answer": "The answer.",
             "files_used": list(file_texts.keys()),
+            "web_searches": [],
             "email_sent_to": None,
             "model_used": "gpt-4.1-mini-fake",
             "iterations": 1,
@@ -141,6 +142,7 @@ def test_email_sent_to_is_surfaced_when_the_agent_actually_sent_one(monkeypatch)
         agent_result={
             "answer": "Done.",
             "files_used": ["a.csv"],
+            "web_searches": [],
             "email_sent_to": "someone@example.com",
             "model_used": "gpt-4.1-mini-fake",
             "iterations": 2,

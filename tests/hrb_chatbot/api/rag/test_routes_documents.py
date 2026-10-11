@@ -923,3 +923,74 @@ def test_rechunk_downloads_from_s3_first_when_the_document_was_uploaded_that_way
     assert captured["file_path"].startswith("s3://")
     assert captured["document_id"] == document_id
     assert captured["filename"] == "s3-doc.pdf"
+
+
+# Phase 156 - chunk_size/chunk_overlap validation bounds, user-agreed.
+
+
+def test_rechunk_rejects_a_chunk_size_below_the_minimum():
+    upload_response = client.post(
+        "/v1/genai-rag/ingest-document/documents", files=_pdf_file(), data=_payload()
+    )
+    document_id = upload_response.json()["results"][0]["document_id"]
+
+    response = client.post(
+        f"/v1/genai-rag/ingest-document/documents/{document_id}/rechunk",
+        json={
+            "user_profile": HR_SUPPORT_USER_PROFILE,
+            "chunk_info": {"chunking_strategy": "fixed", "chunk_size": 100},
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_rechunk_rejects_a_chunk_size_above_the_maximum():
+    upload_response = client.post(
+        "/v1/genai-rag/ingest-document/documents", files=_pdf_file(), data=_payload()
+    )
+    document_id = upload_response.json()["results"][0]["document_id"]
+
+    response = client.post(
+        f"/v1/genai-rag/ingest-document/documents/{document_id}/rechunk",
+        json={
+            "user_profile": HR_SUPPORT_USER_PROFILE,
+            "chunk_info": {"chunking_strategy": "fixed", "chunk_size": 5000},
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_rechunk_rejects_an_overlap_over_half_the_chunk_size():
+    upload_response = client.post(
+        "/v1/genai-rag/ingest-document/documents", files=_pdf_file(), data=_payload()
+    )
+    document_id = upload_response.json()["results"][0]["document_id"]
+
+    response = client.post(
+        f"/v1/genai-rag/ingest-document/documents/{document_id}/rechunk",
+        json={
+            "user_profile": HR_SUPPORT_USER_PROFILE,
+            "chunk_info": {"chunking_strategy": "fixed", "chunk_size": 1000, "chunk_overlap": 600},
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_rechunk_accepts_an_overlap_at_exactly_half_the_chunk_size():
+    upload_response = client.post(
+        "/v1/genai-rag/ingest-document/documents", files=_pdf_file(), data=_payload()
+    )
+    document_id = upload_response.json()["results"][0]["document_id"]
+
+    response = client.post(
+        f"/v1/genai-rag/ingest-document/documents/{document_id}/rechunk",
+        json={
+            "user_profile": HR_SUPPORT_USER_PROFILE,
+            "chunk_info": {"chunking_strategy": "fixed", "chunk_size": 1000, "chunk_overlap": 500},
+        },
+    )
+
+    assert response.status_code == 200

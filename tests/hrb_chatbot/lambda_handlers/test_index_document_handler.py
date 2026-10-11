@@ -183,6 +183,39 @@ def test_a_batch_of_several_records_runs_on_one_shared_event_loop(monkeypatch):
     assert result == {"batchItemFailures": []}
 
 
+def test_a_batch_of_several_records_actually_processes_concurrently(monkeypatch):
+    """Phase 145 - the real, user-reported symptom: documents in one batch
+    used to process strictly one at a time (a plain for loop, each record
+    awaited before the next started). Proves real concurrency, not just
+    that the old sequential test still passes: each fake _index_one sleeps
+    briefly and records when it started: if they're concurrent, all 3
+    start within a narrow window; if still sequential, each one's start
+    time would trail the previous one's full sleep duration."""
+    start_times = []
+
+    async def _index_document(document_id, file_path, **kwargs):
+        start_times.append(asyncio.get_event_loop().time())
+        await asyncio.sleep(0.2)
+        return {"action": "insert", "chunks_indexed": 1, "chunks_removed": 0}
+
+    _wire_fakes(monkeypatch, index_document=_index_document)
+    event = {
+        "Records": [
+            _s3_event_sqs_record("hrb-chatbot-kb-uploads", "doc-1/a.pdf", message_id="msg-1"),
+            _s3_event_sqs_record("hrb-chatbot-kb-uploads", "doc-2/b.pdf", message_id="msg-2"),
+            _s3_event_sqs_record("hrb-chatbot-kb-uploads", "doc-3/c.pdf", message_id="msg-3"),
+        ]
+    }
+
+    index_document_handler.lambda_handler(event, context=None)
+
+    assert len(start_times) == 3
+    # Sequential would spread these ~0.2s apart each (~0.4s total spread);
+    # concurrent keeps them within a tight window since all 3 start before
+    # any of them finishes sleeping.
+    assert max(start_times) - min(start_times) < 0.1
+
+
 # --- Phase 133: the JSON log formatter was silently dropping real tracebacks ---
 
 

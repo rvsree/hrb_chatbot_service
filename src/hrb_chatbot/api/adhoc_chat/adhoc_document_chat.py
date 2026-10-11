@@ -61,6 +61,10 @@ async def adhoc_document_chat(
         return json_error(422, validation_error, code=error_codes.INVALID_FILE_TYPE)
 
     file_texts: dict[str, str] = {}
+    # Phase 152: kept alongside file_texts so SendEmailWithAnswer's
+    # attach_files can send the file exactly as uploaded, not a re-encoding
+    # of the extracted text.
+    file_bytes: dict[str, bytes] = {}
     for file in files:
         content = await file.read()
         if len(content) > MAX_FILE_SIZE_BYTES:
@@ -86,6 +90,7 @@ async def adhoc_document_chat(
                 f"{file.filename!r} was rejected by a safety check: {error}",
                 code=error_codes.INPUT_GUARDRAIL_BLOCKED,
             )
+        file_bytes[file.filename] = content
 
     try:
         checked_question = await check_input(question)
@@ -100,7 +105,7 @@ async def adhoc_document_chat(
         agent_question = f"{checked_question}\n\n(Please email the answer to {recipient_email}.)"
 
     try:
-        result = await adhoc_document_agent.run_agent(agent_question, file_texts)
+        result = await adhoc_document_agent.run_agent(agent_question, file_texts, file_bytes)
     except Exception as error:
         logger.error("Adhoc document chat failed for %r: %s: %s", question, type(error).__name__, error)
         return json_error(500, "The question could not be answered. Please try again.", code=error_codes.QUERY_FAILED)
@@ -111,6 +116,7 @@ async def adhoc_document_chat(
         question=question,
         answer=result["answer"],
         files_used=result["files_used"],
+        web_searches=result["web_searches"],
         email_sent_to=result["email_sent_to"],
         model_used=result["model_used"],
         iterations=result["iterations"],

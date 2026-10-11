@@ -1,6 +1,7 @@
 """Writes chunks into a vector index built with LlamaIndex's VectorStoreIndex (see RAG-ROADMAP.md's Phase 44 entry)."""
 
 import json
+from contextlib import nullcontext
 from datetime import UTC, datetime
 
 from llama_index.core import VectorStoreIndex
@@ -105,9 +106,22 @@ def _write_new_vector_chunks(
             ids=storage_chunk_ids(resolved_vector_db, document_id, old_chunk_ids),
         )
 
-    llama_index = _llama_vector_index(vector_store_client)
-    nodes = _build_nodes(document_id, new_chunk_ids, chunks, embeddings, metadatas)
-    llama_index.insert_nodes(nodes)
+    # Phase 145: this builds the LlamaIndex wrapper directly from the raw
+    # chroma collection (_llama_vector_index -> get_collection()), then
+    # writes to it via insert_nodes() - entirely outside ChromaDBClient's
+    # own methods, so its internal collection_lock never covers this call
+    # on its own. Chroma's PersistentClient isn't safe for concurrent
+    # access from multiple threads (confirmed - see chroma_client.py's own
+    # note); acquire the same lock explicitly here so concurrent document
+    # indexing (Phase 145) can't corrupt the local index the way Phase
+    # 139's concurrent delete already did once. Pinecone has no such lock
+    # (a real concurrent-safe remote service) - nullcontext() is then a
+    # true no-op, not an unnecessary serialization point.
+    lock = getattr(vector_store_client, "collection_lock", None) or nullcontext()
+    with lock:
+        llama_index = _llama_vector_index(vector_store_client)
+        nodes = _build_nodes(document_id, new_chunk_ids, chunks, embeddings, metadatas)
+        llama_index.insert_nodes(nodes)
 
 
 async def _record_index_success(

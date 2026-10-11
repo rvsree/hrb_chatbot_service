@@ -11,6 +11,7 @@ from src.hrb_chatbot.ai.doc_processing.chunking.text_chunker import (
     DEFAULT_CHUNK_SIZE,
     LARGE_DOCUMENT_CHUNK_SIZE,
     LARGE_DOCUMENT_MIN_LENGTH,
+    _split_oversized_chunks,
     chunk_by_document_structure,
     chunk_fixed,
     chunk_html,
@@ -110,6 +111,44 @@ def test_chunk_html_splits_on_header_tags():
 
     assert len(chunks) >= 1
     assert any("Intro text" in chunk for chunk in chunks)
+
+
+# Phase 156 - markdown/html/none now all respect chunk_size as a safety cap
+# on top of their own primary splitting, the same way "semantic" already did
+# from Phase 149 - previously they ignored it entirely.
+
+
+def test_chunk_none_caps_an_oversized_document_at_chunk_size():
+    text = "word " * 2000  # far over any reasonable cap
+
+    chunks = chunk_none(text, chunk_size=500)
+
+    assert len(chunks) > 1
+    assert all(len(chunk) <= 500 for chunk in chunks)
+
+
+def test_chunk_none_still_returns_one_chunk_when_under_chunk_size():
+    text = "Some content that would normally be split, but isn't here."
+
+    assert chunk_none(text, chunk_size=500) == [text]
+
+
+def test_chunk_markdown_caps_an_oversized_section_at_chunk_size():
+    text = "# Section One\n" + "word " * 2000
+
+    chunks = chunk_markdown(text, chunk_size=500)
+
+    assert len(chunks) > 1
+    assert all(len(chunk) <= 500 for chunk in chunks)
+
+
+def test_chunk_html_caps_an_oversized_section_at_chunk_size():
+    text = "<h1>Title</h1><p>" + "word " * 2000 + "</p>"
+
+    chunks = chunk_html(text, chunk_size=500)
+
+    assert len(chunks) > 1
+    assert all(len(chunk) <= 500 for chunk in chunks)
 
 
 def test_decide_chunking_strategy_picks_markdown_for_markdown_headers():
@@ -285,3 +324,35 @@ def test_chunk_text_with_sections_keeps_table_blocks_untagged():
 
     table_index = next(i for i, chunk in enumerate(chunks) if "[TABLE]" in chunk)
     assert section_ids[table_index] is None
+
+
+# Phase 149 - _split_oversized_chunks() is chunk_semantic()'s size-cap safety
+# net, extracted as plain logic (strings in, strings out) so it's testable
+# without a real embedding call, unlike SemanticChunker itself.
+
+
+def test_split_oversized_chunks_leaves_small_chunks_untouched():
+    chunks = ["a short chunk", "another short one"]
+
+    result = _split_oversized_chunks(chunks, max_chunk_size=1500)
+
+    assert result == chunks
+
+
+def test_split_oversized_chunks_resplits_anything_over_the_cap():
+    oversized = "word " * 2000  # far over any reasonable cap
+
+    result = _split_oversized_chunks([oversized], max_chunk_size=1500)
+
+    assert len(result) > 1
+    assert all(len(chunk) <= 1500 for chunk in result)
+
+
+def test_split_oversized_chunks_preserves_small_chunks_in_a_mixed_list():
+    small = "a short chunk"
+    oversized = "word " * 2000
+
+    result = _split_oversized_chunks([small, oversized], max_chunk_size=1500)
+
+    assert result[0] == small
+    assert len(result) > 2

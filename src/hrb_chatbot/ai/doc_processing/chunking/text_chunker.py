@@ -89,39 +89,72 @@ def chunk_recursive(
     return splitter.split_text(text)
 
 
-def chunk_semantic(text: str) -> list[str]:
+def _split_oversized_chunks(chunks: list[str], max_chunk_size: int, chunk_overlap: int = DEFAULT_CHUNK_OVERLAP) -> list[str]:
+    """Phase 149, extended Phase 156 - a safety net, not a replacement for a
+    strategy's own primary splitting logic: re-splits any chunk over
+    max_chunk_size with the recursive splitter. Originally built for
+    SemanticChunker (no size ceiling of its own - a topically-uniform
+    document could collapse into two 15K+ character chunks, diluting their
+    embeddings); Phase 156 reuses it as the same safety cap for
+    markdown/html/none too, so every strategy now respects a caller-given
+    chunk_size, not just the 3 that take it as a direct split target."""
+    result = []
+    for chunk in chunks:
+        if len(chunk) > max_chunk_size:
+            result.extend(chunk_recursive(chunk, chunk_size=max_chunk_size, chunk_overlap=chunk_overlap))
+        else:
+            result.append(chunk)
+    return result
+
+
+def chunk_semantic(text: str, chunk_size: int = DEFAULT_CHUNK_SIZE, chunk_overlap: int = DEFAULT_CHUNK_OVERLAP) -> list[str]:
     # Embeds each sentence and splits where meaning shifts, not at a fixed
     # size - higher quality, but costs one embedding call per sentence.
+    # Phase 149/156: oversized results get capped at chunk_size - see
+    # _split_oversized_chunks(). chunk_size only ever shrinks a chunk that's
+    # already too large; it never forces smaller natural topic boundaries apart.
     api_key = read_setting(None, "OPENAI_API_KEY")
     base_url = read_url_setting(None, "OPENAI_BASE_URL", "https://api.openai.com/v1")
     embedding_model = read_setting(None, "OPENAI_EMBED_MODEL", "text-embedding-3-small")
     embeddings = OpenAIEmbeddings(api_key=api_key, base_url=base_url, model=embedding_model)
     splitter = SemanticChunker(embeddings, breakpoint_threshold_type="standard_deviation")
-    return splitter.split_text(text)
+    raw_chunks = splitter.split_text(text)
+    return _split_oversized_chunks(raw_chunks, chunk_size, chunk_overlap)
 
 
-def chunk_markdown(text: str) -> list[str]:
+def chunk_markdown(text: str, chunk_size: int = DEFAULT_CHUNK_SIZE, chunk_overlap: int = DEFAULT_CHUNK_OVERLAP) -> list[str]:
     # Splits on markdown headers (#, ##, ###) so each chunk stays under one
-    # heading - for documentation/wikis, not plain PDF-extracted text.
+    # heading - for documentation/wikis, not plain PDF-extracted text (which
+    # has no markdown headers at all, so this usually yields one big chunk -
+    # Phase 156's chunk_size cap below is what keeps that case from being
+    # the same oversized-chunk problem Phase 149 found in "semantic").
     splitter = MarkdownHeaderTextSplitter(
         headers_to_split_on=[("#", "Header 1"), ("##", "Header 2"), ("###", "Header 3")]
     )
     documents = splitter.split_text(text)
-    return [document.page_content for document in documents if document.page_content.strip()]
+    chunks = [document.page_content for document in documents if document.page_content.strip()]
+    return _split_oversized_chunks(chunks, chunk_size, chunk_overlap)
 
 
-def chunk_html(text: str) -> list[str]:
-    # Same idea as chunk_markdown, but for <h1>/<h2>/<h3> tags instead.
+def chunk_html(text: str, chunk_size: int = DEFAULT_CHUNK_SIZE, chunk_overlap: int = DEFAULT_CHUNK_OVERLAP) -> list[str]:
+    # Same idea as chunk_markdown, but for <h1>/<h2>/<h3> tags instead -
+    # same chunk_size cap, same reasoning (Phase 156).
     splitter = HTMLHeaderTextSplitter(headers_to_split_on=[("h1", "Header 1"), ("h2", "Header 2"), ("h3", "Header 3")])
     documents = splitter.split_text(text)
-    return [document.page_content for document in documents if document.page_content.strip()]
+    chunks = [document.page_content for document in documents if document.page_content.strip()]
+    return _split_oversized_chunks(chunks, chunk_size, chunk_overlap)
 
 
-def chunk_none(text: str) -> list[str]:
-    # No splitting at all - the whole document is one chunk. Fine for short
-    # content where a boundary split would only lose context for no benefit.
+def chunk_none(text: str, chunk_size: int = DEFAULT_CHUNK_SIZE, chunk_overlap: int = DEFAULT_CHUNK_OVERLAP) -> list[str]:
+    # No deliberate splitting - fine for short content where a boundary
+    # split would only lose context for no benefit. Phase 156: still capped
+    # at chunk_size as a safety net for a document that turns out too large
+    # for one chunk - without this, a big document under "none" hit the
+    # exact same uncapped-giant-chunk problem Phase 149 fixed for "semantic".
     stripped = text.strip()
-    return [stripped] if stripped else []
+    if not stripped:
+        return []
+    return _split_oversized_chunks([stripped], chunk_size, chunk_overlap)
 
 
 def _slugify(heading_text: str) -> str:
@@ -297,11 +330,13 @@ def chunk_text(
     chunk_function = CHUNKING_STRATEGIES[strategy]
     if not text_without_tables:
         prose_chunks = []
-    elif strategy in ("fixed", "recursive", "document_structure"):
+    else:
+        # Phase 156: every strategy now takes chunk_size/chunk_overlap (as a
+        # direct split target for fixed/recursive/document_structure, or as
+        # a safety cap for semantic/markdown/html/none) - no more special
+        # case for which 3 strategies "support" it.
         resolved_chunk_size = chunk_size if chunk_size is not None else decide_chunk_size(text)
         prose_chunks = chunk_function(text_without_tables, chunk_size=resolved_chunk_size, chunk_overlap=chunk_overlap)
-    else:
-        prose_chunks = chunk_function(text_without_tables)
 
     chunks = prose_chunks + table_blocks
 
