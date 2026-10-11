@@ -9,8 +9,13 @@ live the same way."""
 
 # U+2066 LEFT-TO-RIGHT ISOLATE / U+2069 POP DIRECTIONAL ISOLATE - standard,
 # legitimate Unicode bidi control characters, invisible in LTR rendering.
-_LRI = "⁦"
-_PDI = "⁩"
+# nosec B613 - bandit's "trojansource" check flags any bidi control char as
+# a possible code-disguising attack; this is source TEXT data processed at
+# runtime (never executed as code), using the exact same mechanism
+# deliberately and for a defensive purpose documented above - a real false
+# positive, not suppressed silently.
+_LRI = "⁦"  # nosec B613
+_PDI = "⁩"  # nosec B613
 
 SAFE_TERMS_NOT_PII = ["Roth", "Empower"]
 

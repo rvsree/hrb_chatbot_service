@@ -2,10 +2,13 @@
 bypass (try_route_to_mcp(), Phase 49) for golden cases marked
 call_type="agent_call", and that no "llm_call" case accidentally matches
 the bypass keywords. The real "CI-wired eval gate" for routing correctness
-named earlier - default suite, not @pytest.mark.eval, because confirming
-routing needs no LLM call: only the MCP network call itself is faked
-(matching this project's existing no-real-network-call test convention),
-the real keyword-matching logic runs unfaked."""
+named earlier - default suite, not @pytest.mark.eval. Phase 151 removed
+the top-level MCP shortcut that used to let a pure agent_call query skip
+decompose() entirely - every query goes through decompose() first now, so
+it's faked here too (as a passthrough, matching its own real behavior for
+an already-atomic question) to keep this a genuinely zero-real-call test,
+not because the keyword-matching logic itself needs faking - that part
+still runs unfaked, same as always."""
 
 import json
 
@@ -36,7 +39,13 @@ async def test_agent_call_cases_bypass_the_llm_entirely(monkeypatch):
     async def _fake_get_leave_history(employee_id):
         return {"tool": "get_leave_history", "content": ["No recent leave requests."]}
 
+    # Phase 151 - decompose() now always runs (see module docstring); faked
+    # as a passthrough, same as its own real behavior for an atomic query.
+    async def _passthrough_decompose(query):
+        return [query]
+
     monkeypatch.setattr(pipeline, "check_input", _passthrough_check_input)
+    monkeypatch.setattr(pipeline, "decompose", _passthrough_decompose)
     monkeypatch.setattr(mcp_tools, "get_leave_balance", _fake_get_leave_balance)
     monkeypatch.setattr(mcp_tools, "get_leave_history", _fake_get_leave_history)
 
