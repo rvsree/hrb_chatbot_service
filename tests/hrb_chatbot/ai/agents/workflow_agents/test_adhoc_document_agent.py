@@ -114,6 +114,17 @@ async def test_send_email_tool_sets_email_sent_to_on_success(monkeypatch):
     result = await adhoc_document_agent.run_agent("email me the answer", {"a.pdf": "text"}, {})
 
     assert result["email_sent_to"] == "someone@example.com"
+    # Phase 161 - real evidence of the attempt, for the Explainability view.
+    evidence = dict(result["email_evidence"])
+    sent_at = evidence.pop("sent_at")
+    assert evidence == {
+        "recipient_email": "someone@example.com",
+        "subject": "Your answer from HR Benefits Chat",
+        "sent": True,
+        "message": "Email sent to someone@example.com.",
+        "attached_files": [],
+    }
+    assert sent_at.endswith("+00:00") or sent_at.endswith("Z")
 
 
 async def test_send_email_tool_uses_the_agent_supplied_subject(monkeypatch):
@@ -277,6 +288,25 @@ async def test_send_email_tool_failure_leaves_email_sent_to_none(monkeypatch):
     result = await adhoc_document_agent.run_agent("email me the answer", {"a.pdf": "text"}, {})
 
     assert result["email_sent_to"] is None
+    # Phase 161 - a failed attempt is still real evidence, not indistinguishable
+    # from "no email asked for at all" (the gap this phase exists to close).
+    evidence = dict(result["email_evidence"])
+    evidence.pop("sent_at")
+    assert evidence == {
+        "recipient_email": "someone@example.com",
+        "subject": "Your answer from HR Benefits Chat",
+        "sent": False,
+        "message": "sender not verified",
+        "attached_files": [],
+    }
+
+
+async def test_no_email_requested_leaves_email_evidence_none(monkeypatch):
+    _patch_llm(monkeypatch, [FakeResponse(content="Here's the summary.")])
+
+    result = await adhoc_document_agent.run_agent("summarize this", {"a.pdf": "text"}, {})
+
+    assert result["email_evidence"] is None
 
 
 async def test_unknown_tool_name_does_not_crash_the_loop(monkeypatch):
@@ -383,13 +413,15 @@ async def test_attach_files_true_sends_every_uploaded_files_raw_bytes(monkeypatc
         ],
     )
 
-    await adhoc_document_agent.run_agent(
+    result = await adhoc_document_agent.run_agent(
         "email me the answer with the file attached",
         {"a.pdf": "extracted text"},
         {"a.pdf": b"%PDF-1.4 raw bytes"},
     )
 
     assert captured_attachments == [[("a.pdf", b"%PDF-1.4 raw bytes")]]
+    # Phase 161 - attached filenames surface as evidence too, not just raw bytes to SES.
+    assert result["email_evidence"]["attached_files"] == ["a.pdf"]
 
 
 async def test_attach_files_false_sends_no_attachments(monkeypatch):
