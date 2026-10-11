@@ -408,6 +408,46 @@ async def test_a_leave_balance_tool_call_is_never_cached(monkeypatch):
     assert second["served_from_cache"] is False
 
 
+async def test_a_leave_balance_question_answered_without_the_tool_is_still_never_cached(monkeypatch):
+    """Phase 140 - the real bug this closes: the LLM can non-deterministically
+    skip GetLeaveBalance even for a query that clearly asks for it (e.g.
+    answering from a KB document instead). The old cache_eligible check only
+    looked at which tools were actually called, so that wrong answer would
+    get cached and served to every future identical query for 6h with no
+    chance for the agent to get it right again. Now the query text itself
+    (is_leave_balance_query) keeps it uncached regardless of tool choice."""
+    _patch_guardrails(monkeypatch)
+    call_count = {"ainvoke": 0}
+
+    class CountingBoundLlm(FakeBoundLlm):
+        async def ainvoke(self, messages):
+            call_count["ainvoke"] += 1
+            return await super().ainvoke(messages)
+
+    class CountingLlm(FakeLlm):
+        def bind(self, tools):
+            return CountingBoundLlm(self._responses)
+
+    def _fresh_llm():
+        return CountingLlm(
+            [
+                FakeResponse(tool_calls=[{"name": "SearchKnowledgeBase", "args": {"input": "x"}, "id": "call_1"}]),
+                FakeResponse(content="Check the My Rewards Portal for your balance."),
+            ]
+        )
+
+    monkeypatch.setattr(orchestration_agent, "_build_llm", _fresh_llm)
+    monkeypatch.setattr(
+        orchestration_agent, "TOOL_FUNCTIONS", {"SearchKnowledgeBase": lambda args, employee_id: _noop()}
+    )
+
+    await orchestration_agent.run_agent("What's my current PTO balance?", employee_id="EMP052")
+    second = await orchestration_agent.run_agent("What's my current PTO balance?", employee_id="EMP052")
+
+    assert call_count["ainvoke"] == 4  # both calls did real work - never cache-served
+    assert second["served_from_cache"] is False
+
+
 async def test_sources_accumulate_from_search_knowledge_base_calls(monkeypatch):
     """Phase 115 - real citations: a SearchKnowledgeBase call's structured
     chunks end up in the result's own "sources" list, not just folded

@@ -85,9 +85,13 @@ def check_all_backend_services(
     else:
         overall_status = "unhealthy"
 
+    # Phase 128 - a static config value, not a live call like the 3 checks above.
+    embedding_model = get_client_gateway().openai_embedding().get_configuration()["model"]
+
     return {
         "status": overall_status,
         "app": "HRB Chatbot",
         "settings_taken_from_env_file": SETTINGS_TAKEN_FROM_ENV_FILE,
+        "embedding_model": embedding_model,
         "checks": checks,
     }

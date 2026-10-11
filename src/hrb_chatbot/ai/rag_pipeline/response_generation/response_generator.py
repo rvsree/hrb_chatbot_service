@@ -91,6 +91,34 @@ def _to_result(message: AIMessage) -> dict:
     }
 
 
+def _render_llm_context_turn(label: str, prompt_template: ChatPromptTemplate, inputs: dict) -> dict:
+    """Phase 132 - renders the exact messages that will be sent to the LLM,
+    from the same inputs the real chain.invoke() call uses right after this -
+    a plain dict, same layering as the rest of this function's own return
+    shape (Pydantic wrapping happens at the route layer, not here)."""
+    messages = prompt_template.format_messages(**inputs)
+
+    system_prompt = None
+    chat_history = []
+    human_message = None
+    for index, message in enumerate(messages):
+        is_last = index == len(messages) - 1
+        if message.type == "system":
+            system_prompt = message.content
+        elif is_last:
+            human_message = message.content
+        else:
+            chat_history.append({"role": message.type, "content": message.content})
+
+    return {
+        "label": label,
+        "system_prompt": system_prompt,
+        "human_message": human_message,
+        "chat_history": chat_history,
+        "response": None,  # filled in by the caller once the real LLM call returns
+    }
+
+
 def generate_answer(
     query: str,
     chunks: list[dict],
@@ -118,8 +146,12 @@ def generate_answer(
                 max_tokens=max_tokens,
             )
             chain = CONVERSATIONAL_FALLBACK_PROMPT | llm | RunnableLambda(_to_result)
-            result = chain.invoke({"question": query, "chat_history": chat_history})
+            fallback_inputs = {"question": query, "chat_history": chat_history}
+            result = chain.invoke(fallback_inputs)
             logger.info("Generated a %d-character answer from conversation history only (0 chunks)", len(result["answer"]))
+            llm_context_turn = _render_llm_context_turn("answer", CONVERSATIONAL_FALLBACK_PROMPT, fallback_inputs)
+            llm_context_turn["response"] = result["answer"]
+            result["llm_context_turn"] = llm_context_turn
             return result
 
         logger.info("No chunks retrieved for %r - returning the no-context answer, not calling the LLM", query)
@@ -127,6 +159,7 @@ def generate_answer(
             "answer": NO_CONTEXT_ANSWER,
             "model_used": model_name or get_client_gateway().openai_chat().model,
             "token_usage": None,
+            "llm_context_turn": None,  # no LLM call happened - nothing was sent
         }
 
     llm = GatewayChatModel(
@@ -139,9 +172,11 @@ def generate_answer(
 
     context = build_context_from_chunks(chunks)
     tabular_instruction = TABULAR_FORMAT_INSTRUCTION if should_use_tabular_format(query) else ""
-    result = chain.invoke(
-        {"context": context, "question": query, "chat_history": chat_history or [], "tabular_instruction": tabular_instruction}
-    )
+    rag_inputs = {"context": context, "question": query, "chat_history": chat_history or [], "tabular_instruction": tabular_instruction}
+    result = chain.invoke(rag_inputs)
 
     logger.info("Generated a %d-character answer from %d chunk(s)", len(result["answer"]), len(chunks))
+    llm_context_turn = _render_llm_context_turn("answer", RAG_PROMPT, rag_inputs)
+    llm_context_turn["response"] = result["answer"]
+    result["llm_context_turn"] = llm_context_turn
     return result

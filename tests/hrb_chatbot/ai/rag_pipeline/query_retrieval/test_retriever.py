@@ -59,6 +59,14 @@ class FakeVectorStoreClient:
     def get_client(self):
         return self._client
 
+    def get_all_chunks(self, collection_name: str) -> list[dict]:
+        # Phase 131 - real get() against the same ephemeral collection _seed_collection() writes into.
+        result = self._client.get_or_create_collection(collection_name).get(include=["documents", "metadatas"])
+        return [
+            {"id": chunk_id, "text": document or "", "metadata": metadata or {}}
+            for chunk_id, document, metadata in zip(result["ids"], result["documents"], result["metadatas"], strict=True)
+        ]
+
 
 def _seed_collection(fake_vector_store_client, collection_name: str, chunks: list[dict]) -> None:
     """chunks: list of {id, text, embedding, metadata} - written directly
@@ -270,6 +278,78 @@ async def test_mmr_search_strategy_returns_chunks_with_a_null_score(monkeypatch)
 
     assert len(chunks) == 1
     assert chunks[0]["score"] is None
+
+
+async def test_lambda_mult_is_passed_through_to_mmr_search(monkeypatch):
+    """Phase 131 - retrieve_chunks(lambda_mult=...) must actually reach
+    LangChain's max_marginal_relevance_search(), not just be accepted and
+    dropped. Spies on the real Chroma store's own method rather than
+    asserting on retrieved chunks, since lambda_mult's effect on ranking
+    isn't reliably observable with only one seeded chunk."""
+    collection_name, vector_store_client, metadata_store, embeddings = _setup(monkeypatch)
+    await metadata_store.create_document("doc-1", "policy.pdf", "data/uploads/doc-1/policy.pdf")
+    _seed_collection(
+        vector_store_client,
+        collection_name,
+        [{"id": "doc-1:0", "text": "chunk text", "embedding": [1.0, 0.0], "metadata": {"document_id": "doc-1", "chunk_index": 0}}],
+    )
+    embeddings.register("a question", [1.0, 0.0])
+    store, _ = retriever.get_vector_store(None)
+    captured_kwargs = {}
+    real_mmr_search = store.max_marginal_relevance_search
+
+    def _spy_mmr_search(*args, **kwargs):
+        captured_kwargs.update(kwargs)
+        return real_mmr_search(*args, **kwargs)
+
+    monkeypatch.setattr(store, "max_marginal_relevance_search", _spy_mmr_search)
+    monkeypatch.setattr(retriever, "get_vector_store", lambda vector_db, embedding_model=None: (store, "chromadb"))
+
+    await retriever.retrieve_chunks("a question", top_k=5, search_strategy="mmr", lambda_mult=0.9)
+
+    assert captured_kwargs["lambda_mult"] == 0.9
+
+
+async def test_lambda_mult_defaults_to_point_five_when_not_given(monkeypatch):
+    collection_name, vector_store_client, metadata_store, embeddings = _setup(monkeypatch)
+    await metadata_store.create_document("doc-1", "policy.pdf", "data/uploads/doc-1/policy.pdf")
+    _seed_collection(
+        vector_store_client,
+        collection_name,
+        [{"id": "doc-1:0", "text": "chunk text", "embedding": [1.0, 0.0], "metadata": {"document_id": "doc-1", "chunk_index": 0}}],
+    )
+    embeddings.register("a question", [1.0, 0.0])
+    store, _ = retriever.get_vector_store(None)
+    captured_kwargs = {}
+    real_mmr_search = store.max_marginal_relevance_search
+
+    def _spy_mmr_search(*args, **kwargs):
+        captured_kwargs.update(kwargs)
+        return real_mmr_search(*args, **kwargs)
+
+    monkeypatch.setattr(store, "max_marginal_relevance_search", _spy_mmr_search)
+    monkeypatch.setattr(retriever, "get_vector_store", lambda vector_db, embedding_model=None: (store, "chromadb"))
+
+    await retriever.retrieve_chunks("a question", top_k=5, search_strategy="mmr")
+
+    assert captured_kwargs["lambda_mult"] == 0.5
+
+
+async def test_lambda_mult_is_ignored_for_non_mmr_strategies(monkeypatch):
+    """lambda_mult only means anything to search_mmr() - passing it alongside
+    search_strategy='similarity' must not raise (search_similarity() has no such kwarg)."""
+    collection_name, vector_store_client, metadata_store, embeddings = _setup(monkeypatch)
+    await metadata_store.create_document("doc-1", "policy.pdf", "data/uploads/doc-1/policy.pdf")
+    _seed_collection(
+        vector_store_client,
+        collection_name,
+        [{"id": "doc-1:0", "text": "chunk text", "embedding": [1.0, 0.0], "metadata": {"document_id": "doc-1", "chunk_index": 0}}],
+    )
+    embeddings.register("a question", [1.0, 0.0])
+
+    chunks, _ = await retriever.retrieve_chunks("a question", top_k=5, search_strategy="similarity", lambda_mult=0.9)
+
+    assert len(chunks) == 1
 
 
 async def test_unknown_search_strategy_raises_value_error(monkeypatch):

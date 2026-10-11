@@ -58,6 +58,9 @@ class EphemeralChromaVectorStore(BaseVectorDBClient):
     def update_metadata(self, collection_name: str, ids: list[str], metadatas: list[dict]) -> None:
         self.get_collection(collection_name).update(ids=ids, metadatas=metadatas)
 
+    def get_all_chunks(self, collection_name: str) -> list[dict]:
+        raise NotImplementedError("not used by write_chunks()")
+
     def health_check(self) -> dict:
         return {"provider": self.PROVIDER_NAME, "status": "healthy"}
 

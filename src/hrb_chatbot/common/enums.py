@@ -43,6 +43,8 @@ class SearchStrategy(StrEnum):
 
     SIMILARITY = "similarity"
     MMR = "mmr"
+    KEYWORD = "keyword"
+    HYBRID = "hybrid"
 
 
 class Role(StrEnum):

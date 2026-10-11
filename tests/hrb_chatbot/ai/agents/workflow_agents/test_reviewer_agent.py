@@ -1,4 +1,8 @@
-"""Reviewer Agent tests - 0/1/2+ branching. The 2+ case fakes the LLM; 0/1 never call it."""
+"""Reviewer Agent tests - 0 results short-circuits; 1+ always goes through the LLM
+(Phase 150 - a single domain agent's raw result, e.g. vector_kb_agent's
+"Found relevant knowledge base content:..." dump, is meta/intermediate text,
+never a presentable answer on its own, so 1 result can't skip synthesis
+the way 0 results can)."""
 
 from src.hrb_chatbot.ai.agents.workflow_agents import reviewer_agent
 
@@ -27,18 +31,24 @@ async def test_zero_results_gives_a_clear_fallback():
     assert "wasn't able to find" in answer
 
 
-async def test_one_result_is_returned_as_is_no_llm_call(monkeypatch):
-    def _fail_if_called():
-        raise AssertionError("LLM should not be called for a single result")
-
-    monkeypatch.setattr(reviewer_agent, "_build_llm", _fail_if_called)
+async def test_one_result_still_goes_through_the_llm(monkeypatch):
+    # Phase 150: a single vector_kb_agent result is raw "Found relevant
+    # knowledge base content:..." framing text, not a final answer - must
+    # be synthesized, not returned verbatim.
+    _patch_llm(monkeypatch, "Parental leave is 8 weeks paid.")
 
     answer = await reviewer_agent.review(
         "what is the parental leave policy?",
-        [{"agent": "vector_kb_agent", "focus": "parental leave policy", "result": "8 weeks paid."}],
+        [
+            {
+                "agent": "vector_kb_agent",
+                "focus": "parental leave policy",
+                "result": "Found relevant knowledge base content:\n\n--- Source 1 (policy.pdf) ---\n8 weeks paid.",
+            }
+        ],
     )
 
-    assert answer == "8 weeks paid."
+    assert answer == "Parental leave is 8 weeks paid."
 
 
 async def test_two_or_more_results_are_merged_by_the_llm(monkeypatch):

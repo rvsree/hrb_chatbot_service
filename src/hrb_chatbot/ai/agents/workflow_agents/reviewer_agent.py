@@ -21,12 +21,14 @@ def _build_llm() -> ChatOpenAI:
 
 
 async def review(query: str, agent_results: list[dict]) -> str:
-    """Merges every domain agent's result into one final answer."""
+    """Merges every domain agent's result into one final answer. Always goes
+    through the LLM, even for exactly one result (Phase 150) - a domain
+    agent's raw output (e.g. vector_kb_agent's "Found relevant knowledge
+    base content:\n\n--- Source 1 ..." dump) is meta/intermediate text, not
+    a presentable answer on its own, so skipping synthesis for the 1-result
+    case surfaced that raw dump directly to the user."""
     if not agent_results:
         return "I wasn't able to find an answer to that question."
-
-    if len(agent_results) == 1:
-        return agent_results[0]["result"]
 
     combined = build_context_from_agent_results(agent_results)
     llm = _build_llm()

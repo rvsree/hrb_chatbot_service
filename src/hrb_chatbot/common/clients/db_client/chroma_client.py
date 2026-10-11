@@ -1,6 +1,7 @@
 """ChromaDB client. Two modes via CHROMA_DB_MODE ("persistent"/"http"); built lazily in get_client(), not __init__."""
 
 import re
+import threading
 
 import chromadb
 from chromadb.config import Settings as ChromaSettings
@@ -50,18 +51,38 @@ class ChromaDBClient(BaseVectorDBClient):
         )
 
         self._client = None
+        # Phase 145: chromadb.PersistentClient is SQLite-backed and not
+        # safe for concurrent access from multiple threads - confirmed
+        # the hard way: Phase 139's asyncio.to_thread() bulk-delete fix
+        # (correct for Pinecone, a real concurrent-safe remote service)
+        # let concurrent deletes reach this client's threads simultaneously
+        # too, and the local persistent index ended up corrupted
+        # ("Error finding id" from chromadb's own query layer). A single
+        # process-wide lock serializes every real chromadb call this
+        # client makes - cheap (chroma calls are a small fraction of total
+        # indexing time next to parsing/embedding) and makes concurrent
+        # indexing/deletion safe here the same way Pinecone already is.
+        # RLock, not Lock: get_collection() calls get_client(), which also
+        # acquires this lock (for the lazy-build race guard) - a plain
+        # Lock would deadlock a thread against itself on that nested
+        # acquire; RLock allows the same thread to re-enter.
+        self.collection_lock = threading.RLock()
 
     def get_client(self):
         """Return the Chroma client object, building it on first use."""
         if self._client is None:
-            settings = ChromaSettings(allow_reset=self.allow_reset, anonymized_telemetry=False)
+            with self.collection_lock:
+                # Re-check inside the lock - another thread may have already
+                # built it while this one was waiting.
+                if self._client is None:
+                    settings = ChromaSettings(allow_reset=self.allow_reset, anonymized_telemetry=False)
 
-            if self.mode == "http":
-                logger.info("[CHROMADB] connecting over HTTP to %s:%s", self.host, self.port)
-                self._client = chromadb.HttpClient(host=self.host, port=self.port, settings=settings)
-            else:
-                logger.info("[CHROMADB] using embedded persistent storage at %s", self.persist_dir)
-                self._client = chromadb.PersistentClient(path=self.persist_dir, settings=settings)
+                    if self.mode == "http":
+                        logger.info("[CHROMADB] connecting over HTTP to %s:%s", self.host, self.port)
+                        self._client = chromadb.HttpClient(host=self.host, port=self.port, settings=settings)
+                    else:
+                        logger.info("[CHROMADB] using embedded persistent storage at %s", self.persist_dir)
+                        self._client = chromadb.PersistentClient(path=self.persist_dir, settings=settings)
 
         return self._client
 
@@ -98,8 +119,8 @@ class ChromaDBClient(BaseVectorDBClient):
         embeddings: list[list[float]],
         metadatas: list[dict] | None = None,
     ) -> None:
-        collection = self.get_collection(collection_name)
-        with log_backend_call(logger, "chromadb", "vector.upsert", collection=collection_name, chunk_count=len(ids)):
+        with self.collection_lock, log_backend_call(logger, "chromadb", "vector.upsert", collection=collection_name, chunk_count=len(ids)):
+            collection = self.get_collection(collection_name)
             collection.upsert(ids=ids, documents=documents, embeddings=embeddings, metadatas=metadatas)
 
     def query(
@@ -109,8 +130,8 @@ class ChromaDBClient(BaseVectorDBClient):
         top_k: int = 5,
         where: dict | None = None,
     ) -> dict:
-        collection = self.get_collection(collection_name)
-        with log_backend_call(logger, "chromadb", "vector.query", collection=collection_name, top_k=top_k):
+        with self.collection_lock, log_backend_call(logger, "chromadb", "vector.query", collection=collection_name, top_k=top_k):
+            collection = self.get_collection(collection_name)
             return collection.query(
                 query_embeddings=[query_embedding],
                 n_results=top_k,
@@ -119,16 +140,26 @@ class ChromaDBClient(BaseVectorDBClient):
             )
 
     def delete(self, collection_name: str, ids: list[str]) -> None:
-        collection = self.get_collection(collection_name)
-        with log_backend_call(logger, "chromadb", "vector.delete", collection=collection_name, chunk_count=len(ids)):
+        with self.collection_lock, log_backend_call(logger, "chromadb", "vector.delete", collection=collection_name, chunk_count=len(ids)):
+            collection = self.get_collection(collection_name)
             collection.delete(ids=ids)
 
     def update_metadata(self, collection_name: str, ids: list[str], metadatas: list[dict]) -> None:
-        collection = self.get_collection(collection_name)
-        with log_backend_call(
+        with self.collection_lock, log_backend_call(
             logger, "chromadb", "vector.update_metadata", collection=collection_name, chunk_count=len(ids)
         ):
+            collection = self.get_collection(collection_name)
             collection.update(ids=ids, metadatas=metadatas)
+
+    def get_all_chunks(self, collection_name: str) -> list[dict]:
+        with self.collection_lock, log_backend_call(logger, "chromadb", "vector.get_all_chunks", collection=collection_name):
+            collection = self.get_collection(collection_name)
+            result = collection.get(include=["documents", "metadatas"])
+
+        return [
+            {"id": chunk_id, "text": document or "", "metadata": metadata or {}}
+            for chunk_id, document, metadata in zip(result["ids"], result["documents"], result["metadatas"], strict=True)
+        ]
 
     def health_check(self) -> dict:
         """Report whether this client is usable - builds the real client and calls list_collections()."""

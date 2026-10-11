@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+*accessKeys*.csv
 
 # Python
 __pycache__/

@@ -98,12 +98,18 @@ def search_mmr(
     vector_db: str | None = None,
     fetch_k: int | None = None,
     extra_filter: dict | None = None,
+    lambda_mult: float | None = None,
 ) -> list[dict]:
     # Max Marginal Relevance - trades relevance for diversity (non-redundant
     # context). fetch_k defaults to 3x top_k, module 4's own recommended ratio.
+    # lambda_mult: 1.0 = pure relevance, 0.0 = pure diversity - LangChain's own default (0.5) when not given.
     store, provider = get_vector_store(vector_db)
     documents = store.max_marginal_relevance_search(
-        query, k=top_k, fetch_k=fetch_k or top_k * 3, filter=_combine_with_current_only(extra_filter)
+        query,
+        k=top_k,
+        fetch_k=fetch_k or top_k * 3,
+        filter=_combine_with_current_only(extra_filter),
+        lambda_mult=lambda_mult if lambda_mult is not None else 0.5,
     )
     # No score at all (unlike similarity_search_with_score) - None here, not
     # a made-up number; no relevance-bar filtering for the same reason.
@@ -114,6 +120,13 @@ SEARCH_STRATEGIES = {
     "similarity": search_similarity,
     "mmr": search_mmr,
 }
+
+# bm25_search.py imports search_similarity from this module - importing it
+# down here, after SEARCH_STRATEGIES exists, avoids a circular import at module load time.
+from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.bm25_search import search_hybrid, search_keyword  # noqa: E402
+
+SEARCH_STRATEGIES["keyword"] = search_keyword
+SEARCH_STRATEGIES["hybrid"] = search_hybrid
 
 
 def search_multi_query(
@@ -167,6 +180,7 @@ async def retrieve_chunks(
     use_multi_query: bool = False,
     use_self_query: bool = False,
     llm_provider: str | None = None,
+    lambda_mult: float | None = None,
 ) -> tuple[list[dict], dict | None]:
     """Returns (chunks, applied_filter) - score is null for MMR/MultiQuery results."""
     resolved_strategy = search_strategy or "similarity"
@@ -210,7 +224,10 @@ async def retrieve_chunks(
         )
     else:
         search_function = SEARCH_STRATEGIES[resolved_strategy]
-        chunks = search_function(query, top_k=top_k, vector_db=vector_db, extra_filter=applied_filter)
+        search_call_kwargs = {"top_k": top_k, "vector_db": vector_db, "extra_filter": applied_filter}
+        if resolved_strategy == "mmr" and lambda_mult is not None:
+            search_call_kwargs["lambda_mult"] = lambda_mult
+        chunks = search_function(query, **search_call_kwargs)
 
     await _attach_filenames(chunks, db_gateway)
 

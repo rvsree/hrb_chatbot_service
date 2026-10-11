@@ -64,3 +64,9 @@ def get_active_vector_db(override: str | None = None) -> str:
 def get_active_llm_provider(override: str | None = None) -> str:
     """Which LLM provider powers retrieval-time reasoning - not the final answer's model."""
     return read_setting(override, "ACTIVE_LLM_PROVIDER", "openai")
+
+
+def get_app_environment() -> str:
+    """"production" in AWS, else "development" - see Phase 137 (db_gateway.py's
+    production lockdown of the local-disk-only chromadb/sqlite stores)."""
+    return read_setting(None, "APP_ENVIRONMENT", "development")

@@ -20,6 +20,25 @@
       "title": "AnswerInfo",
       "type": "object"
     },
+    "ChatHistoryMessage": {
+      "properties": {
+        "role": {
+          "description": "'human' or 'ai'.",
+          "title": "Role",
+          "type": "string"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "content"
+      ],
+      "title": "ChatHistoryMessage",
+      "type": "object"
+    },
     "EvalScores": {
       "description": "Phase 109 - live LLM-as-judge scores, same prompts/parsing as the\noffline golden-dataset harness (golden_dataset_harness.py), run\nsynchronously per live response at the user's explicit request\n(accepted tradeoff: 2 extra judge LLM calls per live - not cached -\ngeneration). 0.0-1.0, not 0-10 - already normalized by the judge.",
       "properties": {
@@ -81,6 +100,18 @@
           "default": null,
           "description": "Null on a cache hit, MCP fast-path, or a no-context answer that never called the LLM."
         },
+        "llm_context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LlmContextInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 132 - genai-rag only; null for single/multi-agentic-rag and on a cache hit (nothing was actually sent this call)."
+        },
         "routed_to": {
           "anyOf": [
             {
@@ -105,6 +136,19 @@
           ],
           "default": null,
           "description": "Null for an MCP answer or a no-context answer (nothing to check groundedness against). Reused as-is on a cache hit - same answer, same score, not re-judged."
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 127 - genai-rag only; null for single/multi-agentic-rag, which hardcode temperature=0, not user-configurable.",
+          "title": "Temperature"
         }
       },
       "required": [
@@ -160,12 +204,134 @@
           "default": null,
           "description": "Time spent on live eval-judge scoring, in milliseconds. Null when no eval ran this call (cache hit, MCP, or no context).",
           "title": "Eval"
+        },
+        "decomposition": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 130 - genai-rag only; time spent splitting the question into sub-questions. Null elsewhere.",
+          "title": "Decomposition"
         }
       },
       "required": [
         "total"
       ],
       "title": "LatencyInfo",
+      "type": "object"
+    },
+    "LlmContextInfo": {
+      "description": "Phase 132 - genai-rag only (null for single/multi-agentic-rag, same pattern as temperature).",
+      "properties": {
+        "turns": {
+          "items": {
+            "$ref": "#/$defs/LlmContextTurn"
+          },
+          "title": "Turns",
+          "type": "array"
+        },
+        "mcp_tool_calls": {
+          "items": {
+            "$ref": "#/$defs/McpToolCallDetail"
+          },
+          "title": "Mcp Tool Calls",
+          "type": "array"
+        }
+      },
+      "title": "LlmContextInfo",
+      "type": "object"
+    },
+    "LlmContextTurn": {
+      "description": "Phase 132 - one real LLM call's actual rendered prompt, not a re-derived guess -\ncaptured from the exact same inputs the real chain.invoke() call used.",
+      "properties": {
+        "label": {
+          "description": "e.g. 'answer' (single question) or the sub-question text (decomposed).",
+          "title": "Label",
+          "type": "string"
+        },
+        "system_prompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "System Prompt"
+        },
+        "human_message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Human Message"
+        },
+        "chat_history": {
+          "items": {
+            "$ref": "#/$defs/ChatHistoryMessage"
+          },
+          "title": "Chat History",
+          "type": "array"
+        },
+        "response": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The raw answer text this turn's LLM call returned.",
+          "title": "Response"
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "title": "LlmContextTurn",
+      "type": "object"
+    },
+    "McpToolCallDetail": {
+      "description": "Phase 132 - the raw MCP call, not just the summary ToolCallInfo already carries.",
+      "properties": {
+        "tool_name": {
+          "title": "Tool Name",
+          "type": "string"
+        },
+        "arguments": {
+          "additionalProperties": true,
+          "title": "Arguments",
+          "type": "object"
+        },
+        "raw_result": {
+          "description": "The MCP tool's raw text blocks, before being joined into the answer.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Raw Result",
+          "type": "array"
+        }
+      },
+      "required": [
+        "tool_name",
+        "arguments",
+        "raw_result"
+      ],
+      "title": "McpToolCallDetail",
       "type": "object"
     },
     "RetrievalInfo": {

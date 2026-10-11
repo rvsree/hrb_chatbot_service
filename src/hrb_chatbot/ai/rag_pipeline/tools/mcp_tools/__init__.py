@@ -82,4 +82,7 @@ async def try_route_to_mcp(query: str, employee_id: str | None) -> dict | None:
         "applied_filter": None,
         "routed_to": tool_name,
         "tool_latency_ms": call_latency_ms,
+        # Phase 132 - the raw call, previously discarded after being joined into answer_text.
+        "mcp_arguments": {"employee_id": employee_id},
+        "mcp_raw_result": mcp_result["content"],
     }
