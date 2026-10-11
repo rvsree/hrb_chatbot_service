@@ -4,7 +4,25 @@ behavior under test: ReadDocument only ever returns from the file_texts
 dict passed in (no vector store, no MCP, nothing else it could call), and
 SendEmailWithAnswer only fires when the agent actually calls it."""
 
+import pytest
+
 from src.hrb_chatbot.ai.agents.workflow_agents import adhoc_document_agent
+
+
+@pytest.fixture(autouse=True)
+def _fake_check_output_by_default(monkeypatch):
+    # Phase 158 - check_output() (Phase 138's output guardrail) is a real
+    # LLM call, separate from the agent's own _build_llm() this file's
+    # docstring is about - every SendEmailWithAnswer test calls it, and
+    # only one (test_send_email_tool_sends_the_output_guardrail_checked_
+    # text_not_the_raw_text) actually cares what it does. Defaulting to a
+    # passthrough here, overridden locally by that one test, keeps every
+    # other test from needing a real OPENAI_API_KEY - a real gap CI caught
+    # (passing locally only because of a real local key masking it).
+    async def _passthrough_check_output(query, answer):
+        return answer
+
+    monkeypatch.setattr(adhoc_document_agent, "check_output", _passthrough_check_output)
 
 
 class FakeResponse:

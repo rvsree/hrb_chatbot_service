@@ -15,7 +15,12 @@ from src.hrb_chatbot.ai.doc_processing import pipeline
 from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 from src.hrb_chatbot.common.utils.content_hash import compute_content_hash
 
-TMP_DIRECTORY = Path("/tmp")
+# nosec B108 - bandit flags any hardcoded /tmp as a predictable-path risk
+# (relevant on a shared multi-user machine); AWS Lambda gives each
+# invocation its own isolated execution environment, and /tmp is the only
+# writable directory available at all - this is the mandatory, standard
+# Lambda pattern, not an arbitrary or insecure choice.
+TMP_DIRECTORY = Path("/tmp")  # nosec B108
 
 
 class _JsonFormatter(logging.Formatter):
