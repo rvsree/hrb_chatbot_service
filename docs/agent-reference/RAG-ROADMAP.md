@@ -12690,4 +12690,121 @@ Explicitly deferred to a later, separate wave - not part of the above:
     `genai-rag` only, with `llm_context: null` deliberately for single/
     multi-agentic-rag (same established pattern as `temperature`/
     `latency_ms`). Asked the user whether to extend this now as new,
-    separately-scoped work - not done as part of this phase.
+    separately-scoped work - see Phase 160 below.
+
+- [x] **Phase 160 — User-directed: extend LLM Context capture (Phase 132)
+  to single-agentic-rag and multi-agentic-rag.**
+  - **Spec:** `ExplainabilityInfo`/`LlmContextInfo` (`models/rag.py`) are
+    already shared by all 3 pipelines - `llm_context` is simply never
+    populated (not passed at all; Pydantic's `None` default) by either
+    agentic route today. Traced each pipeline's real LLM calls directly,
+    not assumed:
+    - **Single-agentic-rag** (`orchestration_agent.py`): a ReAct loop,
+      1 real LLM call per iteration (up to 5), same shape genai-rag's
+      own captured turns already use.
+    - **Multi-agentic-rag** (`multi_agent_pipeline.py`): only 2 of the 7
+      nodes make a real LLM call - `planner_agent.plan()` and
+      `reviewer_agent.review()`. Every domain agent is LLM-free:
+      `vector_kb_agent`/`lms_ops_agent` call retrieval/MCP directly,
+      `web_search_agent` calls Tavily, `sql_db_agent`/
+      `lms_analytics_agent` are stubs. `generate_follow_ups()` is a 3rd
+      real call but deliberately excluded - a nice-to-have whose own
+      failure already degrades to `[]` silently (Phase 123), not part
+      of the answer's own reasoning.
+    - **A genai-rag gap this phase also closes as a side effect**:
+      `reviewer_agent.review()`'s 2+-result merge call already runs for
+      genai-rag too (decomposition), but its captured turn has always
+      had `system_prompt: None, human_message: None` - Phase 132's own
+      noted, not-yet-filled gap ("the merge call happened... but its own
+      prompt isn't captured yet"). Changing `review()`'s return shape to
+      include its real turn fixes this for all 3 pipelines at once,
+      instead of duplicating capture logic a 4th time.
+    - **`planner_agent.plan()`**: return `tuple[list[dict], dict]` - the
+      2nd element an `LlmContextTurn`-shaped dict (`label="planner"`,
+      the real `PLANNER_SYSTEM_PROMPT`/query/response already
+      constructed inside `plan()`, not re-derived outside it, matching
+      Phase 132's own "exact content actually sent" principle).
+    - **`reviewer_agent.review()`**: return `tuple[str, dict | None]` -
+      `None` only for the zero-agent-results early return (no LLM call
+      happens there); every other path (1+ results, since Phase 150
+      removed the 1-result shortcut) now has a real turn to return.
+    - **`multi_agent_pipeline.py`**: `planner_node`/`reviewer_node`
+      unpack the new tuples, aggregate both turns into an
+      `LlmContextInfo`-shaped dict (`turns: [planner_turn,
+      reviewer_turn]`, `mcp_tool_calls: []` - domain-agent MCP calls
+      already surface via `tools_used`, not duplicated here) attached to
+      the final result as `"llm_context"`. Explicitly `None` on a cache
+      hit (same discipline genai-rag's own cache-hit path already
+      applies - a cached result's turns describe the ORIGINAL call, not
+      this one).
+    - **`orchestration_agent.py`**: each ReAct iteration captures its own
+      turn inside the loop (`label=f"iteration {i+1}"`, `system_prompt`
+      constant across iterations, `human_message` = the content of the
+      single message added since the last LLM call - the original query
+      on iteration 1, a tool result after that - `chat_history` =
+      everything else), aggregated into the same `LlmContextInfo` shape,
+      `None` on a cache hit.
+    - **Both routes** (`api/agentic_rag/query_agent.py`,
+      `api/multi_agentic_rag/query_agent.py`): pass
+      `llm_context=LlmContextInfo(**result["llm_context"]) if
+      result.get("llm_context") else None` into their existing
+      `ExplainabilityInfo(...)` construction - currently omitted
+      entirely, relying on the field's `None` default.
+    - **`pipeline.py`** (genai-rag): update its own `reviewer_agent.review()`
+      call site for the unpacked tuple, filling the merge turn's real
+      `system_prompt`/`human_message` instead of the `None` placeholder.
+    - **Docstrings**: `LlmContextInfo`/`ExplainabilityInfo.llm_context`
+      in `models/rag.py` currently say "genai-rag only" - update once
+      this is no longer true.
+  - **Verification plan:** unit tests for `plan()`/`review()`'s new
+    return shape (existing callers in `test_multi_agent_pipeline.py`/
+    `test_pipeline.py` need updating for the tuple unpack - same pattern
+    as every other signature-change test update this session). New
+    tests confirming `orchestration_agent.run_agent()`'s and
+    `multi_agent_pipeline.run_multi_agent()`'s results carry a real,
+    non-null `llm_context` with the expected turns, and that a cache hit
+    nulls it out. Full suite green. Live: real query against both
+    `single-agentic-rag-retrieval`/`multi-agentic-rag-retrieval`,
+    confirm `explainability_info.llm_context` is populated with real
+    prompt content in the actual HTTP response, not just unit-tested.
+  - **Built and verified, NOT pushed or deployed** (standing instruction -
+    local review first): all 7 changes from the Spec landed exactly as
+    scoped - `reviewer_agent.review()`/`planner_agent.plan()` now return
+    `tuple[..., dict | None]`; `multi_agent_pipeline.py`'s `planner_node`/
+    `reviewer_node`/`run_multi_agent()` build and attach `llm_context`
+    (`None` on a cache hit); `orchestration_agent.py` captures one turn
+    per ReAct iteration via new `_message_role()`/`_render_turn()`
+    helpers; both routes (`api/agentic_rag/query_agent.py`,
+    `api/multi_agentic_rag/query_agent.py`) wire `llm_context` into
+    `ExplainabilityInfo`; `pipeline.py`'s own decomposition-merge call
+    site now uses `review()`'s real `system_prompt`/`human_message`
+    instead of the Phase 132 `None` placeholder; `models/rag.py`'s
+    `LlmContextInfo`/`ExplainabilityInfo.llm_context` docstrings no
+    longer say "genai-rag only".
+    - **Tests**: updated every breaking-signature-change caller
+      (`test_planner_agent.py`, `test_reviewer_agent.py`,
+      `test_multi_agent_pipeline.py`, `test_multi_agent_pipeline_chaos.py`,
+      `test_pipeline.py`) to unpack the new tuples. Added new assertions
+      confirming real, non-null `llm_context` on a live call and `None`
+      on a cache hit, for both `orchestration_agent.run_agent()`
+      (`test_one_tool_call_then_final_answer`,
+      `test_a_repeat_with_only_search_knowledge_base_is_cache_served`)
+      and `multi_agent_pipeline.run_multi_agent()`
+      (`test_single_task_query_runs_one_domain_agent_and_still_goes_through_review`,
+      `test_a_vector_kb_only_repeat_is_cache_served`). Regenerated the 3
+      committed response-schema snapshots (`contract_snapshots/*.json`) -
+      the only diff is the updated `llm_context`/`LlmContextInfo`
+      description text, confirmed via `git diff` before committing, not
+      assumed harmless. Full suite: 529 passed, 0 failed.
+    - **Live-verified** against a real local backend (a stale uvicorn
+      process from an earlier session was still bound to port 8093,
+      serving pre-Phase-160 code - caught because a live call returned
+      `llm_context: null` despite `served_from_cache: false`; killed it
+      and restarted clean before re-verifying): a fresh, uncached
+      `single-agentic-rag-retrieval` query returned 2 real turns
+      (`iteration 1`/`iteration 2`, real system prompts, the actual
+      query and tool-result text as `human_message`); a fresh
+      `multi-agentic-rag-retrieval` query returned 2 real turns
+      (`planner`/`reviewer`, same real-content shape). A repeat of the
+      same single-agentic-rag query came back `served_from_cache: true`
+      with `llm_context: null`, confirming the cache-hit path.

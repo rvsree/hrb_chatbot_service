@@ -35,8 +35,12 @@ def _build_llm() -> ChatOpenAI:
     return build_agent_llm("OPENAI_PLANNER_MODEL")
 
 
-async def plan(query: str) -> list[dict]:
-    """Classifies one query into one or more {agent, focus} tasks. Never returns an empty list."""
+async def plan(query: str) -> tuple[list[dict], dict]:
+    """Classifies one query into one or more {agent, focus} tasks. Never returns an empty list.
+
+    Phase 160: also returns the real LlmContextTurn-shaped dict for this
+    call - the exact system_prompt/query/response actually sent, not a
+    re-derived guess."""
     # include_raw=True (verified live) is what exposes the raw AIMessage's
     # usage_metadata - with_structured_output() alone returns only the parsed object.
     llm = _build_llm().with_structured_output(PlannerOutput, include_raw=True)
@@ -55,4 +59,11 @@ async def plan(query: str) -> list[dict]:
         tasks = [{"agent": "vector_kb_agent", "focus": query}]
 
     logger.info("Planner routed query to %s", [task["agent"] for task in tasks])
-    return tasks
+    turn = {
+        "label": "planner",
+        "system_prompt": PLANNER_SYSTEM_PROMPT,
+        "human_message": query,
+        "chat_history": [],
+        "response": str(output) if output else (result["raw"].content or ""),
+    }
+    return tasks, turn

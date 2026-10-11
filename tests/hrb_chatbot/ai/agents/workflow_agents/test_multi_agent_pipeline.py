@@ -33,7 +33,7 @@ def _fake_cache_and_eval_judges(monkeypatch):
     # keep working unchanged; a test that wants real merge behavior
     # overrides this locally, same as several already do.
     async def _default_review(query, agent_results):
-        return " ".join(r["result"] for r in agent_results)
+        return " ".join(r["result"] for r in agent_results), {"label": "reviewer"}
 
     monkeypatch.setattr(multi_agent_pipeline.reviewer_agent, "review", _default_review)
 
@@ -74,7 +74,7 @@ async def test_single_task_query_runs_one_domain_agent_and_still_goes_through_re
     _patch_guardrails(monkeypatch)
 
     async def _fake_plan(query):
-        return [{"agent": "vector_kb_agent", "focus": query}]
+        return [{"agent": "vector_kb_agent", "focus": query}], {"label": "planner"}
 
     async def _fake_vector_kb_run(focus):
         return "8 weeks paid parental leave.", []
@@ -86,6 +86,8 @@ async def test_single_task_query_runs_one_domain_agent_and_still_goes_through_re
 
     assert result["answer"] == "8 weeks paid parental leave."
     assert result["tasks"] == [{"agent": "vector_kb_agent", "focus": "what is the parental leave policy?"}]
+    # Phase 160 - only planner/reviewer make a real LLM call among the 7 graph nodes.
+    assert [turn["label"] for turn in result["llm_context"]["turns"]] == ["planner", "reviewer"]
     assert len(result["tools_used"]) == 1
     call = result["tools_used"][0]
     assert call["tool_name"] == "vector_kb_agent"
@@ -104,7 +106,7 @@ async def test_multi_task_query_dispatches_to_both_agents_in_parallel_and_merges
         return [
             {"agent": "vector_kb_agent", "focus": "parental leave policy"},
             {"agent": "lms_ops_agent", "focus": "my leave balance"},
-        ]
+        ], {"label": "planner"}
 
     async def _fake_vector_kb_run(focus):
         return "8 weeks paid.", []
@@ -114,7 +116,7 @@ async def test_multi_task_query_dispatches_to_both_agents_in_parallel_and_merges
 
     async def _fake_review(query, agent_results):
         assert {r["agent"] for r in agent_results} == {"vector_kb_agent", "lms_ops_agent"}
-        return "merged answer"
+        return "merged answer", {"label": "reviewer"}
 
     monkeypatch.setattr(multi_agent_pipeline.planner_agent, "plan", _fake_plan)
     monkeypatch.setattr(multi_agent_pipeline.vector_kb_agent, "run", _fake_vector_kb_run)
@@ -135,10 +137,12 @@ async def test_sql_db_and_analytics_agents_report_not_available_without_crashing
     _patch_guardrails(monkeypatch)
 
     async def _fake_plan(query):
-        return [{"agent": "sql_db_agent", "focus": query}, {"agent": "lms_analytics_agent", "focus": query}]
+        return [{"agent": "sql_db_agent", "focus": query}, {"agent": "lms_analytics_agent", "focus": query}], {
+            "label": "planner"
+        }
 
     async def _fake_review(query, agent_results):
-        return " / ".join(r["result"] for r in agent_results)
+        return " / ".join(r["result"] for r in agent_results), {"label": "reviewer"}
 
     monkeypatch.setattr(multi_agent_pipeline.planner_agent, "plan", _fake_plan)
     monkeypatch.setattr(multi_agent_pipeline.reviewer_agent, "review", _fake_review)
@@ -153,7 +157,7 @@ async def test_enabling_memory_without_an_id_generates_one_and_saves_the_turn(mo
     _patch_conversation_store(monkeypatch)
 
     async def _fake_plan(query):
-        return [{"agent": "vector_kb_agent", "focus": query}]
+        return [{"agent": "vector_kb_agent", "focus": query}], {"label": "planner"}
 
     async def _fake_vector_kb_run(focus):
         return "8 weeks paid.", []
@@ -194,7 +198,7 @@ async def test_sources_come_from_vector_kb_agent_only(monkeypatch):
     real_chunk = {"document_id": "doc-1", "filename": "leave.pdf", "chunk_index": 0, "text": "8 weeks paid.", "score": 0.9}
 
     async def _fake_plan(query):
-        return [{"agent": "vector_kb_agent", "focus": query}]
+        return [{"agent": "vector_kb_agent", "focus": query}], {"label": "planner"}
 
     async def _fake_vector_kb_run(focus):
         return "8 weeks paid.", [real_chunk]
@@ -215,7 +219,7 @@ async def test_a_vector_kb_only_repeat_is_cache_served(monkeypatch):
 
     async def _fake_plan(query):
         call_count["plan"] += 1
-        return [{"agent": "vector_kb_agent", "focus": query}]
+        return [{"agent": "vector_kb_agent", "focus": query}], {"label": "planner"}
 
     async def _fake_vector_kb_run(focus):
         return "8 weeks paid.", []
@@ -229,6 +233,10 @@ async def test_a_vector_kb_only_repeat_is_cache_served(monkeypatch):
     assert call_count["plan"] == 1  # only the first call ran the planner at all
     assert second["served_from_cache"] is True
     assert second["answer"] == first["answer"]
+    # Phase 160 - a cache hit never re-sends anything, so its llm_context
+    # must be null, not the original call's stale turns replayed as if live.
+    assert first["llm_context"] is not None
+    assert second["llm_context"] is None
 
 
 async def test_a_live_data_agent_dispatch_is_never_cached(monkeypatch):
@@ -239,7 +247,7 @@ async def test_a_live_data_agent_dispatch_is_never_cached(monkeypatch):
 
     async def _fake_plan(query):
         call_count["plan"] += 1
-        return [{"agent": "lms_ops_agent", "focus": query}]
+        return [{"agent": "lms_ops_agent", "focus": query}], {"label": "planner"}
 
     async def _fake_lms_ops_run(focus, employee_id):
         return "10 days available.", []
@@ -258,7 +266,7 @@ async def test_follow_ups_are_empty_when_no_domain_agent_ran(monkeypatch):
     _patch_guardrails(monkeypatch)
 
     async def _fake_plan(query):
-        return []
+        return [], {"label": "planner"}
 
     monkeypatch.setattr(multi_agent_pipeline.planner_agent, "plan", _fake_plan)
 
@@ -276,7 +284,7 @@ async def test_follow_ups_are_generated_when_a_domain_agent_ran(monkeypatch):
     _patch_guardrails(monkeypatch)
 
     async def _fake_plan(query):
-        return [{"agent": "vector_kb_agent", "focus": query}]
+        return [{"agent": "vector_kb_agent", "focus": query}], {"label": "planner"}
 
     async def _fake_vector_kb_run(focus):
         return "8 weeks paid parental leave.", []
@@ -297,7 +305,7 @@ async def test_tool_call_metrics_mark_success_false_on_an_error_result(monkeypat
     _patch_guardrails(monkeypatch)
 
     async def _fake_plan(query):
-        return [{"agent": "lms_ops_agent", "focus": query}]
+        return [{"agent": "lms_ops_agent", "focus": query}], {"label": "planner"}
 
     async def _fake_lms_ops_run(focus, employee_id):
         return "Error: hrb_lms_mcp unreachable", []

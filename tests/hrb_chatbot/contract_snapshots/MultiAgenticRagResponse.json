@@ -110,7 +110,7 @@
             }
           ],
           "default": null,
-          "description": "Phase 132 - genai-rag only; null for single/multi-agentic-rag and on a cache hit (nothing was actually sent this call)."
+          "description": "Phase 132 (genai-rag), extended Phase 160 to single/multi-agentic-rag; null only on a cache hit (nothing was actually sent this call)."
         },
         "routed_to": {
           "anyOf": [
@@ -226,7 +226,7 @@
       "type": "object"
     },
     "LlmContextInfo": {
-      "description": "Phase 132 - genai-rag only (null for single/multi-agentic-rag, same pattern as temperature).",
+      "description": "Phase 132 (genai-rag), extended Phase 160 to single/multi-agentic-rag -\nnull only on a cache hit, when nothing was actually sent that call.",
       "properties": {
         "turns": {
           "items": {

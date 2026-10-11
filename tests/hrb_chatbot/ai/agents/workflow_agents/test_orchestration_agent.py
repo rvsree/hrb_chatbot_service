@@ -125,6 +125,11 @@ async def test_one_tool_call_then_final_answer(monkeypatch):
     assert call["success"] is True
     assert call["latency_ms"] is not None
     assert result["iterations"] == 2
+    # Phase 160 - one real LlmContextTurn per ReAct iteration, not a guess.
+    llm_context = result["llm_context"]
+    assert [turn["label"] for turn in llm_context["turns"]] == ["iteration 1", "iteration 2"]
+    assert llm_context["turns"][0]["human_message"] == "What's the 401k match?"
+    assert llm_context["turns"][1]["response"] == "The match is 100% up to 5%."
 
 
 async def test_search_strategy_arg_is_forwarded_to_the_real_tool_function(monkeypatch):
@@ -370,6 +375,10 @@ async def test_a_repeat_with_only_search_knowledge_base_is_cache_served(monkeypa
     assert call_count["ainvoke"] == 2  # only the first call's own 2 LLM round trips
     assert second["served_from_cache"] is True
     assert second["answer"] == first["answer"]
+    # Phase 160 - a cache hit never re-sends anything, so its llm_context
+    # must be null, not the original call's stale turns replayed as if live.
+    assert first["llm_context"] is not None
+    assert second["llm_context"] is None
 
 
 async def test_a_leave_balance_tool_call_is_never_cached(monkeypatch):

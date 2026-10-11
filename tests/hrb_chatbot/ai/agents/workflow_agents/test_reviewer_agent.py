@@ -26,9 +26,10 @@ def _patch_llm(monkeypatch, content):
 
 
 async def test_zero_results_gives_a_clear_fallback():
-    answer = await reviewer_agent.review("what is the policy?", [])
+    answer, turn = await reviewer_agent.review("what is the policy?", [])
 
     assert "wasn't able to find" in answer
+    assert turn is None
 
 
 async def test_one_result_still_goes_through_the_llm(monkeypatch):
@@ -37,7 +38,7 @@ async def test_one_result_still_goes_through_the_llm(monkeypatch):
     # be synthesized, not returned verbatim.
     _patch_llm(monkeypatch, "Parental leave is 8 weeks paid.")
 
-    answer = await reviewer_agent.review(
+    answer, turn = await reviewer_agent.review(
         "what is the parental leave policy?",
         [
             {
@@ -49,12 +50,13 @@ async def test_one_result_still_goes_through_the_llm(monkeypatch):
     )
 
     assert answer == "Parental leave is 8 weeks paid."
+    assert turn["label"] == "reviewer"
 
 
 async def test_two_or_more_results_are_merged_by_the_llm(monkeypatch):
     _patch_llm(monkeypatch, "Parental leave is 8 weeks paid. Your current balance is 10 days.")
 
-    answer = await reviewer_agent.review(
+    answer, turn = await reviewer_agent.review(
         "what is the parental leave policy and what's my leave balance?",
         [
             {"agent": "vector_kb_agent", "focus": "parental leave policy", "result": "8 weeks paid."},
@@ -63,6 +65,7 @@ async def test_two_or_more_results_are_merged_by_the_llm(monkeypatch):
     )
 
     assert answer == "Parental leave is 8 weeks paid. Your current balance is 10 days."
+    assert turn["label"] == "reviewer"
 
 
 class _CapturingLlm:

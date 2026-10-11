@@ -154,7 +154,8 @@ class LlmContextTurn(BaseModel):
 
 
 class LlmContextInfo(BaseModel):
-    """Phase 132 - genai-rag only (null for single/multi-agentic-rag, same pattern as temperature)."""
+    """Phase 132 (genai-rag), extended Phase 160 to single/multi-agentic-rag -
+    null only on a cache hit, when nothing was actually sent that call."""
 
     turns: list[LlmContextTurn] = Field(default_factory=list)
     mcp_tool_calls: list[McpToolCallDetail] = Field(default_factory=list)
@@ -169,7 +170,7 @@ class ExplainabilityInfo(BaseModel):
     latency_ms: LatencyInfo
     token_usage: TokenUsageInfo | None = Field(None, description="Null on a cache hit, MCP fast-path, or a no-context answer that never called the LLM.")
     llm_context: LlmContextInfo | None = Field(
-        None, description="Phase 132 - genai-rag only; null for single/multi-agentic-rag and on a cache hit (nothing was actually sent this call)."
+        None, description="Phase 132 (genai-rag), extended Phase 160 to single/multi-agentic-rag; null only on a cache hit (nothing was actually sent this call)."
     )
     routed_to: str | None = Field(None, description="The MCP tool name if this answer was dynamically routed there instead of RAG (Phase 49/108). Null otherwise.")
     eval_scores: EvalScores | None = Field(None, description="Null for an MCP answer or a no-context answer (nothing to check groundedness against). Reused as-is on a cache hit - same answer, same score, not re-judged.")

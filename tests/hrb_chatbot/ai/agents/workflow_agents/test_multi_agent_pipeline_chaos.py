@@ -54,7 +54,7 @@ async def test_one_domain_agent_failing_does_not_crash_the_graph_or_drop_the_oth
         return [
             {"agent": "vector_kb_agent", "focus": "parental leave policy"},
             {"agent": "lms_ops_agent", "focus": "my leave balance"},
-        ]
+        ], {"label": "planner"}
 
     async def _fake_vector_kb_run(focus):
         return "8 weeks paid.", []
@@ -67,7 +67,7 @@ async def test_one_domain_agent_failing_does_not_crash_the_graph_or_drop_the_oth
 
     async def _capturing_review(query, agent_results):
         captured_agent_results["value"] = agent_results
-        return "Parental leave is 8 weeks paid. Your leave balance lookup failed."
+        return "Parental leave is 8 weeks paid. Your leave balance lookup failed.", {"label": "reviewer"}
 
     monkeypatch.setattr(multi_agent_pipeline.planner_agent, "plan", _fake_plan)
     monkeypatch.setattr(multi_agent_pipeline.vector_kb_agent, "run", _fake_vector_kb_run)
@@ -92,7 +92,7 @@ async def test_a_domain_agent_node_raising_outright_propagates_rather_than_silen
     _patch_guardrails(monkeypatch)
 
     async def _fake_plan(query):
-        return [{"agent": "vector_kb_agent", "focus": "parental leave policy"}]
+        return [{"agent": "vector_kb_agent", "focus": "parental leave policy"}], {"label": "planner"}
 
     async def _raising_vector_kb_run(focus):
         raise RuntimeError("unexpected failure inside the tool wrapper")
