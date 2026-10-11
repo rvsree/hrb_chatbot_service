@@ -4,14 +4,16 @@ call_type="agent_call", and that no "llm_call" case accidentally matches
 the bypass keywords. The real "CI-wired eval gate" for routing correctness
 named earlier - default suite, not @pytest.mark.eval. Phase 151 removed
 the top-level MCP shortcut that used to let a pure agent_call query skip
-decompose() entirely - every query goes through decompose() first now, so
-it's faked here too (as a passthrough, matching its own real behavior for
-an already-atomic question) to keep this a genuinely zero-real-call test,
-not because the keyword-matching logic itself needs faking - that part
-still runs unfaked, same as always."""
+decompose() AND the shared guarded-pipeline core (guarded_pipeline.py)
+entirely - every query goes through both now, so decompose() and
+check_output() (the shared core's own output guardrail) are both faked
+here as passthroughs, matching their real behavior for this case, to keep
+this a genuinely zero-real-call test - not because the keyword-matching
+logic itself needs faking, that part still runs unfaked, same as always."""
 
 import json
 
+from src.hrb_chatbot.ai.rag_core import guarded_pipeline
 from src.hrb_chatbot.ai.rag_pipeline import pipeline
 from src.hrb_chatbot.ai.rag_pipeline.tools import mcp_tools
 from src.hrb_chatbot.common.rag_query_params import RagQueryParams
@@ -44,8 +46,16 @@ async def test_agent_call_cases_bypass_the_llm_entirely(monkeypatch):
     async def _passthrough_decompose(query):
         return [query]
 
+    # Phase 151 - an MCP-routed answer now goes through the shared
+    # guarded_pipeline core too (it used to bypass that core entirely),
+    # which calls check_output() on the final answer - faked as a
+    # passthrough for the same zero-real-call reason as check_input above.
+    async def _passthrough_check_output(query, answer):
+        return answer
+
     monkeypatch.setattr(pipeline, "check_input", _passthrough_check_input)
     monkeypatch.setattr(pipeline, "decompose", _passthrough_decompose)
+    monkeypatch.setattr(guarded_pipeline, "check_output", _passthrough_check_output)
     monkeypatch.setattr(mcp_tools, "get_leave_balance", _fake_get_leave_balance)
     monkeypatch.setattr(mcp_tools, "get_leave_history", _fake_get_leave_history)
 
