@@ -162,6 +162,96 @@ def test_email_sent_to_is_surfaced_when_the_agent_actually_sent_one(monkeypatch)
     assert response.json()["email_sent_to"] == "someone@example.com"
 
 
+# Phase 161 - email_evidence round-trips through the route's own response
+# model, sent or failed, so a failed send is visible instead of
+# indistinguishable from "no email asked for at all".
+
+
+def test_email_evidence_is_surfaced_for_a_successful_send(monkeypatch):
+    _patch_guardrails_and_agent(
+        monkeypatch,
+        agent_result={
+            "answer": "Done.",
+            "files_used": ["a.csv"],
+            "web_searches": [],
+            "email_sent_to": "someone@example.com",
+            "email_evidence": {
+                "recipient_email": "someone@example.com",
+                "subject": "Your Accenture Offer Summary",
+                "sent": True,
+                "message": "Email sent to someone@example.com.",
+                "attached_files": [],
+                "sent_at": "2026-10-11T20:00:00+00:00",
+            },
+            "model_used": "gpt-4.1-mini-fake",
+            "iterations": 2,
+            "llm_call_count": 2,
+            "token_usage": None,
+            "latency_ms": {"total": 100.0},
+        },
+    )
+
+    response = _post(
+        question="Email me the answer",
+        files=[("files", ("a.csv", b"a,b\n1,2", "text/csv"))],
+        recipient_email="someone@example.com",
+    )
+
+    assert response.status_code == 200
+    evidence = response.json()["email_evidence"]
+    assert evidence["sent"] is True
+    assert evidence["recipient_email"] == "someone@example.com"
+    assert evidence["subject"] == "Your Accenture Offer Summary"
+    assert evidence["sent_at"] == "2026-10-11T20:00:00+00:00"
+
+
+def test_email_evidence_is_surfaced_for_a_failed_send(monkeypatch):
+    _patch_guardrails_and_agent(
+        monkeypatch,
+        agent_result={
+            "answer": "Done.",
+            "files_used": ["a.csv"],
+            "web_searches": [],
+            "email_sent_to": None,
+            "email_evidence": {
+                "recipient_email": "someone@example.com",
+                "subject": "Your Accenture Offer Summary",
+                "sent": False,
+                "message": "SES_SENDER_EMAIL is not configured.",
+                "attached_files": [],
+                "sent_at": "2026-10-11T20:00:00+00:00",
+            },
+            "model_used": "gpt-4.1-mini-fake",
+            "iterations": 2,
+            "llm_call_count": 2,
+            "token_usage": None,
+            "latency_ms": {"total": 100.0},
+        },
+    )
+
+    response = _post(
+        question="Email me the answer",
+        files=[("files", ("a.csv", b"a,b\n1,2", "text/csv"))],
+        recipient_email="someone@example.com",
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["email_sent_to"] is None
+    evidence = body["email_evidence"]
+    assert evidence["sent"] is False
+    assert evidence["message"] == "SES_SENDER_EMAIL is not configured."
+
+
+def test_email_evidence_is_none_when_no_email_was_requested(monkeypatch):
+    _patch_guardrails_and_agent(monkeypatch)
+
+    response = _post(question="What's in this file?", files=[("files", ("a.csv", b"a,b\n1,2", "text/csv"))])
+
+    assert response.status_code == 200
+    assert response.json()["email_evidence"] is None
+
+
 # Phase 159 - the recipient-email field is sticky across turns in the UI,
 # so what gets appended to the agent's question must stay purely
 # informational, never a directive - a directive gets appended to every

@@ -13,6 +13,20 @@ ALLOWED_EXTENSIONS = (".pdf", ".docx", ".csv")
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
 
 
+class EmailEvidence(BaseModel):
+    """Phase 161 - real evidence of one SendEmailWithAnswer attempt, sent or
+    failed - captured so a failure (e.g. SES_SENDER_EMAIL not configured)
+    is visible instead of silently indistinguishable from "no email asked
+    for at all"."""
+
+    recipient_email: str
+    subject: str
+    sent: bool
+    message: str = Field(..., description="send_email()'s own success/failure text - never re-derived.")
+    attached_files: list[str] = Field(default_factory=list, description="Empty unless attach_files was set on the tool call.")
+    sent_at: str = Field(..., description="UTC ISO-8601, captured right before calling send_email().")
+
+
 class AdhocDocumentChatResponse(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
@@ -24,6 +38,9 @@ class AdhocDocumentChatResponse(BaseModel):
         description="Phase 145 - which queries the agent actually ran via SearchWeb, reusing multi-agentic-rag's Tavily integration. Empty when the question didn't need the web.",
     )
     email_sent_to: str | None = Field(None, description="Set only if SendEmailWithAnswer actually succeeded.")
+    email_evidence: EmailEvidence | None = Field(
+        None, description="Phase 161 - set whenever SendEmailWithAnswer was called this turn, sent or failed. None only when no email was attempted at all."
+    )
     model_used: str
     iterations: int
     llm_call_count: int

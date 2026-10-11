@@ -15,7 +15,13 @@ from src.hrb_chatbot.common import error_codes
 from src.hrb_chatbot.common.enums import Role
 from src.hrb_chatbot.common.logging.logger import get_logger
 from src.hrb_chatbot.common.rate_limiting.rate_limiter import enforce_rate_limit
-from src.hrb_chatbot.models.adhoc_chat import ALLOWED_EXTENSIONS, MAX_FILES, MAX_FILE_SIZE_BYTES, AdhocDocumentChatResponse
+from src.hrb_chatbot.models.adhoc_chat import (
+    ALLOWED_EXTENSIONS,
+    MAX_FILES,
+    MAX_FILE_SIZE_BYTES,
+    AdhocDocumentChatResponse,
+    EmailEvidence,
+)
 from src.hrb_chatbot.models.common import UserProfile
 
 logger = get_logger("adhoc_document_chat")
@@ -126,12 +132,14 @@ async def adhoc_document_chat(
 
     result["answer"] = await check_output(checked_question, result["answer"])
 
+    email_evidence = result.get("email_evidence")
     return AdhocDocumentChatResponse(
         question=question,
         answer=result["answer"],
         files_used=result["files_used"],
         web_searches=result["web_searches"],
         email_sent_to=result["email_sent_to"],
+        email_evidence=EmailEvidence(**email_evidence) if email_evidence else None,
         model_used=result["model_used"],
         iterations=result["iterations"],
         llm_call_count=result["llm_call_count"],
