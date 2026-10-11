@@ -76,11 +76,14 @@ class MultiAgentState(TypedDict):
     agent_results: Annotated[list[dict], operator.add]
     answer: str
     follow_up_questions: list[str]
+    # Phase 160 - the only 2 of 7 nodes that make a real LLM call.
+    planner_turn: dict | None
+    reviewer_turn: dict | None
 
 
 async def planner_node(state: MultiAgentState) -> dict:
-    tasks = await planner_agent.plan(state["query"])
-    return {"tasks": tasks}
+    tasks, turn = await planner_agent.plan(state["query"])
+    return {"tasks": tasks, "planner_turn": turn}
 
 
 def dispatch_to_agents(state: MultiAgentState) -> list[Send]:
@@ -165,11 +168,11 @@ async def web_search_agent_node(state: dict) -> dict:
 
 
 async def reviewer_node(state: MultiAgentState) -> dict:
-    answer = await reviewer_agent.review(state["query"], state["agent_results"])
+    answer, turn = await reviewer_agent.review(state["query"], state["agent_results"])
     follow_up_questions = (
         await reviewer_agent.generate_follow_ups(state["query"], answer) if state["agent_results"] else []
     )
-    return {"answer": answer, "follow_up_questions": follow_up_questions}
+    return {"answer": answer, "follow_up_questions": follow_up_questions, "reviewer_turn": turn}
 
 
 def _build_graph():
@@ -239,6 +242,11 @@ async def run_multi_agent(
         result["llm_call_count"] = 0
         result["token_usage"] = None
         result["latency_ms"] = {"total": _elapsed_ms(started_at), "retrieval": None, "generation": None, "eval": None}
+        # Phase 160: a cached result's turns describe the ORIGINAL call that
+        # populated this cache entry, not this one - nothing was actually
+        # sent to the LLM this call, same discipline genai-rag's own
+        # cache-hit path already applies to its own llm_context.
+        result["llm_context"] = None
         return result
 
     graph = get_graph()
@@ -250,6 +258,8 @@ async def run_multi_agent(
             "agent_results": [],
             "answer": "",
             "follow_up_questions": [],
+            "planner_turn": None,
+            "reviewer_turn": None,
         }
     )
 
@@ -276,6 +286,12 @@ async def run_multi_agent(
 
     eval_scores, eval_ms = await _score_live_answer(checked_query, answer, agent_result_texts)
 
+    # Phase 160 - only planner/reviewer make a real LLM call; every domain
+    # agent is LLM-free (retrieval/MCP/web-search calls, or a stub) - their
+    # own activity already surfaces via tools_used, not duplicated here.
+    turns = [turn for turn in (final_state.get("planner_turn"), final_state.get("reviewer_turn")) if turn]
+    llm_context = {"turns": turns, "mcp_tool_calls": []} if turns else None
+
     result = {
         "answer": answer,
         "tasks": final_state["tasks"],
@@ -290,6 +306,7 @@ async def run_multi_agent(
         # of this run's own LLM calls, not a guess.
         "llm_call_count": len(agent_results) + 2,
         "token_usage": None,
+        "llm_context": llm_context,
         "eval_scores": eval_scores,
         "latency_ms": {"total": _elapsed_ms(started_at), "retrieval": None, "generation": None, "eval": eval_ms},
     }

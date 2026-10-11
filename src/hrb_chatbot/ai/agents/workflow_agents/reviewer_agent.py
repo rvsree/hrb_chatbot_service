@@ -20,24 +20,32 @@ def _build_llm() -> ChatOpenAI:
     return build_agent_llm()
 
 
-async def review(query: str, agent_results: list[dict]) -> str:
+async def review(query: str, agent_results: list[dict]) -> tuple[str, dict | None]:
     """Merges every domain agent's result into one final answer. Always goes
     through the LLM, even for exactly one result (Phase 150) - a domain
     agent's raw output (e.g. vector_kb_agent's "Found relevant knowledge
     base content:\n\n--- Source 1 ..." dump) is meta/intermediate text, not
     a presentable answer on its own, so skipping synthesis for the 1-result
-    case surfaced that raw dump directly to the user."""
+    case surfaced that raw dump directly to the user.
+
+    Phase 160: also returns the real LlmContextTurn-shaped dict for this
+    call (None only for the zero-results case, which never calls the LLM)
+    - genai-rag's own decomposition-merge call already used this function
+    too, but its captured turn always had system_prompt/human_message left
+    None (Phase 132's own noted gap); returning the real values here closes
+    that for every caller at once, not just single/multi-agentic-rag."""
     if not agent_results:
-        return "I wasn't able to find an answer to that question."
+        return "I wasn't able to find an answer to that question.", None
 
     combined = build_context_from_agent_results(agent_results)
     llm = _build_llm()
     system_prompt = REVIEWER_SYSTEM_PROMPT
     if should_use_tabular_format(query):
         system_prompt = f"{REVIEWER_SYSTEM_PROMPT}\n\n{TABULAR_FORMAT_INSTRUCTION}"
+    human_message = f"Original question: {query}\n\nDomain agent results:\n{combined}"
     messages = [
         SystemMessage(content=system_prompt),
-        HumanMessage(content=f"Original question: {query}\n\nDomain agent results:\n{combined}"),
+        HumanMessage(content=human_message),
     ]
 
     with log_backend_call(logger, "reviewer_agent", "review"):
@@ -50,7 +58,14 @@ async def review(query: str, agent_results: list[dict]) -> str:
             response.usage_metadata["output_tokens"],
         )
 
-    return response.content
+    turn = {
+        "label": "reviewer",
+        "system_prompt": system_prompt,
+        "human_message": human_message,
+        "chat_history": [],
+        "response": response.content,
+    }
+    return response.content, turn
 
 
 async def generate_follow_ups(query: str, answer: str) -> list[str]:

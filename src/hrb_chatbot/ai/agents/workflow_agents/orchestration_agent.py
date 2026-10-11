@@ -40,6 +40,31 @@ def _elapsed_ms(started_at: float) -> float:
     return round((time.perf_counter() - started_at) * 1000, 1)
 
 
+def _message_role(message) -> str:
+    kind = message.__class__.__name__
+    return {"HumanMessage": "human", "AIMessage": "ai", "ToolMessage": "tool"}.get(kind, kind.lower())
+
+
+def _render_turn(label: str, messages: list, response_text: str) -> dict:
+    """Phase 160 - one ReAct iteration's real, exact prompt: messages[0] is
+    always the SystemMessage; the last of the rest is "what's new this
+    turn" (the original query on iteration 1, a tool result after that),
+    same final-turn/chat_history split genai-rag's own captured turns
+    already use, just generalized past "always a HumanMessage" since a
+    later iteration's newest message is really a ToolMessage."""
+    system_prompt = messages[0].content if messages else None
+    rest = messages[1:]
+    human_message = rest[-1].content if rest else None
+    chat_history = [{"role": _message_role(message), "content": message.content} for message in rest[:-1]]
+    return {
+        "label": label,
+        "system_prompt": system_prompt,
+        "human_message": human_message,
+        "chat_history": chat_history,
+        "response": response_text,
+    }
+
+
 async def _score_live_answer(query: str, answer: str, context_texts: list[str]) -> tuple[dict | None, float | None]:
     """Same approach as pipeline.py's own _score_live_answer() (Phase 109) -
     skipped when there's no tool-retrieved context to check groundedness
@@ -116,6 +141,10 @@ async def run_agent(
         result["served_from_cache"] = True
         result["llm_call_count"] = 0
         result["token_usage"] = None
+        # Phase 160: a cached result's turns describe the ORIGINAL call that
+        # populated this cache entry, not this one - same discipline
+        # genai-rag's own cache-hit path already applies to its llm_context.
+        result["llm_context"] = None
         result["latency_ms"] = {"total": _elapsed_ms(started_at), "retrieval": None, "generation": None, "eval": None}
         return result
 
@@ -127,6 +156,7 @@ async def run_agent(
         tools_used = []
         tool_outputs = []  # raw tool output text, kept alongside tools_used - needed to eval groundedness (Phase 69)
         sources = []  # structured RetrievedChunk-shaped dicts, for real citations (Phase 115)
+        turns = []  # Phase 160 - one real LlmContextTurn per ReAct iteration
         total_prompt_tokens = 0
         total_completion_tokens = 0
         llm_call_count = 0
@@ -145,6 +175,7 @@ async def run_agent(
             with log_backend_call(logger, "orchestration_agent", "ainvoke", iteration=i + 1):
                 response = await asyncio.wait_for(llm.ainvoke(messages), timeout=AGENT_LLM_TIMEOUT_SECONDS)
             llm_call_count += 1
+            turns.append(_render_turn(f"iteration {i + 1}", messages, response.content))
 
             if response.usage_metadata:
                 total_prompt_tokens += response.usage_metadata["input_tokens"]
@@ -166,6 +197,7 @@ async def run_agent(
                     "iterations": i + 1,
                     "llm_call_count": llm_call_count,
                     "token_usage": _token_usage(),
+                    "llm_context": {"turns": turns, "mcp_tool_calls": []},
                     "latency_ms": {"total": None, "retrieval": None, "generation": _elapsed_ms(generation_started_at)},
                 }
 
@@ -204,6 +236,7 @@ async def run_agent(
             "iterations": resolved_max_iterations,
             "llm_call_count": llm_call_count,
             "token_usage": _token_usage(),
+            "llm_context": {"turns": turns, "mcp_tool_calls": []},
             "latency_ms": {"total": None, "retrieval": None, "generation": _elapsed_ms(generation_started_at)},
         }
 

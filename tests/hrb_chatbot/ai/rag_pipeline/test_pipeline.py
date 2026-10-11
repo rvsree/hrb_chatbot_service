@@ -612,7 +612,7 @@ async def test_compound_kb_question_merges_two_sub_answers(monkeypatch):
         assert len(agent_results) == 2
         assert agent_results[0]["result"] == "Dental is MetLife PPO."
         assert agent_results[1]["result"] == "Vision is VSP."
-        return "Dental is MetLife PPO. Vision is VSP."
+        return "Dental is MetLife PPO. Vision is VSP.", {"label": "reviewer", "system_prompt": "fake reviewer system prompt", "human_message": "fake reviewer human message", "chat_history": [], "response": "fake"}
 
     monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve)
     monkeypatch.setattr(pipeline, "generate_answer", _fake_generate)
@@ -660,7 +660,7 @@ async def test_compound_kb_and_mcp_question_gets_both_halves_right(monkeypatch):
             "Employer match is 100% immediately vested.",
             "You have 12 PTO days left.",
         }
-        return "Employer match is 100% immediately vested. You have 12 PTO days left."
+        return "Employer match is 100% immediately vested. You have 12 PTO days left.", {"label": "reviewer", "system_prompt": "fake reviewer system prompt", "human_message": "fake reviewer human message", "chat_history": [], "response": "fake"}
 
     monkeypatch.setattr(pipeline, "try_route_to_mcp", _fake_try_route_to_mcp)
     monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve)
@@ -710,7 +710,7 @@ async def test_a_compound_kb_and_mcp_answer_is_never_cached(monkeypatch):
         return {"answer": "Employer match is 100% immediately vested.", "model_used": "gpt-4.1-mini"}
 
     async def _fake_review(query, agent_results):
-        return "Employer match is 100% immediately vested. You have 12 PTO days left."
+        return "Employer match is 100% immediately vested. You have 12 PTO days left.", {"label": "reviewer", "system_prompt": "fake reviewer system prompt", "human_message": "fake reviewer human message", "chat_history": [], "response": "fake"}
 
     monkeypatch.setattr(pipeline, "decompose", _fake_decompose_compound)
     monkeypatch.setattr(pipeline, "try_route_to_mcp", _fake_try_route_to_mcp)

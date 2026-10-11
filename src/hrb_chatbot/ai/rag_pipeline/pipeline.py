@@ -300,21 +300,19 @@ async def answer_query(params: RagQueryParams) -> dict:
                 {"agent": "genai-rag", "focus": sub_question, "result": sub_result["answer"]}
                 for sub_question, sub_result in zip(sub_questions, sub_results, strict=True)
             ]
-            answer = await reviewer_agent.review(generate_query, agent_results)
+            answer, merge_turn = await reviewer_agent.review(generate_query, agent_results)
             llm_call_count += 1  # the merge call
-            # Phase 132: the merge call happened and shaped the final
-            # answer, but its own prompt isn't captured yet - a real,
-            # separate LLM call that combines the sub-answers above into
-            # one response, not a sub-question in its own right. Phase 140:
-            # relabeled to something a user can understand on its own -
-            # the old label ("reviewer merge (prompt capture not yet built
-            # for this step)") was an internal TODO note leaking into
-            # user-facing UI.
+            # Phase 140: relabeled to something a user can understand on its
+            # own - the old label ("reviewer merge (prompt capture not yet
+            # built for this step)") was an internal TODO note leaking into
+            # user-facing UI. Phase 160: that TODO is now resolved -
+            # merge_turn carries the real system_prompt/human_message
+            # reviewer_agent.review() actually sent, not a placeholder.
             llm_context_turns.append(
                 {
                     "label": f"Merging {len(sub_results)} sub-answers into one response",
-                    "system_prompt": None,
-                    "human_message": None,
+                    "system_prompt": merge_turn["system_prompt"] if merge_turn else None,
+                    "human_message": merge_turn["human_message"] if merge_turn else None,
                     "chat_history": [],
                     "response": answer,
                 }
