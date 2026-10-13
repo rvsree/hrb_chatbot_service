@@ -125,6 +125,14 @@ langchain==0.3.20
 # 0.3.9 -> 0.3.35 - see the openai==2.54.0 note above; same forcing chain.
 langchain-openai==0.3.35
 langgraph==0.3.21
+# Phase 172 - the Postgres-backed checkpointer, for real interrupt()/
+# Command(resume=...) pause/resume on the "Request Unpaid Leave" graph.
+# Pinned to the 2.0.x line deliberately, not the latest 3.x - 3.x pulls in
+# langgraph-checkpoint>=4.0.0, which conflicts with langgraph==0.3.21's own
+# pinned langgraph-checkpoint<3.0.0,>=2.0.10 requirement (confirmed via
+# `pip install` itself refusing/warning on the 3.x line - not assumed).
+langgraph-checkpoint==2.1.2
+langgraph-checkpoint-postgres==2.0.25
 langchain-community==0.3.19
 # Text splitters (chunking) - already a transitive dep of langchain, pinned
 # explicitly since ai/doc_processing/chunking/text_chunker.py imports it

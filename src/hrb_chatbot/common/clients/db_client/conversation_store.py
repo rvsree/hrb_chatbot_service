@@ -126,6 +126,31 @@ class ConversationStore:
         ):
             return await asyncio.to_thread(self._get_conversation_turns_sync, conversation_id, employee_id)
 
+    def _get_conversation_turns_any_sync(self, conversation_id: str) -> list[dict]:
+        with self._connect() as conn:
+            with conn.cursor(row_factory=self._dict_row_factory) as cur:
+                cur.execute(
+                    "SELECT role, content, created_at FROM conversation_turns "
+                    "WHERE conversation_id = %s ORDER BY id ASC",
+                    (conversation_id,),
+                )
+                rows = cur.fetchall()
+        for row in rows:
+            row["created_at"] = row["created_at"].isoformat()
+        return rows
+
+    async def get_conversation_turns_any(self, conversation_id: str) -> list[dict]:
+        """Phase 168 (round 3) - admin-only: the full transcript for any
+        conversation regardless of owner, for the admin dashboard's own
+        review-before-delete popup. Deliberately a separate method from
+        get_conversation_turns() above, not an optional-employee_id
+        variant of it - same reasoning as delete_conversation_any()."""
+        await self._ensure_table()
+        with log_backend_call(
+            logger, "postgres", "conversation.get_conversation_turns_any", conversation_id=conversation_id
+        ):
+            return await asyncio.to_thread(self._get_conversation_turns_any_sync, conversation_id)
+
     def _list_conversations_sync(self, employee_id: str) -> list[dict]:
         with self._connect() as conn:
             with conn.cursor(row_factory=self._dict_row_factory) as cur:
@@ -201,6 +226,66 @@ class ConversationStore:
             logger, "postgres", "conversation.delete_conversation", conversation_id=conversation_id
         ):
             return await asyncio.to_thread(self._delete_conversation_sync, conversation_id, employee_id)
+
+    def _list_all_conversations_sync(self) -> list[dict]:
+        with self._connect() as conn:
+            with conn.cursor(row_factory=self._dict_row_factory) as cur:
+                cur.execute(
+                    "SELECT conversation_id, employee_id, role, content, created_at FROM conversation_turns "
+                    "ORDER BY id ASC"
+                )
+                rows = cur.fetchall()
+
+        conversations: dict[str, dict] = {}
+        for row in rows:
+            conversation_id = row["conversation_id"]
+            if conversation_id not in conversations:
+                conversations[conversation_id] = {
+                    "conversation_id": conversation_id,
+                    "employee_id": row["employee_id"],
+                    "title": row["content"],
+                    "started_at": row["created_at"],
+                    "last_updated_at": row["created_at"],
+                }
+            else:
+                conversations[conversation_id]["last_updated_at"] = row["created_at"]
+
+        ordered = sorted(conversations.values(), key=lambda c: c["last_updated_at"], reverse=True)
+        for conversation in ordered:
+            conversation["started_at"] = conversation["started_at"].isoformat()
+            conversation["last_updated_at"] = conversation["last_updated_at"].isoformat()
+        return ordered
+
+    async def list_all_conversations(self) -> list[dict]:
+        """Phase 168 - admin-only: every conversation across every
+        employee, newest-activity-first. Unlike list_conversations()
+        above, deliberately not scoped to one employee_id - this is the
+        one legitimate "see everyone's" case in this store."""
+        await self._ensure_table()
+        with log_backend_call(logger, "postgres", "conversation.list_all_conversations"):
+            return await asyncio.to_thread(self._list_all_conversations_sync)
+
+    def _delete_conversation_any_sync(self, conversation_id: str) -> int:
+        with self._connect() as conn:
+            cur = conn.execute(
+                "DELETE FROM conversation_turns WHERE conversation_id = %s",
+                (conversation_id,),
+            )
+            conn.commit()
+            return cur.rowcount
+
+    async def delete_conversation_any(self, conversation_id: str) -> int:
+        """Phase 168 - admin-only: deletes every turn for one
+        conversation_id regardless of which employee it belongs to.
+        Deliberately a separate method from delete_conversation() above,
+        not an optional-employee_id variant of it - keeping the normal,
+        self-scoped delete path textually untouched and impossible to
+        accidentally widen."""
+        await self._ensure_table()
+        with log_backend_call(
+            logger, "postgres", "conversation.delete_conversation_any", conversation_id=conversation_id
+        ):
+            return await asyncio.to_thread(self._delete_conversation_any_sync, conversation_id)
 
     def health_check(self) -> dict:
         """Report whether this store is usable - connects, creates the table if missing, counts rows."""

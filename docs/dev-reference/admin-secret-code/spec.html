@@ -1,0 +1,196 @@
+<title>Admin Secret Code - Spec</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --live: #147a4a; --live-bg: #e3f5eb; --live-border: #b5e3c8;
+    --design: #9a5a0c; --design-bg: #fbf1dd; --design-border: #edd6a2;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --cost: #a4321f; --cost-bg: #fbe9e5; --cost-border: #f0c3b8;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+      --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+    --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0b2b25;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  section.panel { display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .panel-num { width: 30px; height: 30px; border-radius: 9px; background: var(--band-dark); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13px; }
+  .panel-title { display: flex; flex-direction: column; }
+  .panel-title .name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; }
+  .panel-title .sub { font-size: 12px; color: var(--text-faint); }
+  .panel p { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+  .panel ul { margin: 0; padding-left: 20px; font-size: 13px; color: var(--text-muted); line-height: 1.7; }
+  .panel li { margin-bottom: 4px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+  .grid.two { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 15px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 7px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .card-label { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13.5px; }
+  .status-pill { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.03em; }
+  .status-pill.live { color: var(--live); background: var(--live-bg); border: 1px solid var(--live-border); }
+  .status-pill.design { color: var(--design); background: var(--design-bg); border: 1px solid var(--design-border); }
+  .status-pill.gap { color: var(--cost); background: var(--cost-bg); border: 1px solid var(--cost-border); }
+  .card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+  .ref-list { display: flex; flex-direction: column; gap: 10px; }
+  .ref-item { display: grid; grid-template-columns: 160px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .ref-item:last-child { border-bottom: none; }
+  @media (max-width: 620px) { .ref-item { grid-template-columns: 1fr; gap: 4px; } }
+  .ref-name { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13px; }
+  .ref-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.55; }
+  .ref-desc .mono { font-size: 11px; color: var(--text-faint); }
+
+  .callout { display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; border-radius: 10px; padding: 11px 14px; line-height: 1.55; }
+  .callout svg { flex: none; width: 16px; height: 16px; margin-top: 1px; }
+  .callout.cost { background: var(--cost-bg); border: 1px solid var(--cost-border); color: var(--cost); }
+  .callout.live { background: var(--live-bg); border: 1px solid var(--live-border); color: var(--live); }
+  .callout.design { background: var(--design-bg); border: 1px solid var(--design-border); color: var(--design); }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">spec - intent, scope, personas, acceptance criteria</div>
+    <h1 class="display">Admin Secret Code</h1>
+    <p class="subtitle">A lightweight extra verification step for the one role that can hard-delete data, layered on top of this project's documented "role is self-asserted" design - not a replacement for it. Pilot document for the Spec / Architecture / Design / Decisions model (Phase 179).</p>
+    <div class="doc-nav">
+      <span class="doc-nav-item current">Spec</span>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">1</div>
+      <div class="panel-title">
+        <span class="name display">Intent</span>
+        <span class="sub">why this exists, in one sentence</span>
+      </div>
+    </div>
+    <p>Every other role in this project is selected by the caller and trusted on the spot (documented RBAC-is-a-formality design, <span class="mono">api/gateway/rbac.py</span>). The <span class="mono">admin</span> role is the one exception worth a speed bump: it can hard-delete conversations, feedback, and leave requests outright. A masked secret-code field, checked server-side against a salted hash, makes picking "Admin" from a dropdown insufficient on its own - without pretending this is real authentication.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">2</div>
+      <div class="panel-title">
+        <span class="name display">Scope</span>
+        <span class="sub">what this feature covers, and what it deliberately doesn't</span>
+      </div>
+    </div>
+    <div class="grid two">
+      <div class="card">
+        <div class="card-head"><span class="card-label">In scope</span></div>
+        <ul>
+          <li>A <span class="mono">secret_code</span> field on login, read/checked only when <span class="mono">role == "admin"</span></li>
+          <li>Salted-hash storage and constant-time verification</li>
+          <li>A one-time seed code that forces a reset on first use</li>
+          <li>A reset flow reachable only by an already-authenticated admin</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-label">Explicitly out of scope</span></div>
+        <ul>
+          <li>Real authentication (OAuth2/JWT/session tokens) - a separate, larger, still-design-only project (<span class="mono">docs/dev-reference/auth/oauth2-auth-architecture.html</span>)</li>
+          <li>Multiple admin users / an admin user-management UI</li>
+          <li>Password complexity rules, lockout-after-N-attempts, or anything beyond the existing global Redis rate limiter</li>
+          <li>Changing what <span class="mono">require_role()</span> itself does - this only adds a pre-check in front of selecting the role, not a new enforcement mechanism</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">3</div>
+      <div class="panel-title">
+        <span class="name display">Personas</span>
+        <span class="sub">who this feature is for</span>
+      </div>
+    </div>
+    <div class="ref-list">
+      <div class="ref-item">
+        <span class="ref-name">Admin</span>
+        <span class="ref-desc">One named persona today (<span class="mono">ADM001</span>, <span class="mono">common/known_personas.py</span>) - deliberately not a real <span class="mono">hrb_emp_lms.employees</span> row like every other persona, since admin operations never resolve identity through the MCP server the way an employee's own leave-balance lookup does. The project owner's own login, not a demo-able credential.</span>
+      </div>
+      <div class="ref-item">
+        <span class="ref-name">Everyone else</span>
+        <span class="ref-desc">Employee/manager/hr_support logins are entirely unaffected - <span class="mono">secret_code</span> is optional on <span class="mono">LoginRequest</span> and never read unless the selected role is admin.</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">4</div>
+      <div class="panel-title">
+        <span class="name display">Acceptance criteria</span>
+        <span class="sub">what "done" means for this feature</span>
+      </div>
+    </div>
+    <div class="grid two">
+      <div class="card"><div class="card-head"><span class="card-label">Masked field, admin-only</span><span class="status-pill live">met</span></div><p class="card-desc">The login form's secret-code field renders only when the selected role is admin, as <span class="mono">type="password"</span> - never visible on screen during a live demo.</p></div>
+      <div class="card"><div class="card-head"><span class="card-label">No plaintext storage</span><span class="status-pill live">met</span></div><p class="card-desc">The code is never stored or compared as plaintext - only a salted SHA-256 hash, compared with <span class="mono">hmac.compare_digest()</span> (constant-time, avoids a timing side-channel).</p></div>
+      <div class="card"><div class="card-head"><span class="card-label">One-time seed forces a reset</span><span class="status-pill live">met</span></div><p class="card-desc">The very first admin login (no <span class="mono">admin_credentials</span> row yet) succeeds with the seed code but returns <span class="mono">must_reset_secret_code: true</span> - the seed can never silently become the permanent code.</p></div>
+      <div class="card"><div class="card-head"><span class="card-label">Reset needs a valid session first</span><span class="status-pill live">met</span></div><p class="card-desc"><span class="mono">POST /v1/admin/reset-secret-code</span> requires both a valid admin <span class="mono">user_profile</span> and the correct <em>current</em> code - resetting isn't reachable from the unauthenticated login screen.</p></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">5</div>
+      <div class="panel-title">
+        <span class="name display">Open questions - and how they were actually resolved</span>
+        <span class="sub">decisions get their own full doc; this is the short version</span>
+      </div>
+    </div>
+    <div class="callout design">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+      <span><strong>"Should this use OAuth2 or a JWT instead?"</strong> - No. OAuth2 solves delegated third-party authorization (not this problem - there's no third party here), and a JWT is a session-token format, which is a real but separate gap (this project's own documented "role is self-asserted on every request" limitation) - neither is a storage mechanism for the secret code itself. See <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a> for the full reasoning.</span>
+    </div>
+  </section>
+
+  <footer>
+    Built as Phase 169 (masked field) + Phase 171 (hashed storage, one-time seed, reset flow) - see <code class="mono">docs/agent-reference/RAG-ROADMAP.md</code> for the full phase write-ups this doc summarizes. Part of the Phase 179 Spec/Architecture/Design/Decisions pilot.
+  </footer>
+</div>

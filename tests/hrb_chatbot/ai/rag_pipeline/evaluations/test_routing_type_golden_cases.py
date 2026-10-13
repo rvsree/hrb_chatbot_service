@@ -46,6 +46,11 @@ async def test_agent_call_cases_bypass_the_llm_entirely(monkeypatch):
     async def _passthrough_decompose(query):
         return [query]
 
+    # Phase 173 - normalize_query() now runs before check_input() on every
+    # call; faked as a passthrough for the same zero-real-call reason.
+    async def _passthrough_normalize(query):
+        return query
+
     # Phase 151 - an MCP-routed answer now goes through the shared
     # guarded_pipeline core too (it used to bypass that core entirely),
     # which calls check_output() on the final answer - faked as a
@@ -55,6 +60,7 @@ async def test_agent_call_cases_bypass_the_llm_entirely(monkeypatch):
 
     monkeypatch.setattr(pipeline, "check_input", _passthrough_check_input)
     monkeypatch.setattr(pipeline, "decompose", _passthrough_decompose)
+    monkeypatch.setattr(pipeline, "normalize_query", _passthrough_normalize)
     monkeypatch.setattr(guarded_pipeline, "check_output", _passthrough_check_output)
     monkeypatch.setattr(mcp_tools, "get_leave_balance", _fake_get_leave_balance)
     monkeypatch.setattr(mcp_tools, "get_leave_history", _fake_get_leave_history)

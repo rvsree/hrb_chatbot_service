@@ -48,11 +48,15 @@ class SearchStrategy(StrEnum):
 
 
 class Role(StrEnum):
-    """Who's calling the API - HR_SUPPORT uploads documents, all three can retrieve."""
+    """Who's calling the API - HR_SUPPORT uploads documents, all three can retrieve.
+    Phase 168 - ADMIN: a separate "manage the application" super-user role,
+    not an elevated HR_SUPPORT - reviews leave requests vs. deletes any
+    record across the app are genuinely different concerns."""
 
     EMPLOYEE = "employee"
     MANAGER = "manager"
     HR_SUPPORT = "hr_support"
+    ADMIN = "admin"
 
 
 class FeedbackVote(StrEnum):
@@ -61,3 +65,15 @@ class FeedbackVote(StrEnum):
 
     HELPFUL = "helpful"
     NOT_QUITE = "not_quite"
+
+
+class LeaveTypeCode(StrEnum):
+    """Phase 165 - the 4 specialist-reviewed leave types "Request Unpaid
+    Leave" now covers (expanded past UNPAID-only); must keep matching
+    hrb_lms_mcp's own leave_types seed rows (a separate repo/database, not
+    enforceable at the type-checker level - kept in sync by hand)."""
+
+    UNPAID = "UNPAID"
+    CRITICAL_CAREGIVER = "CRITICAL_CAREGIVER"
+    STD = "STD"
+    LTD = "LTD"

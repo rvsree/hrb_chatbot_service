@@ -35,6 +35,17 @@ KNOWN_PERSONAS = {
     "EMP024": {"full_name": "Sarah Hall", "role": "hr_support"},
     "EMP025": {"full_name": "Anthony Allen", "role": "hr_support"},
     "EMP026": {"full_name": "Karen Young", "role": "hr_support"},
+    # Phase 168 - admin role. Deliberately NOT a real hrb_emp_lms.employees
+    # row, unlike every persona above - admin operations never resolve the
+    # admin's own identity through MCP the way, say, GetLeaveBalance does
+    # for an employee asking about themselves, so there's nothing for a
+    # real backing row to serve here. A documented first exception to the
+    # "every persona is real" rule this file otherwise holds to.
+    # Phase 169 added an extra login check for this one role; Phase 171
+    # moved the secret code itself out of this file entirely (it was a
+    # plaintext literal) into admin_credential_store.py's Postgres-backed,
+    # salted-hash storage - see AdminCredentialStore.verify_secret_code().
+    "ADM001": {"full_name": "Sree Rad", "role": "admin"},
 }
 
 

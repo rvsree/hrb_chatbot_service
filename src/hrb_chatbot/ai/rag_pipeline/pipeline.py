@@ -7,6 +7,7 @@ from src.hrb_chatbot.ai.agents.workflow_agents import reviewer_agent
 from src.hrb_chatbot.ai.pre_processing import conversation_memory
 from src.hrb_chatbot.ai.pre_processing.guardrails_input import check_input
 from src.hrb_chatbot.ai.pre_processing.query_decompose import decompose
+from src.hrb_chatbot.ai.pre_processing.query_normalize import normalize_query
 from src.hrb_chatbot.ai.rag_core.guarded_pipeline import run_guarded_pipeline
 from src.hrb_chatbot.ai.rag_core.tool_classification import classify_tool
 from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import evaluate_completeness, evaluate_groundedness
@@ -160,7 +161,8 @@ async def answer_query(params: RagQueryParams) -> dict:
     previously make. A compound question now gets decomposed first, so
     each part is routed - MCP or RAG - on its own merits."""
     started_at = time.perf_counter()
-    checked_query = await check_input(params.query)
+    normalized_query = await normalize_query(params.query)
+    checked_query = await check_input(normalized_query)
 
     resolved_conversation_id = None
     if params.enable_conversation_memory:

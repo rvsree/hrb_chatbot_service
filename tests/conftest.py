@@ -418,6 +418,10 @@ class FakeConversationStore:
             return []
         return [{"role": t["role"], "content": t["content"], "created_at": t["created_at"]} for t in turns]
 
+    async def get_conversation_turns_any(self, conversation_id):
+        turns = self._turns.get(conversation_id, [])
+        return [{"role": t["role"], "content": t["content"], "created_at": t["created_at"]} for t in turns]
+
     async def list_conversations(self, employee_id):
         conversations = []
         for conversation_id, turns in self._turns.items():
@@ -435,6 +439,107 @@ class FakeConversationStore:
             )
         conversations.sort(key=lambda c: c["last_updated_at"], reverse=True)
         return conversations
+
+    async def list_all_conversations(self):
+        conversations = []
+        for conversation_id, turns in self._turns.items():
+            if not turns:
+                continue
+            first_human = next((t for t in turns if t["role"] == "human"), turns[0])
+            conversations.append(
+                {
+                    "conversation_id": conversation_id,
+                    "employee_id": turns[0]["employee_id"],
+                    "title": first_human["content"],
+                    "started_at": turns[0]["created_at"],
+                    "last_updated_at": turns[-1]["created_at"],
+                }
+            )
+        conversations.sort(key=lambda c: c["last_updated_at"], reverse=True)
+        return conversations
+
+    async def delete_conversation_any(self, conversation_id):
+        turns = self._turns.pop(conversation_id, [])
+        return len(turns)
+
+    def health_check(self):
+        return {"provider": "postgres", "status": "healthy"}
+
+
+class FakeChatWorkflowStore:
+    """Stands in for ChatWorkflowStore (Phase 163) - plain in-memory dicts,
+    same async interface as the real Postgres-backed one, never touches a
+    real database."""
+
+    def __init__(self):
+        self._sessions: dict[str, dict] = {}
+        self._turns: dict[str, list[dict]] = {}
+        self._email_events: list[dict] = []
+        self._next_turn_id = 1
+
+    @staticmethod
+    def new_session_id():
+        return "fake-session-id"
+
+    async def start_or_touch_session(self, session_id, employee_id, full_name, session_title):
+        session = self._sessions.setdefault(
+            session_id,
+            {
+                "session_id": session_id,
+                "employee_id": employee_id,
+                "full_name": full_name,
+                "session_title": session_title,
+                "started_at": "2026-10-12T00:00:00Z",
+                "last_active": "2026-10-12T00:00:00Z",
+                "turn_count_total": 0,
+            },
+        )
+        session["turn_count_total"] += 1
+
+    async def save_turn(self, session_id, employee_id, user_query_text, agent_response_text, attached_file_names):
+        turn_id = self._next_turn_id
+        self._next_turn_id += 1
+        turns = self._turns.setdefault(session_id, [])
+        turns.append(
+            {
+                "turn_id": turn_id,
+                "employee_id": employee_id,
+                "user_query_text": user_query_text,
+                "agent_response_text": agent_response_text,
+                "attached_file_names": list(attached_file_names),
+            }
+        )
+        return turn_id
+
+    async def load_turns(self, session_id):
+        return [
+            {
+                "user_query_text": t["user_query_text"],
+                "agent_response_text": t["agent_response_text"],
+                "created_at": t.get("created_at", "2026-10-12T00:00:00Z"),
+            }
+            for t in self._turns.get(session_id, [])
+        ]
+
+    async def save_email_event(
+        self, turn_id, recipient_email_address, cc_email_addresses, email_subject_line, email_status,
+        send_status_message, attached_file_names, trigger_source,
+    ):
+        self._email_events.append(
+            {
+                "turn_id": turn_id,
+                "recipient_email_address": recipient_email_address,
+                "cc_email_addresses": cc_email_addresses,
+                "email_subject_line": email_subject_line,
+                "email_status": email_status,
+                "send_status_message": send_status_message,
+                "attached_file_names": list(attached_file_names),
+                "trigger_source": trigger_source,
+            }
+        )
+
+    async def list_sessions(self, employee_id):
+        return [session for session in self._sessions.values() if session["employee_id"] == employee_id]
 
     def health_check(self):
         return {"provider": "postgres", "status": "healthy"}
@@ -474,6 +579,11 @@ class FakeFeedbackStore:
         if employee_id is None:
             return list(reversed(self._entries))
         return list(reversed([entry for entry in self._entries if entry["employee_id"] == employee_id]))
+
+    async def delete_feedback(self, feedback_id):
+        before = len(self._entries)
+        self._entries = [entry for entry in self._entries if entry["id"] != feedback_id]
+        return before - len(self._entries)
 
     def health_check(self):
         return {"provider": "postgres", "status": "healthy"}
@@ -539,6 +649,73 @@ class FakeAnswerCache:
         return {"provider": "redis", "status": "healthy"}
 
 
+class FakeAdminCredentialStore:
+    """Stands in for AdminCredentialStore (Phase 171) - plain in-memory dict,
+    same async interface as the real salted-hash Postgres-backed one, never
+    touches a real database."""
+
+    def __init__(self):
+        self._credentials: dict[str, dict] = {}
+
+    async def get_or_seed(self, employee_id, default_secret_code):
+        if employee_id not in self._credentials:
+            self._credentials[employee_id] = {"secret_code": default_secret_code, "must_reset": True}
+        return {"must_reset": self._credentials[employee_id]["must_reset"]}
+
+    async def verify_secret_code(self, employee_id, candidate):
+        # Deliberately never seeds - matches the real store's fix (a wrong
+        # first guess on an un-seeded employee_id must not seed-and-match
+        # itself).
+        if not candidate or employee_id not in self._credentials:
+            return False
+        return candidate == self._credentials[employee_id]["secret_code"]
+
+    async def set_secret_code(self, employee_id, new_secret_code):
+        self._credentials[employee_id] = {"secret_code": new_secret_code, "must_reset": False}
+
+    def health_check(self):
+        return {"provider": "postgres", "status": "healthy"}
+
+
+class FakeAgentThreadStore:
+    """Stands in for AgentThreadStore (Phase 172) - plain in-memory dict,
+    same async interface as the real Postgres-backed one, never touches a
+    real database."""
+
+    def __init__(self):
+        self._threads: dict[int, str] = {}
+
+    async def save_thread_mapping(self, hitl_request_context_id, agent_thread_id):
+        self._threads[hitl_request_context_id] = agent_thread_id
+
+    async def get_thread_id(self, hitl_request_context_id):
+        return self._threads.get(hitl_request_context_id)
+
+    def health_check(self):
+        return {"provider": "postgres", "status": "healthy"}
+
+
+class FakeDocMetadataStore:
+    """Stands in for DocMetadataStore (Phase 170) - plain in-memory list,
+    same async interface as the real Postgres-backed one, never touches a
+    real database."""
+
+    def __init__(self, docs: list[dict] | None = None):
+        self._docs = docs or []
+
+    async def list_docs(self):
+        return list(self._docs)
+
+    async def get_doc(self, doc_id):
+        for doc in self._docs:
+            if doc["id"] == doc_id:
+                return doc
+        return None
+
+    def health_check(self):
+        return {"provider": "postgres", "status": "healthy"}
+
+
 class FakeDBGateway:
     """Stands in for DBGateway - returns the one FakeVectorStore/FakeMetadataStore/
     FakeConversationStore/FakeEmbeddingCache/FakeAnswerCache given to it regardless
@@ -550,16 +727,24 @@ class FakeDBGateway:
         vector_store: FakeVectorStore | None = None,
         metadata_store: FakeMetadataStore | None = None,
         conversation_store: FakeConversationStore | None = None,
+        chat_workflow_store: "FakeChatWorkflowStore | None" = None,
         feedback_store: "FakeFeedbackStore | None" = None,
         embedding_cache: FakeEmbeddingCache | None = None,
         answer_cache: FakeAnswerCache | None = None,
+        admin_credential_store: "FakeAdminCredentialStore | None" = None,
+        agent_thread_store: "FakeAgentThreadStore | None" = None,
+        doc_metadata_store: "FakeDocMetadataStore | None" = None,
     ):
         self._vector_store = vector_store or FakeVectorStore()
         self._metadata_store = metadata_store or FakeMetadataStore()
         self._conversation_store = conversation_store or FakeConversationStore()
+        self._chat_workflow_store = chat_workflow_store or FakeChatWorkflowStore()
         self._feedback_store = feedback_store or FakeFeedbackStore()
         self._embedding_cache = embedding_cache or FakeEmbeddingCache()
         self._answer_cache = answer_cache or FakeAnswerCache()
+        self._admin_credential_store = admin_credential_store or FakeAdminCredentialStore()
+        self._agent_thread_store = agent_thread_store or FakeAgentThreadStore()
+        self._doc_metadata_store = doc_metadata_store or FakeDocMetadataStore()
 
     def vector_store(self, provider=None):
         return self._vector_store
@@ -570,6 +755,9 @@ class FakeDBGateway:
     def conversation_store(self):
         return self._conversation_store
 
+    def chat_workflow_store(self):
+        return self._chat_workflow_store
+
     def feedback_store(self):
         return self._feedback_store
 
@@ -578,3 +766,12 @@ class FakeDBGateway:
 
     def answer_cache(self):
         return self._answer_cache
+
+    def admin_credential_store(self):
+        return self._admin_credential_store
+
+    def agent_thread_store(self):
+        return self._agent_thread_store
+
+    def doc_metadata_store(self):
+        return self._doc_metadata_store

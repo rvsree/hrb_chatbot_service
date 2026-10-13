@@ -133,16 +133,18 @@ request/response case, happy path and edge case, importable into Postman):
 curl -F "files=@resources/kb_docs/JPMC Healthcare Benefits.pdf;type=application/pdf" -F "payload={\"user_profile\": {\"employee_id\": \"EMP051\", \"full_name\": \"Hana Support\", \"role\": \"hr_support\"}}" http://127.0.0.1:8093/v1/genai-rag/ingest-document/documents
 
 # ask a question - real retrieval + grounded generation (spends: one real
-# embedding call + one real chat completion). Evaluations and guardrails
-# are still hand-written and not built yet - see docs/agent-reference/RAG-ROADMAP.md for
-# exactly what's in and what's deliberately deferred
+# embedding call + one real chat completion). Input/output guardrails and
+# conversation memory run on every call (Phase 98's shared guarded-pipeline
+# core) - see docs/agent-reference/RAG-ROADMAP.md for exactly what's in
 curl -X POST http://127.0.0.1:8093/v1/genai-rag-retrieval/query -H "Content-Type: application/json" -d "{\"user_profile\": {\"employee_id\": \"EMP052\", \"full_name\": \"Eddy Employee\", \"role\": \"employee\"}, \"query\": \"How many weeks of parental leave do I get?\"}"
 ```
 
-Idempotency (the `Idempotency-Key` header) and content-hash duplicate-upload
-detection were removed 2026-09-13 - re-uploading identical content now
-always creates a new document. See `docs/agent-reference/RAG-ROADMAP.md`'s phase entry for
-why, and for the planned Redis-backed idempotency re-implementation.
+Re-uploading identical PDF content is content-hash deduped (Phase 16) -
+the second upload resolves to the existing document instead of creating a
+duplicate; a changed file for the same `document_id` is handled as a
+supersede, not a dedup hit. The `Idempotency-Key` header approach tried
+earlier was removed 2026-09-13 in favor of this content-hash approach -
+see `docs/agent-reference/RAG-ROADMAP.md`'s phase entries for why.
 
 For testing every endpoint from a GUI instead of curl, import
 [postman/hrb_chatbot.postman_collection.json](postman/hrb_chatbot.postman_collection.json)
@@ -154,6 +156,41 @@ has 22 real question/expected-answer pairs grounded in the actual
 `resources/kb_docs/` PDFs, for evaluating whether real answers are grounded
 and correct rather than hallucinated - exercisable against the real query
 endpoint now.
+
+### Logging in
+
+Login (`POST /v1/auth/login`) checks `employee_id`/`full_name`/`role`
+against a fixed roster (`common/known_personas.py`, see
+[docs/agent-reference/KNOWN-PERSONAS.md](docs/agent-reference/KNOWN-PERSONAS.md)
+for the full list) - not real authentication, just enough to reject a
+typo'd or made-up identity. The `admin` role additionally requires a
+secret code (hashed in Postgres, `admin_credential_store.py`) - admin
+access is restricted to the project owner, so no seed credential is
+documented here; see `POST /v1/admin/reset-secret-code` in the code if
+you are the owner and need to rotate it.
+
+An `admin` identity unlocks `GET /v1/admin/conversations`,
+`/v1/admin/feedback`, `/v1/admin/leave-requests`, and `/v1/admin/docs` -
+the last being an in-app viewer (Phase 170) over a small set of
+architecture/design docs synced into S3
+(`scripts/sync_admin_docs.py`), surfaced in `hrb_chatbot_ui`'s Admin
+Dashboard and as small book-icon links next to specific feature labels
+throughout the UI. `GET /v1/admin/docs/{doc_id}/content` returns a
+presigned, time-limited S3 URL to the actual doc rather than the content
+itself.
+
+### Leave requests (human-in-the-loop approval)
+
+`POST /v1/unpaid-leave/request` files an unpaid-leave request that an
+`hr_support` identity approves or rejects via `POST /v1/unpaid-leave/resolve`
+(`GET /pending` lists what's waiting, `GET /my-requests` is the
+requester's own view) - a human-in-the-loop approval flow, not an agent
+auto-approving itself. `admin` can file requests and view every request
+(`GET /all`) the same way `hr_support` can, but deliberately cannot
+resolve/approve one - that stays an `hr_support`-only action. See
+[docs/dev-reference/react_agents/](docs/dev-reference/react_agents/) and
+the relevant `docs/agent-reference/RAG-ROADMAP.md` phase entries (search
+for "HITL"/"A2A") for the design.
 
 ## Running in a container
 
@@ -188,8 +225,9 @@ runs after every real deploy.
 
 No test needs a real API key or network call - see
 [docs/agent-reference/TESTING-GUIDE.md](docs/agent-reference/TESTING-GUIDE.md) for what's covered, why
-those specific cases, and the fake-based pattern to copy when testing the
-hand-written RAG pipeline once it exists.
+those specific cases, and the fake-based pattern (`tests/conftest.py`'s
+fakes match every real client's method signature exactly) to copy for new
+tests.
 
 ## Dependencies
 

@@ -21,6 +21,7 @@ from src.hrb_chatbot.ai.agents.domain_agents import (
 from src.hrb_chatbot.ai.agents.workflow_agents import planner_agent, reviewer_agent
 from src.hrb_chatbot.ai.pre_processing import conversation_memory
 from src.hrb_chatbot.ai.pre_processing.guardrails_input import check_input
+from src.hrb_chatbot.ai.pre_processing.query_normalize import normalize_query
 from src.hrb_chatbot.ai.rag_core.tool_classification import classify_tool
 from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import evaluate_completeness, evaluate_groundedness
 from src.hrb_chatbot.ai.rag_pipeline.response_generation.guardrails_output import check_output
@@ -223,7 +224,8 @@ async def run_multi_agent(
     agent files this phase doesn't otherwise need to change) - a real,
     logged gap (BACKLOG.md), not silently skipped."""
     started_at = time.perf_counter()
-    checked_query = await check_input(query)
+    normalized_query = await normalize_query(query)
+    checked_query = await check_input(normalized_query)
 
     resolved_conversation_id = None
     if enable_conversation_memory:
@@ -247,6 +249,10 @@ async def run_multi_agent(
         # sent to the LLM this call, same discipline genai-rag's own
         # cache-hit path already applies to its own llm_context.
         result["llm_context"] = None
+        # Phase 173 - the cache key is itself normalized-query-based, so a
+        # hit always implies this same normalized text, regardless of
+        # whether the cached entry predates this field.
+        result["query"] = checked_query
         return result
 
     graph = get_graph()
@@ -293,6 +299,7 @@ async def run_multi_agent(
     llm_context = {"turns": turns, "mcp_tool_calls": []} if turns else None
 
     result = {
+        "query": checked_query,
         "answer": answer,
         "tasks": final_state["tasks"],
         "follow_up_questions": final_state["follow_up_questions"],

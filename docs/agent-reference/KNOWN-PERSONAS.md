@@ -67,6 +67,19 @@ fact.
 | EMP025 | Anthony Allen | HR |
 | EMP026 | Karen Young | HR |
 
+## admin
+
+**Honest caveat:** unlike every persona above, `ADM001` is **not** a real
+`hrb_emp_lms.employees` row - deliberate, not an oversight (Phase 168).
+Admin operations (view/delete across the app's own data) never resolve the
+admin's own identity through an MCP call the way an employee asking about
+their own leave balance would, so there's nothing for a real backing row to
+serve here.
+
+| employee_id | full_name | real department |
+|---|---|---|
+| ADM001 | Sree Rad | n/a - not a real employee row |
+
 ## Other real rows not (yet) added as personas
 
 `hrb_emp_lms.employees` has 62 rows total; the 18 above are a sample, not

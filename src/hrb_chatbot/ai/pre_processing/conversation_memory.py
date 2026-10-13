@@ -45,3 +45,19 @@ async def list_conversations(employee_id: str) -> list[dict]:
 async def get_conversation_turns(conversation_id: str, employee_id: str) -> list[dict]:
     """Phase 116 - [] if unknown or not this employee's own conversation."""
     return await get_db_gateway().conversation_store().get_conversation_turns(conversation_id, employee_id)
+
+
+async def list_all_conversations() -> list[dict]:
+    """Phase 168 - admin-only: every conversation across every employee."""
+    return await get_db_gateway().conversation_store().list_all_conversations()
+
+
+async def delete_conversation_any(conversation_id: str) -> int:
+    """Phase 168 - admin-only: deletes a conversation regardless of owner."""
+    return await get_db_gateway().conversation_store().delete_conversation_any(conversation_id)
+
+
+async def get_conversation_turns_any(conversation_id: str) -> list[dict]:
+    """Phase 168 (round 3) - admin-only: the full transcript for any
+    conversation regardless of owner."""
+    return await get_db_gateway().conversation_store().get_conversation_turns_any(conversation_id)

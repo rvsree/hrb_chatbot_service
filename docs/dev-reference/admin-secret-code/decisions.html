@@ -1,0 +1,146 @@
+<title>Admin Secret Code - Decisions</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --live: #147a4a; --live-bg: #e3f5eb; --live-border: #b5e3c8;
+    --design: #9a5a0c; --design-bg: #fbf1dd; --design-border: #edd6a2;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --cost: #a4321f; --cost-bg: #fbe9e5; --cost-border: #f0c3b8;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+      --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+    --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0b2b25;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  /* summary table */
+  table.summary { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+  table.summary th { text-align: left; font-family: 'Archivo', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding: 10px 14px; background: var(--surface-alt); border-bottom: 1px solid var(--border); }
+  table.summary td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.summary tr:last-child td { border-bottom: none; }
+  table.summary td.id-cell { font-family: 'IBM Plex Mono', monospace; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  table.summary a { color: var(--text); text-decoration: none; }
+  table.summary a:hover { text-decoration: underline; }
+  td.source-cell { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-faint); }
+
+  /* per-decision card */
+  section.decision { border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 14px; }
+  .decision-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .decision-id { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 12px; color: #fff; background: var(--band-dark); padding: 3px 9px; border-radius: 7px; }
+  .decision-title { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 16px; }
+  .decision-grid { display: grid; grid-template-columns: 110px 1fr; gap: 4px 14px; font-size: 13px; }
+  .decision-grid dt { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding-top: 2px; }
+  .decision-grid dd { margin: 0; color: var(--text-muted); line-height: 1.6; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+  .decision-grid dd:last-of-type { border-bottom: none; padding-bottom: 0; }
+  @media (max-width: 620px) { .decision-grid { grid-template-columns: 1fr; } .decision-grid dt { padding-top: 10px; } }
+  .trade-off { background: var(--design-bg); border: 1px solid var(--design-border); border-radius: 10px; padding: 10px 12px !important; color: var(--design) !important; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">decisions - context, alternatives, why, trade-offs</div>
+    <h1 class="display">Admin Secret Code</h1>
+    <p class="subtitle">Every real "chose X over Y because Z" moment from building this feature, pulled directly from the phase history already recorded in <span class="mono">docs/agent-reference/RAG-ROADMAP.md</span> - not reconstructed from memory.</p>
+    <div class="doc-nav">
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <span class="doc-nav-item current">Decisions</span>
+    </div>
+  </header>
+
+  <table class="summary">
+    <thead><tr><th>ID</th><th>Decision</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td class="id-cell">ASC-1</td><td><a href="#asc-1">Add a masked secret-code field, on top of self-asserted RBAC</a></td><td class="source-cell">Phase 169</td></tr>
+      <tr><td class="id-cell">ASC-2</td><td><a href="#asc-2">One-time seed code that forces a reset, not a fixed demo credential</a></td><td class="source-cell">Phase 171</td></tr>
+      <tr><td class="id-cell">ASC-3</td><td><a href="#asc-3">Salted SHA-256 (stdlib) over bcrypt/argon2, and over OAuth2/JWT entirely</a></td><td class="source-cell">Phase 171</td></tr>
+      <tr><td class="id-cell">ASC-4</td><td><a href="#asc-4">Store the credential in its own Postgres table, not a field in code</a></td><td class="source-cell">Phase 171</td></tr>
+    </tbody>
+  </table>
+
+  <section class="decision" id="asc-1">
+    <div class="decision-head"><span class="decision-id">ASC-1</span><span class="decision-title display">Add a masked secret-code field, on top of self-asserted RBAC</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>Every role in this project, including admin, was selected by the caller and trusted immediately - <span class="mono">is_known_persona()</span> only checked that the id/name/role triple matched a known row. Anyone who knew <span class="mono">ADM001</span>/"Sree Rad" from the public <span class="mono">KNOWN-PERSONAS.md</span> table could select Admin with nothing further - including, during a live demo, anyone watching the screen.</dd>
+      <dt>Decision</dt><dd>Add an optional <span class="mono">secret_code</span> field to <span class="mono">LoginRequest</span>, checked only when <span class="mono">role == "admin"</span>, rendered as a native <span class="mono">type="password"</span> input so it's masked on screen.</dd>
+      <dt>Alternative</dt><dd>Leave RBAC as the only gate (do nothing) - rejected, since admin is the one role that can hard-delete data outright; every other role is read-mostly or scoped to the caller's own records.</dd>
+      <dt>Why</dt><dd>A masked field is the smallest possible addition that (a) isn't visible on screen during a demo and (b) can't be bypassed just by knowing the public persona roster, without touching this project's documented "RBAC is a formality" stance anywhere else.</dd>
+      <dt>Trade-off</dt><dd class="trade-off">This still isn't real authentication - it's one extra speed bump for the single highest-blast-radius role, not a security boundary. Explicitly documented as such, not oversold.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="asc-2">
+    <div class="decision-head"><span class="decision-id">ASC-2</span><span class="decision-title display">One-time seed code that forces a reset, not a fixed demo credential</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>Phase 169's first version stored the secret code as a plaintext literal in <span class="mono">known_personas.py</span>, compared with a plain <span class="mono">==</span> - functional, but a fixed value sitting in source control forever, with no path to ever actually change it.</dd>
+      <dt>Decision</dt><dd>A one-time seed code (<span class="mono">$reeRad</span>) is used only the very first time <span class="mono">admin_credentials</span> has no row for an employee_id; that login always comes back with <span class="mono">must_reset_secret_code: true</span>, and a dedicated <span class="mono">POST /v1/admin/reset-secret-code</span> route (reachable only by an already-authenticated admin) is the only way to clear that flag.</dd>
+      <dt>Alternative</dt><dd>Keep a single fixed code indefinitely (simpler, no reset flow to build) - rejected: a credential that can never change is a standing liability the moment it's ever shared or exposed, which is exactly what happened to it appearing in example documentation this same session.</dd>
+      <dt>Why</dt><dd>Forcing a reset on first use means the seed value is bootstrap-only by construction, not by convention - there's no way to keep relying on it past the first login, so documenting it (even accidentally) doesn't grant standing access.</dd>
+      <dt>Trade-off</dt><dd class="trade-off">Adds a real stateful flow (a reset endpoint, a <span class="mono">must_reset</span> column, UI routing on login) for what's conceptually a one-line credential check - more code than the simplest possible version, justified by removing a standing-liability credential.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="asc-3">
+    <div class="decision-head"><span class="decision-id">ASC-3</span><span class="decision-title display">Salted SHA-256 (stdlib) over bcrypt/argon2, and over OAuth2/JWT entirely</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>With the plaintext storage flagged (ASC-2's own context), three real options existed: a proper slow password hash (bcrypt/argon2), stdlib-only salted SHA-256, or reframing the whole problem as OAuth2/JWT. The OAuth2/JWT question was asked directly.</dd>
+      <dt>Decision</dt><dd>Stdlib <span class="mono">hashlib</span>/<span class="mono">secrets</span>/<span class="mono">hmac</span> only - SHA-256 of <span class="mono">salt + secret_code</span>, a fresh random salt per seed/reset, compared with <span class="mono">hmac.compare_digest()</span> (constant-time). No new dependency.</dd>
+      <dt>Alternative</dt><dd><strong>bcrypt/argon2</strong> - deliberately-slow hashing, the real-world standard for password storage. <strong>OAuth2</strong> - solves delegated third-party authorization, which isn't this problem (there's no third party involved). <strong>JWT</strong> - a session-token format, a real but separate gap (this project's own documented "role is self-asserted on every request" limitation), not a storage mechanism for the secret itself.</dd>
+      <dt>Why</dt><dd>bcrypt/argon2 would add a new dependency this project's own "no unreviewed libraries without approval" standard gates, for a benefit (brute-force resistance against an offline hash-cracking attempt) that doesn't move the needle for one admin passphrase in a capstone demo. SHA-256+salt+constant-time-compare already defeats the two realistic threats here: casual reading of the stored value, and a timing attack on the compare itself. OAuth2/JWT solve different, real, but unrelated problems - conflating them with this one would have been scope creep, not a fix.</dd>
+      <dt>Trade-off</dt><dd class="trade-off">Explicitly weaker than bcrypt/argon2's deliberate slowness against a real offline brute-force attempt on a leaked hash. Accepted as proportionate for this feature's actual blast radius (one demo-project admin passphrase), not presented as production-grade password security.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="asc-4">
+    <div class="decision-head"><span class="decision-id">ASC-4</span><span class="decision-title display">Store the credential in its own Postgres table, not a field in code</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>Phase 169's plaintext code lived as a literal field on <span class="mono">ADM001</span>'s entry in <span class="mono">known_personas.py</span> - the same file that defines every other (non-secret) persona, checked into source control.</dd>
+      <dt>Decision</dt><dd>A new, dedicated <span class="mono">admin_credentials</span> table, same Postgres connection and <span class="mono">psycopg</span>/<span class="mono">asyncio.to_thread()</span> pattern every other store in this project already uses (<span class="mono">feedback_store.py</span>, <span class="mono">conversation_store.py</span>). <span class="mono">known_personas.py</span>'s own <span class="mono">secret_code</span> key was removed entirely - the DB table is now the only source of truth.</dd>
+      <dt>Alternative</dt><dd>Keep the hash in code (e.g. a constant in <span class="mono">known_personas.py</span>) instead of a new table - simpler, no new store class - rejected: a hash committed to source control is still visible to anyone with repo access, and can't support the reset flow (ASC-2) without a redeploy every time the code changes.</dd>
+      <dt>Why</dt><dd>Matches this project's own established pattern of one gateway-backed store per concern, keeps the credential mutable at runtime (required for reset), and keeps anything secret out of version control entirely - the only thing in source control now is the seed value's one-time bootstrap use, not the real operating credential.</dd>
+      <dt>Trade-off</dt><dd class="trade-off">A new table for exactly one row is more infrastructure than the problem strictly needs at today's single-admin scale - accepted because it costs nothing extra (same connection, same pattern already paid for by other stores) and removes the redeploy-to-rotate problem the in-code alternative would have kept.</dd>
+    </dl>
+  </section>
+
+  <footer>
+    Full phase write-ups: <code class="mono">docs/agent-reference/RAG-ROADMAP.md</code> Phase 169 and Phase 171. Companions: <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>, <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>, <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=design" target="_blank" rel="noopener noreferrer">Design</a>. Part of the Phase 179 Spec/Architecture/Design/Decisions pilot.
+  </footer>
+</div>

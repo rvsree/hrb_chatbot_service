@@ -1,0 +1,187 @@
+<title>Docs &amp; Admin Observability Plan</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --live: #147a4a; --live-bg: #e3f5eb; --live-border: #b5e3c8;
+    --design: #9a5a0c; --design-bg: #fbf1dd; --design-border: #edd6a2;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --cost: #a4321f; --cost-bg: #fbe9e5; --cost-border: #f0c3b8;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+      --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+    --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0b2b25;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; line-height: 1.55; }
+  .status-pill { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.03em; width: fit-content; }
+  .status-pill.decided { color: var(--live); background: var(--live-bg); border: 1px solid var(--live-border); }
+
+  main { display: flex; flex-direction: column; gap: 28px; }
+  section { display: flex; flex-direction: column; gap: 12px; }
+  h2 { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 20px; margin: 0; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+  h3 { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 15px; margin: 6px 0 0; }
+  p { margin: 0; font-size: 14px; color: var(--text-muted); line-height: 1.65; }
+  ul, ol { margin: 0; padding-left: 22px; font-size: 14px; color: var(--text-muted); line-height: 1.7; }
+  li { margin-bottom: 5px; }
+  strong { color: var(--text); }
+  code { font-family: 'IBM Plex Mono', monospace; font-size: 0.92em; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; color: var(--text); }
+  a { color: var(--accent); }
+
+  .callout { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; border-radius: 10px; padding: 12px 14px; line-height: 1.55; }
+  .callout svg { flex: none; width: 16px; height: 16px; margin-top: 1px; }
+  .callout.live { background: var(--live-bg); border: 1px solid var(--live-border); color: var(--live); }
+  .callout.design { background: var(--design-bg); border: 1px solid var(--design-border); color: var(--design); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); }
+  th { text-align: left; font-family: 'Archivo', sans-serif; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding: 9px 12px; background: var(--surface-alt); border-bottom: 1px solid var(--border); }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text-muted); }
+  tr:last-child td { border-bottom: none; }
+  .schema-block { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; line-height: 1.65; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; overflow-x: auto; white-space: pre; color: var(--text); }
+
+  .decision-card { border: 1px solid var(--live-border); background: var(--live-bg); border-radius: 10px; padding: 10px 14px; font-size: 13px; color: var(--text); }
+  .decision-card strong { color: var(--live); }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">planning document - nothing built yet</div>
+    <h1 class="display">Docs &amp; Admin Observability Expansion</h1>
+    <p class="subtitle">Four asks from one message, turned into a scoped, sequenced plan: a real-feature doc pilot, a DB schema that keeps real version history, an admin CI/CD + eval-score view, and two new interview-focused doc categories. Every fact checked directly against real code before being written here.</p>
+    <span class="status-pill decided">all open decisions resolved</span>
+  </header>
+
+  <main>
+    <section>
+      <h2>Resolving the admin-login question</h2>
+      <p>These documents already only work for the admin role - that's enforced in two places, not one: <code>DocLink</code> on the frontend renders nothing unless <code>identity.role === "admin"</code>, and the backend's <code>GET /v1/admin/docs</code> independently enforces <code>require_role(..., Role.ADMIN)</code> before returning anything. The actual file comes back as a short-lived (300s) presigned S3 URL, never a public link.</p>
+      <p>The claude.ai links shared for review last round are a separate, temporary convenience - private-by-default, never gated by the app's own auth. <strong>Decision: kept as a standing convenience</strong> alongside the real in-app viewer.</p>
+    </section>
+
+    <section>
+      <h2>1. Next pilot feature</h2>
+      <p>Admin Secret Code proved the mechanism but isn't architecturally interesting. Ranked by real diagram/interview value:</p>
+      <table>
+        <tr><th>Rank</th><th>Feature</th><th>Why</th></tr>
+        <tr><td>1</td><td><strong>RAG Ingestion - S3 async batch</strong></td><td>Real multi-stage pipeline, existing design doc to build from, directly covers one of the 3 named interview diagrams.</td></tr>
+        <tr><td>2</td><td>Request Unpaid Leave (A2A + HITL)</td><td>Richest flow in the project - LangGraph checkpointing, real pause/resume, cross-service A2A. Bigger, so second.</td></tr>
+        <tr><td>3</td><td>Multi-Agentic RAG</td><td>Existing graph diagram to extend; good orchestrator/worker/synthesizer interview story.</td></tr>
+        <tr><td>4</td><td>Guardrails</td><td>Cross-cutting, good "architecture decision" story, thinner as a standalone page.</td></tr>
+      </table>
+      <div class="decision-card"><strong>Decided:</strong> RAG Ingestion builds first (Phase 180), ahead of the schema redesign.</div>
+    </section>
+
+    <section>
+      <h2>2. System-level vs. feature-level inventory</h2>
+      <p><strong>System-level</strong> = whole project. <strong>Feature-level</strong> = one capability. Live today: <code>scaling-latency-design.html</code> (system) and <code>admin-secret-code</code>'s 4 docs (feature). Everything else in the table below is proposed, not built - the point of the inventory is visibility, not a build-everything commitment.</p>
+      <table>
+        <tr><th>Scope</th><th>Key</th><th>Status</th></tr>
+        <tr><td>System</td><td>deployment-pipeline</td><td>not started - Phase 183</td></tr>
+        <tr><td>System</td><td>scaling-nfr</td><td><strong>live</strong></td></tr>
+        <tr><td>System</td><td>interview-faq-system (A2A/HITL/S3-batch)</td><td>not started - Phase 184</td></tr>
+        <tr><td>Feature</td><td>admin-secret-code</td><td><strong>live</strong>, all 4 types</td></tr>
+        <tr><td>Feature</td><td>rag-ingestion</td><td>not started - <strong>Phase 180, next</strong></td></tr>
+        <tr><td>Feature</td><td>golden-dataset-evals</td><td>not started - Phase 182</td></tr>
+        <tr><td>Feature</td><td>6 other existing features</td><td>1 doc each today (architecture or design only)</td></tr>
+      </table>
+    </section>
+
+    <section>
+      <h2>3. DB redesign - real version history</h2>
+      <p>Today's <code>doc_metadata</code> overwrites a row in place when content changes - no way to see an older version from the DB. Proposed split:</p>
+      <div class="schema-block">doc_catalog (stable identity)        doc_versions (append-only history)
+id, scope, feature_name,             id, catalog_id (FK),
+doc_type, doc_title,                 version_number, s3_bucket, s3_key,
+current_version_id (FK) --------&gt;    source_local_path, content_hash,
+                                      created_at</div>
+      <p>A content change INSERTs a new <code>doc_versions</code> row and repoints <code>current_version_id</code> - old versions stay queryable. Same idempotent migration convention already used for the <code>(feature_name, doc_type)</code> unique-index change.</p>
+      <div class="decision-card"><strong>Decided:</strong> Phase 181, after the RAG Ingestion pilot ships on today's schema.</div>
+    </section>
+
+    <section>
+      <h2>4. Two new doc categories</h2>
+      <p><strong><code>interview-faq-system</code></strong> - one per project: real diagram + interview Q&amp;A for A2A (the real OAuth2 token exchange to <code>hrb_lms_mcp</code>), HITL (the LangGraph checkpoint/pause/resume), and the S3→SQS→Lambda ingestion batch path.</p>
+      <p><strong><code>interview-faq-feature</code></strong> - same idea, scoped to one feature's own specific techniques.</p>
+      <p>Content bar: one real diagram (not stock), 3-5 specific interview Q&amp;As, explicit links to the fuller Architecture/Design/Decisions docs - genuinely more writing effort per doc than the other 4 categories.</p>
+    </section>
+
+    <section>
+      <h2>5. Deployment-to-AWS diagrams</h2>
+      <p>New system-level doc visualizing the real pipeline already documented in prose: <code>ci.yml</code> (every push) → merge → <code>deploy.yml</code> (build → ECR → App Runner → smoke test), <code>eval-gate.yml</code> as its own manually-triggered lane (real LLM cost, <code>workflow_dispatch</code> only), <code>deploy-lambda.yml</code> as a third, narrower lane. Visualizes <code>AWS-DEVOPS-RUNBOOK.md</code>'s real resource identifiers, doesn't re-derive new ones.</p>
+    </section>
+
+    <section>
+      <h2>6. Admin CI/CD + eval-score view</h2>
+      <div class="callout live">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+        <span><strong>Real gap found:</strong> <code>scripts/run_release_gate.py</code> only prints to CI logs and exits with a code today - nothing about a release-gate run is persisted anywhere. This has to be built, not just surfaced.</span>
+      </div>
+      <h3>6.1 golden_dataset_items - versioned, categorized</h3>
+      <p>Grounded in the real 26-case shape already in <code>golden_dataset.json</code> (<code>category</code>, <code>query</code>, <code>expected_source_document</code>, <code>expected_answer</code>, <code>expected_keywords</code>, <code>call_type</code>) plus a new <code>feature_name</code> column your "organized by which feature" ask requires, <code>version_number</code> + <code>is_latest</code> for the same append-only versioning as the docs table. A new <code>sync_golden_dataset.py</code> upserts from the JSON (kept as the human-reviewable source) into this table. <code>golden_dataset_harness.py</code> reads <code>WHERE is_latest = true</code> instead of the file directly - the same source serves the admin grid <em>and</em> CI.</p>
+      <h3>6.2 eval_runs / eval_run_results - held</h3>
+      <p>Persists each release-gate run (scores, pass/fail, which golden-dataset version it graded against) so the admin UI has real history to show.</p>
+      <div class="decision-card"><strong>Decided: held until Phase 174 ships DeepEval.</strong> Every score the admin view ever shows will be a real DeepEval number, never a hand-written-harness one needing a later relabel. <code>raw_response</code> will be stored in full for real per-case debugging once this starts. Section 6.1 is <strong>not</strong> blocked by this - it proceeds now as Phase 182.</div>
+    </section>
+
+    <section>
+      <h2>7. Confirmed build order</h2>
+      <table>
+        <tr><th>Phase</th><th>What</th></tr>
+        <tr><td><strong>180</strong></td><td>RAG Ingestion pilot - 4 docs, today's schema</td></tr>
+        <tr><td><strong>181</strong></td><td><code>doc_catalog</code>/<code>doc_versions</code> redesign + migrate all 14 rows</td></tr>
+        <tr><td><strong>182</strong></td><td><code>golden_dataset_items</code> + sync script + admin grid</td></tr>
+        <tr><td><strong>183</strong></td><td><code>deployment-pipeline</code> system-level doc</td></tr>
+        <tr><td><strong>184</strong></td><td><code>interview-faq-system</code>: A2A + HITL + S3-batch diagrams</td></tr>
+        <tr><td>held</td><td><code>eval_runs</code>/admin CI/CD view - starts once Phase 174 (DeepEval) ships</td></tr>
+        <tr><td>later</td><td>Request Unpaid Leave + Multi-Agentic RAG pilots; <code>interview-faq-feature</code> entries</td></tr>
+      </table>
+    </section>
+
+    <section>
+      <h2>Ideas beyond what was asked</h2>
+      <ul>
+        <li><code>is_latest</code> as a real column, not a derived query - cheap now, annoying to retrofit.</li>
+        <li><code>eval_runs.golden_dataset_version</code> as a real FK, not just a number.</li>
+        <li>JSON stays the authored source for golden-dataset cases, DB the served copy - edits stay reviewable in a PR.</li>
+        <li>Doc-version <em>history browsing</em> (diff version N vs. N-1) not built yet - schema supports it, UI is real scope on its own, flagged as a natural follow-up.</li>
+        <li>Cross-link relentlessly instead of repeating content between the new deployment doc, the scaling doc, and interview-faq-system.</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    Full detail: <code>docs/dev-reference/planning/docs-and-admin-observability-expansion-plan.md</code>. Nothing committed/pushed - next step is Phase 180's own spec in <code>RAG-ROADMAP.md</code> before any code starts.
+  </footer>
+</div>

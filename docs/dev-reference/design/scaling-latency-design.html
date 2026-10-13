@@ -346,8 +346,86 @@
     </div>
   </section>
 
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">7</div>
+      <div class="panel-title">
+        <span class="name display">Infrastructure at scale - databases, security, load balancing, logs, tracing</span>
+        <span class="sub">system-level, not feature-level: what each piece of shared infrastructure needs as the user base grows</span>
+      </div>
+    </div>
+    <div class="grid two">
+      <div class="card">
+        <div class="card-head"><span class="card-label">Postgres (Neon) - metadata + sessions</span><span class="status-pill live">live</span></div>
+        <p class="card-desc">Production now runs <span class="mono">RAG_METADATA_STORE=postgres</span> against a real Neon database (<span class="mono">HR_Benefits</span>), not SQLite - schema-per-bounded-context (<span class="mono">hrb_chatbot_v2_core</span>/<span class="mono">_sessions</span>, <span class="mono">hrb_emp_lms</span>, <span class="mono">hrb_lms_mcp_auth</span>), no cross-schema FKs, matching this project's gateway-per-backend pattern. Real gotcha already hit and fixed: Neon's pooled connection endpoint (PgBouncer, transaction mode) can silently remap a logical connection to a different backend process between transactions - session state set once on connect doesn't survive that remap. At real concurrent-user scale, the next lever is read replicas for the query-heavy conversation/feedback tables, not re-architecting the schema split.</p>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-label">Secrets management</span><span class="status-pill live">live</span></div>
+        <p class="card-desc">AWS Secrets Manager holds every API key/credential App Runner injects at runtime (<span class="mono">hrb-chatbot/*</span> prefix, 5 secrets) - nothing sensitive is a plain App Runner environment variable. Scales fine as more secrets are added; the real limit is operational (rotating a secret still means a manual redeploy today, no automated rotation policy).</p>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-label">Identity / RBAC</span><span class="status-pill gap">known limitation</span></div>
+        <p class="card-desc">Documented elsewhere, worth repeating in a scaling context: <span class="mono">require_role()</span> reads an unsigned, caller-supplied <span class="mono">user_profile</span> straight from the request - a formality, not real authentication. This doesn't get worse with scale (it's equally weak at 10 or 10,000 users), but it does mean rate limiting and input guardrails are currently the only real abuse controls - real OAuth2 (human-to-app, still design-only, see <span class="mono">docs/dev-reference/auth/oauth2-auth-architecture.html</span>) is the actual fix, not a scaling one.</p>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-label">Rate limiting</span><span class="status-pill live">live, horizontally-safe</span></div>
+        <p class="card-desc">Redis-backed (Phase 84, <span class="mono">rate_limiter.py</span>) - fixed-window counters via <span class="mono">INCR</span>/<span class="mono">EXPIRE</span> against Upstash, replacing an earlier in-memory version that only worked single-process. Already correct for the "many stateless replicas" model this whole doc assumes (section 3) - no further change needed to scale this specific piece, only to tune the actual request-count thresholds as real traffic is observed.</p>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-label">Load balancing</span><span class="status-pill live">live, managed</span></div>
+        <p class="card-desc">App Runner's own managed load balancer fronts every instance today - no separate ALB/NLB to provision or scale. This covers single-region traffic distribution across replicas; it does not cover multi-region failover or geographic routing, which would need Route 53 plus a second region's own App Runner service - not a current requirement at this project's real scale.</p>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-label">Logs</span><span class="status-pill gap">live, but basic</span></div>
+        <p class="card-desc">App Runner ships stdout to a CloudWatch log group automatically - fine for today's single-service, low-volume debugging (see <span class="mono">AWS-DEVOPS-RUNBOOK.md</span>'s "Reading App Runner logs"). No structured log aggregation, search, or alerting (ELK/Datadog/CloudWatch Insights dashboards) yet - once there's more than one container to correlate across (section 8), grepping one log group stops scaling as a debugging strategy.</p>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-label">LangSmith tracing</span><span class="status-pill design">built, off by default</span></div>
+        <p class="card-desc">Wired in (<span class="mono">common/observability/langsmith_tracing.py</span>) but <span class="mono">LANGSMITH_ENABLED=false</span> by default to stay inside the 5,000-trace/month free tier - an all-or-nothing toggle today. The real scaling gap: <span class="mono">LANGSMITH_TRACING_SAMPLE_RATE</span> is documented in <span class="mono">.env.example</span> as "not yet wired" - sampling a fraction of calls, not flipping tracing fully on or off, is what makes this affordable once query volume actually grows past hobby-project scale.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">8</div>
+      <div class="panel-title">
+        <span class="name display">Per-service container scaling</span>
+        <span class="sub">one service today runs everything - what independent scaling actually requires</span>
+      </div>
+    </div>
+    <p class="card-desc" style="margin:0;">Today, <span class="mono">hrb_chatbot_v2</span>'s single Docker image serves every route - chat queries, document upload/ingestion, admin, leave workflow - as one App Runner service, scaling as one unit even though these workloads have nothing in common: a large PDF batch upload is CPU/IO-bound and bursty, a chat query is LLM-latency-bound and steady. <span class="mono">hrb_lms_mcp</span> already proves the alternative works in this project: it's its own separate App Runner service (Phase 118, live at <span class="mono">hrb-lms-mcp.rvsree.dev</span>), scaling independently of the chat API that calls it over real OAuth2 client-credentials auth, not in-process.</p>
+    <div class="pipe-strip">
+      <div class="pipe-node live">hrb-chatbot (API)<span class="mono">App Runner, today</span></div>
+      <div class="pipe-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+      <div class="pipe-node live">hrb-lms-mcp<span class="mono">own App Runner service</span></div>
+      <div class="pipe-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+      <div class="pipe-node design">Ingestion worker<span class="mono">Lambda, S3-ASYNC-UPLOAD-DESIGN.md</span></div>
+      <div class="pipe-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+      <div class="pipe-node design">hrb-chatbot-ui<span class="mono">static S3 + CloudFront - no container at all</span></div>
+    </div>
+    <div class="grid two">
+      <div class="card">
+        <div class="card-head"><span class="card-label">Query API stays App Runner</span><span class="status-pill live">live</span></div>
+        <p class="card-desc">The chat/query path is already stateless (section 3) and already runs on App Runner's own autoscaling - this is the one piece that doesn't need to change shape, only to shed the workloads below that don't belong on its scaling curve.</p>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-label">Ingestion as its own compute unit</span><span class="status-pill design">designed, not built</span></div>
+        <p class="card-desc">Section 4's S3 -> SQS -> Lambda path is exactly this pattern, made concrete: a document upload surge spins up Lambda concurrency independently, never competing with query-path App Runner instances for CPU - today both share the same container, so a big batch upload can slow down unrelated chat queries.</p>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-label">MCP server as proof of the pattern</span><span class="status-pill live">live</span></div>
+        <p class="card-desc"><span class="mono">hrb_lms_mcp</span> is already deployed, containerized, and scaled separately from this project's own API - the Dockerfile mirrors <span class="mono">hrb_chatbot_v2</span>'s own two-stage build (see <span class="mono">AWS-DEVOPS-RUNBOOK.md</span>-style pipeline), proving the per-service container approach isn't hypothetical here.</p>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-label">Frontend needs no container at all</span><span class="status-pill live">live</span></div>
+        <p class="card-desc"><span class="mono">hrb_chatbot_ui</span> is a static Vite build on S3 behind CloudFront (Phase 117) - it scales by CloudFront's own edge caching, not App Runner instances, and has zero compute cost to provision as traffic grows.</p>
+      </div>
+    </div>
+  </section>
+
   <footer>
-    Snapshot: 2026-09-22. Live/design status verified against <code class="mono">docs/agent-reference/AWS-DEVOPS-RUNBOOK.md</code>'s "What's actually live vs. planned" table and this session's own guardrails/observability work (Phases 7-8). Latency figures are estimates for this project's real call chain, not measured production numbers. Related: <code class="mono">docs/dev-reference/rag-architecture-layers.html</code> (component view this doc extends), <code class="mono">docs/agent-reference/S3-ASYNC-UPLOAD-DESIGN.md</code> (the ingestion design this doc flags an open question against), <code class="mono">docs/dev-reference/oauth2-cot-feasibility.html</code> (companion feasibility doc from the same session).
+    Snapshot: 2026-09-22, extended 2026-10-13 (sections 7-8, system-level infrastructure) - live/design status verified against <code class="mono">docs/agent-reference/AWS-DEVOPS-RUNBOOK.md</code>'s "What's actually live vs. planned" table, <code class="mono">docs/agent-reference/BACKLOG.md</code>'s resolved-gaps history, and this session's own guardrails/observability work (Phases 7-8). Latency figures are estimates for this project's real call chain, not measured production numbers. Related: <code class="mono">docs/dev-reference/rag-architecture-layers.html</code> (component view this doc extends), <code class="mono">docs/agent-reference/S3-ASYNC-UPLOAD-DESIGN.md</code> (the ingestion design this doc flags an open question against), <code class="mono">docs/dev-reference/oauth2-cot-feasibility.html</code> (companion feasibility doc from the same session).
   </footer>
 
 </div>

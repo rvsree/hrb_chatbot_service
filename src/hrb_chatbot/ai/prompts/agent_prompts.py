@@ -45,3 +45,15 @@ If a sub-question is about the caller's own current leave/PTO balance, phrase it
 as "What is my leave balance?" - if it's about past leave taken, phrase it exactly as
 "What is my leave history?" - these two exact phrasings are required, not just similar
 wording, so a downstream keyword match can route them correctly."""
+
+# Phase 173 - the pre-retrieval "sanity" pass: fixes spelling/grammar/typos
+# and standardizes phrasing only, never changes meaning. Runs before
+# check_input()/decompose() in every pipeline, so a typo'd question still
+# matches guardrail/keyword-routing logic that expects clean text.
+NORMALIZE_SYSTEM_PROMPT = """Rewrite the question below to fix spelling, typos, and grammar,
+and to phrase it as a clear, standard question - nothing else.
+
+Never change the question's meaning, intent, or scope. Never add, remove, or guess at any
+fact, name, date, or number that wasn't in the original. Never answer the question. Never
+add a greeting, explanation, or extra sentence. If the question is already clean and
+well-formed, return it unchanged."""

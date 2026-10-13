@@ -2,10 +2,14 @@
 
 from src.hrb_chatbot.common.clients.cache_client.answer_cache import AnswerCache
 from src.hrb_chatbot.common.clients.cache_client.embedding_cache import EmbeddingCache
+from src.hrb_chatbot.common.clients.db_client.admin_credential_store import AdminCredentialStore
+from src.hrb_chatbot.common.clients.db_client.agent_thread_store import AgentThreadStore
 from src.hrb_chatbot.common.clients.db_client.base_metadata_client import BaseMetadataClient
 from src.hrb_chatbot.common.clients.db_client.base_vector_db_client import BaseVectorDBClient
+from src.hrb_chatbot.common.clients.db_client.chat_workflow_store import ChatWorkflowStore
 from src.hrb_chatbot.common.clients.db_client.chroma_client import ChromaDBClient
 from src.hrb_chatbot.common.clients.db_client.conversation_store import ConversationStore
+from src.hrb_chatbot.common.clients.db_client.doc_metadata_store import DocMetadataStore
 from src.hrb_chatbot.common.clients.db_client.feedback_store import FeedbackStore
 from src.hrb_chatbot.common.clients.db_client.pinecone_client import PineconeClient
 from src.hrb_chatbot.common.clients.db_client.postgres_client import PostgresClient
@@ -29,9 +33,13 @@ class DBGateway:
         self.sqlite_client = None
         self.postgres_client = None
         self.conversation_store_client = None
+        self.chat_workflow_store_client = None
         self.feedback_store_client = None
         self.embedding_cache_client = None
         self.answer_cache_client = None
+        self.admin_credential_store_client = None
+        self.agent_thread_store_client = None
+        self.doc_metadata_store_client = None
 
     def chroma(self) -> ChromaDBClient:
         # Return the shared ChromaDB client, building it on first use.
@@ -78,11 +86,35 @@ class DBGateway:
             self.conversation_store_client = ConversationStore()
         return self.conversation_store_client
 
+    def chat_workflow_store(self) -> ChatWorkflowStore:
+        """Return the shared GenAI Chat Workflow session/turn/email store, building it on first use (Phase 163)."""
+        if self.chat_workflow_store_client is None:
+            self.chat_workflow_store_client = ChatWorkflowStore()
+        return self.chat_workflow_store_client
+
     def feedback_store(self) -> FeedbackStore:
         """Return the shared feedback store, building it on first use (Phase 104)."""
         if self.feedback_store_client is None:
             self.feedback_store_client = FeedbackStore()
         return self.feedback_store_client
+
+    def admin_credential_store(self) -> AdminCredentialStore:
+        """Return the shared admin-credential store, building it on first use (Phase 171)."""
+        if self.admin_credential_store_client is None:
+            self.admin_credential_store_client = AdminCredentialStore()
+        return self.admin_credential_store_client
+
+    def agent_thread_store(self) -> AgentThreadStore:
+        """Return the shared agent-thread store, building it on first use (Phase 172)."""
+        if self.agent_thread_store_client is None:
+            self.agent_thread_store_client = AgentThreadStore()
+        return self.agent_thread_store_client
+
+    def doc_metadata_store(self) -> DocMetadataStore:
+        """Return the shared doc-metadata store, building it on first use (Phase 170)."""
+        if self.doc_metadata_store_client is None:
+            self.doc_metadata_store_client = DocMetadataStore()
+        return self.doc_metadata_store_client
 
     def embedding_cache(self) -> EmbeddingCache:
         """Return the shared embedding cache, building it on first use (Phase 77)."""

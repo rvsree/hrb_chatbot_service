@@ -5,6 +5,7 @@ dict passed in (no vector store, no MCP, nothing else it could call), and
 SendEmailWithAnswer only fires when the agent actually calls it."""
 
 import pytest
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from src.hrb_chatbot.ai.agents.workflow_agents import adhoc_document_agent
 
@@ -567,3 +568,134 @@ async def test_chat_answer_is_the_full_emailed_answer_not_a_short_follow_up_rema
     result = await adhoc_document_agent.run_agent("summarize and email it", {"a.pdf": "text"}, {})
 
     assert result["answer"] == "Here is the full tabular summary with every detail..."
+
+
+# Phase 163 - chat_history threading. The key requirement: SendEmailWithAnswer
+# must keep firing on a single-turn "summarize and email it" request whether
+# chat_history is None, [], or populated - these tests check all three, not
+# just that chat_history gets threaded into messages.
+
+
+async def test_chat_history_is_threaded_into_messages_between_system_prompt_and_question(monkeypatch):
+    captured_messages = []
+
+    class _CapturingLlm:
+        def __init__(self, response):
+            self._response = response
+
+        async def ainvoke(self, messages):
+            captured_messages.append(messages)
+            return self._response
+
+    monkeypatch.setattr(adhoc_document_agent, "_build_llm", lambda: _CapturingLlm(FakeResponse(content="Here's the answer.")))
+
+    history = [HumanMessage(content="What's the salary?"), AIMessage(content="$145,000 per year.")]
+    await adhoc_document_agent.run_agent("And the start date?", {"a.pdf": "text"}, {}, chat_history=history)
+
+    messages = captured_messages[0]
+    assert isinstance(messages[0], SystemMessage)
+    assert messages[1] is history[0]
+    assert messages[2] is history[1]
+    assert messages[3].content == "And the start date?"
+
+
+async def test_send_email_tool_still_fires_with_no_chat_history_at_all(monkeypatch):
+    """The user's own explicit requirement: a single-turn "summarize and
+    email it" request must trigger SendEmailWithAnswer regardless of
+    whether memory/history exists - this is the chat_history=None case,
+    the most common one (a brand new session, no memory loaded yet)."""
+    monkeypatch.setattr(
+        adhoc_document_agent, "send_email", lambda recipient, subject, body, attachments=None, html_body=None: {"sent": True, "message": f"Email sent to {recipient}."}
+    )
+    _patch_llm(
+        monkeypatch,
+        [
+            FakeResponse(
+                tool_calls=[
+                    {
+                        "name": "SendEmailWithAnswer",
+                        "args": {"recipient_email": "someone@example.com", "answer": "The summary.", "email_body_html": "<p>x</p>"},
+                        "id": "call-1",
+                    }
+                ]
+            ),
+            FakeResponse(content="Done - emailed it."),
+        ],
+    )
+
+    result = await adhoc_document_agent.run_agent(
+        "Summarize this offer and email it to someone@example.com", {"a.pdf": "text"}, {}, chat_history=None
+    )
+
+    assert result["email_sent_to"] == "someone@example.com"
+    assert result["email_evidence"]["sent"] is True
+
+
+async def test_send_email_tool_still_fires_with_real_chat_history_present(monkeypatch):
+    """Same requirement, the other direction: a populated chat_history must
+    not suppress or interfere with the model's own SendEmailWithAnswer
+    decision - memory is additive context, not a gate on this tool."""
+    monkeypatch.setattr(
+        adhoc_document_agent, "send_email", lambda recipient, subject, body, attachments=None, html_body=None: {"sent": True, "message": f"Email sent to {recipient}."}
+    )
+    _patch_llm(
+        monkeypatch,
+        [
+            FakeResponse(
+                tool_calls=[
+                    {
+                        "name": "SendEmailWithAnswer",
+                        "args": {"recipient_email": "someone@example.com", "answer": "The summary.", "email_body_html": "<p>x</p>"},
+                        "id": "call-1",
+                    }
+                ]
+            ),
+            FakeResponse(content="Done - emailed it."),
+        ],
+    )
+
+    history = [HumanMessage(content="What's in this offer?"), AIMessage(content="A job offer from Accenture.")]
+    result = await adhoc_document_agent.run_agent(
+        "Now summarize it and email it to someone@example.com", {"a.pdf": "text"}, {}, chat_history=history
+    )
+
+    assert result["email_sent_to"] == "someone@example.com"
+    assert result["email_evidence"]["sent"] is True
+
+
+async def test_system_prompt_tells_the_model_not_to_resend_from_history_and_how_to_use_the_outcome_note(monkeypatch):
+    """Regression test for a real bug a live 2-turn test caught before this
+    shipped: a prior turn's own "...also send email..." phrasing, once
+    sitting in chat_history, made the model re-attempt a send on a later,
+    unrelated follow-up turn (even to the literal text of a placeholder
+    from the original question) - and separately, a later "did you send
+    it?" turn had no way to know an earlier email actually succeeded, so
+    the model said "I have not sent any email yet" even when it had. Both
+    fixes are prompt wording, which a fake-LLM unit test can only confirm
+    was actually sent, not that a real model complies with it - that part
+    was verified live (RAG-ROADMAP.md Phase 163), not asserted here."""
+    captured_messages = []
+
+    class _CapturingLlm:
+        def __init__(self, response):
+            self._response = response
+
+        async def ainvoke(self, messages):
+            captured_messages.append(messages)
+            return self._response
+
+    monkeypatch.setattr(adhoc_document_agent, "_build_llm", lambda: _CapturingLlm(FakeResponse(content="Yes, I sent it.")))
+
+    history = [
+        HumanMessage(content="Summarize this offer. also send email with the details to given id"),
+        AIMessage(content="Here is the summary... [System note: an email was successfully sent to someone@example.com this turn.]"),
+    ]
+    await adhoc_document_agent.run_agent(
+        "did you send the email, and what was the base salary?", {"a.pdf": "text"}, {}, chat_history=history
+    )
+
+    system_prompt = captured_messages[0][0].content
+    assert "already handled" in system_prompt
+    assert "must not be repeated now" in system_prompt
+    assert "System note" in system_prompt
+    assert "never quote the bracketed note itself verbatim" in system_prompt
