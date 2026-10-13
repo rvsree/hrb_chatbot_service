@@ -36,8 +36,21 @@ rather than inventing one. If the question also asks about something
 outside the attached files - current/public information, online reviews,
 market comparisons, or anything the documents themselves wouldn't contain -
 use the SearchWeb tool for that part, and say in your answer which parts
-came from the attached file(s) versus the web. If the user asked you to
-email the answer to someone, call SendEmailWithAnswer after you've written
+came from the attached file(s) versus the web. Base the email decision
+below only on the user's current message - if an earlier turn in this
+conversation asked you to send an email, that request was already handled
+then and must not be repeated now unless the user's current message asks
+again. A current message that only asks about an earlier email (e.g. "did
+you send it?") is a question to answer in your "answer" text, not a new
+instruction to call SendEmailWithAnswer. An earlier turn in this
+conversation may include a line like "[System note: an email was
+successfully sent to ... this turn.]" or "...was attempted ... but
+failed: ...]" - that is the real, factual outcome of that earlier turn's
+own email attempt. Use it to answer truthfully when asked whether an
+email was sent, but never quote the bracketed note itself verbatim -
+answer in your own plain words (e.g. "Yes, I sent it to x@example.com."
+or "I tried to send it, but it failed because ..."). If the user's
+current message asks you to email the answer to someone, call SendEmailWithAnswer after you've written
 your final answer, with that answer as the plain-text "answer" argument
 and a short, specific subject line that reflects what the email is
 actually about (not a generic "Your answer" - name the real topic, e.g.
@@ -123,7 +136,12 @@ def _build_llm():
     return build_agent_llm().bind(tools=TOOL_DEFINITIONS)
 
 
-async def run_agent(question: str, file_texts: dict[str, str], file_bytes: dict[str, bytes]) -> dict:
+async def run_agent(
+    question: str,
+    file_texts: dict[str, str],
+    file_bytes: dict[str, bytes],
+    chat_history: list | None = None,
+) -> dict:
     """file_texts: {filename: extracted_text}, file_bytes: {filename: raw
     uploaded bytes} - the same files, kept in two forms since ReadDocument
     needs text and SendEmailWithAnswer's attach_files (Phase 152) needs the
@@ -136,7 +154,17 @@ async def run_agent(question: str, file_texts: dict[str, str], file_bytes: dict[
     touches a vector store or MCP - ReadDocument only ever reads from
     file_texts, nothing else exists for it to call. SearchWeb (Phase 145)
     is the one deliberate exception to "no external access", reusing
-    multi-agentic-rag's existing Tavily integration."""
+    multi-agentic-rag's existing Tavily integration.
+
+    chat_history (Phase 163): prior turns of this same session, same
+    [HumanMessage, AIMessage, ...] shape orchestration_agent.py already
+    threads through. Deliberately the ONLY change this function makes for
+    memory - the SendEmailWithAnswer tool-calling logic below is completely
+    untouched, so a single-turn "summarize and email this" request keeps
+    triggering it exactly as before whether chat_history is None, empty, or
+    populated. That's not a side effect to verify after the fact - it's the
+    actual mechanism: the tool is defined and available to the model
+    regardless of what's in messages before the current question."""
     started_at = time.perf_counter()
     llm = _build_llm()
 
@@ -150,7 +178,7 @@ async def run_agent(question: str, file_texts: dict[str, str], file_bytes: dict[
     # (email_body_html), not a reuse of this plain answer text.
     if should_use_tabular_format(question):
         system_prompt = f"{system_prompt}\n\n{TABULAR_FORMAT_INSTRUCTION}"
-    messages = [SystemMessage(content=system_prompt), HumanMessage(content=question)]
+    messages = [SystemMessage(content=system_prompt), *(chat_history or []), HumanMessage(content=question)]
 
     files_used: list[str] = []
     web_searches: list[str] = []

@@ -95,6 +95,6 @@ async def _answer_query(payload: RagQueryRequest, employee_id: str | None = None
 
 @router_retrieve_document.post("/query", response_model=RagQueryResponse)
 async def query(payload: RagQueryRequest, request: Request):
-    userProfile = require_role(payload.user_profile, Role.EMPLOYEE, Role.MANAGER, Role.HR_SUPPORT)
+    userProfile = require_role(payload.user_profile, Role.EMPLOYEE, Role.MANAGER, Role.HR_SUPPORT, Role.ADMIN)
     await enforce_rate_limit(request)
     return await _answer_query(payload, employee_id=userProfile.employee_id)

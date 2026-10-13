@@ -1,0 +1,168 @@
+<title>Admin Secret Code - Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --live: #147a4a; --live-bg: #e3f5eb; --live-border: #b5e3c8;
+    --design: #9a5a0c; --design-bg: #fbf1dd; --design-border: #edd6a2;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+      --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+    --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0b2b25;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  section.panel { display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .panel-num { width: 30px; height: 30px; border-radius: 9px; background: var(--band-dark); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13px; }
+  .panel-title { display: flex; flex-direction: column; }
+  .panel-title .name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; }
+  .panel-title .sub { font-size: 12px; color: var(--text-faint); }
+  .panel p { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+  /* sequence diagram - vertical swimlane steps */
+  .sequence { display: flex; flex-direction: column; gap: 0; }
+  .seq-step { display: grid; grid-template-columns: 150px 1fr; gap: 14px; padding: 12px 0; border-bottom: 1px dashed var(--border); position: relative; }
+  .seq-step:last-child { border-bottom: none; }
+  .seq-actor { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 12.5px; color: var(--accent); padding-top: 2px; }
+  .seq-body { display: flex; flex-direction: column; gap: 3px; }
+  .seq-action { font-size: 13px; font-weight: 600; }
+  .seq-detail { font-size: 11.5px; color: var(--text-faint); }
+  .seq-detail .mono { color: var(--text-faint); }
+  @media (max-width: 560px) { .seq-step { grid-template-columns: 1fr; gap: 3px; } }
+
+  .branch-label { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; margin-bottom: 4px; }
+  .branch-label.first-time { color: var(--design); background: var(--design-bg); border: 1px solid var(--design-border); }
+  .branch-label.normal { color: var(--live); background: var(--live-bg); border: 1px solid var(--live-border); }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">architecture - where a request physically travels</div>
+    <h1 class="display">Admin Secret Code</h1>
+    <p class="subtitle">Two sequences: first-ever admin login (seed + forced reset) and every login after a real code has been set. Component view, not code - see <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=design" target="_blank" rel="noopener noreferrer">Design</a> for the real request/response shapes and DB schema.</p>
+    <div class="doc-nav">
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <span class="doc-nav-item current">Architecture</span>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">1</div>
+      <div class="panel-title">
+        <span class="name display">Login sequence</span>
+        <span class="sub">hrb_chatbot_ui -&gt; api/auth/login.py -&gt; AdminCredentialStore -&gt; Postgres</span>
+      </div>
+    </div>
+    <div class="sequence">
+      <div class="seq-step">
+        <div class="seq-actor">hrb_chatbot_ui</div>
+        <div class="seq-body"><span class="seq-action">POST /v1/auth/login</span><span class="seq-detail mono">employee_id, full_name, role="admin", secret_code (masked input)</span></div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-actor">login.py</div>
+        <div class="seq-body"><span class="seq-action">is_known_persona(employee_id, full_name, role)</span><span class="seq-detail">401 UNKNOWN_PERSONA if the triple doesn't match the fixed roster - unrelated to the secret code, checked first.</span></div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-actor">login.py</div>
+        <div class="seq-body"><span class="seq-action">AdminCredentialStore.get_or_seed(employee_id, SEED_CODE)</span><span class="seq-detail mono">only called when role == "admin"</span></div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-actor">Postgres</div>
+        <div class="seq-body">
+          <span class="branch-label first-time">no row yet</span>
+          <span class="seq-action">INSERT admin_credentials (hash of seed code, must_reset=true)</span>
+        </div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-actor">Postgres</div>
+        <div class="seq-body">
+          <span class="branch-label normal">row already exists</span>
+          <span class="seq-action">return the stored row unchanged</span>
+        </div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-actor">login.py</div>
+        <div class="seq-body"><span class="seq-action">AdminCredentialStore.verify_secret_code(employee_id, candidate)</span><span class="seq-detail">hash(salt + candidate) compared via hmac.compare_digest() against the stored hash</span></div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-actor">login.py</div>
+        <div class="seq-body"><span class="seq-action">401 INVALID_ADMIN_SECRET_CODE, or 200 LoginResponse</span><span class="seq-detail mono">must_reset_secret_code = credential["must_reset"]</span></div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-actor">hrb_chatbot_ui</div>
+        <div class="seq-body"><span class="seq-action">if must_reset_secret_code: route to the reset flow</span><span class="seq-detail">the admin is logged in, but prompted to set a real code before continuing</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">2</div>
+      <div class="panel-title">
+        <span class="name display">Reset sequence</span>
+        <span class="sub">only reachable by an already-authenticated admin</span>
+      </div>
+    </div>
+    <div class="sequence">
+      <div class="seq-step">
+        <div class="seq-actor">hrb_chatbot_ui</div>
+        <div class="seq-body"><span class="seq-action">POST /v1/admin/reset-secret-code</span><span class="seq-detail mono">user_profile (role=admin), current_secret_code, new_secret_code</span></div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-actor">login.py</div>
+        <div class="seq-body"><span class="seq-action">require_role(user_profile, Role.ADMIN)</span><span class="seq-detail">401/403 before anything else runs, same gateway pattern as every other admin route</span></div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-actor">login.py</div>
+        <div class="seq-body"><span class="seq-action">verify_secret_code(employee_id, current_secret_code)</span><span class="seq-detail">must prove the <em>current</em> code, not just carry a valid identity</span></div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-actor">Postgres</div>
+        <div class="seq-body"><span class="seq-action">UPDATE admin_credentials SET new hash/salt, must_reset = false</span></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Companion to <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=design" target="_blank" rel="noopener noreferrer">Design</a> (API contracts, DB schema) and <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a> (why salted SHA-256 over bcrypt/OAuth2/JWT). Part of the Phase 179 Spec/Architecture/Design/Decisions pilot.
+  </footer>
+</div>

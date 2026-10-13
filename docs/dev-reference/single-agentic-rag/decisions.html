@@ -1,0 +1,179 @@
+<title>Single-Agentic RAG - Decisions</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --live: #147a4a; --live-bg: #e3f5eb; --live-border: #b5e3c8;
+    --design: #9a5a0c; --design-bg: #fbf1dd; --design-border: #edd6a2;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --cost: #a4321f; --cost-bg: #fbe9e5; --cost-border: #f0c3b8;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+      --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+    --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0b2b25;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  section.panel { display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .panel-num { width: 30px; height: 30px; border-radius: 9px; background: var(--band-dark); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13px; }
+  .panel-title { display: flex; flex-direction: column; }
+  .panel-title .name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; }
+  .panel-title .sub { font-size: 12px; color: var(--text-faint); }
+  .panel p { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+  .panel ul { margin: 0; padding-left: 20px; font-size: 13px; color: var(--text-muted); line-height: 1.7; }
+  .panel li { margin-bottom: 4px; }
+
+  .grid.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  .card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 15px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 7px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .card-label { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13.5px; }
+  .status-pill { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.03em; }
+  .status-pill.live { color: var(--live); background: var(--live-bg); border: 1px solid var(--live-border); }
+  .status-pill.design { color: var(--design); background: var(--design-bg); border: 1px solid var(--design-border); }
+  .status-pill.gap { color: var(--cost); background: var(--cost-bg); border: 1px solid var(--cost-border); }
+  .card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+  .ref-list { display: flex; flex-direction: column; gap: 10px; }
+  .ref-item { display: grid; grid-template-columns: 160px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .ref-item:last-child { border-bottom: none; }
+  @media (max-width: 620px) { .ref-item { grid-template-columns: 1fr; gap: 4px; } }
+  .ref-name { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13px; }
+  .ref-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.55; }
+
+  .callout { display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; border-radius: 10px; padding: 11px 14px; line-height: 1.55; }
+  .callout svg { flex: none; width: 16px; height: 16px; margin-top: 1px; }
+  .callout.cost { background: var(--cost-bg); border: 1px solid var(--cost-border); color: var(--cost); }
+  .callout.live { background: var(--live-bg); border: 1px solid var(--live-border); color: var(--live); }
+  .callout.design { background: var(--design-bg); border: 1px solid var(--design-border); color: var(--design); }
+
+  .endpoint { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .endpoint-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface-alt); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .http-verb { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
+  .http-verb.post { color: var(--live); background: var(--live-bg); border: 1px solid var(--live-border); }
+  .http-verb.get { color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); }
+  .endpoint-path { font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; }
+  .endpoint-desc { font-size: 11.5px; color: var(--text-faint); margin-left: auto; }
+  .endpoint-body { padding: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 700px) { .endpoint-body { grid-template-columns: 1fr; } }
+  .schema-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); margin-bottom: 6px; }
+  pre.schema { margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; line-height: 1.6; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; color: var(--text); }
+  .err-row { display: flex; gap: 8px; align-items: baseline; font-size: 12px; padding: 4px 0; }
+  .err-code { font-family: 'IBM Plex Mono', monospace; font-weight: 700; color: var(--cost); flex: none; }
+  .err-why { color: var(--text-muted); }
+
+  table.nfr-table, table.db-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.nfr-table th, table.db-table th { text-align: left; font-family: 'Archivo', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  table.nfr-table td, table.db-table td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text-muted); }
+  table.nfr-table td.nfr-name, table.db-table td.col-name { color: var(--text); font-weight: 600; font-family: 'IBM Plex Mono', monospace; }
+
+  .flow-list { display: flex; flex-direction: column; gap: 8px; }
+  .flow-item { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
+  .flow-num { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 700; margin-top: 1px; }
+
+  table.summary { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+  table.summary th { text-align: left; font-family: 'Archivo', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding: 10px 14px; background: var(--surface-alt); border-bottom: 1px solid var(--border); }
+  table.summary td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.summary tr:last-child td { border-bottom: none; }
+  table.summary td.id-cell { font-family: 'IBM Plex Mono', monospace; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  table.summary a { color: var(--text); text-decoration: none; }
+  table.summary a:hover { text-decoration: underline; }
+  td.source-cell { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-faint); }
+
+  section.decision { border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 14px; }
+  .decision-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .decision-id { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 12px; color: #fff; background: var(--band-dark); padding: 3px 9px; border-radius: 7px; }
+  .decision-title { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 16px; }
+  .decision-grid { display: grid; grid-template-columns: 110px 1fr; gap: 4px 14px; font-size: 13px; }
+  .decision-grid dt { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding-top: 2px; }
+  .decision-grid dd { margin: 0; color: var(--text-muted); line-height: 1.6; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+  .decision-grid dd:last-of-type { border-bottom: none; padding-bottom: 0; }
+  @media (max-width: 620px) { .decision-grid { grid-template-columns: 1fr; } .decision-grid dt { padding-top: 10px; } }
+  .trade-off { background: var(--design-bg); border: 1px solid var(--design-border); border-radius: 10px; padding: 10px 12px !important; color: var(--design) !important; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">decisions - context, alternatives, why, trade-offs</div>
+    <h1 class="display">Single-Agentic RAG</h1>
+    <p class="subtitle">Including one decision flagged as not independently re-verified, rather than guessed at.</p>
+    <div class="doc-nav">
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=single-agentic-rag&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=single-agentic-rag&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=single-agentic-rag&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <span class="doc-nav-item current">Decisions</span>
+    </div>
+  </header>
+
+
+  <table class="summary">
+    <thead><tr><th>ID</th><th>Decision</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td class="id-cell">SA-1</td><td><a href="#sa-1">ChatOpenAI directly, not the shared GatewayChatModel adapter</a></td><td class="source-cell">Phase 55</td></tr>
+      <tr><td class="id-cell">SA-2</td><td><a href="#sa-2">A live-data-tool exclusion set, not "any tool use disables caching"</a></td><td class="source-cell">Phase 110</td></tr>
+    </tbody>
+  </table>
+
+  <section class="decision" id="sa-1">
+    <div class="decision-head"><span class="decision-id">SA-1</span><span class="decision-title display">ChatOpenAI directly, not the shared GatewayChatModel adapter</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>This project has a <span class="mono">GatewayChatModel</span> adapter (<span class="mono">common/clients/llm_client/langchain_chat_model.py</span>) wrapping its own multi-provider <span class="mono">ask()</span> clients for LangChain's own retrieval classes (<span class="mono">MultiQueryRetriever</span>/<span class="mono">SelfQueryRetriever</span>). This agent could have used it too.</dd>
+      <dt>Decision</dt><dd>Uses <span class="mono">langchain_openai.ChatOpenAI</span> directly instead, per the module's own docstring note pointing at Phase 55.</dd>
+      <dt>Alternative</dt><dd>Route through <span class="mono">GatewayChatModel</span> for provider-agnostic tool-calling, consistent with the retrieval classes - would mean every <span class="mono">ask_with_tools()</span>-style call going through one more adapter layer.</dd>
+      <dt>Why</dt><dd>Not independently re-verified in this pass - recorded from the module's own docstring pointer, not re-derived. Flagged rather than guessed at further.</dd>
+      <dt>Trade-off</dt><dd class="trade-off">This agent is tied to OpenAI's own tool-calling API shape specifically, not provider-agnostic the way the gateway-routed retrieval classes are - a real, acknowledged inconsistency across the codebase's own LLM-access patterns.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="sa-2">
+    <div class="decision-head"><span class="decision-id">SA-2</span><span class="decision-title display">A live-data-tool exclusion set, not "any tool use disables caching"</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>An agentic answer could have used zero, one, or several tools - a blanket "never cache if any tool was used" rule would also exclude <span class="mono">SearchKnowledgeBase</span>-only answers, which are exactly as cacheable as genai-rag's own.</dd>
+      <dt>Decision</dt><dd><span class="mono">LIVE_DATA_TOOLS = {"GetLeaveBalance", "GetLeaveHistory"}</span> - caching is disabled only when one of these two specific tools appears in <span class="mono">tools_used</span>, not for any tool use at all.</dd>
+      <dt>Alternative</dt><dd>Blanket "no caching if any tool ran" - simpler, one condition instead of a set membership check - rejected: would silently lose caching for the (likely common) case of a knowledge-base-only agentic answer.</dd>
+      <dt>Why</dt><dd>The real risk is per-employee, time-sensitive data (a balance, a history) - not tool use itself. A precise exclusion set captures exactly that risk, no more.</dd>
+      <dt>Trade-off</dt><dd class="trade-off">The exclusion set has to be manually kept in sync with the real tool list - a new live-data tool added later that isn't added to <span class="mono">LIVE_DATA_TOOLS</span> would silently become cacheable. No test currently enforces this stays in sync.</dd>
+    </dl>
+  </section>
+
+
+  <footer>
+    Companions: <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=single-agentic-rag&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=single-agentic-rag&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=single-agentic-rag&type=design" target="_blank" rel="noopener noreferrer">Design</a>.
+  </footer>
+</div>

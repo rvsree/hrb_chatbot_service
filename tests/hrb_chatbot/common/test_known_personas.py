@@ -43,3 +43,8 @@ def test_a_phase_147_hr_support_persona_matches():
 def test_a_phase_147_persona_with_the_wrong_role_does_not_match():
     # Daniel Rodriguez is a real employee, but not with the manager role.
     assert is_known_persona("EMP021", "Daniel Rodriguez", "manager") is False
+
+
+# Phase 169 added the admin role here; Phase 171 moved its secret-code
+# check into AdminCredentialStore (see test_admin_credential_store.py) -
+# this file no longer holds any secret-code logic.

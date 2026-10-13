@@ -1,0 +1,191 @@
+<title>GenAI RAG Chat - Decisions</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --live: #147a4a; --live-bg: #e3f5eb; --live-border: #b5e3c8;
+    --design: #9a5a0c; --design-bg: #fbf1dd; --design-border: #edd6a2;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --cost: #a4321f; --cost-bg: #fbe9e5; --cost-border: #f0c3b8;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+      --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+    --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0b2b25;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  section.panel { display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .panel-num { width: 30px; height: 30px; border-radius: 9px; background: var(--band-dark); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13px; }
+  .panel-title { display: flex; flex-direction: column; }
+  .panel-title .name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; }
+  .panel-title .sub { font-size: 12px; color: var(--text-faint); }
+  .panel p { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+  .panel ul { margin: 0; padding-left: 20px; font-size: 13px; color: var(--text-muted); line-height: 1.7; }
+  .panel li { margin-bottom: 4px; }
+
+  .grid.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  .card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 15px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 7px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .card-label { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13.5px; }
+  .status-pill { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.03em; }
+  .status-pill.live { color: var(--live); background: var(--live-bg); border: 1px solid var(--live-border); }
+  .status-pill.design { color: var(--design); background: var(--design-bg); border: 1px solid var(--design-border); }
+  .status-pill.gap { color: var(--cost); background: var(--cost-bg); border: 1px solid var(--cost-border); }
+  .card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+  .ref-list { display: flex; flex-direction: column; gap: 10px; }
+  .ref-item { display: grid; grid-template-columns: 160px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .ref-item:last-child { border-bottom: none; }
+  @media (max-width: 620px) { .ref-item { grid-template-columns: 1fr; gap: 4px; } }
+  .ref-name { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13px; }
+  .ref-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.55; }
+
+  .callout { display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; border-radius: 10px; padding: 11px 14px; line-height: 1.55; }
+  .callout svg { flex: none; width: 16px; height: 16px; margin-top: 1px; }
+  .callout.cost { background: var(--cost-bg); border: 1px solid var(--cost-border); color: var(--cost); }
+  .callout.live { background: var(--live-bg); border: 1px solid var(--live-border); color: var(--live); }
+  .callout.design { background: var(--design-bg); border: 1px solid var(--design-border); color: var(--design); }
+
+  .endpoint { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .endpoint-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface-alt); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .http-verb { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
+  .http-verb.post { color: var(--live); background: var(--live-bg); border: 1px solid var(--live-border); }
+  .http-verb.get { color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); }
+  .endpoint-path { font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; }
+  .endpoint-desc { font-size: 11.5px; color: var(--text-faint); margin-left: auto; }
+  .endpoint-body { padding: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 700px) { .endpoint-body { grid-template-columns: 1fr; } }
+  .schema-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); margin-bottom: 6px; }
+  pre.schema { margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; line-height: 1.6; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; color: var(--text); }
+  .err-row { display: flex; gap: 8px; align-items: baseline; font-size: 12px; padding: 4px 0; }
+  .err-code { font-family: 'IBM Plex Mono', monospace; font-weight: 700; color: var(--cost); flex: none; }
+  .err-why { color: var(--text-muted); }
+
+  table.nfr-table, table.db-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.nfr-table th, table.db-table th { text-align: left; font-family: 'Archivo', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  table.nfr-table td, table.db-table td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text-muted); }
+  table.nfr-table td.nfr-name, table.db-table td.col-name { color: var(--text); font-weight: 600; font-family: 'IBM Plex Mono', monospace; }
+
+  .flow-list { display: flex; flex-direction: column; gap: 8px; }
+  .flow-item { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
+  .flow-num { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 700; margin-top: 1px; }
+
+  table.summary { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+  table.summary th { text-align: left; font-family: 'Archivo', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding: 10px 14px; background: var(--surface-alt); border-bottom: 1px solid var(--border); }
+  table.summary td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.summary tr:last-child td { border-bottom: none; }
+  table.summary td.id-cell { font-family: 'IBM Plex Mono', monospace; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  table.summary a { color: var(--text); text-decoration: none; }
+  table.summary a:hover { text-decoration: underline; }
+  td.source-cell { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-faint); }
+
+  section.decision { border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 14px; }
+  .decision-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .decision-id { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 12px; color: #fff; background: var(--band-dark); padding: 3px 9px; border-radius: 7px; }
+  .decision-title { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 16px; }
+  .decision-grid { display: grid; grid-template-columns: 110px 1fr; gap: 4px 14px; font-size: 13px; }
+  .decision-grid dt { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding-top: 2px; }
+  .decision-grid dd { margin: 0; color: var(--text-muted); line-height: 1.6; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+  .decision-grid dd:last-of-type { border-bottom: none; padding-bottom: 0; }
+  @media (max-width: 620px) { .decision-grid { grid-template-columns: 1fr; } .decision-grid dt { padding-top: 10px; } }
+  .trade-off { background: var(--design-bg); border: 1px solid var(--design-border); border-radius: 10px; padding: 10px 12px !important; color: var(--design) !important; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">decisions - context, alternatives, why, trade-offs</div>
+    <h1 class="display">GenAI RAG Chat</h1>
+    <p class="subtitle">Including a real decision made this round: why this pilot did NOT replace its Architecture doc with a deck slide, unlike RAG Ingestion.</p>
+    <div class="doc-nav">
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <span class="doc-nav-item current">Decisions</span>
+    </div>
+  </header>
+
+
+  <table class="summary">
+    <thead><tr><th>ID</th><th>Decision</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td class="id-cell">GR-1</td><td><a href="#gr-1">Kept the existing rag-architecture-layers.html Architecture doc, didn't force-fit a deck slide</a></td><td class="source-cell">this pilot round</td></tr>
+      <tr><td class="id-cell">GR-2</td><td><a href="#gr-2">Shared Redis answer cache across all 3 modes, each with its own live-data exclusion filter</a></td><td class="source-cell">Phase 78 / 110 / 115</td></tr>
+      <tr><td class="id-cell">GR-3</td><td><a href="#gr-3">Guardrails moved to a shared core instead of each pipeline wiring its own</a></td><td class="source-cell">Phase 98</td></tr>
+    </tbody>
+  </table>
+
+  <section class="decision" id="gr-1">
+    <div class="decision-head"><span class="decision-id">GR-1</span><span class="decision-title display">Kept the existing rag-architecture-layers.html Architecture doc, didn't force-fit a deck slide</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>The RAG Ingestion pilot replaced its Mermaid diagram with a corrected PowerPoint deck export (slide 12), and the standing instruction is to standardize on that pattern. The deck's own candidate for this feature - slide 8, "Sequence: Policy Question (cache miss)" - was reviewed as a possible replacement.</dd>
+      <dt>Decision</dt><dd>Not used, this round. Slide 8 depicts a materially different target architecture: separate "Chat Gateway"/"Conversation"/"Knowledge Retrieval"/"Agent Orchestrator" microservices, a LangGraph-based orchestrator even for a plain policy question, and SQS-queued async writes for the answer cache and conversation-turn save.</dd>
+      <dt>Alternative</dt><dd>Correct slide 8 the same way slide 12 was corrected (small, targeted text fixes) - rejected after checking the real code: <span class="mono">rag_pipeline.py</span> has zero LangGraph references, <span class="mono">answer_cache.py</span> and <span class="mono">conversation_memory.py</span> have zero SQS references - both write synchronously, in-request. These aren't label mismatches like slide 12's were; they're structural differences from today's single-process reality, and correcting them honestly would mean substantially redrawing the slide, not editing a few text runs.</dd>
+      <dt>Why</dt><dd><span class="mono">rag-architecture-layers.html</span> (Phase 170, already synced) was independently verified accurate for this exact feature before this round even started. Replacing working, accurate content with content requiring a much larger correction pass - just to match a stylistic preference - would have been a worse outcome than keeping what already works.</dd>
+      <dt>Trade-off</dt><dd class="trade-off">This Architecture doc looks visually different from RAG Ingestion's (still a styled HTML view, not a deck-image panel) - a real, visible inconsistency across the doc family. Accepted deliberately; flagged here rather than silently normalized by force-fitting inaccurate content. Slide 8 remains genuinely interesting as a <em>target-state</em> reference (a future microservices decomposition) - a candidate for its own clearly-labeled callout or companion doc later, not this round.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="gr-2">
+    <div class="decision-head"><span class="decision-id">GR-2</span><span class="decision-title display">Shared Redis answer cache across all 3 modes, each with its own live-data exclusion filter</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd><strong>Correction made while writing this doc, not before:</strong> an earlier draft of this decision (and this project's own CLAUDE.md context) claimed the Redis answer cache "stays genai-rag-only." Direct inspection of <span class="mono">orchestration_agent.py</span> (Phase 110) and <span class="mono">multi_agent_pipeline.py</span> (Phase 115) found both import <span class="mono">build_cache_key</span> and call <span class="mono">get_db_gateway().answer_cache().get()/.set()</span> for real - that claim was wrong, caught before shipping rather than after.</dd>
+      <dt>Decision</dt><dd>All 3 modes share the same Redis-backed cache infrastructure, each with its own pipeline-namespaced key (<span class="mono">build_cache_key(query, pipeline="single-agentic-rag", ...)</span> / <span class="mono">pipeline="multi-agentic-rag"</span>) and its own <span class="mono">LIVE_DATA_TOOLS</span> exclusion set (<span class="mono">{"GetLeaveBalance", "GetLeaveHistory"}</span>) - a result only gets cached when no tool call in it could have returned live, per-employee data.</dd>
+      <dt>Alternative</dt><dd>Cache every agentic-mode answer unconditionally, same as genai-rag - rejected: a tool call result (a leave balance, a leave history) is per-employee and time-sensitive; caching that answer and serving it to a later, different caller would be a real correctness bug, not a staleness nuisance.</dd>
+      <dt>Why</dt><dd><span class="mono">search_knowledge_base</span> (the one tool genai-rag's own retrieval effectively mirrors) queries the same static document index either way, so an agentic-mode answer that only used that tool - or no tool at all - is exactly as safe to cache as a genai-rag answer. The exclusion set is scoped precisely to the tools that actually return live data, not "any tool use at all."</dd>
+      <dt>Trade-off</dt><dd class="trade-off">Each mode's cache-eligibility logic is duplicated (the same <span class="mono">LIVE_DATA_TOOLS</span> pattern re-implemented per pipeline, per <span class="mono">multi_agent_pipeline.py</span>'s own comment: "mirrors orchestration_agent.py's own LIVE_DATA_TOOLS, one level up, at agent-dispatch granularity") rather than factored into the shared guarded-pipeline core - a real, acknowledged duplication, not yet consolidated.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="gr-3">
+    <div class="decision-head"><span class="decision-id">GR-3</span><span class="decision-title display">Guardrails moved to a shared core instead of each pipeline wiring its own</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>Before Phase 98, each of the 3 retrieval pipelines independently decided whether to wire in input/output guardrails and conversation memory - a direct code review found <span class="mono">single-agentic-rag</span> had shipped with no guardrails at all as a result.</dd>
+      <dt>Decision</dt><dd>All 3 pipelines now funnel their guardrail/memory/logging concerns through one shared <span class="mono">run_guarded_pipeline()</span> core (<span class="mono">ai/rag_core/guarded_pipeline.py</span>), even though each still does its own answer generation independently (genuinely different: fixed retrieve-then-generate vs. a tool-calling loop vs. a LangGraph multi-agent graph).</dd>
+      <dt>Alternative</dt><dd>Leave each pipeline responsible for wiring its own guardrails/memory, just fix the one found gap - rejected: that's exactly the situation that produced the gap in the first place; a shared core makes "no guardrails" structurally impossible for any future mode, not just the current 3.</dd>
+      <dt>Why</dt><dd>Guardrail/memory/logging concerns are identical across all 3 modes regardless of how each generates its answer - factoring them out removes the chance of any one pipeline forgetting to wire them in.</dd>
+      <dt>Trade-off</dt><dd class="trade-off"><span class="mono">multi-agentic-rag</span> still calls <span class="mono">check_input</span>/<span class="mono">check_output</span> directly rather than through the shared core - an earlier, still-correct implementation not yet migrated. A real, acknowledged inconsistency, not yet closed.</dd>
+    </dl>
+  </section>
+
+
+  <footer>
+    Full history: <code class="mono">docs/agent-reference/RAG-ROADMAP.md</code> Phase 78/98. Companions: <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=design" target="_blank" rel="noopener noreferrer">Design</a>.
+  </footer>
+</div>

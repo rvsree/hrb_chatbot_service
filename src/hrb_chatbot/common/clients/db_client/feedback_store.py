@@ -159,6 +159,20 @@ class FeedbackStore:
         with log_backend_call(logger, "postgres", "feedback.list", employee_id=employee_id or "all"):
             return await asyncio.to_thread(self._list_feedback_sync, employee_id)
 
+    def _delete_feedback_sync(self, feedback_id: int) -> int:
+        with self._connect() as conn:
+            cur = conn.execute("DELETE FROM feedback WHERE id = %s", (feedback_id,))
+            conn.commit()
+            return cur.rowcount
+
+    async def delete_feedback(self, feedback_id: int) -> int:
+        """Phase 168 - admin-only hard delete. Nothing in this store could
+        delete anything before this - list_feedback()/save_feedback() were
+        the only 2 operations that existed."""
+        await self._ensure_table()
+        with log_backend_call(logger, "postgres", "feedback.delete", feedback_id=feedback_id):
+            return await asyncio.to_thread(self._delete_feedback_sync, feedback_id)
+
     def health_check(self) -> dict:
         result = {"provider": self.PROVIDER_NAME}
         result.update(self.get_configuration())

@@ -23,7 +23,7 @@ router_query_agent = APIRouter(tags=["multi-agentic-rag"])
 
 @router_query_agent.post("/query", response_model=MultiAgenticRagResponse)
 async def query(payload: MultiAgenticRagRequest, request: Request):
-    userProfile = require_role(payload.user_profile, Role.EMPLOYEE, Role.MANAGER, Role.HR_SUPPORT)
+    userProfile = require_role(payload.user_profile, Role.EMPLOYEE, Role.MANAGER, Role.HR_SUPPORT, Role.ADMIN)
     await enforce_rate_limit(request)
 
     try:
@@ -39,7 +39,7 @@ async def query(payload: MultiAgenticRagRequest, request: Request):
     eval_scores = result.get("eval_scores")
     llm_context = result.get("llm_context")
     return MultiAgenticRagResponse(
-        query=payload.query,
+        query=result.get("query", payload.query),
         answer=result["answer"],
         tasks=[AgentTaskInfo(**task) for task in result["tasks"]],
         suggested_follow_up_questions=result.get("follow_up_questions") or [],

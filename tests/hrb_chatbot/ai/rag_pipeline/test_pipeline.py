@@ -58,6 +58,20 @@ def _fake_decompose(monkeypatch):
     monkeypatch.setattr(pipeline, "decompose", _passthrough_decompose)
 
 
+@pytest.fixture(autouse=True)
+def _fake_normalize_query(monkeypatch):
+    """Phase 173: answer_query() now calls normalize_query() before
+    check_input() on every live call, a real OpenAI structured-output call -
+    fake it as a no-op (returns the query unchanged) for every test in this
+    file, same reasoning as _fake_decompose above. Real normalization
+    behavior is covered by test_query_normalize.py instead."""
+
+    async def _passthrough_normalize(query):
+        return query
+
+    monkeypatch.setattr(pipeline, "normalize_query", _passthrough_normalize)
+
+
 def _patch_conversation_store(monkeypatch, conversation_store=None):
     gateway = FakeDBGateway(conversation_store=conversation_store or FakeConversationStore())
     monkeypatch.setattr(conversation_memory, "get_db_gateway", lambda: gateway)

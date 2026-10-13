@@ -1,0 +1,394 @@
+<title>Leave Approval A2A</title>
+<style>
+/* Layout: same numbered-card spec-doc shape as the companion memory-design
+   page, for visual consistency across the two proposals. Red-leaning
+   "blocker" token added - this page's headline finding is a hard
+   dependency, not a soft flag, and needs to read differently from the
+   amber "needs your decision" callouts the other doc uses. */
+:root {
+  --bg: #f3f4f6;
+  --surface: #ffffff;
+  --surface-sunken: #eceef1;
+  --fg: #181d26;
+  --fg-muted: #5c6472;
+  --border: #d8dce2;
+  --accent: #35587a;
+  --warn: #a8641f;
+  --warn-soft: #faf0e2;
+  --warn-border: #e8c893;
+  --good: #2f7a52;
+  --good-soft: #e7f3ec;
+  --bad: #b03a3a;
+  --bad-soft: #fbe9e9;
+  --bad-border: #eab8b8;
+  --code-bg: #eef0f3;
+  --font-display: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10141b; --surface: #171c26; --surface-sunken: #1d2330;
+    --fg: #e7eaef; --fg-muted: #99a2b3; --border: #2b3242;
+    --accent: #80aed9; --warn: #e3a765; --warn-soft: #332514; --warn-border: #5c4523;
+    --good: #6fc99a; --good-soft: #152821;
+    --bad: #e08080; --bad-soft: #301616; --bad-border: #5c2323;
+    --code-bg: #1b212c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10141b; --surface: #171c26; --surface-sunken: #1d2330;
+  --fg: #e7eaef; --fg-muted: #99a2b3; --border: #2b3242;
+  --accent: #80aed9; --warn: #e3a765; --warn-soft: #332514; --warn-border: #5c4523;
+  --good: #6fc99a; --good-soft: #152821;
+  --bad: #e08080; --bad-soft: #301616; --bad-border: #5c2323;
+  --code-bg: #1b212c; color-scheme: dark;
+}
+
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); line-height: 1.55; }
+.page { max-width: 920px; margin: 0 auto; padding: 32px 16px 64px; display: flex; flex-direction: column; gap: 24px; }
+
+header.doc-head { display: flex; flex-direction: column; gap: 10px; padding-bottom: 20px; border-bottom: 2px solid var(--border); }
+.eyebrow { font-family: var(--font-display); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+h1 { font-family: var(--font-display); font-size: clamp(26px, 4vw, 34px); margin: 0; text-wrap: balance; font-weight: 600; }
+.subtitle { color: var(--fg-muted); font-size: 15px; max-width: 65ch; }
+.status-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.chip { font-family: var(--font-display); font-size: 11px; letter-spacing: 0.03em; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--fg-muted); background: var(--surface-sunken); }
+.chip.bad { color: var(--bad); background: var(--bad-soft); border-color: var(--bad-border); }
+.chip.warn { color: var(--warn); background: var(--warn-soft); border-color: var(--warn-border); }
+
+section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 22px clamp(16px, 4vw, 28px); display: flex; flex-direction: column; gap: 14px; }
+.section-head { display: flex; align-items: baseline; gap: 10px; }
+.section-num { font-family: var(--font-display); font-size: 13px; color: var(--accent); min-width: 22px; }
+h2 { font-family: var(--font-display); font-size: 19px; margin: 0; font-weight: 600; }
+h3 { font-family: var(--font-display); font-size: 15px; margin: 10px 0 0; font-weight: 600; color: var(--fg); }
+p { margin: 0; }
+.lede { color: var(--fg-muted); font-size: 14px; }
+
+.verdict { display: flex; gap: 14px; align-items: flex-start; }
+.verdict-badge { font-family: var(--font-display); font-size: 12px; white-space: nowrap; padding: 6px 12px; border-radius: 6px; background: var(--good-soft); color: var(--good); border: 1px solid color-mix(in srgb, var(--good) 40%, var(--border)); font-weight: 600; }
+
+.callout { border-radius: 8px; padding: 14px 16px; font-size: 14px; display: flex; flex-direction: column; gap: 8px; }
+.callout.bad { background: var(--bad-soft); border: 1px solid var(--bad-border); }
+.callout.warn { background: var(--warn-soft); border: 1px solid var(--warn-border); }
+.callout.good { background: var(--good-soft); border: 1px solid color-mix(in srgb, var(--good) 40%, var(--border)); }
+.callout .callout-label { font-family: var(--font-display); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--bad); }
+.callout.warn .callout-label { color: var(--warn); }
+.callout.good .callout-label { color: var(--good); }
+
+.gap-card { border: 1px solid var(--bad-border); background: var(--bad-soft); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.gap-title { font-family: var(--font-display); font-size: 13.5px; font-weight: 600; color: var(--bad); display: flex; align-items: center; gap: 8px; }
+.gap-num { font-family: var(--font-display); font-size: 11px; background: var(--bad); color: var(--surface); border-radius: 999px; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.gap-card p { font-size: 13.5px; }
+.gap-evidence { font-family: var(--font-display); font-size: 11.5px; color: var(--fg-muted); background: var(--code-bg); border-radius: 6px; padding: 6px 10px; }
+
+pre.mermaid { background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 8px; padding: 16px; overflow-x: auto; }
+code.inline { font-family: var(--font-display); background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 0.92em; }
+
+ul.spec-list, ol.spec-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+ul.spec-list li, ol.spec-list li { padding-left: 2px; }
+
+.repo-split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 600px) { .repo-split { grid-template-columns: 1fr; } }
+.repo-col { border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-size: 13.5px; display: flex; flex-direction: column; gap: 8px; }
+.repo-col .repo-label { font-family: var(--font-display); font-size: 12px; font-weight: 600; color: var(--accent); }
+
+table.decision-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.decision-table td, .decision-table th { border-bottom: 1px solid var(--border); padding: 10px 8px; text-align: left; vertical-align: top; }
+.decision-table th { font-family: var(--font-display); font-size: 11.5px; color: var(--fg-muted); }
+.decision-table td:first-child { font-family: var(--font-display); font-size: 12.5px; white-space: nowrap; }
+
+.seq-list { counter-reset: seq; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.seq-list li { counter-increment: seq; display: flex; gap: 12px; font-size: 14px; align-items: baseline; }
+.seq-list li::before { content: "Step " counter(seq); font-family: var(--font-display); font-size: 11px; color: var(--accent); min-width: 58px; flex-shrink: 0; }
+.seq-list li.blocked::before { color: var(--bad); }
+
+footer.doc-foot { text-align: center; color: var(--fg-muted); font-size: 12px; padding-top: 8px; }
+</style>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<div class="page">
+
+<header class="doc-head">
+  <span class="eyebrow">hrb_chatbot_v2 + hrb_lms_mcp &middot; design proposal</span>
+  <h1>Leave Approval A2A</h1>
+  <p class="subtitle">Critical-care / STD / LTD / unpaid leave requests, routed through a specialist HR review step, as a second A2A/HITL showcase alongside the leave-balance MCP integration.</p>
+  <div class="status-row">
+    <span class="chip">Core flow + all 3 §09 gaps built &amp; live-verified (Phase 162/165)</span>
+    <span class="chip warn">Spans 3 repos (+ UI)</span>
+    <span class="chip bad">1 pre-existing config gap open - &sect;11</span>
+  </div>
+</header>
+
+<section>
+  <div class="section-head"><span class="section-num">01</span><h2>Verdict, up front</h2></div>
+  <div class="verdict">
+    <span class="verdict-badge">Natural fit - once correctly homed</span>
+    <p>This is a genuinely natural extension, but not quite the shape you described. The "popup window" instinct is right for <em>submitting</em> a request - wrong popup, though: it can't live in the GenAI Chat Workflow's attach-files popup. And "2 agents negotiating" isn't quite right either - this needs a human decision, not two LLMs agreeing. The sections below explain both, with the evidence, then propose the shape that does fit.</p>
+  </div>
+  <div class="callout bad">
+    <span class="callout-label">The one finding that matters most</span>
+    <p>Before any of the design below is worth building: <strong>there is currently no way, anywhere in either repo, for a human to actually resolve a HITL or leave-exception request.</strong> Not a UI gap - a code gap. I checked both services end to end. This has to be built in <code class="inline">hrb_lms_mcp</code> first, or the whole feature is an elegant front door with no exit. Full details in &sect;03, Gap 1.</p>
+  </div>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">02</span><h2>What's already real - checked directly, not assumed</h2></div>
+  <p class="lede">Read the actual code in <code class="inline">C:\workspace\poc\2026\hrb_lms_mcp</code> before writing any of this. More exists than I expected:</p>
+  <ul class="spec-list">
+    <li><code class="inline">hrb_emp_lms.hitl_requests</code> (Postgres, already live) - <code class="inline">request_type</code>, <code class="inline">related_entity_type/id</code>, <code class="inline">employee_id</code>, <code class="inline">query</code>, a JSON <code class="inline">context</code> column, <code class="inline">status</code> (<code class="inline">PENDING/IN_PROGRESS/COMPLETED/CANCELLED</code>), <code class="inline">assigned_to</code>, and already-present-but-unused <code class="inline">response</code>/<code class="inline">responded_at</code> columns.</li>
+    <li>Two real, registered MCP tools: <code class="inline">create_hitl_request</code> and <code class="inline">get_hitl_status</code> (<code class="inline">api/controller/lms_mcp_tools.py</code>).</li>
+    <li><code class="inline">hrb_emp_lms.leave_requests</code> already has a <code class="inline">PENDING_HITL</code> status and auto-fires <code class="inline">create_hitl_request_for_leave_exception()</code> when a request exceeds the employee's balance (<code class="inline">leave_request_service.py</code>'s <code class="inline">submit_leave_request()</code>).</li>
+    <li><code class="inline">leave_types</code> already has a <code class="inline">requires_approval</code> boolean and an <code class="inline">approver_id</code> on <code class="inline">leave_requests</code> pointing at the employee's manager.</li>
+  </ul>
+  <p>None of this was reachable from <code class="inline">hrb_chatbot_v2</code> before today - its own MCP tool wrapper (<code class="inline">ai/rag_pipeline/tools/mcp_tools/__init__.py</code>) only ever calls <code class="inline">get_leave_balance</code>/<code class="inline">get_leave_history</code>. The HITL machinery exists; nothing on this side has ever used it.</p>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">03</span><h2>Blind spots found - the part you asked me to actually look for</h2></div>
+  <p class="lede">Five, found by reading the real code, not by guessing at what's "probably there."</p>
+
+  <div class="gap-card">
+    <span class="gap-title"><span class="gap-num">1</span>No resolve/respond path exists for ANY request type, today</span>
+    <p>I grepped both repos for <code class="inline">approve</code>/<code class="inline">reject</code>/<code class="inline">resolve</code>/<code class="inline">respond</code> methods against <code class="inline">HitlRequest</code> or <code class="inline">LeaveRequest</code>. There are none. <code class="inline">HitlService</code> only has <code class="inline">create_hitl_request(...)</code> and <code class="inline">get_hitl_request(...)</code> - read-only status check. The <code class="inline">response</code>/<code class="inline">responded_at</code> columns sit unused. This isn't specific to the new leave types - it means <strong>today, a PTO-exception HITL request filed right now can never be resolved by anything in either codebase.</strong> This blocks every leave type, not just the new ones.</p>
+    <p class="gap-evidence">grep -rn "def approve|def reject|def resolve|def respond" hrb_lms_mcp/ -&gt; 0 matches</p>
+  </div>
+
+  <div class="gap-card">
+    <span class="gap-title"><span class="gap-num">2</span>Unpaid leave is the opposite case from what you described</span>
+    <p><code class="inline">submit_leave_request()</code>'s own balance-exception check is <code class="inline">if leave_type_obj.requires_approval and leave_type != "UNPAID"</code> - unpaid leave is explicitly excluded from the HITL path. Today it just gets <code class="inline">status = PENDING</code>, assigned to the regular manager, same as any other request - no specialist routing at all. Building "unpaid leave needs specialist HR review" means adding that behavior, not extending something that already does it.</p>
+    <p class="gap-evidence">leave_request_service.py:66 - if leave_type_obj.requires_approval and leave_type != "UNPAID":</p>
+  </div>
+
+  <div class="gap-card">
+    <span class="gap-title"><span class="gap-num">3</span>STD, LTD, and critical-care leave don't exist as leave types yet</span>
+    <p>Seeded <code class="inline">leave_types</code> today: <code class="inline">PTO, SICK, UNPAID, SABBATICAL, MATERNITY, PATERNITY</code>. No STD/LTD/critical-care rows. More importantly, there's no column distinguishing "needs the regular manager" from "always needs a specialist, regardless of balance" - today the <em>only</em> thing that ever triggers HITL is a balance shortfall. A leave-type-driven trigger ("STD always goes to a specialist") is new logic, not a parameter change.</p>
+  </div>
+
+  <div class="gap-card">
+    <span class="gap-title"><span class="gap-num">4</span>Neither repo has anywhere durable to put the supporting document</span>
+    <p><code class="inline">adhoc_extraction.py</code>'s own docstring: <em>"nothing written to a persistent directory, nothing chunked or embedded."</em> The GenAI Chat Workflow processes an attached file in-memory, in-request, then discards it. A specialist reviewing hours or days later needs the actual document still there. Reusing the KB-ingestion S3 path is also wrong in the other direction - that path embeds content into the shared vector index, and a medical certificate must never end up retrievable by every other employee's RAG query.</p>
+  </div>
+
+  <div class="gap-card">
+    <span class="gap-title"><span class="gap-num">5</span>The GenAI Chat Workflow popup is architecturally the wrong home</span>
+    <p><code class="inline">adhoc_document_agent.py</code>'s own docstring is explicit and deliberate: <em>"Still no vector store or MCP access, by design."</em> A leave request fundamentally needs MCP (to call <code class="inline">create_leave_request</code>/<code class="inline">create_hitl_request</code>). Building it into that popup means reversing a foundational scoping decision of that specific pipeline, not extending it. The natural home is a new entry point with real MCP access - see &sect;06.</p>
+  </div>
+
+  <div class="callout warn">
+    <span class="callout-label">One more, smaller but real</span>
+    <p>This project's own docs are explicit that gateway RBAC is self-asserted and unverified (<code class="inline">rbac.py</code> trusts a caller-supplied role, "a formality, not a real control"). Gating a specialist's review queue - and medical documents inside it - behind that same mechanism is a real weakness worth naming now, even for an educational capstone, rather than discovering it after the feature ships.</p>
+  </div>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">04</span><h2>Proposed architecture</h2></div>
+  <p class="lede">Two practical roles, not two negotiating LLMs. The course's own <strong>exercise 6 (human-approval checkpoint)</strong> is the closer analog here than the buyer/seller negotiation demos - a real human has to decide, the same way it would in production.</p>
+  <pre class="mermaid">
+flowchart TD
+    Emp["Employee: Request Leave form<br/>(new entry point, not the attach-files popup)"]
+    Intake["Intake agent<br/>validates dates, reads/uploads document,<br/>calls create_leave_request"]
+    S3["S3: private leave-documents bucket<br/>(new, separate from KB ingestion)"]
+    MCP1["hrb_lms_mcp:<br/>create_leave_request -> create_hitl_request"]
+    Queue["Specialist review queue<br/>(new hr_support-only UI)"]
+    Brief["Review-support agent<br/>summarizes request + document for the specialist<br/>- recommends nothing, decides nothing"]
+    Human["HR specialist (human)<br/>reads summary + original document, decides"]
+    MCP2["hrb_lms_mcp:<br/>resolve_hitl_request (NEW - doesn't exist yet)"]
+    Notify["SES: decision email to employee<br/>(reuses existing send_email client)"]
+
+    Emp --> Intake --> S3
+    Intake --> MCP1 --> Queue
+    Queue --> Brief --> Human --> MCP2 --> Notify --> Emp
+  </pre>
+  <p>Only 2 real LLM calls in the whole loop: the Intake agent (parses/validates the request) and the Review-support agent (summarizes for the specialist). The specialist's decision itself is never an LLM call - matching the scope boundary you already set ("approved by specialized HR specialist team").</p>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">05</span><h2>SQLite vs. Postgres - and a sharper question underneath it</h2></div>
+  <div class="callout bad">
+    <span class="callout-label">Not a close call</span>
+    <p><strong>Postgres, full stop.</strong> This is real transactional business-process data that must survive hours-to-days of waiting on a human, must never silently vanish, and must be consistent across however many App Runner instances are running. That's a strictly stronger durability requirement than the GenAI Chat Workflow memory proposal, where SQLite-vs-Postgres was a genuine judgment call. Here it isn't.</p>
+  </div>
+  <p>The sharper question is actually <strong>"does <code class="inline">hrb_chatbot_v2</code> need a new table of its own at all?"</strong> - and the honest answer is probably no:</p>
+  <div class="repo-split">
+    <div class="repo-col">
+      <span class="repo-label">hrb_lms_mcp (existing Postgres schema)</span>
+      <ul class="spec-list">
+        <li>New column on <code class="inline">leave_types</code>: a specialist-review flag, separate from <code class="inline">requires_approval</code> (that one already means "needs a manager").</li>
+        <li>New seed rows: STD, LTD, CRITICAL_CARE leave types.</li>
+        <li>New method + MCP tool: <code class="inline">resolve_hitl_request</code> - writes <code class="inline">response</code>/<code class="inline">responded_at</code>, flips <code class="inline">status</code>. This is the Gap 1 blocker, and the one piece that has to land first.</li>
+        <li>Document reference: an S3 key stored inside the <em>existing</em> <code class="inline">context</code> JSON column - no new column, no new table.</li>
+      </ul>
+    </div>
+    <div class="repo-col">
+      <span class="repo-label">hrb_chatbot_v2 (no new table proposed)</span>
+      <ul class="spec-list">
+        <li>New MCP tool wrappers (client-side) for <code class="inline">create_leave_request</code>, <code class="inline">create_hitl_request</code>, <code class="inline">get_hitl_status</code>, the new <code class="inline">resolve_hitl_request</code>.</li>
+        <li>"My leave requests" / the specialist queue both query live via MCP each time - no local cache table duplicating data <code class="inline">hrb_lms_mcp</code> already owns.</li>
+        <li>Only new storage: the S3 bucket for uploaded documents (bucket + presigned-upload flow, reusing the pattern already built for KB document uploads - not a database table).</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">06</span><h2>UI - both sides, not just the one you named</h2></div>
+  <p class="lede">You asked about the employee-facing popup. The specialist-facing side is just as necessary and wasn't mentioned - flagging it now rather than discovering it mid-build.</p>
+  <h3>Employee side - "Request Leave," a new entry point</h3>
+  <ul class="spec-list">
+    <li>Not the attach-files popup (&sect;03, Gap 5). A new button/modal, structured form: leave type dropdown (now including STD/LTD/Critical Care/Unpaid), start date, end date, reason, a document upload field.</li>
+    <li>Reuses the presigned-S3-upload pattern already built for KB documents - a new, separate, private bucket, not the KB ingestion path (&sect;03, Gap 4).</li>
+    <li>Submits to a new route that calls the Intake agent, which calls <code class="inline">create_leave_request</code> via MCP.</li>
+  </ul>
+  <h3>Specialist side - a review queue, not a chat (new, not in your original ask)</h3>
+  <ul class="spec-list">
+    <li>A 4th item alongside the existing <code class="inline">hr_support</code>-only Admin menu entries (Upload documents, Manage documents, View feedback) - "Leave Approvals."</li>
+    <li>Lists pending <code class="inline">hitl_requests</code> (via <code class="inline">get_hitl_status</code>/a new list tool), each with the Review-support agent's plain-English summary, a link to the original document, and Approve/Reject actions that call the new <code class="inline">resolve_hitl_request</code> tool.</li>
+    <li>On resolution: an SES email to the employee (reusing this week's send_email client) and a status update the employee's chat/history view can show.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">07</span><h2>Build order - the dependency is real, not a formality</h2></div>
+  <ol class="seq-list">
+    <li class="blocked"><strong>In <code class="inline">hrb_lms_mcp</code> (prerequisite, outside this repo):</strong> build <code class="inline">resolve_hitl_request</code>, add the specialist-review leave-type column, seed STD/LTD/CRITICAL_CARE. Nothing downstream is worth building before this exists.</li>
+    <li>In <code class="inline">hrb_chatbot_v2</code>: MCP tool wrappers for all 4 tools, the private S3 document bucket, the Intake agent.</li>
+    <li>In <code class="inline">hrb_chatbot_ui</code>: the "Request Leave" form.</li>
+    <li>In <code class="inline">hrb_chatbot_v2</code>: the Review-support agent (summarization only).</li>
+    <li>In <code class="inline">hrb_chatbot_ui</code>: the "Leave Approvals" specialist queue.</li>
+    <li>Live round-trip verification: submit a real request with a document, resolve it as the specialist, confirm the employee gets a real notification - not a unit test standing in for it.</li>
+  </ol>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">08</span><h2>Still open - need your call, not mine</h2></div>
+  <table class="decision-table">
+    <thead><tr><th>#</th><th>Question</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Who plays "HR specialist" in practice?</td><td><strong>Resolved, implicitly.</strong> 6 of the 18 <code class="inline">KNOWN_PERSONAS</code> (<code class="inline">EMP021</code>-<code class="inline">EMP026</code>) carry <code class="inline">role: "hr_support"</code> - a role-switch demo convenience, not real multi-user auth, matching this capstone's existing RBAC (&sect;03/Phase 45 - self-asserted role in every request).</td></tr>
+      <tr><td>2</td><td>Is building <code class="inline">resolve_hitl_request</code> in <code class="inline">hrb_lms_mcp</code> in scope?</td><td><strong>Resolved - done.</strong> Built, live-verified, see &sect;09.</td></tr>
+      <tr><td>3</td><td>Leave-type-driven vs. date/duration-driven specialist routing?</td><td><strong>Resolved, for unpaid leave specifically.</strong> Always routes to a specialist, unconditionally - no threshold logic. STD/LTD/Critical Care leave types from the original proposal were never built (out of scope - only "Request Unpaid Leave" shipped).</td></tr>
+      <tr><td>4</td><td>Is a presigned-S3-private-bucket with RBAC-gated access sufficient?</td><td><strong>Partially resolved.</strong> The bucket/upload half is built this way. The <em>review</em> half isn't - see Gap 2 in &sect;09, no download access exists yet at all.</td></tr>
+    </tbody>
+  </table>
+  <p class="lede" style="margin-top:4px;">New open questions, raised directly by the user after trying Phase 162 locally - see &sect;09 for the gaps these answer:</p>
+  <table class="decision-table">
+    <thead><tr><th>#</th><th>Question</th><th>Why it's not my decision</th></tr></thead>
+    <tbody>
+      <tr><td>5</td><td>How should the employee learn the outcome - email (as this doc originally proposed, §04's "Notify" node, never actually built), a new in-app "My Requests" status view, or both?</td><td>A real UX/scope tradeoff - email is less code (reuses <code class="inline">send_email</code>) but a view is more discoverable and doesn't depend on SES sandbox-mode recipient limits (see <code class="inline">BACKLOG.md</code>).</td></tr>
+      <tr><td>6</td><td>Should requests stay a shared queue (any <code class="inline">hr_support</code> persona resolves, first-come-first-served, exactly how it works today) or route to one specific specialist (a real "claim" step, their <code class="inline">employee_id</code> recorded at assignment, not just a name string recorded at resolution)?</td><td>Changes the data model (whether <code class="inline">assigned_to</code> needs to become a real FK-shaped reference) and whether a 2nd, "my assigned requests" specialist view is needed alongside the existing shared queue.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">09</span><h2>Phase 162 reality check - what actually shipped, verified directly against the running code and schema, not assumed from this proposal</h2></div>
+  <p class="lede">This section exists because the user asked, after trying it locally: where is this stored, how many tables, how does the employee find out, who does a request go to? The honest answers below came from reading <code class="inline">hrb_lms_mcp/src/app/models/models.py</code>, <code class="inline">hitl_service.py</code>, and <code class="inline">hrb_chatbot_v2</code>'s routes directly - not from this proposal, which predates the real implementation and drifted from it in 3 places.</p>
+  <h3>Storage - confirmed, 2 tables, zero new ones added for this feature</h3>
+  <ul class="spec-list">
+    <li><code class="inline">hrb_emp_lms.leave_requests</code> - the leave record itself (<code class="inline">employee_id</code>, <code class="inline">leave_type_id</code>, dates, <code class="inline">days</code>, <code class="inline">reason</code>, <code class="inline">status</code>, <code class="inline">approver_id</code>, <code class="inline">approved_at</code>, <code class="inline">rejection_reason</code>) - already existed for the balance-driven leave flow, reused as-is.</li>
+    <li><code class="inline">hrb_emp_lms.hitl_requests</code> - the review-queue record (<code class="inline">request_type</code>, <code class="inline">employee_id</code>, <code class="inline">query</code>, a JSON <code class="inline">context</code> column, <code class="inline">status</code>, <code class="inline">assigned_to</code>, <code class="inline">response</code>, <code class="inline">responded_at</code>) - also pre-existing, reused. The uploaded document's S3 key lives inside <code class="inline">context</code>, not a column of its own.</li>
+    <li>No table needed for the attached document itself - only its S3 key, inside <code class="inline">context</code>.</li>
+  </ul>
+  <h3>Gap 1 - no employee notification exists at all</h3>
+  <div class="callout bad">
+    <span class="callout-label">Confirmed by reading the code, not assumed</span>
+    <p><code class="inline">resolve_unpaid_leave_request</code> (<code class="inline">api/leave/unpaid_leave.py</code>) writes the decision and returns it to the HR specialist's own browser - nothing emails or otherwise notifies the employee who filed the request. This §04's original "Notify" node (SES email) was never built. There is also no "my requests" view the employee could check instead - the one post-submit confirmation screen the UI used to show (reference numbers, repeat-flag note) was just removed per the user's own Phase 164 request that the popup close immediately on submit, so right now an employee who submits a request has literally no way to learn the outcome inside this app at all.</p>
+  </div>
+  <h3>Gap 2 - HR reviewers can't actually open the attached document</h3>
+  <div class="callout bad">
+    <span class="callout-label">Confirmed by reading the code, not assumed</span>
+    <p><code class="inline">LeaveApprovalsPage.tsx</code> renders <code class="inline">context.document_reference</code> as plain text (the raw S3 key) - not a link. Only a presigned <em>upload</em> URL exists (<code class="inline">generate_leave_document_upload_url</code>); nothing generates a presigned <em>download</em> URL for review. An HR specialist today cannot open the file an employee attached - they can only see its key.</p>
+  </div>
+  <h3>Gap 3 - "assigned_to" is a placeholder queue label, not a real per-specialist assignment</h3>
+  <div class="callout warn">
+    <span class="callout-label">Confirmed by reading hitl_service.py directly</span>
+    <p>Every request is created with <code class="inline">assigned_to="hr-team@company.com"</code> hardcoded - a flat shared-queue label, never a specific specialist. <code class="inline">resolve_hitl_request</code> then overwrites that same column with <code class="inline">resolved_by</code> - <strong>the resolving specialist's full name string</strong> (<code class="inline">user.full_name</code> from the request body), not their <code class="inline">employee_id</code>, and not a separate column from the pre-resolution assignment. So today: any <code class="inline">hr_support</code> persona can see and resolve any pending request (first-come-first-served, confirmed via <code class="inline">LeaveApprovalsPage</code> showing the full pending list to every such persona); there is no concept of "my assigned requests" distinct from "the whole queue"; and the only record of who resolved a request is a display name, not a structured reference back to <code class="inline">employees</code>.</p>
+  </div>
+  <p>None of these 3 gaps need a new table to close - §08's Q5/Q6 are about which approach to take, not about schema headroom. A notification (email and/or a view) can be built off existing columns; a download link only needs a new presigned-GET helper next to the existing presigned-PUT one; real per-specialist assignment could reuse <code class="inline">assigned_to</code> pre-resolution instead of only post-resolution, or add one new column if the user wants assignment and resolver tracked separately - a design choice to make with §08 Q6's answer, not before it.</p>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">10</span><h2>Finalized design, per the user's direct answers to §08 Q5/Q6 and this round's follow-up - ready to build, not yet started</h2></div>
+  <table class="decision-table">
+    <thead><tr><th>Decision</th><th>Answer</th></tr></thead>
+    <tbody>
+      <tr><td>Notification (Q5)</td><td><strong>Both</strong> - an email on resolution (reusing <code class="inline">send_email</code>) and a new in-app "My Requests" status view.</td></tr>
+      <tr><td>Assignment (Q6)</td><td><strong>Keep the shared queue.</strong> No per-specialist routing/claim step - any <code class="inline">hr_support</code> persona can still resolve any pending request.</td></tr>
+      <tr><td>2 new tables vs. existing ones</td><td><strong>Augment, don't replace.</strong> <code class="inline">leave_requests</code>/<code class="inline">hitl_requests</code> keep being written exactly as today - <code class="inline">GetLeaveHistory</code> (eligibility-check + any normal "what's my leave history" chat question) and the generic HITL queue tooling both keep working completely untouched. 2 new companion tables, each FK'd back to the existing rows, hold what those 2 tables don't have columns for.</td></tr>
+      <tr><td>Leave-type scope</td><td><strong>Expanded.</strong> The employee-facing form gains a leave-type picker: Unpaid Leave, Critical CareGiver, Short-Term Disability (STD), Long-Term Disability (LTD) - all 4 always route to specialist review (this doc's original §04 proposal, never built until now).</td></tr>
+    </tbody>
+  </table>
+
+  <h3>New table 1 - <code class="inline">hrb_emp_lms.unpaid_leave_documents</code> (the manifest)</h3>
+  <p>One row per uploaded supporting document - replaces today's single S3 key buried inside <code class="inline">hitl_requests.context</code> JSON with real, queryable columns, and is the single link both UIs (employee's own view, specialist's review queue) go through to reach a real file - neither UI ever talks to S3 directly.</p>
+  <ul class="spec-list">
+    <li><code class="inline">id</code> (PK)</li>
+    <li><code class="inline">upload_token</code> (the random token already generated by the existing <code class="inline">/upload-url</code> route - unique, not null)</li>
+    <li><code class="inline">leave_request_id</code> (FK -&gt; <code class="inline">leave_requests.id</code>, <strong>nullable</strong> - see the upload-ordering note below for why)</li>
+    <li><code class="inline">s3_key</code>, <code class="inline">original_filename</code>, <code class="inline">content_type</code></li>
+    <li><code class="inline">uploaded_at</code></li>
+  </ul>
+  <div class="callout warn">
+    <span class="callout-label">A real gap this table also closes - found while designing it, not asked for</span>
+    <p><strong>Upload happens before the leave request exists.</strong> The employee-side flow uploads to S3 first, then calls <code class="inline">submit</code> - confirmed by reading <code class="inline">UnpaidLeaveModal.tsx</code>'s own <code class="inline">handleSubmit()</code> directly. If <code class="inline">submit</code> fails after a successful upload (a real possibility - a backend error, a dropped connection), today's design leaves a real file sitting in S3 with nothing in any database referencing it at all - a silent orphan, invisible to both UIs and never cleaned up. Fix: the <code class="inline">/upload-url</code> route itself inserts the manifest row immediately (keyed by <code class="inline">upload_token</code>, <code class="inline">leave_request_id</code> still null), and <code class="inline">submit</code> fills in <code class="inline">leave_request_id</code> once the real request exists. This makes every uploaded file trackable from the moment it's uploaded, not just once a request successfully completes - and "documents with <code class="inline">leave_request_id IS NULL</code> older than 24h" becomes a real, running query that finds orphans, instead of them being invisible.</p>
+  </div>
+
+  <h3>New table 2 - <code class="inline">hrb_emp_lms.specialist_leave_reviews</code></h3>
+  <p>The full HITL review lifecycle, with real typed columns instead of overloading <code class="inline">hitl_requests.assigned_to</code> with a name string. Deliberately not named "unpaid_leave_*" - it covers all 4 leave types now, not just unpaid.</p>
+  <ul class="spec-list">
+    <li><code class="inline">id</code> (PK)</li>
+    <li><code class="inline">hitl_request_id</code> (FK -&gt; <code class="inline">hitl_requests.id</code>) and <code class="inline">leave_request_id</code> (FK -&gt; <code class="inline">leave_requests.id</code>) - both, so a review is reachable from either side without a join through the other.</li>
+    <li><code class="inline">leave_type_code</code> (denormalized copy of the leave type at submission time - so this table alone shows "what kind of request was this," no join needed for the common read)</li>
+    <li><code class="inline">status</code> (mirrors <code class="inline">hitl_requests.status</code> - kept in sync, not a second source of truth for anything <code class="inline">hitl_requests</code> itself still drives)</li>
+    <li><code class="inline">decision</code> (<code class="inline">APPROVED</code>/<code class="inline">REJECTED</code>, null until resolved)</li>
+    <li><code class="inline">hr_specialist_employee_id</code> (FK -&gt; <code class="inline">employees.id</code> - a real reference, not a name string; the specialist's name/email are a join away, never duplicated here)</li>
+    <li><code class="inline">hr_comments</code> (text)</li>
+    <li><code class="inline">created_at</code> (entered the queue), <code class="inline">responded_at</code> (null until resolved)</li>
+  </ul>
+  <p>"Elapsed time" is deliberately <strong>not</strong> a stored column - it's <code class="inline">responded_at - created_at</code> (or <code class="inline">now() - created_at</code> while still pending), computed at read time. A stored elapsed-time value would go stale the moment it's written; this avoids that whole class of bug.</p>
+  <p><strong>On "can these support the full lifecycle, not just approve/reject":</strong> yes - this is a normal table with normal columns, and adding a column later (e.g. a claim/assign step, if §08 Q6's answer ever changes) is an additive migration, not a redesign. Nothing about this shape is a dead end. The columns above cover exactly the lifecycle this phase's scope actually needs (submitted -&gt; pending -&gt; decided) - a claim/assign step is deliberately left out because Q6's answer was to keep the shared queue, not because the table can't hold it.</p>
+
+  <h3><code class="inline">leave_types</code> - 3 new rows, 1 new column</h3>
+  <p>Matches this doc's own original §05 proposal, never built until now: <code class="inline">CRITICAL_CAREGIVER</code>, <code class="inline">STD</code>, <code class="inline">LTD</code> seed rows alongside the existing <code class="inline">UNPAID</code>, plus a new <code class="inline">requires_specialist_review</code> boolean column (separate from the existing <code class="inline">requires_approval</code>, which means "needs a manager") - all 4 of these set it <code class="inline">true</code>.</p>
+
+  <h3>S3 layout</h3>
+  <p><code class="inline">LEAVE_DOCS_S3_BUCKET</code> (already exists, Phase 162) gains a leave-type-prefixed layout: <code class="inline">{leave_type_code}/{employee_id}/{leave_request_id}/{filename}</code> - "a separate folder" per the user's own wording, inside the existing dedicated bucket rather than a second bucket.</p>
+
+  <h3>Document review - a real download, not an in-app viewer</h3>
+  <p>A new presigned-GET endpoint (mirrors the existing presigned-PUT upload one) returns a short-lived download URL, looked up from the manifest table above by <code class="inline">leave_request_id</code>; <code class="inline">LeaveApprovalsPage.tsx</code> renders each document's real filename (from the manifest, not the raw key) as <code class="inline">&lt;a href={url} target="_blank" rel="noreferrer"&gt;</code>. The same endpoint also serves the employee's own "My Requests" view, for their own documents. <strong>Honest caveat:</strong> a web app can trigger a real file download/the browser's native PDF handling, which is the practical equivalent of "not displayed within the chat app's own window" - it cannot force a specific desktop application to open, since that's an OS/browser setting outside any website's control.</p>
+  <div class="callout warn">
+    <span class="callout-label">RBAC gap to close, not inherited "for free"</span>
+    <p>The download endpoint must check that the caller is <em>either</em> the employee who owns that <code class="inline">leave_request_id</code> <em>or</em> an <code class="inline">hr_support</code> persona - the same per-route <code class="inline">require_role()</code> pattern every other route here already uses, but this one needs an extra ownership check on top of the role check, since today's RBAC only verifies role, never "does this specific record belong to this specific caller." Without it, any logged-in employee could fetch any other employee's document by guessing or enumerating a <code class="inline">leave_request_id</code> - a real gap to close in this phase, not something the existing pattern already covers.</p>
+  </div>
+
+  <h3>Email notification</h3>
+  <p>Sent at the moment a specialist resolves a request (approve or reject), reusing the existing <code class="inline">send_email</code> client, to the employee's own address (<code class="inline">employees.email</code>, looked up in <code class="inline">hrb_lms_mcp</code> and returned as part of <code class="inline">resolve_hitl_request</code>'s response so <code class="inline">hrb_chatbot_v2</code> doesn't need a second round trip to fetch it).</p>
+
+  <h3>"My Requests" view (employee side)</h3>
+  <p>A new page/section listing the logged-in employee's own past requests - leave type, dates, status, the specialist's comments once decided, submitted/decided timestamps. New MCP tool (list a specific employee's own <code class="inline">specialist_leave_reviews</code> joined to <code class="inline">leave_requests</code>), a wrapper, a route, and a UI page - same shape as the existing <code class="inline">LeaveApprovalsPage</code> but scoped to <code class="inline">employee_id</code> instead of showing everyone's pending queue.</p>
+
+  <div class="callout warn">
+    <span class="callout-label">One default I picked, flagged for override</span>
+    <p>The "repeat within 12 months" eligibility check will compare <strong>same leave type only</strong> (e.g. a 2nd STD request within 12 months flags as repeat; a CCG request doesn't make an unrelated STD request look like a repeat) - a real HR-policy distinction, not a technical default. Say so if you want it to mean "any of these 4 types" instead.</p>
+  </div>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">11</span><h2>Phase 165 - built and live-verified, all 3 §09 gaps closed</h2></div>
+  <p class="lede">The user gave explicit go-ahead to build §10's finalized design. All 3 repos (plus <code class="inline">hrb_chatbot_ui</code>) are done, live-verified, and not yet committed anywhere - full detail is in <code class="inline">RAG-ROADMAP.md</code>'s own Phase 165 entry; this section is the short version.</p>
+  <ul class="spec-list">
+    <li>Gap 1 (no notification) - closed, both ways: a real decision email on resolve, plus a new "My Requests" view the employee can check any time.</li>
+    <li>Gap 2 (no document review access) - closed: a real presigned-download link, ownership-checked (owner or <code class="inline">hr_support</code>, 403 otherwise).</li>
+    <li>Gap 3 (no real per-specialist tracking) - closed: <code class="inline">specialist_leave_reviews</code> carries a real <code class="inline">hr_specialist_employee_id</code> FK, not a name string.</li>
+    <li>Scope also expanded as directed: 4 leave types (<code class="inline">UNPAID</code>/<code class="inline">CRITICAL_CAREGIVER</code>/<code class="inline">STD</code>/<code class="inline">LTD</code>), each with its own same-type-only repeat check.</li>
+  </ul>
+  <div class="callout warn">
+    <span class="callout-label">One pre-existing gap found live, not introduced by this phase</span>
+    <p><code class="inline">LEAVE_DOCS_S3_BUCKET</code> was never actually set in the local <code class="inline">.env</code> - confirmed by grep, not assumed. Phase 162 built the upload flow against this setting but it seems never to have been exercised against a real bucket locally. Every other new Phase 165 piece was live-verified working (service layer, MCP wire protocol, the full HTTP route layer end to end); only the real S3 PUT/GET calls themselves can't complete until this is set. Not fixed here - naming/provisioning a real bucket is an infrastructure decision, not something to guess at unilaterally.</p>
+  </div>
+</section>
+
+<footer class="doc-foot">hrb_chatbot_v2 + hrb_lms_mcp + hrb_chatbot_ui &middot; Phase 162 + Phase 165 built &amp; live-verified, NOT pushed/committed anywhere &middot; 1 pre-existing S3 config gap open (&sect;11)</footer>
+
+</div>

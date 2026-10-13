@@ -7,12 +7,21 @@ unchanged from this project's documented RBAC-is-a-formality design."""
 from fastapi import APIRouter
 
 from src.hrb_chatbot.api.dependencies import json_error
+from src.hrb_chatbot.api.gateway.rbac import require_role
 from src.hrb_chatbot.common import error_codes
+from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
+from src.hrb_chatbot.common.enums import Role
 from src.hrb_chatbot.common.known_personas import is_known_persona
-from src.hrb_chatbot.models.auth import LoginRequest, LoginResponse
+from src.hrb_chatbot.models.auth import LoginRequest, LoginResponse, ResetSecretCodeRequest, ResetSecretCodeResponse
 from src.hrb_chatbot.models.common import UserProfile
 
 router_login = APIRouter(tags=["auth"])
+
+# Phase 171 - the one-time seed value for ADM001's secret code. Only ever
+# used the very first time admin_credentials has no row for an employee_id
+# (AdminCredentialStore.get_or_seed() is idempotent past that point) - a
+# login with this code always comes back with must_reset_secret_code=True.
+ADMIN_ONE_TIME_SEED_SECRET_CODE = "$reeRad"
 
 
 @router_login.post("/login", response_model=LoginResponse)
@@ -24,6 +33,39 @@ async def login(payload: LoginRequest):
             code=error_codes.UNKNOWN_PERSONA,
         )
 
+    must_reset_secret_code = False
+    if payload.role == "admin":
+        credential_store = get_db_gateway().admin_credential_store()
+        credential = await credential_store.get_or_seed(payload.employee_id, ADMIN_ONE_TIME_SEED_SECRET_CODE)
+        if not await credential_store.verify_secret_code(payload.employee_id, payload.secret_code):
+            return json_error(
+                401,
+                "Incorrect secret code for the admin role.",
+                code=error_codes.INVALID_ADMIN_SECRET_CODE,
+            )
+        must_reset_secret_code = credential["must_reset"]
+
     return LoginResponse(
-        user_profile=UserProfile(employee_id=payload.employee_id, full_name=payload.full_name, role=payload.role)
+        user_profile=UserProfile(employee_id=payload.employee_id, full_name=payload.full_name, role=payload.role),
+        must_reset_secret_code=must_reset_secret_code,
     )
+
+
+@router_login.post("/admin/reset-secret-code", response_model=ResetSecretCodeResponse)
+async def reset_admin_secret_code(payload: ResetSecretCodeRequest):
+    """Phase 171 - only an already-authenticated admin can reach this (the
+    caller must assert role=admin, same RBAC mechanism every other route
+    uses), and must also prove they know the CURRENT code - a stolen
+    session token alone can't silently change it."""
+    require_role(payload.user_profile, Role.ADMIN)
+
+    credential_store = get_db_gateway().admin_credential_store()
+    if not await credential_store.verify_secret_code(payload.user_profile.employee_id, payload.current_secret_code):
+        return json_error(
+            401,
+            "Current secret code is incorrect.",
+            code=error_codes.INVALID_ADMIN_SECRET_CODE,
+        )
+
+    await credential_store.set_secret_code(payload.user_profile.employee_id, payload.new_secret_code)
+    return ResetSecretCodeResponse(employee_id=payload.user_profile.employee_id, reset=True)

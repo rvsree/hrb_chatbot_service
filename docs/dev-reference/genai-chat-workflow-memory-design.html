@@ -1,0 +1,650 @@
+<title>Chat Workflow Memory</title>
+<style>
+/* Layout: single scrolling column of numbered spec sections, each a bordered
+   card; diagrams and schema tables break out to full width inside their own
+   card. Technical/engineering register throughout - this is a design doc
+   for an engineer, not a landing page. */
+:root {
+  --bg: #f3f4f6;
+  --surface: #ffffff;
+  --surface-sunken: #eceef1;
+  --fg: #181d26;
+  --fg-muted: #5c6472;
+  --border: #d8dce2;
+  --accent: #35587a;
+  --accent-soft: #e4ecf3;
+  --warn: #a8641f;
+  --warn-soft: #faf0e2;
+  --warn-border: #e8c893;
+  --good: #2f7a52;
+  --good-soft: #e7f3ec;
+  --code-bg: #eef0f3;
+  --font-display: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10141b;
+    --surface: #171c26;
+    --surface-sunken: #1d2330;
+    --fg: #e7eaef;
+    --fg-muted: #99a2b3;
+    --border: #2b3242;
+    --accent: #80aed9;
+    --accent-soft: #1d2d3f;
+    --warn: #e3a765;
+    --warn-soft: #332514;
+    --warn-border: #5c4523;
+    --good: #6fc99a;
+    --good-soft: #152821;
+    --code-bg: #1b212c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10141b;
+  --surface: #171c26;
+  --surface-sunken: #1d2330;
+  --fg: #e7eaef;
+  --fg-muted: #99a2b3;
+  --border: #2b3242;
+  --accent: #80aed9;
+  --accent-soft: #1d2d3f;
+  --warn: #e3a765;
+  --warn-soft: #332514;
+  --warn-border: #5c4523;
+  --good: #6fc99a;
+  --good-soft: #152821;
+  --code-bg: #1b212c;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  line-height: 1.55;
+}
+
+.page {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 32px 16px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+header.doc-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid var(--border);
+}
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+h1 {
+  font-family: var(--font-display);
+  font-size: clamp(26px, 4vw, 34px);
+  margin: 0;
+  text-wrap: balance;
+  font-weight: 600;
+}
+.subtitle {
+  color: var(--fg-muted);
+  font-size: 15px;
+  max-width: 65ch;
+}
+.status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.chip {
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--fg-muted);
+  background: var(--surface-sunken);
+}
+.chip.pending {
+  color: var(--warn);
+  background: var(--warn-soft);
+  border-color: var(--warn-border);
+}
+
+section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 22px clamp(16px, 4vw, 28px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.section-num {
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--accent);
+  min-width: 22px;
+}
+h2 {
+  font-family: var(--font-display);
+  font-size: 19px;
+  margin: 0;
+  font-weight: 600;
+}
+h3 {
+  font-family: var(--font-display);
+  font-size: 15px;
+  margin: 6px 0 0;
+  font-weight: 600;
+  color: var(--fg);
+}
+p { margin: 0; }
+.lede { color: var(--fg-muted); font-size: 14px; }
+
+blockquote.transcript {
+  margin: 0;
+  border-left: 3px solid var(--border);
+  padding: 2px 0 2px 14px;
+  font-size: 13.5px;
+  color: var(--fg-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+blockquote.transcript .who { font-family: var(--font-display); color: var(--fg); font-size: 12px; }
+
+.callout {
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.callout.warn {
+  background: var(--warn-soft);
+  border: 1px solid var(--warn-border);
+}
+.callout.good { background: var(--good-soft); border: 1px solid color-mix(in srgb, var(--good) 40%, var(--border)); }
+.callout .callout-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--warn);
+}
+.callout.good .callout-label { color: var(--good); }
+.callout code { background: transparent; padding: 0; }
+
+pre.mermaid {
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  overflow-x: auto;
+}
+
+.option-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.option-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13.5px;
+}
+.option-card.recommended { border-color: var(--good); background: var(--good-soft); }
+.option-title { font-family: var(--font-display); font-size: 13px; font-weight: 600; }
+.option-card.recommended .option-title::after {
+  content: "recommended";
+  font-family: var(--font-display);
+  font-size: 10px;
+  color: var(--good);
+  border: 1px solid var(--good);
+  border-radius: 999px;
+  padding: 1px 7px;
+  margin-left: 8px;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+}
+
+table.schema {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+table.schema caption {
+  font-family: var(--font-display);
+  text-align: left;
+  font-size: 13.5px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--accent);
+}
+table.schema th, table.schema td {
+  border: 1px solid var(--border);
+  padding: 7px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+table.schema th { background: var(--surface-sunken); font-family: var(--font-display); font-size: 11.5px; letter-spacing: 0.02em; }
+table.schema td.col-name { font-family: var(--font-display); font-size: 12.5px; white-space: nowrap; }
+table.schema td.col-type { font-family: var(--font-display); font-size: 12px; color: var(--fg-muted); white-space: nowrap; }
+.schema-wrap { overflow-x: auto; }
+.pk { color: var(--accent); font-weight: 600; }
+.fk { color: var(--warn); }
+
+pre.ddl {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+code.inline {
+  font-family: var(--font-display);
+  background: var(--code-bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.92em;
+}
+
+ul.spec-list, ol.spec-list {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+}
+ul.spec-list li, ol.spec-list li { padding-left: 2px; }
+
+.before-after {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 560px) { .before-after { grid-template-columns: 1fr; } }
+.ba-col {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13.5px;
+}
+.ba-col .ba-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+  margin-bottom: 6px;
+  display: block;
+}
+.ba-col ul { margin: 0; padding-left: 18px; }
+.tree-item { font-family: var(--font-display); font-size: 13px; padding: 4px 0; }
+.tree-item.indent { padding-left: 18px; color: var(--fg-muted); }
+
+.decision-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.decision-table td, .decision-table th { border-bottom: 1px solid var(--border); padding: 10px 8px; text-align: left; vertical-align: top; }
+.decision-table th { font-family: var(--font-display); font-size: 11.5px; color: var(--fg-muted); }
+.decision-table td:first-child { font-family: var(--font-display); font-size: 12.5px; white-space: nowrap; }
+
+footer.doc-foot {
+  text-align: center;
+  color: var(--fg-muted);
+  font-size: 12px;
+  padding-top: 8px;
+}
+</style>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<div class="page">
+
+<header class="doc-head">
+  <span class="eyebrow">hrb_chatbot_v2 &middot; design proposal</span>
+  <h1>Chat Workflow Memory</h1>
+  <p class="subtitle">Giving the GenAI Chat Workflow (ad-hoc file chat) its own session-scoped short-term memory and an automatic email-on-answer option, backed by new SQLite tables.</p>
+  <div class="status-row">
+    <span class="chip pending">Status: proposal, pending approval</span>
+    <span class="chip">Revision 2 - A2A-grounded schema</span>
+    <span class="chip">Phase: unassigned</span>
+    <span class="chip">No code written yet</span>
+  </div>
+</header>
+
+<section>
+  <div class="section-head"><span class="section-num">01</span><h2>The problem, in your own transcript</h2></div>
+  <p class="lede">The GenAI Chat Workflow route (<code class="inline">adhoc-document-chat/query</code>) has no backend memory at all today. Every turn is built as a fresh <code class="inline">[SystemMessage, HumanMessage]</code> pair - no history, no session id passed through. The chat bubbles you see are frontend-only state; the model underneath never sees a prior turn. Your own production conversation shows exactly what that looks like:</p>
+  <blockquote class="transcript">
+    <span class="who">You</span>
+    <span>Summarize Accenture offer concisely. also send email with the details to given id</span>
+    <span class="who">Agent</span>
+    <span>Here is a concise summary of your Accenture offer: &hellip; Position: Full Stack LLM Development Manager &hellip; Base Salary: $215,000 annually &hellip;</span>
+    <span class="who">You</span>
+    <span>did you sent email to "rv.sreedharan@gmail.com" ?</span>
+    <span class="who">Agent</span>
+    <span>I have not sent any email yet. If you would like me to send an email&hellip;</span>
+    <span class="who">You</span>
+    <span>you need to send email of the response summary generated earlier, is it there in your memory&hellip;</span>
+    <span class="who">Agent</span>
+    <span>There is no response summary generated earlier in this conversation.</span>
+  </blockquote>
+  <p>The agent isn't confused - it's telling the truth. Nothing from turn 1 was ever stored anywhere the model (or anything else) could read it back from.</p>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">02</span><h2>Is this what's called STM?</h2></div>
+  <p>Yes, exactly. This codebase already uses that term for precisely this concept, in two places:</p>
+  <ul class="spec-list">
+    <li><code class="inline">ai/pre_processing/conversation_memory.py</code>'s own docstring: <em>"&hellip;Postgres-backed (Phase 76), STM and LTM are the same durable store, not two tiers."</em></li>
+    <li><code class="inline">BACKLOG.md</code> Phase 76 entry: <em>"Conversation storage is in-memory only (STM), no LTM&hellip;"</em></li>
+  </ul>
+  <p>Short-Term Memory (STM) is the turn-by-turn working memory of one session or thread - what did we just say to each other. Long-Term Memory (LTM) is anything that survives and informs <em>other</em> sessions - a learned preference, a fact about the user, a summarized history. This proposal is STM only: one chat workflow session's own turns, nothing cross-session. genai-rag's existing <code class="inline">conversation_turns</code> table is the same idea for the other 3 RAG pipelines - this is the GenAI Chat Workflow's own equivalent, deliberately separate (different shape: file attachments and email events don't apply to the other pipelines at all).</p>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">03</span><h2>Architecture</h2></div>
+  <p class="lede">Session id is generated client-side on first attach (same pattern <code class="inline">conversation_id</code> already uses for the other 3 modes) and sent on every subsequent turn in that chat. The backend loads prior turns for that session before building the prompt, and - new - decides whether to email, before the answer ever reaches the browser.</p>
+  <pre class="mermaid">
+flowchart TD
+    UI["Browser: GenAI Chat Workflow composer<br/>files + question + To/CC checkbox"]
+    Route["POST /v1/adhoc-document-chat/query<br/>+ session_id"]
+    Load["STM store: load prior turns<br/>for this session_id"]
+    Agent["adhoc_document_agent ReAct loop<br/>ReadDocument / SearchWeb / SendEmailWithAnswer"]
+    EmailCheck{"To-email checkbox on<br/>and To address valid?"}
+    SES["SES send_email()<br/>(real send, same client as today)"]
+    EmailEvt["write 1 row:<br/>email_send_events"]
+    SaveTurn["write 1 row:<br/>chat_turn_records"]
+    Resp["response: answer + email status"]
+
+    UI --> Route --> Load --> Agent
+    Agent --> EmailCheck
+    EmailCheck -- yes --> SES --> EmailEvt --> SaveTurn
+    EmailCheck -- no --> SaveTurn
+    SaveTurn --> Resp --> UI
+  </pre>
+  <p>The email decision now happens two ways: the model can still call <code class="inline">SendEmailWithAnswer</code> mid-reasoning when the question itself asks for it (unchanged, today's behavior) - or, new, the checkbox path fires automatically once the answer is final, independent of whether the question text mentioned email at all. Either path writes the same <code class="inline">email_send_events</code> row, so the Explainability evidence view (shipped this week) covers both without change.</p>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">04</span><h2>A2A protocol alignment - what I checked</h2></div>
+  <p class="lede">You pointed me at <code class="inline">github.com/jeev1992/real-estate-negotiation-simulator</code>'s <code class="inline">m2_adk_multiagents</code> module (IK FDE cohort material on Google ADK + the A2A protocol). I fetched the module's README and its wire-format demo script directly via the GitHub API, not from memory.</p>
+  <h3>What it actually teaches</h3>
+  <p>It bundles two separate things: Google's <strong>ADK</strong> (Agent Development Kit - a full agent framework: <code class="inline">LlmAgent</code>, <code class="inline">SequentialAgent</code>, <code class="inline">LoopAgent</code>, its own session/state system) and the <strong>A2A protocol</strong> (Agent-to-Agent - an open wire format for agents to discover and call each other over HTTP, independent of ADK). The demos name A2A's core vocabulary explicitly:</p>
+  <ul class="spec-list">
+    <li><code class="inline">Task</code> - one unit of work, with a real lifecycle: <code class="inline">submitted &rarr; working &rarr; completed/failed</code>.</li>
+    <li><code class="inline">Message</code> - one conversational turn, tagged <code class="inline">role: user</code> or <code class="inline">agent</code>.</li>
+    <li><code class="inline">Part</code> - atomic content inside a message: <code class="inline">TextPart</code>, <code class="inline">DataPart</code>, <code class="inline">FilePart</code>.</li>
+    <li><code class="inline">Artifact</code> - a durable output attached to a completed Task.</li>
+    <li><code class="inline">contextId</code> - threads multiple Tasks into one ongoing conversation.</li>
+  </ul>
+  <div class="callout good">
+    <span class="callout-label">Confirms the SQLite finding above, independently</span>
+    <p>The README is explicit that <code class="inline">.adk/session.db</code> (SQLite) is a <strong>runtime artifact, not source code</strong> - gitignored, recreated on every run, safe to delete. Even this course's own reference implementation never treats SQLite as durable production storage. That's the same conclusion the App Runner auto-scaling check reached independently, above.</p>
+  </div>
+  <h3>Your direction: A2A concepts via LangGraph, not Google ADK</h3>
+  <p>Agreed - and here's the concrete reasoning, not just a preference:</p>
+  <ul class="spec-list">
+    <li><strong>This project already is a LangGraph multi-agent system.</strong> <code class="inline">multi_agent_pipeline.py</code> already runs Planner &rarr; fan-out &rarr; domain agents &rarr; Reviewer as a real <code class="inline">StateGraph</code>. Adding Google ADK on top would be a second, overlapping agent framework doing the same job - exactly what the project's own "no unreviewed libraries" rule exists to catch.</li>
+    <li><strong>The real A2A wire protocol (HTTP + JSON-RPC + Agent Cards) is built for agents that are separate, independently-deployed services</strong> - true for the course's buyer/seller agents (each its own <code class="inline">adk web</code> server) but not true for any agent in this codebase today: every domain agent in <code class="inline">multi_agent_pipeline.py</code> runs in-process, inside one <code class="inline">StateGraph.ainvoke()</code> call. There's no network boundary between them to protocol over.</li>
+    <li><strong>What's actually worth taking is the vocabulary and the discipline, not the transport.</strong> <code class="inline">contextId</code> is exactly what <code class="inline">session_id</code> already does below. A <code class="inline">Task</code>'s explicit lifecycle states are exactly what the new <code class="inline">email_status</code> column borrows (&sect;06) instead of a bare boolean. If a future phase genuinely needs to call a <em>separate, independently-deployed</em> agent service - not a hypothetical today - adopting the real A2A SDK then is the right call, reviewed on its own, not folded into this schema work.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="callout warn">
+    <span class="callout-label">Flag before building - needs your decision</span>
+    <p><strong>This codebase already forbids SQLite in production, on purpose.</strong> <code class="inline">db_gateway.py</code>: <em>"chromadb/sqlite are local-disk stores - never shared across App Runner's multiple instances&hellip; A production request/default that resolves to either is never a legitimate choice there, only a silent split-brain footgun."</em> That's not theoretical here - I checked: <code class="inline">hrb-chatbot</code>'s App Runner auto-scaling config allows up to <strong>25 concurrent instances</strong>, each with its own separate local disk, and App Runner containers have no persistent volume at all - local SQLite data is lost on every redeploy regardless of instance count.</p>
+    <p>If these new tables use SQLite in production, a user's GenAI Chat Workflow history can silently split across instances or vanish on the next deploy. Two ways forward:</p>
+  </div>
+  <div class="option-grid">
+    <div class="option-card recommended">
+      <span class="option-title">A &middot; SQLite locally, Postgres in prod</span>
+      <p>Same schema, same table/column names, swappable client behind the existing gateway pattern - exactly how <code class="inline">conversation_store.py</code> already does it (SQLite-shaped locally during dev, a real Postgres table in production). Zero data-loss risk, fits the project's own established rule.</p>
+    </div>
+    <div class="option-card">
+      <span class="option-title">B &middot; SQLite everywhere, including prod</span>
+      <p>Matches what you're standardizing on for MCP/A2A memory elsewhere. Workable only if this workflow is explicitly accepted as "best-effort, can lose history on redeploy or under load" - a real tradeoff, not a bug to fix later.</p>
+    </div>
+  </div>
+  <p class="lede">Everything below (table names, columns, diagrams) is written so either option drops in unchanged - Option A just means the same DDL gets a Postgres dialect for the production client.</p>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">05</span><h2>Conceptual model</h2></div>
+  <p class="lede">Three entities. One employee can run many chat sessions; one session holds many turns; a turn produces at most one email event.</p>
+  <pre class="mermaid">
+erDiagram
+    EMPLOYEE ||--o{ CHAT_SESSION : starts
+    CHAT_SESSION ||--o{ CHAT_TURN : contains
+    CHAT_TURN ||--o| EMAIL_SEND_EVENT : triggers
+
+    EMPLOYEE {
+        string employee_id
+        string full_name
+    }
+    CHAT_SESSION {
+        string session_id
+        string session_title
+        datetime started_at
+        datetime last_active
+    }
+    CHAT_TURN {
+        string turn_id
+        int turn_sequence_number
+        string user_query_text
+        string agent_response_text
+        string attached_file_names
+        datetime created_at
+    }
+    EMAIL_SEND_EVENT {
+        string recipient_email_address
+        string cc_email_addresses
+        string email_status
+        string trigger_source
+        datetime sent_at
+    }
+  </pre>
+  <p>No cross-schema foreign keys to the existing <code class="inline">conversation_turns</code>/<code class="inline">employees</code> tables - same bounded-context-with-no-FKs convention this project already uses between <code class="inline">hrb_chatbot_v2_core</code> and the MCP-owned tables. <code class="inline">employee_id</code> is carried as a plain column, not a real foreign key.</p>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">06</span><h2>Physical model - SQLite DDL</h2></div>
+  <p class="lede">Table and column names run 2-3 words each, as asked, snake_case throughout (matches every existing table in this project).</p>
+
+  <div class="schema-wrap">
+  <table class="schema">
+    <caption>chat_session_records - one row per GenAI Chat Workflow session/thread</caption>
+    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td class="col-name pk">session_id</td><td class="col-type">TEXT PK</td><td>Client-generated UUID hex, same shape as today's <code class="inline">conversation_id</code>.</td></tr>
+      <tr><td class="col-name">employee_id</td><td class="col-type">TEXT</td><td>From <code class="inline">user_profile</code>, not a real FK (see above).</td></tr>
+      <tr><td class="col-name">full_name</td><td class="col-type">TEXT</td><td>Denormalized at session start - avoids a join just to label the sidebar entry.</td></tr>
+      <tr><td class="col-name">session_title</td><td class="col-type">TEXT</td><td>First turn's question, truncated - same convention genai-rag's own conversation list already uses.</td></tr>
+      <tr><td class="col-name">started_at_utc</td><td class="col-type">TEXT</td><td>ISO-8601, this project's existing <code class="inline">datetime.now(UTC).isoformat()</code> convention.</td></tr>
+      <tr><td class="col-name">last_active_utc</td><td class="col-type">TEXT</td><td>Bumped on every turn - sort key for the sidebar list.</td></tr>
+      <tr><td class="col-name">turn_count_total</td><td class="col-type">INTEGER</td><td>Denormalized counter, avoids a <code class="inline">COUNT(*)</code> for the sidebar list.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="schema-wrap">
+  <table class="schema">
+    <caption>chat_turn_records - one row per question/answer turn</caption>
+    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td class="col-name pk">turn_id</td><td class="col-type">TEXT PK</td><td>UUID hex.</td></tr>
+      <tr><td class="col-name fk">session_id</td><td class="col-type">TEXT</td><td>Indexed, not a real FK (SQLite/Postgres both fine with this - matches project convention).</td></tr>
+      <tr><td class="col-name">employee_id</td><td class="col-type">TEXT</td><td>Denormalized for the "my history" query without a join.</td></tr>
+      <tr><td class="col-name">turn_sequence_number</td><td class="col-type">INTEGER</td><td><strong>New.</strong> 1, 2, 3&hellip; within the session - the A2A demo's own "round" field (&sect;04) does the same job. Avoids any ambiguity from two turns landing in the same millisecond.</td></tr>
+      <tr><td class="col-name">user_query_text</td><td class="col-type">TEXT</td><td>The checked (post-guardrail) question.</td></tr>
+      <tr><td class="col-name">agent_response_text</td><td class="col-type">TEXT</td><td>The checked (post-guardrail) answer.</td></tr>
+      <tr><td class="col-name">attached_file_names</td><td class="col-type">TEXT</td><td>JSON array as text - SQLite has no native array type; matches how <code class="inline">documents</code> table already stores <code class="inline">chunk_ids</code>.</td></tr>
+      <tr><td class="col-name">created_at_utc</td><td class="col-type">TEXT</td><td>ISO-8601.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="schema-wrap">
+  <table class="schema">
+    <caption>email_send_events - one row per SendEmailWithAnswer or auto-email attempt</caption>
+    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td class="col-name pk">event_id</td><td class="col-type">TEXT PK</td><td>UUID hex.</td></tr>
+      <tr><td class="col-name fk">turn_id</td><td class="col-type">TEXT</td><td>Indexed, the turn this email answers.</td></tr>
+      <tr><td class="col-name">recipient_email_address</td><td class="col-type">TEXT</td><td>The "To" address.</td></tr>
+      <tr><td class="col-name">cc_email_addresses</td><td class="col-type">TEXT</td><td>Comma-separated; see open decision #3 below.</td></tr>
+      <tr><td class="col-name">email_subject_line</td><td class="col-type">TEXT</td><td></td></tr>
+      <tr><td class="col-name">email_status</td><td class="col-type">TEXT</td><td><strong>Changed.</strong> Was a bare <code class="inline">email_sent_flag</code> 0/1 in the first draft - replaced with a status string (<code class="inline">'sent'</code> / <code class="inline">'failed'</code>), modeled on A2A's own <code class="inline">Task</code> lifecycle (&sect;04) rather than a boolean. One column stays the single source of truth, and it reads cleanly if a real state like <code class="inline">'bounced'</code> (from a future SES bounce webhook) ever gets added - no second flag to keep in sync.</td></tr>
+      <tr><td class="col-name">send_status_message</td><td class="col-type">TEXT</td><td>SES's own real success/failure text - same field already shipped this week in <code class="inline">EmailEvidence</code>.</td></tr>
+      <tr><td class="col-name">attached_file_names</td><td class="col-type">TEXT</td><td><strong>New.</strong> JSON array - same shape as <code class="inline">chat_turn_records.attached_file_names</code>. <code class="inline">EmailEvidence.attached_files</code> already returns this in the API response (Phase 161); it wasn't being persisted anywhere until now.</td></tr>
+      <tr><td class="col-name">trigger_source</td><td class="col-type">TEXT</td><td><strong>New.</strong> <code class="inline">'model_decision'</code> (today's in-text <code class="inline">SendEmailWithAnswer</code> call) or <code class="inline">'checkbox_auto'</code> (the new popup checkbox, &sect;07). Keeps the two trigger paths in &sect;03's diagram distinguishable after the fact, not just in the flowchart.</td></tr>
+      <tr><td class="col-name">sent_at_utc</td><td class="col-type">TEXT</td><td>ISO-8601.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Third table - "any other metadata"</h3>
+  <p>You asked for a third table for additional metadata beyond turns and email events. Proposing <strong>no separate physical table</strong> for this: <code class="inline">chat_session_records</code> already carries session-level metadata (title, counts, timestamps), and per-turn metadata that isn't query/response text (model used, token usage, latency) is exactly what <code class="inline">AdhocDocumentChatResponse</code> already returns today and doesn't need to be durable - it's explainability, not memory. If a real need for a free-form metadata table shows up later (e.g. per-turn tags, ratings), add it then with a real use case, rather than a speculative empty table now.</p>
+
+  <pre class="ddl">CREATE TABLE IF NOT EXISTS chat_session_records (
+    session_id        TEXT PRIMARY KEY,
+    employee_id       TEXT NOT NULL,
+    full_name         TEXT,
+    session_title     TEXT,
+    started_at_utc    TEXT NOT NULL,
+    last_active_utc   TEXT NOT NULL,
+    turn_count_total  INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_chat_session_employee
+    ON chat_session_records (employee_id, last_active_utc);
+
+CREATE TABLE IF NOT EXISTS chat_turn_records (
+    turn_id               TEXT PRIMARY KEY,
+    session_id            TEXT NOT NULL,
+    employee_id           TEXT NOT NULL,
+    turn_sequence_number  INTEGER NOT NULL,
+    user_query_text       TEXT NOT NULL,
+    agent_response_text   TEXT NOT NULL,
+    attached_file_names   TEXT NOT NULL DEFAULT '[]',
+    created_at_utc        TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chat_turn_session
+    ON chat_turn_records (session_id, turn_sequence_number);
+
+CREATE TABLE IF NOT EXISTS email_send_events (
+    event_id                 TEXT PRIMARY KEY,
+    turn_id                  TEXT NOT NULL,
+    recipient_email_address  TEXT NOT NULL,
+    cc_email_addresses       TEXT,
+    email_subject_line       TEXT NOT NULL,
+    email_status             TEXT NOT NULL CHECK (email_status IN ('sent', 'failed')),
+    send_status_message      TEXT NOT NULL,
+    attached_file_names      TEXT NOT NULL DEFAULT '[]',
+    trigger_source           TEXT NOT NULL CHECK (trigger_source IN ('model_decision', 'checkbox_auto')),
+    sent_at_utc              TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_email_event_turn
+    ON email_send_events (turn_id);</pre>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">07</span><h2>Attach-files popup - new email fields</h2></div>
+  <pre class="mermaid">
+sequenceDiagram
+    participant U as User
+    participant P as Attach-files popup
+    participant R as Route
+    participant A as Agent
+    participant S as SES
+
+    U->>P: checks "Send email on answer"
+    P->>P: reveal To / CC fields
+    U->>P: types To address
+    P->>P: validate on blur (real email pattern)
+    alt invalid
+        P-->>U: inline error, e.g. "someone@" isn't a complete email address
+    else valid
+        U->>P: Send
+        P->>R: question + files + to/cc + checkbox=true
+        R->>A: run_agent(...)
+        A-->>R: final answer
+        R->>S: send_email(to, cc, answer)
+        S-->>R: sent / failed + reason
+        R-->>P: answer + email_send_events row
+        P-->>U: answer renders + Email evidence section
+    end
+  </pre>
+  <ul class="spec-list">
+    <li><strong>Checkbox</strong>: "Send email on answer" (off by default, same low-friction default as today's optional field) - reveals To/CC once checked, same collapse pattern the attach panel already uses.</li>
+    <li><strong>To validation</strong>: required only when the checkbox is on; a real email-format check (not just "contains @"), inline error under the field, e.g. <em>"someone@ isn't a complete email address - check for a typo before the @ or after the domain."</em> Never a raw regex-failure message.</li>
+    <li><strong>CC</strong>: optional even when the checkbox is on; comma-separated, each address validated the same way, same inline error style per invalid entry.</li>
+    <li><strong>Timing</strong>: unchanged request shape otherwise - the checkbox path and the model's own in-text <code class="inline">SendEmailWithAnswer</code> decision both still fire <em>after generation, before the response renders</em>, matching your phrasing exactly.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">08</span><h2>Left panel - split history</h2></div>
+  <div class="before-after">
+    <div class="ba-col">
+      <span class="ba-label">Today</span>
+      <div class="tree-item">CONVERSATION HISTORY</div>
+      <div class="tree-item indent">— every genai-rag / single-agentic-rag / multi-agentic-rag session</div>
+    </div>
+    <div class="ba-col">
+      <span class="ba-label">Proposed</span>
+      <div class="tree-item">RAG AI CHAT HISTORY</div>
+      <div class="tree-item indent">— same 3 RAG modes, unchanged source (<code class="inline">conversation_turns</code>)</div>
+      <div class="tree-item" style="margin-top:8px">GENAI RAG WORKFLOW HISTORY</div>
+      <div class="tree-item indent">— new: one entry per <code class="inline">chat_session_records</code> row</div>
+    </div>
+  </div>
+  <p class="lede">Two separate lists, two separate backing queries - no merge, no shared sort order. A GenAI Chat Workflow session's title comes from <code class="inline">session_title</code> (first question, truncated), same convention the existing list already uses.</p>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">09</span><h2>Open decisions - need your answer before a spec is final</h2></div>
+  <table class="decision-table">
+    <thead><tr><th>#</th><th>Question</th><th>Default if you don't say otherwise</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>SQLite-in-prod (Option A vs B above)</td><td>Option A - SQLite dev, Postgres prod</td></tr>
+      <tr><td>2</td><td>Retention - keep workflow history forever, or expire old sessions?</td><td>Forever, matching genai-rag's own conversation history today (no TTL exists there either)</td></tr>
+      <tr><td>3</td><td><code class="inline">cc_email_addresses</code> as one comma-separated column vs. its own table</td><td>Comma-separated - CC lists here are short (a handful of names), a join table is overhead without a real need yet</td></tr>
+      <tr><td>4</td><td>Table/column names as proposed - approve as-is or rename?</td><td>As proposed</td></tr>
+      <tr><td>5</td><td>Does the auto-email-on-checkbox path need its own output-guardrail pass, same as today's in-text <code class="inline">SendEmailWithAnswer</code>?</td><td>Yes - reuses the same <code class="inline">check_output()</code> call, no new guardrail code</td></tr>
+      <tr><td>6</td><td>Is <code class="inline">chat_session_records</code> scoped to the GenAI Chat Workflow only, or a general STM table every future LangGraph ReAct agent reuses (would need a <code class="inline">workflow_type</code> column to tell sessions apart)?</td><td>Scoped to this workflow only for now - add <code class="inline">workflow_type</code> when a second concrete consumer actually exists, not speculatively</td></tr>
+      <tr><td>7</td><td>Approve the 2 schema changes from &sect;04/&sect;06 - <code class="inline">email_status</code> replacing <code class="inline">email_sent_flag</code>, plus <code class="inline">turn_sequence_number</code>/<code class="inline">attached_file_names</code>/<code class="inline">trigger_source</code> added?</td><td>As proposed</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer class="doc-foot">hrb_chatbot_v2 &middot; design proposal &middot; no implementation started &middot; awaiting your approval</footer>
+
+</div>

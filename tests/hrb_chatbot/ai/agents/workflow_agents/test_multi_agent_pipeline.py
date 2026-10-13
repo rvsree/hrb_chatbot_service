@@ -51,6 +51,20 @@ def _fake_cache_and_eval_judges(monkeypatch):
     )
 
 
+@pytest.fixture(autouse=True)
+def _fake_normalize_query(monkeypatch):
+    """Phase 173: run_multi_agent() now calls normalize_query() before
+    check_input() on every call, a real OpenAI structured-output call - fake
+    it as a no-op for every test in this file, same reasoning as
+    test_pipeline.py's own fixture. Real normalization behavior is covered
+    by test_query_normalize.py instead."""
+
+    async def _passthrough_normalize(query):
+        return query
+
+    monkeypatch.setattr(multi_agent_pipeline, "normalize_query", _passthrough_normalize)
+
+
 def _patch_guardrails(monkeypatch):
     async def _passthrough_check_input(query):
         return query

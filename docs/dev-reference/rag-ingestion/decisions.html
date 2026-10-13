@@ -1,0 +1,163 @@
+<title>RAG Ingestion - Decisions</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --live: #147a4a; --live-bg: #e3f5eb; --live-border: #b5e3c8;
+    --design: #9a5a0c; --design-bg: #fbf1dd; --design-border: #edd6a2;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --cost: #a4321f; --cost-bg: #fbe9e5; --cost-border: #f0c3b8;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+      --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+    --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0b2b25;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .lede { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 72ch; line-height: 1.6; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  section.panel { display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel h2 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 15px; }
+  .panel p { margin: 0; font-size: 13.5px; color: var(--text-muted); line-height: 1.65; }
+  .panel ul { margin: 0; padding-left: 20px; font-size: 13.5px; color: var(--text-muted); line-height: 1.75; }
+  .panel li { margin-bottom: 3px; }
+
+  .diagram-wrap { background: var(--surface-alt); border: 1px solid var(--border); border-radius: 10px; padding: 10px; overflow-x: auto; }
+  .diagram-wrap img { display: block; width: 100%; height: auto; border-radius: 6px; }
+
+  .hub-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .hub-card { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--surface-alt); text-decoration: none; color: inherit; transition: border-color 0.15s; }
+  .hub-card:hover { border-color: var(--accent-border); }
+  .hub-card .label { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 14px; color: var(--accent); }
+  .hub-card .desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
+
+  .flow-strip { display: flex; align-items: center; gap: 4px; overflow-x: auto; padding: 6px 0; }
+  .flow-node { flex: none; border-radius: 8px; padding: 8px 11px; font-size: 11.5px; font-weight: 600; text-align: center; background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); white-space: nowrap; }
+  .flow-node.terminal { background: var(--live-bg); color: var(--live); border-color: var(--live-border); }
+  .flow-node.fail { background: var(--cost-bg); color: var(--cost); border-color: var(--cost-border); }
+  .flow-arrow { flex: none; color: var(--text-faint); font-size: 13px; }
+
+  table.fields { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.fields th { text-align: left; font-family: 'Archivo', sans-serif; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding: 7px 10px; border-bottom: 1px solid var(--border); }
+  table.fields td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text-muted); }
+  table.fields td.col-name { font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: var(--text); }
+
+  .endpoint { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .endpoint-head { display: flex; align-items: center; gap: 10px; padding: 9px 13px; background: var(--surface-alt); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .http-verb { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
+  .http-verb.post { color: var(--live); background: var(--live-bg); border: 1px solid var(--live-border); }
+  .http-verb.get { color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); }
+  .endpoint-path { font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; font-weight: 600; }
+  .endpoint-body { padding: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 700px) { .endpoint-body { grid-template-columns: 1fr; } }
+  pre.schema { margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 11px; line-height: 1.55; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; overflow-x: auto; color: var(--text); }
+
+  table.summary { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+  table.summary th { text-align: left; font-family: 'Archivo', sans-serif; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding: 9px 13px; background: var(--surface-alt); border-bottom: 1px solid var(--border); }
+  table.summary td { padding: 9px 13px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.summary tr:last-child td { border-bottom: none; }
+  table.summary td.id-cell { font-family: 'IBM Plex Mono', monospace; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  table.summary a { color: var(--text); text-decoration: none; }
+  td.source-cell { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--text-faint); white-space: nowrap; }
+
+  section.decision { border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px; background: var(--surface); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px; }
+  .decision-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .decision-id { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 11.5px; color: #fff; background: var(--band-dark); padding: 3px 9px; border-radius: 7px; }
+  .decision-title { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 15px; }
+  .decision-grid { display: grid; grid-template-columns: 100px 1fr; gap: 3px 14px; font-size: 12.5px; }
+  .decision-grid dt { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding-top: 2px; }
+  .decision-grid dd { margin: 0; color: var(--text-muted); line-height: 1.55; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .decision-grid dd:last-of-type { border-bottom: none; padding-bottom: 0; }
+  @media (max-width: 600px) { .decision-grid { grid-template-columns: 1fr; } }
+  .trade-off { background: var(--design-bg); border: 1px solid var(--design-border); border-radius: 8px; padding: 8px 10px !important; color: var(--design) !important; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 14px; font-size: 11.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">decisions</div>
+    <h1 class="display">RAG Ingestion</h1>
+    <p class="lede">Context, alternatives, why, trade-offs.</p>
+    <div class="doc-nav">
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=upload-documents&type=overview" target="_blank" rel="noopener noreferrer">Overview</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=upload-documents&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=upload-documents&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=upload-documents&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <span class="doc-nav-item current">Decisions</span>
+    </div>
+  </header>
+
+  <table class="summary">
+    <thead><tr><th>Decision</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td><a href="#d1">Decouple ingestion from the query path entirely</a></td><td class="source-cell">S3-ASYNC-UPLOAD-DESIGN.md</td></tr>
+      <tr><td><a href="#d2">SQS as the primary trigger, not direct S3→Lambda</a></td><td class="source-cell">RAG-ROADMAP Phase 88</td></tr>
+      <tr><td><a href="#d3">Async upload is additive, not a replacement</a></td><td class="source-cell">RAG-ROADMAP Phase 89</td></tr>
+    </tbody>
+  </table>
+
+  <section class="decision" id="d1">
+    <div class="decision-head"><span class="decision-title display">Decouple ingestion from the query path entirely</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>A synchronous upload ties the API's own request thread to however long indexing takes, and competes with live chat traffic for the same capacity.</dd>
+      <dt>Decision</dt><dd>Move large/async uploads to presigned S3 + event-driven Lambda - the API process never touches the file bytes or blocks on indexing.</dd>
+      <dt>Alternative</dt><dd>Keep everything synchronous, just raise timeouts - doesn't fix the underlying coupling, only delays when it becomes a problem.</dd>
+      <dt>Why</dt><dd>Upload/index load and query load have different shapes - decoupling lets each scale on its own trigger.</dd>
+      <dt>Trade-off</dt><dd class="trade-off">Real added infrastructure (queue, Lambda, DLQ, a second deploy target) for a benefit that mostly matters at a scale this project isn't at yet.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="d2">
+    <div class="decision-head"><span class="decision-title display">SQS as the primary trigger, not direct S3&rarr;Lambda</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>S3 can invoke Lambda directly on an object-created event, no queue required.</dd>
+      <dt>Decision</dt><dd>S3 notifies SQS, and Lambda's own event-source mapping polls the queue - not a direct S3-to-Lambda trigger.</dd>
+      <dt>Alternative</dt><dd>Direct S3&rarr;Lambda - simpler, one less resource, but no buffering: a burst of uploads spikes concurrent invocations directly.</dd>
+      <dt>Why</dt><dd>A queue gives real backpressure, and SQS's own visibility-timeout/retry becomes the retry mechanism for free.</dd>
+      <dt>Trade-off</dt><dd class="trade-off">One more piece of infrastructure to provision and tune (visibility timeout, max receives).</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="d3">
+    <div class="decision-head"><span class="decision-title display">Async upload is additive, not a replacement</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>The original design intended the async path to eventually replace the synchronous one.</dd>
+      <dt>Decision</dt><dd>Both stay - the async endpoint is a separate route; the synchronous one, its tests, and its CI usage are untouched.</dd>
+      <dt>Alternative</dt><dd>Cut over fully once the async path works - cleaner long-term, but would retire a working path in favor of a newer one with real, just-found gaps (no input validation at the time, no local test path).</dd>
+      <dt>Why</dt><dd>Nothing required an immediate cutover, and the synchronous path still serves its real use - interactive small/batch uploads.</dd>
+      <dt>Trade-off</dt><dd class="trade-off">Two upload code paths to maintain indefinitely, not one.</dd>
+    </dl>
+  </section>
+
+  <footer>RAG Ingestion — overview.html, spec.html, architecture.html, design.html, decisions.html</footer>
+</div>

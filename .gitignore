@@ -26,6 +26,7 @@ venv/
 data/
 *.sqlite3
 uvicorn.log
+uvicorn_dev.log
 
 # Written by .claude/scripts/post_write_test.py (the PostToolUse test-runner
 # hook) each time it runs - a transient log, not source code.

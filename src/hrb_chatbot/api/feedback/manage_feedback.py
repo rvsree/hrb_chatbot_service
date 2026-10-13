@@ -24,7 +24,7 @@ router_manage_feedback = APIRouter(tags=["feedback"])
 
 @router_manage_feedback.post("", response_model=FeedbackCreateResponse)
 async def create_feedback(payload: FeedbackCreateRequest, request: Request):
-    userProfile = require_role(payload.user_profile, Role.EMPLOYEE, Role.MANAGER, Role.HR_SUPPORT)
+    userProfile = require_role(payload.user_profile, Role.EMPLOYEE, Role.MANAGER, Role.HR_SUPPORT, Role.ADMIN)
     await enforce_rate_limit(request)
 
     feedback_id = await get_db_gateway().feedback_store().save_feedback(
@@ -43,10 +43,10 @@ async def create_feedback(payload: FeedbackCreateRequest, request: Request):
 
 @router_manage_feedback.get("", response_model=FeedbackListResponse)
 async def list_feedback(user_profile: UserProfile | None = Depends(identity_from_query_params)):
-    """hr_support sees everyone's feedback; employee/manager only see their own."""
-    userProfile = require_role(user_profile, Role.EMPLOYEE, Role.MANAGER, Role.HR_SUPPORT)
+    """hr_support/admin see everyone's feedback; employee/manager only see their own."""
+    userProfile = require_role(user_profile, Role.EMPLOYEE, Role.MANAGER, Role.HR_SUPPORT, Role.ADMIN)
 
-    scope_employee_id = None if userProfile.role == Role.HR_SUPPORT else userProfile.employee_id
+    scope_employee_id = None if userProfile.role in (Role.HR_SUPPORT, Role.ADMIN) else userProfile.employee_id
     rows = await get_db_gateway().feedback_store().list_feedback(scope_employee_id)
 
     return FeedbackListResponse(count=len(rows), feedback=[FeedbackRecord(**row) for row in rows])

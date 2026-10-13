@@ -8,6 +8,7 @@ from langchain_openai import ChatOpenAI
 
 from src.hrb_chatbot.ai.agents._llm_helpers import AGENT_LLM_TIMEOUT_SECONDS, build_agent_llm
 from src.hrb_chatbot.ai.pre_processing import conversation_memory
+from src.hrb_chatbot.ai.pre_processing.query_normalize import normalize_query
 from src.hrb_chatbot.ai.prompts.agent_prompts import ORCHESTRATION_SYSTEM_PROMPT
 from src.hrb_chatbot.ai.rag_core.guarded_pipeline import run_guarded_pipeline
 from src.hrb_chatbot.ai.rag_core.response_format import TABULAR_FORMAT_INSTRUCTION, should_use_tabular_format
@@ -122,6 +123,7 @@ async def run_agent(
     GetLeaveHistory turns are excluded from the cache but SearchKnowledgeBase
     ones are not."""
     started_at = time.perf_counter()
+    normalized_query = await normalize_query(query)
     resolved_max_iterations = max_iterations or DEFAULT_MAX_ITERATIONS
     llm = _build_llm().bind(tools=AGENTIC_TOOL_DEFINITIONS)
 
@@ -129,15 +131,19 @@ async def run_agent(
     if enable_conversation_memory:
         resolved_conversation_id = conversation_id or conversation_memory.new_conversation_id()
 
-    cache_key = build_cache_key(query, pipeline="single-agentic-rag", max_iterations=resolved_max_iterations)
+    cache_key = build_cache_key(normalized_query, pipeline="single-agentic-rag", max_iterations=resolved_max_iterations)
     cached_result = await get_db_gateway().answer_cache().get(cache_key)
     if cached_result is not None:
-        logger.info("Answer cache hit for %r (single-agentic-rag)", query)
+        logger.info("Answer cache hit for %r (single-agentic-rag)", normalized_query)
         result = dict(cached_result)
         result["conversation_id"] = resolved_conversation_id
         if resolved_conversation_id:
-            await conversation_memory.save_turn(resolved_conversation_id, employee_id, query, result["answer"])
+            await conversation_memory.save_turn(resolved_conversation_id, employee_id, normalized_query, result["answer"])
             await get_db_gateway().answer_cache().tag_conversation(resolved_conversation_id, cache_key)
+        # Phase 173 - the cache key is itself normalized-query-based, so a
+        # hit always implies this same normalized text, regardless of
+        # whether the cached entry predates this field.
+        result["query"] = normalized_query
         result["served_from_cache"] = True
         result["llm_call_count"] = 0
         result["token_usage"] = None
@@ -240,10 +246,16 @@ async def run_agent(
             "latency_ms": {"total": None, "retrieval": None, "generation": _elapsed_ms(generation_started_at)},
         }
 
-    result = await run_guarded_pipeline(query, employee_id, enable_conversation_memory, conversation_id, generate)
+    result = await run_guarded_pipeline(
+        normalized_query, employee_id, enable_conversation_memory, conversation_id, generate
+    )
 
+    # Phase 173 - so a caller can show what was actually processed (post-
+    # normalization) rather than the raw submitted text, same as
+    # genai-rag's and multi-agentic-rag's own result dicts already do.
+    result["query"] = normalized_query
     result["served_from_cache"] = False
-    eval_scores, eval_ms = await _score_live_answer(query, result["answer"], result.get("tool_outputs") or [])
+    eval_scores, eval_ms = await _score_live_answer(normalized_query, result["answer"], result.get("tool_outputs") or [])
     result["eval_scores"] = eval_scores
     result["latency_ms"]["eval"] = eval_ms
     result["latency_ms"]["total"] = _elapsed_ms(started_at)
@@ -257,11 +269,11 @@ async def run_agent(
     # as "correct" for 6 hours to every identical future query.
     cache_eligible = (
         not any(call["tool_name"] in LIVE_DATA_TOOLS for call in result["tools_used"])
-        and not is_leave_balance_query(query)
-        and not is_leave_history_query(query)
+        and not is_leave_balance_query(normalized_query)
+        and not is_leave_history_query(normalized_query)
     )
     if cache_eligible:
-        await get_db_gateway().answer_cache().set(cache_key, query, result)
+        await get_db_gateway().answer_cache().set(cache_key, normalized_query, result)
         if result.get("conversation_id"):
             await get_db_gateway().answer_cache().tag_conversation(result["conversation_id"], cache_key)
 
