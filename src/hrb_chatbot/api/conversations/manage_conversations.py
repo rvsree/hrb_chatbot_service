@@ -32,7 +32,7 @@ async def list_conversations(user_profile: UserProfile | None = Depends(identity
     No hr_support "everyone's conversations" view, unlike feedback - a chat
     history is more sensitive than a thumbs-up/down vote, and nothing asked
     for HR to browse other employees' conversations."""
-    userProfile = require_role(user_profile, Role.EMPLOYEE, Role.MANAGER, Role.HR_SUPPORT)
+    userProfile = require_role(user_profile, Role.EMPLOYEE, Role.MANAGER, Role.HR_SUPPORT, Role.ADMIN)
 
     rows = await conversation_memory.list_conversations(userProfile.employee_id)
     return ConversationListResponse(count=len(rows), conversations=[ConversationSummary(**row) for row in rows])
@@ -45,7 +45,7 @@ async def get_conversation(
     """Phase 116 - a conversation that isn't the caller's own (or doesn't
     exist) returns an empty turns list, same not-found-vs-not-yours
     non-disclosure as DELETE's own scoping."""
-    userProfile = require_role(user_profile, Role.EMPLOYEE, Role.MANAGER, Role.HR_SUPPORT)
+    userProfile = require_role(user_profile, Role.EMPLOYEE, Role.MANAGER, Role.HR_SUPPORT, Role.ADMIN)
 
     turns = await conversation_memory.get_conversation_turns(conversation_id, userProfile.employee_id)
     return ConversationDetailResponse(
@@ -57,7 +57,7 @@ async def get_conversation(
 async def delete_conversation(conversation_id: str, identity: IdentityPayload, request: Request):
     """Deletes every turn for one conversation - scoped to the caller's own employee_id,
     so one employee can never delete another's history even by knowing their conversation_id."""
-    userProfile = require_role(identity.user_profile, Role.EMPLOYEE, Role.MANAGER, Role.HR_SUPPORT)
+    userProfile = require_role(identity.user_profile, Role.EMPLOYEE, Role.MANAGER, Role.HR_SUPPORT, Role.ADMIN)
     await enforce_rate_limit(request)
 
     turns_deleted = await conversation_memory.delete_conversation(conversation_id, userProfile.employee_id)

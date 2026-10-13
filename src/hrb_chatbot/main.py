@@ -6,11 +6,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.hrb_chatbot.api.adhoc_chat import adhoc_document_chat
-from src.hrb_chatbot.api.admin import routes_health
+from src.hrb_chatbot.api.admin import manage_admin, routes_health
 from src.hrb_chatbot.api.agentic_rag import query_agent
 from src.hrb_chatbot.api.auth import login
 from src.hrb_chatbot.api.conversations import manage_conversations
 from src.hrb_chatbot.api.feedback import manage_feedback
+from src.hrb_chatbot.api.leave import unpaid_leave
 from src.hrb_chatbot.api.multi_agentic_rag import query_agent as multi_query_agent
 from src.hrb_chatbot.api.dependencies import json_error
 from src.hrb_chatbot.api.rag import ingest_document, retrieve_document
@@ -48,7 +49,18 @@ app = FastAPI(
 # allow_credentials is safe here.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:4173", "https://hrb-chatbot-ui.rvsree.dev"],
+    # 5174/5175 added (Phase 167) - Vite auto-increments past 5173 when an
+    # earlier dev-server instance is still holding it, which happened this
+    # session; a real CORS rejection on 5174 looked like a generic "can't
+    # reach the backend" with no explanation, since the browser blocks the
+    # request before any response (or error) comes back at all.
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:4173",
+        "https://hrb-chatbot-ui.rvsree.dev",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -72,6 +84,8 @@ app.include_router(multi_query_agent.router_query_agent, prefix="/v1/multi-agent
 app.include_router(manage_conversations.router_manage_conversations, prefix="/v1/conversations")
 app.include_router(manage_feedback.router_manage_feedback, prefix="/v1/feedback")
 app.include_router(adhoc_document_chat.router_adhoc_document_chat, prefix="/v1/adhoc-document-chat")
+app.include_router(unpaid_leave.router_unpaid_leave, prefix="/v1/unpaid-leave")
+app.include_router(manage_admin.router_manage_admin, prefix="/v1/admin")
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):

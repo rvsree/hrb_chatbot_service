@@ -192,3 +192,50 @@ def test_send_email_with_attachments_and_no_html_body_sends_a_plain_mime_part(mo
 
     raw_bytes = fake.raw_calls[0]["RawMessage"]["Data"]
     assert b"Content-Type: text/plain" in raw_bytes
+
+
+# Phase 163 - cc_addresses, on both the simple and raw/attachment paths.
+
+
+def test_send_email_with_cc_addresses_includes_them_in_the_simple_api_call(monkeypatch):
+    fake = _FakeSesClient()
+    monkeypatch.setattr(ses_client.boto3, "client", lambda service, region_name=None: fake)
+    monkeypatch.setattr(ses_client, "read_setting", lambda value, name, default=None: "sender@example.com" if name == "SES_SENDER_EMAIL" else default)
+
+    result = ses_client.send_email(
+        "someone@example.com", "Subject", "Body text", cc_addresses=["cc1@example.com", "cc2@example.com"]
+    )
+
+    assert result == {"sent": True, "message": "Email sent to someone@example.com."}
+    assert fake.calls[0]["Destination"] == {
+        "ToAddresses": ["someone@example.com"],
+        "CcAddresses": ["cc1@example.com", "cc2@example.com"],
+    }
+
+
+def test_send_email_without_cc_addresses_omits_the_cc_key(monkeypatch):
+    fake = _FakeSesClient()
+    monkeypatch.setattr(ses_client.boto3, "client", lambda service, region_name=None: fake)
+    monkeypatch.setattr(ses_client, "read_setting", lambda value, name, default=None: "sender@example.com" if name == "SES_SENDER_EMAIL" else default)
+
+    ses_client.send_email("someone@example.com", "Subject", "Body text")
+
+    assert "CcAddresses" not in fake.calls[0]["Destination"]
+
+
+def test_send_email_with_attachments_and_cc_addresses_includes_them_in_destinations(monkeypatch):
+    fake = _FakeSesClient()
+    monkeypatch.setattr(ses_client.boto3, "client", lambda service, region_name=None: fake)
+    monkeypatch.setattr(ses_client, "read_setting", lambda value, name, default=None: "sender@example.com" if name == "SES_SENDER_EMAIL" else default)
+
+    ses_client.send_email(
+        "someone@example.com",
+        "Subject",
+        "Body text",
+        attachments=[("report.pdf", b"bytes")],
+        cc_addresses=["cc1@example.com"],
+    )
+
+    assert fake.raw_calls[0]["Destinations"] == ["someone@example.com", "cc1@example.com"]
+    raw_bytes = fake.raw_calls[0]["RawMessage"]["Data"]
+    assert b"cc1@example.com" in raw_bytes

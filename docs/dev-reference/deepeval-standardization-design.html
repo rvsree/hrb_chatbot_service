@@ -1,0 +1,170 @@
+<title>DeepEval Standardization</title>
+<style>
+:root {
+  --bg: #f3f4f6; --surface: #ffffff; --surface-sunken: #eceef1;
+  --fg: #181d26; --fg-muted: #5c6472; --border: #d8dce2;
+  --accent: #35587a; --warn: #a8641f; --warn-soft: #faf0e2; --warn-border: #e8c893;
+  --good: #2f7a52; --good-soft: #e7f3ec;
+  --bad: #b03a3a; --bad-soft: #fbe9e9; --bad-border: #eab8b8;
+  --code-bg: #eef0f3;
+  --font-display: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10141b; --surface: #171c26; --surface-sunken: #1d2330;
+    --fg: #e7eaef; --fg-muted: #99a2b3; --border: #2b3242;
+    --accent: #80aed9; --warn: #e3a765; --warn-soft: #332514; --warn-border: #5c4523;
+    --good: #6fc99a; --good-soft: #152821;
+    --bad: #e08080; --bad-soft: #301616; --bad-border: #5c2323;
+    --code-bg: #1b212c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10141b; --surface: #171c26; --surface-sunken: #1d2330;
+  --fg: #e7eaef; --fg-muted: #99a2b3; --border: #2b3242;
+  --accent: #80aed9; --warn: #e3a765; --warn-soft: #332514; --warn-border: #5c4523;
+  --good: #6fc99a; --good-soft: #152821;
+  --bad: #e08080; --bad-soft: #301616; --bad-border: #5c2323;
+  --code-bg: #1b212c; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); line-height: 1.55; }
+.page { max-width: 920px; margin: 0 auto; padding: 32px 16px 64px; display: flex; flex-direction: column; gap: 24px; }
+header.doc-head { display: flex; flex-direction: column; gap: 10px; padding-bottom: 20px; border-bottom: 2px solid var(--border); }
+.eyebrow { font-family: var(--font-display); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+h1 { font-family: var(--font-display); font-size: clamp(26px, 4vw, 34px); margin: 0; text-wrap: balance; font-weight: 600; }
+.subtitle { color: var(--fg-muted); font-size: 15px; max-width: 65ch; }
+.status-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.chip { font-family: var(--font-display); font-size: 11px; letter-spacing: 0.03em; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--fg-muted); background: var(--surface-sunken); }
+.chip.warn { color: var(--warn); background: var(--warn-soft); border-color: var(--warn-border); }
+.chip.bad { color: var(--bad); background: var(--bad-soft); border-color: var(--bad-border); }
+section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 22px clamp(16px, 4vw, 28px); display: flex; flex-direction: column; gap: 14px; }
+.section-head { display: flex; align-items: baseline; gap: 10px; }
+.section-num { font-family: var(--font-display); font-size: 13px; color: var(--accent); min-width: 22px; }
+h2 { font-family: var(--font-display); font-size: 19px; margin: 0; font-weight: 600; }
+h3 { font-family: var(--font-display); font-size: 15px; margin: 10px 0 0; font-weight: 600; color: var(--fg); }
+p { margin: 0; }
+.lede { color: var(--fg-muted); font-size: 14px; }
+.callout { border-radius: 8px; padding: 14px 16px; font-size: 14px; display: flex; flex-direction: column; gap: 8px; }
+.callout.bad { background: var(--bad-soft); border: 1px solid var(--bad-border); }
+.callout.warn { background: var(--warn-soft); border: 1px solid var(--warn-border); }
+.callout.good { background: var(--good-soft); border: 1px solid color-mix(in srgb, var(--good) 40%, var(--border)); }
+.callout .callout-label { font-family: var(--font-display); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--bad); }
+.callout.warn .callout-label { color: var(--warn); }
+.callout.good .callout-label { color: var(--good); }
+code.inline { font-family: var(--font-display); background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 0.92em; }
+pre.code-block { background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 8px; padding: 14px; overflow-x: auto; font-family: var(--font-display); font-size: 12.5px; }
+ul.spec-list, ol.spec-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+ul.spec-list li, ol.spec-list li { padding-left: 2px; }
+table.decision-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.decision-table td, .decision-table th { border-bottom: 1px solid var(--border); padding: 10px 8px; text-align: left; vertical-align: top; }
+.decision-table th { font-family: var(--font-display); font-size: 11.5px; color: var(--fg-muted); }
+.decision-table td:first-child { font-family: var(--font-display); font-size: 12.5px; white-space: nowrap; }
+footer.doc-foot { text-align: center; color: var(--fg-muted); font-size: 12px; padding-top: 8px; }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<div class="page">
+
+<header class="doc-head">
+  <span class="eyebrow">hrb_chatbot_v2 &middot; design proposal, not yet built</span>
+  <h1>DeepEval Standardization</h1>
+  <p class="subtitle">Replacing the hand-rolled LLM-as-judge prompts with DeepEval, for both live queries and the offline golden dataset - a deliberate, user-approved deviation from the IK FDE Module 5 courseware pattern.</p>
+  <div class="status-row">
+    <span class="chip warn">Spec only - implementation explicitly held</span>
+    <span class="chip bad">New dependency, needs approval before any code</span>
+    <span class="chip">Touches the live hot path of 3 pipelines</span>
+  </div>
+</header>
+
+<section>
+  <div class="section-head"><span class="section-num">01</span><h2>Why this is a deviation, and why it's fine</h2></div>
+  <p>This project's own standing rule is implementation fidelity to the IK FDE Module 5 courseware, which teaches hand-rolled LLM-as-judge prompts, not a third-party eval library - <code class="inline">golden_dataset_harness.py</code>'s own docstring says so explicitly: "ported directly from the IK FDE cohort's modules/5_evaluation/demo.py, not DeepEval's built-in metrics." Introducing DeepEval reverses that, on both the live path and the offline harness.</p>
+  <div class="callout good">
+    <span class="callout-label">Why this is still the right call</span>
+    <p>The user asked for this explicitly, named the courseware-fidelity tradeoff themselves, and chose to standardize on DeepEval anyway - "let's standardize this." That's an informed, deliberate override, not a silent drift this project's own rules would otherwise flag. Recorded here so the reasoning survives past this conversation.</p>
+  </div>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">02</span><h2>What DeepEval actually provides - researched, not assumed</h2></div>
+  <p class="lede">Confirmed against DeepEval's own docs (deepeval.com/docs) and secondary sources, not guessed. Exact class/parameter names should be re-confirmed against the installed version at implementation time - library APIs move.</p>
+  <table class="decision-table">
+    <thead><tr><th>Metric</th><th>What it checks</th><th>Needs</th></tr></thead>
+    <tbody>
+      <tr><td>FaithfulnessMetric</td><td>Does the answer stick to the retrieved context, or hallucinate?</td><td>input, actual_output, retrieval_context</td></tr>
+      <tr><td>AnswerRelevancyMetric</td><td>Does the answer address the question asked?</td><td>input, actual_output</td></tr>
+      <tr><td>ContextualPrecisionMetric</td><td>Are the relevant chunks ranked above irrelevant ones?</td><td>input, retrieval_context, expected_output</td></tr>
+      <tr><td>ContextualRecallMetric</td><td>Does retrieval contain everything needed?</td><td>input, retrieval_context, expected_output</td></tr>
+      <tr><td>GEval (custom)</td><td>Any custom criteria, via chain-of-thought LLM judging</td><td>input, actual_output, + whatever the criteria reference</td></tr>
+    </tbody>
+  </table>
+  <p>All are LLM-as-judge under the hood - same category of technique this project's hand-rolled prompts already use, just with DeepEval's own prompts/parsing/scoring instead of this project's own.</p>
+  <h3>No built-in "Completeness" metric</h3>
+  <p>DeepEval ships Faithfulness/AnswerRelevancy/Contextual* but nothing named "Completeness" - this project's own second response-level metric. Built via <code class="inline">GEval</code> with a custom criteria string (e.g. "Does the answer fully address every part of the question, without leaving anything unanswered?"), not a built-in class.</p>
+  <h3>Custom judge model required</h3>
+  <p>This project never calls OpenAI's SDK directly - every LLM call goes through <code class="inline">common/clients/llm_client/</code>'s multi-provider gateway (<code class="inline">GatewayChatModel</code> already adapts it for LangChain's <code class="inline">BaseChatModel</code>). DeepEval needs the same treatment: a class implementing <code class="inline">DeepEvalBaseLLM</code>'s <code class="inline">generate()</code>/<code class="inline">a_generate()</code>, wrapping this project's own <code class="inline">ask()</code> clients - not a new, separate OpenAI integration bypassing the existing gateway.</p>
+  <h3>Async is opt-in, not automatic</h3>
+  <p>A custom metric's default <code class="inline">a_measure()</code> just calls the sync <code class="inline">measure()</code> - no real concurrency unless implemented properly. For GEval/built-ins this is handled internally, but the custom judge-model wrapper's own <code class="inline">a_generate()</code> must be a real async call (reusing this project's existing async <code class="inline">ask()</code> clients), or every metric call blocks the event loop regardless of DeepEval's own async_mode setting.</p>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">03</span><h2>Metric mapping - current fields to DeepEval</h2></div>
+  <table class="decision-table">
+    <thead><tr><th>This project's field</th><th>DeepEval metric</th><th>Where</th></tr></thead>
+    <tbody>
+      <tr><td>Groundedness</td><td>FaithfulnessMetric</td><td>Live + golden</td></tr>
+      <tr><td>Completeness</td><td>GEval (custom criteria)</td><td>Live + golden</td></tr>
+      <tr><td>Precision@k</td><td>ContextualPrecisionMetric</td><td>Golden only - needs expected_output (the golden dataset has it; a live query doesn't)</td></tr>
+      <tr><td>Recall@k</td><td>ContextualRecallMetric</td><td>Golden only - same reason</td></tr>
+      <tr><td>F1 (golden)</td><td>Derived: 2 &times; (precision &times; recall) / (precision + recall)</td><td>Golden only</td></tr>
+      <tr><td>F1 (live, new)</td><td>No DeepEval built-in fits - see &sect;04</td><td>Live - estimated, not exact</td></tr>
+      <tr><td>Answer Relevance (new)</td><td>AnswerRelevancyMetric</td><td>Live + golden - a metric this project doesn't compute today at all</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">04</span><h2>The live-F1 problem, concretely</h2></div>
+  <div class="callout warn">
+    <span class="callout-label">Still true with DeepEval, not solved by switching libraries</span>
+    <p>ContextualPrecision/ContextualRecall both require <code class="inline">expected_output</code> - a known correct answer to compare against. A live, unlabeled question has none. DeepEval doesn't remove this constraint; it just gives a cleaner implementation of the same judge-based approach this project already uses for groundedness/completeness.</p>
+  </div>
+  <p>The only way to get a live-time retrieval quality number is to treat it as an estimate: judge each retrieved chunk's relevance to the query on the fly (a GEval-style per-chunk relevance call), derive precision/recall/F1 from those judged labels instead of a pre-existing golden set. This is directly buildable on the same infrastructure, but it must be clearly labeled "estimated" in the UI, never shown as if it were the golden dataset's own exact-match F1 - the two numbers answer different questions.</p>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">05</span><h2>Cost and latency - the real number to decide on</h2></div>
+  <p>One documented real run: a single DeepEval relevancy test case cost about $0.0027 in judge tokens. This project's hand-rolled judge today makes 2 calls per live answer (groundedness + completeness). A full DeepEval swap adds Faithfulness + Completeness(GEval) + AnswerRelevancy as a floor (3 calls, roughly 1.5&times; today's judge cost/latency) - plus, if live-estimated F1 is built too, one judge call per retrieved chunk (typically top_k=5, so +5 more calls, call volume roughly 4&times; today's).</p>
+  <div class="callout bad">
+    <span class="callout-label">Decision needed before implementation starts</span>
+    <p>Run all of Faithfulness/Completeness/AnswerRelevancy/live-F1-estimate on every live query (highest cost, most complete), or keep live scoring to Faithfulness+Completeness (close to today's cost) and reserve ContextualPrecision/Recall/AnswerRelevancy for the golden dataset only? Not decided here - a real cost/UX tradeoff, not a technical one.</p>
+  </div>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">06</span><h2>Where this plugs in</h2></div>
+  <ul class="spec-list">
+    <li><strong>New dependency</strong>: <code class="inline">deepeval</code> - needs explicit approval (this project's own "no unreviewed libraries" rule) before any <code class="inline">pip install</code>, same gate <code class="inline">langgraph-checkpoint-postgres</code> went through.</li>
+    <li><strong>New</strong> <code class="inline">ai/rag_core/deepeval_judge_model.py</code> - the <code class="inline">DeepEvalBaseLLM</code> wrapper around this project's existing multi-provider <code class="inline">ask()</code> clients, mirroring <code class="inline">langchain_chat_model.py</code>'s own <code class="inline">GatewayChatModel</code> adapter pattern.</li>
+    <li><strong>Replaces</strong> <code class="inline">rag_pipeline/evaluations/golden_dataset_harness.py</code>'s <code class="inline">evaluate_groundedness()</code>/<code class="inline">evaluate_completeness()</code>/<code class="inline">calculate_retrieval_metrics()</code> internals - same function signatures (every call site in <code class="inline">pipeline.py</code>/<code class="inline">orchestration_agent.py</code>/<code class="inline">multi_agent_pipeline.py</code> stays unchanged), DeepEval runs underneath instead of the hand-rolled prompts.</li>
+    <li><strong>New, additive</strong>: AnswerRelevancy scoring (doesn't exist today at all) and the live-F1-estimate path (&sect;04), both opt-in per &sect;05's cost decision.</li>
+    <li><strong>Frontend</strong>: the Phase 173 Eval Score 3-group layout (Retrieval/Response/Others) already built gets real, non-placeholder values in the Retrieval Score group once this lands.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">07</span><h2>Build order, if/when approved</h2></div>
+  <ol class="spec-list">
+    <li>Explicit go-ahead on &sect;05's cost/scope decision (which metrics run live vs golden-only).</li>
+    <li><code class="inline">pip install deepeval</code>, confirmed no dependency conflicts (same <code class="inline">pip check</code> discipline as every other new package this session).</li>
+    <li><code class="inline">DeepEvalBaseLLM</code> judge-model wrapper, unit-tested against a fake.</li>
+    <li>Swap <code class="inline">golden_dataset_harness.py</code>'s internals first (lower risk - on-demand, not per-request, real cost already accepted for that file).</li>
+    <li>Swap the live path per pipeline, one at a time, each live-verified with real before/after score comparisons on a few real questions.</li>
+    <li>Wire AnswerRelevancy + (if approved) live-F1-estimate into the Retrieval Score / Response Score UI groups.</li>
+  </ol>
+</section>
+
+<footer class="doc-foot">hrb_chatbot_v2 &middot; design only, implementation explicitly held per user instruction</footer>
+
+</div>

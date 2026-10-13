@@ -53,7 +53,7 @@ async def upload_documents(
     if parsed_payload is None:
         return json_error(422, "payload is not valid JSON, or doesn't match the expected shape.", code=error_codes.VALIDATION_ERROR)
 
-    userProfile = require_role(parsed_payload.user_profile, Role.HR_SUPPORT)
+    userProfile = require_role(parsed_payload.user_profile, Role.HR_SUPPORT, Role.ADMIN)
     await enforce_rate_limit(request)
 
     chunk_info = parsed_payload.chunk_info
@@ -117,7 +117,7 @@ async def reindex_document(
     if parsed_payload is None:
         return json_error(422, "payload is not valid JSON, or doesn't match the expected shape.", code=error_codes.VALIDATION_ERROR)
 
-    require_role(parsed_payload.user_profile, Role.HR_SUPPORT)
+    require_role(parsed_payload.user_profile, Role.HR_SUPPORT, Role.ADMIN)
     await enforce_rate_limit(request)
 
     chunk_info = parsed_payload.chunk_info
@@ -138,7 +138,7 @@ async def reindex_document(
 @router_ingest_document.post("/documents/{document_id}/rechunk", response_model=DocumentUploadResult)
 async def rechunk_document(document_id: str, payload: ReindexDocumentPayload, request: Request):
     # Phase 129: re-chunk the already-stored file with new settings - no file upload needed.
-    require_role(payload.user_profile, Role.HR_SUPPORT)
+    require_role(payload.user_profile, Role.HR_SUPPORT, Role.ADMIN)
     await enforce_rate_limit(request)
 
     chunk_info = payload.chunk_info
@@ -159,7 +159,7 @@ async def rechunk_document(document_id: str, payload: ReindexDocumentPayload, re
 async def request_presigned_upload(body: PresignedUploadRequest, request: Request):
     # Phase 89: additive, alongside upload_documents() above - that endpoint is unchanged.
     # No file bytes here, just a document_id + a presigned S3 PUT url the client uploads to directly.
-    userProfile = require_role(body.user_profile, Role.HR_SUPPORT)
+    userProfile = require_role(body.user_profile, Role.HR_SUPPORT, Role.ADMIN)
     await enforce_rate_limit(request)
 
     if body.content_type != ALLOWED_CONTENT_TYPE and not body.filename.lower().endswith(".pdf"):
@@ -193,7 +193,7 @@ async def request_presigned_upload(body: PresignedUploadRequest, request: Reques
 @router_ingest_document.get("/documents", response_model=DocumentListResponse)
 async def list_documents(user_profile: UserProfile | None = Depends(identity_from_query_params)):
     """List every uploaded document and its current status."""
-    require_role(user_profile, Role.HR_SUPPORT)
+    require_role(user_profile, Role.HR_SUPPORT, Role.ADMIN)
     documents = await documents_service.list_documents()
     return DocumentListResponse(count=len(documents), documents=[DocumentRecord.from_row(doc) for doc in documents])
 
@@ -201,7 +201,7 @@ async def list_documents(user_profile: UserProfile | None = Depends(identity_fro
 @router_ingest_document.get("/documents/cleanup/preview", response_model=TestNoisePreviewResponse)
 async def preview_test_noise_documents(user_profile: UserProfile | None = Depends(identity_from_query_params)):
     """Preview only - what DELETE .../documents/cleanup would remove, without removing anything."""
-    require_role(user_profile, Role.HR_SUPPORT)
+    require_role(user_profile, Role.HR_SUPPORT, Role.ADMIN)
     documents = await documents_service.list_test_noise_documents(TEST_NOISE_MAX_FILE_SIZE_BYTES)
     return TestNoisePreviewResponse(
         count=len(documents),
@@ -213,7 +213,7 @@ async def preview_test_noise_documents(user_profile: UserProfile | None = Depend
 @router_ingest_document.delete("/documents/cleanup", response_model=DocumentDeleteAllResponse)
 async def delete_test_noise_documents(identity: IdentityPayload, request: Request):
     """Delete every document below TEST_NOISE_MAX_FILE_SIZE_BYTES - same full-delete semantics as DELETE /documents."""
-    userProfile = require_role(identity.user_profile, Role.HR_SUPPORT)
+    userProfile = require_role(identity.user_profile, Role.HR_SUPPORT, Role.ADMIN)
     await enforce_rate_limit(request)
     result = await documents_service.delete_test_noise_documents(
         TEST_NOISE_MAX_FILE_SIZE_BYTES, deleted_by=userProfile.employee_id
@@ -224,7 +224,7 @@ async def delete_test_noise_documents(identity: IdentityPayload, request: Reques
 @router_ingest_document.get("/documents/{document_id}", response_model=DocumentRecord)
 async def get_document(document_id: str, user_profile: UserProfile | None = Depends(identity_from_query_params)):
     """Get one document's metadata by id."""
-    require_role(user_profile, Role.HR_SUPPORT)
+    require_role(user_profile, Role.HR_SUPPORT, Role.ADMIN)
     document = await documents_service.get_document(document_id)
 
     if document is None:
@@ -236,7 +236,7 @@ async def get_document(document_id: str, user_profile: UserProfile | None = Depe
 @router_ingest_document.delete("/documents/{document_id}", response_model=DocumentDeleteResponse)
 async def delete_document(document_id: str, identity: IdentityPayload, request: Request):
     """Delete one document completely: vectors, metadata rows, uploaded file."""
-    userProfile = require_role(identity.user_profile, Role.HR_SUPPORT)
+    userProfile = require_role(identity.user_profile, Role.HR_SUPPORT, Role.ADMIN)
     await enforce_rate_limit(request)
     result = await documents_service.delete_document(document_id, deleted_by=userProfile.employee_id)
 
@@ -249,7 +249,7 @@ async def delete_document(document_id: str, identity: IdentityPayload, request: 
 @router_ingest_document.delete("/documents", response_model=DocumentDeleteAllResponse)
 async def delete_all_documents(identity: IdentityPayload, request: Request):
     """Delete every document completely - same full delete as DELETE /documents/{id}, just for all of them."""
-    userProfile = require_role(identity.user_profile, Role.HR_SUPPORT)
+    userProfile = require_role(identity.user_profile, Role.HR_SUPPORT, Role.ADMIN)
     await enforce_rate_limit(request)
     result = await documents_service.delete_all_documents(deleted_by=userProfile.employee_id)
     return DocumentDeleteAllResponse(**result)

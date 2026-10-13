@@ -1,0 +1,273 @@
+<title>Admin Secret Code - Design</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --live: #147a4a; --live-bg: #e3f5eb; --live-border: #b5e3c8;
+    --design: #9a5a0c; --design-bg: #fbf1dd; --design-border: #edd6a2;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --cost: #a4321f; --cost-bg: #fbe9e5; --cost-border: #f0c3b8;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0d3d34; --lib-chip-bg: #eaf1ee; --lib-chip-text: #43554c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+      --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0b2b25; --lib-chip-bg: #1c2622; --lib-chip-text: #a7b8ae;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+    --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0b2b25; --lib-chip-bg: #1c2622; --lib-chip-text: #a7b8ae;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  section.panel { display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .panel-num { width: 30px; height: 30px; border-radius: 9px; background: var(--band-dark); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13px; }
+  .panel-title { display: flex; flex-direction: column; }
+  .panel-title .name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; }
+  .panel-title .sub { font-size: 12px; color: var(--text-faint); }
+  .panel p { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+  /* API contract blocks */
+  .endpoint { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .endpoint-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface-alt); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .http-verb { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
+  .http-verb.post { color: var(--live); background: var(--live-bg); border: 1px solid var(--live-border); }
+  .endpoint-path { font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; }
+  .endpoint-desc { font-size: 11.5px; color: var(--text-faint); margin-left: auto; }
+  .endpoint-body { padding: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 700px) { .endpoint-body { grid-template-columns: 1fr; } }
+  .schema-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); margin-bottom: 6px; }
+  pre.schema { margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; line-height: 1.6; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; color: var(--text); }
+  .err-row { display: flex; gap: 8px; align-items: baseline; font-size: 12px; padding: 4px 0; }
+  .err-code { font-family: 'IBM Plex Mono', monospace; font-weight: 700; color: var(--cost); flex: none; }
+  .err-why { color: var(--text-muted); }
+
+  /* DB schema table */
+  table.db-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.db-table th { text-align: left; font-family: 'Archivo', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  table.db-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.db-table td.col-name { font-family: 'IBM Plex Mono', monospace; font-weight: 600; }
+  table.db-table td.col-type { font-family: 'IBM Plex Mono', monospace; color: var(--text-faint); white-space: nowrap; }
+  .pk-chip { font-size: 9.5px; font-weight: 700; padding: 1px 6px; border-radius: 5px; background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); margin-left: 6px; }
+
+  /* NFR table */
+  table.nfr-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.nfr-table th { text-align: left; font-family: 'Archivo', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  table.nfr-table td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text-muted); }
+  table.nfr-table td.nfr-name { color: var(--text); font-weight: 600; }
+
+  .flow-list { display: flex; flex-direction: column; gap: 8px; }
+  .flow-item { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
+  .flow-num { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 700; margin-top: 1px; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">design - API contracts, DB schema, flows, narrow NFR</div>
+    <h1 class="display">Admin Secret Code</h1>
+    <p class="subtitle">The real wire shapes and the one table this feature owns - grounded directly in <span class="mono">models/auth.py</span>, <span class="mono">api/auth/login.py</span>, and <span class="mono">admin_credential_store.py</span>, not re-derived from memory.</p>
+    <div class="doc-nav">
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <span class="doc-nav-item current">Design</span>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">1</div>
+      <div class="panel-title">
+        <span class="name display">API contracts</span>
+        <span class="sub">request/response shapes, every error code</span>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-head">
+        <span class="http-verb post">POST</span>
+        <span class="endpoint-path">/v1/auth/login</span>
+        <span class="endpoint-desc">no RBAC gate - this *is* the identity check</span>
+      </div>
+      <div class="endpoint-body">
+        <div>
+          <div class="schema-label">LoginRequest</div>
+          <pre class="schema">{
+  "employee_id": "ADM001",
+  "full_name": "string",
+  "role": "admin",
+  "secret_code": "string | null"  // only read when role == "admin"
+}</pre>
+        </div>
+        <div>
+          <div class="schema-label">LoginResponse (200)</div>
+          <pre class="schema">{
+  "user_profile": {
+    "employee_id": "ADM001",
+    "full_name": "string",
+    "role": "admin"
+  },
+  "must_reset_secret_code": true | false
+}</pre>
+        </div>
+      </div>
+      <div class="endpoint-body" style="grid-template-columns: 1fr;">
+        <div>
+          <div class="schema-label">Errors</div>
+          <div class="err-row"><span class="err-code">401 UNKNOWN_PERSONA</span><span class="err-why">employee_id/full_name/role doesn't match the fixed roster - checked before the secret code at all</span></div>
+          <div class="err-row"><span class="err-code">401 INVALID_ADMIN_SECRET_CODE</span><span class="err-why">role is admin and the code doesn't verify (wrong code, or the seed was never matched for a brand-new row)</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-head">
+        <span class="http-verb post">POST</span>
+        <span class="endpoint-path">/v1/admin/reset-secret-code</span>
+        <span class="endpoint-desc">require_role(ADMIN)</span>
+      </div>
+      <div class="endpoint-body">
+        <div>
+          <div class="schema-label">ResetSecretCodeRequest</div>
+          <pre class="schema">{
+  "user_profile": {
+    "employee_id": "ADM001",
+    "full_name": "string",
+    "role": "admin"
+  },
+  "current_secret_code": "string",
+  "new_secret_code": "string"  // min_length=1
+}</pre>
+        </div>
+        <div>
+          <div class="schema-label">ResetSecretCodeResponse (200)</div>
+          <pre class="schema">{
+  "employee_id": "ADM001",
+  "reset": true
+}</pre>
+        </div>
+      </div>
+      <div class="endpoint-body" style="grid-template-columns: 1fr;">
+        <div>
+          <div class="schema-label">Errors</div>
+          <div class="err-row"><span class="err-code">401 / 403</span><span class="err-why">require_role() - missing/non-admin user_profile</span></div>
+          <div class="err-row"><span class="err-code">401 INVALID_ADMIN_SECRET_CODE</span><span class="err-why">current_secret_code doesn't verify against the stored hash</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">2</div>
+      <div class="panel-title">
+        <span class="name display">DB schema</span>
+        <span class="sub">admin_credentials - the one table this feature owns</span>
+      </div>
+    </div>
+    <table class="db-table">
+      <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="col-name">employee_id<span class="pk-chip">PK</span></td><td class="col-type">TEXT</td><td>Always <span class="mono">ADM001</span> today - one row total. PK rather than a surrogate id since there's exactly one credential per admin identity.</td></tr>
+        <tr><td class="col-name">secret_code_hash</td><td class="col-type">TEXT NOT NULL</td><td><span class="mono">sha256(salt + secret_code)</span>, hex-encoded. Never the plaintext code.</td></tr>
+        <tr><td class="col-name">secret_code_salt</td><td class="col-type">TEXT NOT NULL</td><td><span class="mono">secrets.token_hex(16)</span>, regenerated on every seed/reset - a fresh random salt each time, not reused across rows (moot today with one row, but correct practice regardless).</td></tr>
+        <tr><td class="col-name">must_reset</td><td class="col-type">BOOLEAN NOT NULL DEFAULT TRUE</td><td>True only while the stored code is still the one-time seed; flips to false the moment a real reset succeeds.</td></tr>
+        <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ NOT NULL DEFAULT now()</td><td>Bumped on every successful reset - not on a login/verify, which never writes.</td></tr>
+      </tbody>
+    </table>
+    <p>Postgres only - same connection <span class="mono">feedback_store.py</span>/<span class="mono">conversation_store.py</span> already use, same <span class="mono">psycopg</span> + <span class="mono">asyncio.to_thread()</span> pattern as every other store in this project. No SQLite path - this table didn't exist before the metadata store migrated to Postgres in production, so there was no legacy SQLite shape to also support.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">3</div>
+      <div class="panel-title">
+        <span class="name display">Key flows</span>
+        <span class="sub">step-by-step, in plain language</span>
+      </div>
+    </div>
+    <div class="grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">
+      <div>
+        <div class="schema-label" style="margin-bottom:8px;">First-ever admin login</div>
+        <div class="flow-list">
+          <div class="flow-item"><span class="flow-num">1</span><span>No <span class="mono">admin_credentials</span> row exists for <span class="mono">ADM001</span> yet.</span></div>
+          <div class="flow-item"><span class="flow-num">2</span><span><span class="mono">get_or_seed()</span> inserts one, hashing the one-time seed code, <span class="mono">must_reset=true</span>.</span></div>
+          <div class="flow-item"><span class="flow-num">3</span><span>Login succeeds if the caller's code matches the seed; response flags <span class="mono">must_reset_secret_code: true</span>.</span></div>
+          <div class="flow-item"><span class="flow-num">4</span><span>UI routes to the reset screen before normal use continues.</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="schema-label" style="margin-bottom:8px;">Every login after that</div>
+        <div class="flow-list">
+          <div class="flow-item"><span class="flow-num">1</span><span>A row already exists - <span class="mono">get_or_seed()</span> returns it unchanged, no write.</span></div>
+          <div class="flow-item"><span class="flow-num">2</span><span><span class="mono">verify_secret_code()</span> hashes the caller's candidate with the stored salt and compares.</span></div>
+          <div class="flow-item"><span class="flow-num">3</span><span>Match -&gt; 200 with <span class="mono">must_reset_secret_code: false</span>. No match -&gt; 401, no row touched.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">4</div>
+      <div class="panel-title">
+        <span class="name display">NFR - narrow, feature-scoped</span>
+        <span class="sub">system-wide scaling/security lives in <a href="../design/scaling-latency-design.html">scaling-latency-design.html</a> - this is only what's specific to this one feature</span>
+      </div>
+    </div>
+    <table class="nfr-table">
+      <thead><tr><th>NFR</th><th>Built (today)</th><th>Target / known gap</th></tr></thead>
+      <tbody>
+        <tr><td class="nfr-name">Credential confidentiality</td><td>Salted SHA-256 hash, never plaintext, constant-time compare</td><td>Deliberately not deliberately-slow (bcrypt/argon2) - proportionate for one admin passphrase, not a password system at real user-scale (see <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>)</td></tr>
+        <tr><td class="nfr-name">Brute-force resistance</td><td>Global Redis-backed rate limiter (<span class="mono">APP_RATE_LIMITING</span>) applies to this route like every other</td><td>No dedicated lockout-after-N-failed-attempts specific to this one credential</td></tr>
+        <tr><td class="nfr-name">Availability</td><td>Single Postgres row read on every login - negligible load, scales with the whole metadata store (Panel 7, system-wide doc)</td><td>N/A - this is the lightest-weight table in the whole schema</td></tr>
+        <tr><td class="nfr-name">Multi-admin support</td><td>Not built - <span class="mono">employee_id</span> as PK assumes exactly one admin identity</td><td>Would need the PK to stay a real key (it already is) plus an admin-management UI - not currently a requirement</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">5</div>
+      <div class="panel-title">
+        <span class="name display">Known limitations</span>
+      </div>
+    </div>
+    <p>Single hardcoded persona (<span class="mono">ADM001</span>) - adding a second admin means a second known-personas row plus a second <span class="mono">admin_credentials</span> row, not a schema change (the table already supports it, nothing in the design assumes exactly one row - only today's product scope does). Role itself stays self-asserted in the request body, unchanged by this feature (documented project-wide, <span class="mono">api/gateway/rbac.py</span>) - this only raises the bar for successfully claiming the admin role, not for every request afterward.</p>
+  </section>
+
+  <footer>
+    Companion to <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a> (sequence diagrams) and <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=admin-secret-code&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a> (why these specific choices). Part of the Phase 179 Spec/Architecture/Design/Decisions pilot.
+  </footer>
+</div>

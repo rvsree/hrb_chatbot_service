@@ -12939,3 +12939,2329 @@ Explicitly deferred to a later, separate wave - not part of the above:
       production, the account's SES sandbox mode means only pre-verified
       recipients can actually receive mail - a distinct, still-open
       decision from the config gap itself.
+
+- [ ] **Phase 162 — User-directed: "Request Unpaid Leave" - a second A2A/HITL
+  workflow, cross-repo with `hrb_lms_mcp`, explicitly separate from the
+  GenAI Chat Workflow.**
+  - **Context**: follow-on from two design proposals this session
+    (`docs/dev-reference/genai-chat-workflow-memory-design.html`,
+    `docs/dev-reference/leave-approval-a2a-design.html`). The user
+    confirmed: don't touch the GenAI Chat Workflow for this; a new
+    checkbox + popup instead; the eligibility check (has the employee
+    taken this leave type in the last 12 months) runs before routing to
+    HITL; and crucially - **build the `hrb_lms_mcp` prerequisite this
+    phase too**, not defer it. That prerequisite work is already done and
+    live-verified (see below) - it was the one hard blocker the design
+    doc flagged (no `approve`/`reject`/`resolve` method existed anywhere
+    for any HITL or leave-exception request, confirmed by grep against
+    both repos).
+  - **Spec:**
+    - **`hrb_lms_mcp` (separate repo, `C:\workspace\poc\2026\hrb_lms_mcp`,
+      no SDD/spec-gate of its own - done directly, not hook-gated)**:
+      - `HitlService.resolve_hitl_request(hitl_request_id, decision,
+        response_text, resolved_by)` - the missing half of the HITL
+        loop. Writes `response`/`responded_at`, flips `status` to
+        `COMPLETED`; when `related_entity_type == "leave_request"`, also
+        flips that `LeaveRequest`'s own `status` to `APPROVED`/`REJECTED`
+        in the same transaction, so the two can never drift apart.
+        Guards: already-resolved (`BusinessException` `ALREADY_RESOLVED`),
+        invalid decision string (`INVALID_DECISION`).
+      - `LeaveRequestService.submit_unpaid_leave_request(employee_id,
+        start_date, end_date, purpose, is_repeat_within_12_months,
+        document_reference)` - a dedicated method, not a new branch
+        inside `submit_leave_request()` (that one's balance-exception
+        branching doesn't apply - unpaid leave has no balance). Always
+        creates the `LeaveRequest` (`status=PENDING_HITL`) and a
+        `HitlRequest` (`request_type="UNPAID_LEAVE_REQUEST"`) together.
+        `is_repeat_within_12_months` is computed by the caller (the
+        `hrb_chatbot_v2` agent checks `get_leave_history` itself) and
+        carried through as context/priority (`HIGH` if repeat, `MEDIUM`
+        otherwise) - never re-derived server-side, so there's one source
+        of truth for what the specialist was actually told.
+      - 2 new `@mcp.tool()` registrations in `lms_mcp_tools.py`
+        (`resolve_hitl_request`, `submit_unpaid_leave_request`), 2 new
+        Pydantic args models, matching the file's own existing
+        validate-log-execute-log pattern exactly.
+      - No new tables, no new columns - reuses `hitl_requests`'
+        existing `context` JSON column for the document reference and
+        repeat flag, exactly as the design doc proposed.
+    - **`hrb_chatbot_v2`**:
+      - New MCP tool wrappers (`ai/rag_pipeline/tools/mcp_tools/`) for
+        `submit_unpaid_leave_request` and `resolve_hitl_request`, same
+        `_call_mcp_tool()` + `json.loads(content[0])` pattern as the
+        existing `get_leave_balance`/`get_leave_history` wrappers -
+        confirmed live that FastMCP returns one pretty-printed JSON text
+        block per call, not a result object, so every new wrapper parses
+        it the same way.
+      - A small, real LangGraph `StateGraph` (2 nodes: eligibility-check
+        -> submit), not a decorative one - genuinely separate steps with
+        state threading between them, matching this project's own
+        established "not every node needs an LLM call" principle
+        (Phase 160's own finding: only 2 of 7 `multi_agent_pipeline.py`
+        nodes make a real LLM call). Both nodes here are LLM-free,
+        deterministic tool calls - same shape as `vector_kb_agent`/
+        `lms_ops_agent`'s own domain agents, not `orchestration_agent`'s
+        ReAct loop, since there's no reasoning to do: call
+        `get_leave_history`, filter for `leaveType == "UNPAID"` and
+        `startDate` within the trailing 365 days, pass the resulting
+        boolean straight through.
+      - New private S3 bucket for leave documents (`LEAVE_DOCS_S3_BUCKET`
+        setting, read the same ad-hoc way `S3_UPLOAD_BUCKET` already is)
+        - never the KB `S3_UPLOAD_BUCKET`. Confirmed why this matters:
+        the KB ingestion Lambda triggers off a whole-bucket S3 event
+        notification (`docs/agent-reference/S3-ASYNC-UPLOAD-DESIGN.md`,
+        `AWS-DEVOPS-RUNBOOK.md`), not a prefix filter - dropping a leave
+        document into `S3_UPLOAD_BUCKET` would silently feed it into the
+        shared RAG vector index.
+      - New route, request/response Pydantic models (multipart form,
+        same shape as `adhoc_document_chat.py`'s own upload handling -
+        `leave_type`/`start_date`/`end_date`/`purpose` fields plus an
+        optional file). Open to all 3 roles (the employee submitting),
+        not `hr_support`-gated.
+      - New specialist-side route(s): list pending `UNPAID_LEAVE_REQUEST`
+        HITL requests, and resolve one (`hr_support`-only, same RBAC
+        pattern as the existing Admin menu routes). A summarization LLM
+        call here is real, deliberate scope for a later slice of this
+        same phase, not built in this first pass - the resolve action
+        itself is never an LLM call, matching the user's own scope
+        boundary that a human specialist decides, not the model.
+    - **`hrb_chatbot_ui`**: new "Request Unpaid Leave" checkbox opening
+      a dedicated popup (separate from the GenAI Chat Workflow's
+      attach-files popup - explicitly not touched this phase), with
+      client-side validation on the structured fields before submit.
+      Specialist queue UI is a later slice of this same phase, flagged
+      separately below.
+  - **Verification plan:** `hrb_lms_mcp` - direct service-layer calls
+    against the real local Postgres (not mocked), confirming the
+    submit-then-resolve round trip for both `APPROVED`/`REJECTED`, the
+    repeat-flag propagating into `query`/`context`, the already-resolved
+    guard, and the invalid-decision guard; then the same round trip again
+    through the real MCP wire protocol (not just the Python service
+    layer), against the user's own already-running local `hrb_lms_mcp`
+    instance - confirms the content-block JSON-parsing assumption
+    `hrb_chatbot_v2`'s new wrappers depend on, not just that the service
+    method works. `hrb_chatbot_v2` - unit tests for the new agent/graph
+    and routes (fakes for the MCP calls, matching every other test in
+    this project), full suite green, then a live call against a local
+    backend exercising the real new MCP tools end to end.
+  - **Built and verified, `hrb_lms_mcp` + `hrb_chatbot_v2` halves - NOT
+    pushed/deployed** (same standing instruction; `hrb_chatbot_ui`
+    continues as a later slice of this same phase, not done in this pass):
+    - **`hrb_lms_mcp`**: `resolve_hitl_request`/`submit_unpaid_leave_request`
+      built exactly as spec'd above. A 3rd tool turned out to be required
+      and wasn't in the original spec - **`list_hitl_requests`** -
+      discovered mid-implementation: `create_hitl_request`/
+      `get_hitl_status` only ever operated on one already-known ID;
+      nothing could list what's pending, which a specialist queue
+      fundamentally needs. Added the same way, same validate-log-execute
+      pattern, no new table (reuses the existing `hitl_requests` table,
+      just a new read path over it).
+      - **Live-verified**, 3 layers: (1) direct `LeaveRequestService`/
+        `HitlService` calls against real local Postgres - submit creates
+        `PENDING_HITL` + a `PENDING` HITL request; resolve-APPROVED flips
+        both to `COMPLETED`/`APPROVED` with `approved_at` set; a 2nd
+        request flagged `is_repeat_within_12_months=True` correctly shows
+        `REPEAT REQUEST` in `query` and `true` in `context`, and
+        resolve-REJECTED flips both to `COMPLETED`/`REJECTED` with
+        `rejection_reason` set; double-resolve raises `ALREADY_RESOLVED`;
+        an invalid decision string raises `INVALID_DECISION`. (2) The
+        same submit-then-resolve round trip again through the real MCP
+        wire protocol (`streamablehttp_client` + real OAuth2 token)
+        against the user's own already-running local `hrb_lms_mcp`
+        instance - confirmed the tools are actually registered and
+        reachable over the wire, not just importable Python. `
+        list_hitl_requests` needed its own separate confirmation - the
+        running dev server's `--reload` hadn't yet picked up that file
+        change when first tested (`"Unknown tool"`), so it was instead
+        confirmed correct via a fresh process import (`mcp.list_tools()`
+        showing all 9 registered tools) before re-confirming live once
+        the reload caught up. (3) Confirmed FastMCP's real content-block
+        format directly (one pretty-printed JSON text block per call) by
+        inspecting a live `get_leave_history` response - the exact
+        assumption `hrb_chatbot_v2`'s new wrappers below are built on.
+    - **`hrb_chatbot_v2`**: `ai/rag_pipeline/tools/mcp_tools/__init__.py`
+      gained `get_leave_history_parsed`/`submit_unpaid_leave_request`/
+      `resolve_hitl_request` wrappers; new
+      `ai/agents/workflow_agents/unpaid_leave_agent.py` (the 2-node
+      `StateGraph`); new `common/clients/storage_client/
+      s3_upload_client.py::generate_leave_document_upload_url()` (a
+      separate `LEAVE_DOCS_S3_BUCKET`, confirmed why: the KB ingestion
+      Lambda's S3 trigger is a whole-bucket event notification, not
+      prefix-scoped); new `models/unpaid_leave.py`; new
+      `api/leave/unpaid_leave.py` (4 routes: `upload-url`, `request` -
+      both open to all 3 roles - `pending`/`resolve` - both `hr_support`
+      only, same per-route `require_role()` pattern as every other
+      route); registered in `main.py` under `/v1/unpaid-leave`.
+      - **Tests**: 14 new (5 for the agent's eligibility-window logic -
+        no prior UNPAID leave, one within 365 days, one older than 365
+        days excluded, a different leave type not counted, the document
+        reference threading through; 9 for the 4 routes - success,
+        repeat-flag pass-through, failure-to-500, RBAC rejection both
+        directions, the list/resolve/upload-url happy paths). Full
+        suite: 547 passed, 0 failed.
+      - **Live-verified end to end**, against a local backend hitting
+        the user's real running `hrb_lms_mcp` instance (not faked): a
+        real submit call correctly computed `is_repeat_within_12_months:
+        true` for an employee with recent unpaid-leave history (real
+        eligibility logic, not a hardcoded value); the returned
+        `hitl_request_id` was then really resolved via `/resolve`
+        (`COMPLETED`/`APPROVED`, `related_leave_request_updated: true`);
+        `/pending` correctly listed only the still-open request, not the
+        one just resolved; `/resolve` called with an `employee` role
+        correctly returned 403.
+    - **`hrb_chatbot_ui`**: new "Request Unpaid Leave" checkbox in the left
+      sidebar (mode-independent, unlike the GenAI Chat Workflow's own
+      checkbox - deliberately not touching that popup at all, per explicit
+      direction), opening a new `UnpaidLeaveModal` (start/end date,
+      purpose, optional document) with client-side validation
+      (`end >= start`, non-empty purpose, `.pdf`/`.docx` + 10MB file check)
+      ahead of the backend's own validation, same presigned-upload pattern
+      already used for KB documents (`getLeaveDocumentUploadUrl` ->
+      `uploadFileToS3` -> submit with the resulting key). New
+      `LeaveApprovalsPage` (`hr_support`-only, same client-side role-gate
+      pattern as `UploadPage`/`DocumentsPage`) under a new "Leave
+      approvals" Admin menu entry - lists pending requests with an
+      Approve/Reject note field each, calling the new `resolve` endpoint.
+      - **Verified**: `tsc --noEmit` clean, `npm run lint` shows only
+        pre-existing warnings unrelated to these files, `npm run build`
+        succeeds. No browser-automation tool is available in this
+        session, so the actual click-through UI was not exercised
+        directly - flagged explicitly rather than assumed working. What
+        *was* verified as the closest substitute: fetched the new
+        `.tsx` files through the user's own already-running Vite dev
+        server (port 5173) and confirmed they transform cleanly (HTTP
+        200, no compile error); then issued the exact HTTP calls a
+        browser's `fetch()` would make - real `Origin: http://localhost:
+        5173` headers on a CORS preflight and on the real
+        submit/list/resolve calls - confirming the backend's CORS config
+        (`access-control-allow-origin` echoing that exact origin) permits
+        every new endpoint the UI calls, not just that the backend logic
+        works in isolation. This is real integration verification, not a
+        substitute for someone actually opening the page and clicking
+        through it.
+
+- [ ] **Phase 163 — User-directed: GenAI Chat Workflow Memory - session
+  continuity + a checkbox-driven email path, kept strictly independent of
+  the already-working model-decision email path.**
+  - **Context**: follow-on from `docs/dev-reference/
+    genai-chat-workflow-memory-design.html`. The user's explicit hard
+    requirement this phase: a single-turn, self-contained request (e.g.
+    "Summarize X concisely, also send email to Y") must keep triggering
+    `SendEmailWithAnswer` exactly as it does today, regardless of whether
+    session memory exists for that conversation - memory must never
+    become a precondition for, or interfere with, that already-working
+    path. Confirmed directly (not assumed) before this phase started:
+    that path already works correctly both locally (a real email sent in
+    Phase 161's own verification) and in AWS (CloudWatch logs show
+    `SendEmailWithAnswer` called correctly on every real attempt) - the
+    AWS failure is `SES_SENDER_EMAIL` never being configured there, a
+    separate, still-open infra gap this phase does not touch or re-attempt
+    (blocked by the permission system as a "Production Deploy" action
+    last time; still needs the user's own action or explicit
+    re-authorization).
+  - **One deliberate deviation from the design doc's own Option A
+    (SQLite dev / Postgres prod)**: found a closer, already-proven
+    precedent in this exact codebase - `conversation_store.py`
+    (genai-rag's own equivalent memory) is Postgres-only, no SQLite
+    fallback at all, same Neon database used everywhere including local
+    dev. Mirroring that exactly instead of building a new dual-backend
+    swap: simpler, no schema-drift risk between two backends, and this
+    project's own closest precedent for "should this be swappable"
+    already answered no. Flagged here for the user to correct if they
+    specifically want SQLite for this one, rather than silently assumed.
+  - **Spec:**
+    - **`common/clients/db_client/chat_workflow_store.py`** (new,
+      Postgres-only, same `psycopg` + `asyncio.to_thread()` pattern as
+      `conversation_store.py`): `chat_session_records`/
+      `chat_turn_records`/`email_send_events` tables, column names as
+      finalized in the design doc (`email_status` not a boolean,
+      `turn_sequence_number`, `trigger_source`
+      `'model_decision'`/`'checkbox_auto'`, `attached_file_names` as
+      JSON-as-text). Methods: `start_or_touch_session()`, `save_turn()`
+      (computes `turn_sequence_number` itself), `load_turns()`,
+      `save_email_event()`, `list_sessions()` (for a later UI slice, see
+      below).
+    - **`db_gateway.py`**: new `chat_workflow_store()` lazy singleton,
+      matching `conversation_store()`.
+    - **`adhoc_document_agent.py`**: `run_agent()` gains an optional
+      `chat_history: list[BaseMessage] | None` parameter, threaded into
+      `messages` the exact same way `orchestration_agent.py` already
+      does it (`[SystemMessage, *chat_history, HumanMessage(question)]`).
+      **The existing `SendEmailWithAnswer` tool-calling logic itself is
+      not touched at all** - this is the concrete mechanism that
+      satisfies "regardless of memory": the tool is defined and available
+      to the model whether `chat_history` is `None`, empty, or populated,
+      exactly as it is today.
+    - **`adhoc_document_chat.py`**: resolves `session_id` the same way
+      `orchestration_agent.py` resolves `conversation_id` (client-sent or
+      server-generated via `uuid.uuid4().hex`), always-on for this
+      workflow (not an opt-in flag, unlike the other 3 modes). Loads
+      prior turns via `chat_workflow_store.load_turns()` when a
+      `session_id` was sent. New Form fields: `send_email_on_answer:
+      bool`, `cc_email: str | None`. After `run_agent()` returns: if
+      `send_email_on_answer` is true and `recipient_email` is a valid
+      address, the **route itself** calls `send_email()` directly -
+      `trigger_source="checkbox_auto"` - deliberately separate code from
+      the agent's own in-text `SendEmailWithAnswer` call
+      (`trigger_source="model_decision"`, captured inside the agent as
+      `email_evidence` already is today). Both paths can legitimately
+      fire in the same turn (a known, accepted edge case - not
+      cross-suppressed, not worth the complexity for this phase); every
+      attempt from either path gets its own `email_send_events` row via
+      `save_email_event()`; the API response's single `email_evidence`
+      field prioritizes the checkbox-auto event when both fired (the
+      more deterministic, explicitly-requested one). Every turn (success
+      or not) is saved via `save_turn()`; `session_id` is always in the
+      response now.
+    - **`models/adhoc_chat.py`**: `session_id: str` always on the
+      response; new `send_email_on_answer`/`cc_email` request fields.
+    - **`hrb_chatbot_ui`**: attach-files popup gains the "Send email on
+      answer" checkbox (off by default) revealing To/CC fields, with
+      real client-side email-format validation and a friendly inline
+      error (not a raw regex failure) - matches the design doc's own
+      spec exactly. `ChatPage.tsx` threads `session_id` across adhoc
+      turns in component state (new on first send, reused until
+      `clearAdhocFiles()` resets it - the natural session boundary this
+      UI already has).
+  - **Explicitly deferred to a later slice, not this phase**: the full
+    left-panel split into "RAG AI CHAT HISTORY" / "GENAI RAG WORKFLOW
+    HISTORY" as two separate, independently-loadable sidebar sections
+    (list + detail view, mirroring `ConversationSidebar.tsx`'s existing
+    mechanics for the other 3 modes). `list_sessions()` exists backend-
+    side so that slice isn't blocked later, but the sidebar UI itself
+    isn't built this phase - scoped down deliberately (flagged, not
+    silently dropped) to keep this phase to the user's explicitly
+    re-emphasized core ask: memory + reliable email, not a new sidebar
+    surface.
+  - **Verification plan:** unit tests (fakes for the new store, matching
+    every other test in this project) for session creation/continuation,
+    turn persistence, both email trigger paths firing independently and
+    together, the checkbox-auto path correctly skipped when no valid
+    recipient is given. Full suite green. Live: a real multi-turn local
+    conversation (attach a file, ask a question, ask a follow-up
+    referencing the first answer - confirms memory is real, not just
+    plumbed) plus a real single-turn "summarize and email" request with
+    no prior history at all, confirming the model-decision path still
+    fires with zero history present - the user's own explicit
+    reproduction case.
+  - **Built and verified - NOT pushed/deployed** (same standing
+    instruction - implement, self-verify, stop before commit):
+    - **Backend**: `common/clients/db_client/chat_workflow_store.py`
+      (new) built exactly as spec'd - `chat_session_records`/
+      `chat_turn_records`/`email_send_events`, Postgres-only, same
+      `psycopg` + `asyncio.to_thread()` pattern as `conversation_store.py`.
+      `db_gateway.py` gained the matching `chat_workflow_store()`
+      singleton. `adhoc_document_agent.py::run_agent()` gained the
+      optional `chat_history` parameter, threaded the same way
+      `orchestration_agent.py` already does it, plus 2 new system-prompt
+      guidance blocks (see below - both added only after live testing
+      exposed real bugs, not written speculatively).
+      `ses_client.py::send_email()`/`_build_raw_message()` gained
+      `cc_addresses`. `models/adhoc_chat.py` gained the always-present
+      `session_id` field and the request's `send_email_on_answer`/
+      `cc_email` fields. `adhoc_document_chat.py` rewritten: resolves
+      `session_id` (client-sent or server-generated), loads prior turns
+      into `chat_history` when a `session_id` was sent (best-effort -
+      logs and continues with empty history on failure), validates
+      `send_email_on_answer`'s recipient/CC at 422 before calling the
+      agent, fires the `checkbox_auto` email path independently of the
+      model's own `SendEmailWithAnswer` decision, and persists every turn
+      via `save_turn()`/`save_email_event()` (also best-effort).
+      - **2 real bugs found and fixed via live testing, not by unit
+        tests with fakes**: (1) a prior turn's own "...send email to
+        given id" phrasing, once present in `chat_history`, caused the
+        model to re-attempt `SendEmailWithAnswer` on a later, unrelated
+        follow-up turn, trying to send to the literal string "given id"
+        (a real SES failure) - fixed with explicit system-prompt
+        guidance scoping the email decision to the user's *current*
+        message only, never history. (2) because `chat_history` only
+        ever carried plain answer text, a later "did you send it?" turn
+        had no way to know an earlier email had actually succeeded - the
+        model said it hadn't been sent when it had, which is the exact
+        bug from the user's own original production report, now
+        *reintroduced by the memory feature itself*. Fixed via a
+        `stored_response_text` mechanism: a factual `[System note: ...]`
+        outcome marker is appended to what's persisted for future
+        `chat_history` reconstruction (success or failure, with the
+        real recipient/error), but never to what the user is shown;
+        paired with system-prompt guidance on how to use the note
+        (answer truthfully, never quote it verbatim). Both fixes
+        re-verified together in a fresh live 2-turn test afterward.
+      - Also caught and fixed during implementation (not live-test
+        findings, just self-review): a `turn_count_total` off-by-one in
+        `chat_workflow_store.py`'s session-touch INSERT (0 instead of 1,
+        caught via a direct live round-trip test showing the wrong
+        count).
+      - **Tests**: `tests/conftest.py` gained `FakeChatWorkflowStore`.
+        ~20 new tests across `test_adhoc_document_chat.py` (session_id
+        always returned and echoed back, prior turns loaded into
+        history, checkbox email validation/success/failure, priority
+        over model-decision when both fire, the 3 `stored_response_text`
+        regression tests) and `test_adhoc_document_agent.py` (chat_history
+        threading, `SendEmailWithAnswer` still firing with/without
+        history, a system-prompt-content regression test - deliberately
+        rewritten after an initial draft would have been a tautology,
+        since it controlled the fake LLM's own response directly; real
+        LLM compliance was checked live, not by this unit test) and 3 new
+        `test_ses_client.py` CC tests. Full suite: 566 passed, 0 failed.
+      - **Live-verified, a real 2-turn local scenario** - turn 1 (fresh
+        session): "Summarize Accenture offer concisely. also send email
+        with the details to given id" with a real recipient - real email
+        sent, `session_id` returned. Turn 2 (same `session_id`): "did you
+        send the email, and what was the base salary you summarized
+        earlier?" - after both fixes, `email_sent_to: null` (no spurious
+        resend) and the answer correctly confirms the email was sent and
+        restates the base salary from turn 1. Separately verified the
+        `checkbox_auto` path (a question with no email language at all,
+        `send_email_on_answer=true`) sends independently of question
+        content.
+    - **Frontend (`hrb_chatbot_ui`)**: `types.ts` gained the always-present
+      `session_id` field on `AdhocDocumentChatResponse`. `client.ts`'s
+      `askAdhocDocumentChat()` gained an `AdhocChatOptions` parameter
+      (`sessionId`/`sendEmailOnAnswer`/`ccEmail`), appended to the
+      `FormData` only when present - matches the backend's own
+      all-optional design, nothing required that wasn't already. In
+      `ChatPage.tsx`: new state (`adhocSessionId`, `adhocSendEmailOnAnswer`,
+      `adhocCcEmail`, `adhocEmailError`), all reset in `clearAdhocFiles()`
+      (the natural session boundary this UI already has);
+      `adhocSessionId` captured from each response and reused on the next
+      adhoc turn. New "Always send email on this answer" checkbox in the
+      attach-files popup (off by default), revealing a comma-separated CC
+      field when checked; client-side validation blocks `handleSend()`
+      with an inline `.leave-form-error` message (reusing the Unpaid
+      Leave feature's own error-display pattern) when the checkbox is on
+      but the recipient is missing/invalid, or any CC address is invalid
+      - checked before the request is sent, ahead of the backend's own
+      422.
+      - **Verified**: `tsc --noEmit` clean, `npm run lint` shows only
+        pre-existing warnings unrelated to these files, `npm run build`
+        succeeds.
+      - **Live-verified end to end** against a real local backend (no
+        browser automation available, so verified via the exact HTTP
+        calls the new frontend code makes, same honest-disclosure pattern
+        as Phase 162's own UI verification): turn 1 attached a file and
+        asked a plain summarization question, got back a `session_id`;
+        turn 2 reused that same `session_id` plus
+        `send_email_on_answer=true` with a recipient and a CC address and
+        asked a follow-up referencing turn 1's answer with no mention of
+        the offer or Accenture in the question itself - the response
+        correctly recalled the base salary from turn 1 (real memory, not
+        just plumbing) and a real email sent via the `checkbox_auto` path
+        with the CC included. A 3rd call confirmed the backend's 422 when
+        the checkbox is set with no recipient at all, matching the
+        frontend's own client-side guard.
+
+- [ ] **Phase 164 — User-reported: 8 live-UI observations after trying
+  Phase 162/163 locally - 1 real backend bug, 5 UI fixes, 2 status checks
+  (both already true, no new code).**
+  - **Context**: the user hit a real `INPUT_GUARDRAIL_BLOCKED` error
+    submitting a real file ("Accenture Background Check Email.pdf")
+    through the GenAI Chat Workflow, plus 5 UI issues found while testing
+    Phase 163's new controls, plus 2 questions about whether two
+    previously-discussed features were ever actually built. Treated as
+    one bundle since the user grouped and authorized them together as
+    "Observations - fix it," not as a reversal of the "one task at a
+    time" norm.
+  - **Spec:**
+    1. **Bug (confirmed, not assumed) - `ai/guardrails_config/prompts.yml`**:
+       `adhoc_document_chat.py`'s `_validate_files` loop runs every
+       attached file's extracted text through `check_input()` (Phase 138),
+       the same NeMo Guardrails `self_check_input` LLM rail used for the
+       typed question. That prompt's own few-shot examples only modeled a
+       short typed chat message, never real document content - a
+       background-check email's ordinary, legitimate subject matter
+       (criminal history, SSN, consent-to-screen language) reads to the
+       classifier as "harmful data." Fix: extend the prompt's context and
+       examples to explicitly distinguish attached-file text (a real HR
+       document, judged only on whether it's trying to manipulate the
+       bot) from a typed instruction - not a code change, a prompt-only
+       fix, so no other rail or route is touched.
+    2. **`hrb_chatbot_ui` - "Always send email on this answer" checkbox
+       misaligned**: `.adhoc-email-label input` sets `flex: 1; min-width:
+       180px` for its real use (email/CC text inputs) - the Phase 163
+       checkbox inherited that rule too, stretching the checkbox itself
+       and pushing its label text to the far right. Fix: new
+       `.adhoc-checkbox-label` modifier class overriding `flex`/`width`/
+       `min-width` for the checkbox case only.
+    3. **`hrb_chatbot_ui` - "Request Unpaid Leave" gated to Multi-Agent RAG
+       mode**: user-directed reversal of Phase 162's original "deliberately
+       mode-independent" choice - that choice doesn't apply anymore, this
+       is a later, explicit instruction. Checkbox + its popup now render
+       only when `effectiveMode === "multi-agentic-rag"`.
+    4. **`hrb_chatbot_ui` - "?" help popovers** added for both "Request
+       Unpaid Leave" and "Enable GenAI Chat Workflow," matching the
+       existing Retrieval-strategy help-button/popover pattern exactly
+       (same `chunking-help-button`/`chunking-help-popover` CSS, a local
+       `showXHelp` boolean each). Plain-language purpose + a short "how it
+       works internally" note (HITL routing for leave; no vector DB/MCP,
+       file-only context, web search, memory for the chat workflow).
+    5. **`hrb_chatbot_ui` - Retrieval/Temperature/Embedding Model hidden
+       when the GenAI Chat Workflow is active**: scoped specifically to
+       `effectiveMode === "genai-rag" && adhocChatEnabled` (the attach-
+       files feature actually being on), not to RAG Pipeline mode -
+       Phase 144's own "render unconditionally in every mode" decision
+       was about mode selection and is untouched; this is a different,
+       narrower condition the user asked for separately.
+    6. **Status check, not new work - sidebar history split**: confirmed
+       via grep that no "AI RAG Chat History" / "GenAI Chat Workflow
+       History" two-section sidebar exists in `ConversationSidebar.tsx` -
+       matches Phase 163's own "Explicitly deferred to a later slice"
+       note. Still not built; `chat_workflow_store.list_sessions()`
+       remains ready for it whenever that slice is scheduled.
+    7. **Status check, not new work - chat history in all 3 RAG
+       pipelines**: confirmed directly in code (not from memory) that
+       `genai-rag` (`ai/rag_pipeline/pipeline.py`), `single-agentic-rag`
+       (`orchestration_agent.py`), and `multi-agentic-rag`
+       (`multi_agent_pipeline.py`) already thread `chat_history` into
+       generation via `conversation_memory`/`run_guarded_pipeline`, and
+       `hrb_chatbot_ui`'s `client.ts` already sends
+       `enable_conversation_memory: true` + `conversation_id` on all 3 -
+       built in an earlier phase, predating Phase 163 (which only ever
+       covered the separate ad-hoc "GenAI Chat Workflow" memory, a
+       different, previously-memory-less pipeline). Already live, no
+       action needed.
+  - **Verification plan**: direct `check_input()` calls (not mocked)
+    against realistic background-check-email text (must pass) and 2 real
+    jailbreak attempts (must still block) - confirms the fix removes the
+    false positive without weakening the rail. Full backend suite green.
+    Frontend `tsc`/`lint`/`build` clean.
+  - **Built and verified - NOT pushed/deployed** (same standing
+    instruction):
+    - **Guardrail fix**: `prompts.yml`'s `self_check_input` task extended
+      with a paragraph distinguishing attached-file text from a typed
+      message, plus a new "should NOT be blocked" example built from
+      realistic background-check-email content (SSN, criminal history,
+      consent language, FCRA reference). The running local dev server's
+      `--reload` does not pick up `.yml` changes (its default watch
+      pattern is Python files only) and `guardrails_input.py`'s `_rails`
+      object is a process-lifetime singleton, so the fix needed a real
+      server restart to take effect - confirmed via the log showing zero
+      `WatchFiles detected changes` events across the server's lifetime,
+      then restarted and reconfirmed `/ping` healthy.
+      - **Live-verified**: a direct `check_input()` call against a
+        realistic background-check-email paragraph (criminal history,
+        employment/education verification, SSN, FCRA language) now
+        returns unblocked, where the original prompt would have blocked
+        it. The 2 existing jailbreak examples from the prompt's own
+        "SHOULD be blocked" case, plus a DAN-style prompt-injection
+        attempt, are both still correctly blocked - the fix narrows the
+        false-positive surface without weakening the rail itself.
+      - Full backend suite: 566 passed, 0 failed (unaffected - all
+        guardrail tests use fakes for `check_input`, so this was a
+        live-only verification, not something the existing unit tests
+        could catch either way).
+    - **Frontend**: all 5 UI items (checkbox alignment, mode-gated Unpaid
+      Leave visibility, 2 new help popovers, conditional hiding of
+      Retrieval/Temperature/Embedding Model) built in `ChatPage.tsx` +
+      `App.css` as spec'd above.
+      - **Verified**: `tsc --noEmit` clean, `npm run lint` shows only the
+        same pre-existing warnings as every prior phase, `npm run build`
+        succeeds.
+  - **Round 2 (same phase, user's immediate follow-up after trying the
+    round-1 fixes locally) - 2 more small UI fixes, 1 architecture Q&A +
+    documentation update, 2 more status checks (both already answered
+    above, re-confirmed, no new code)**:
+    1. **`chunking-help-button` shrunk** (22px -> 15px, added an explicit
+       10px `font-size`) - was visibly larger than the label text it sits
+       next to; shared CSS class, so this also tightened the pre-existing
+       Retrieval "?" button consistently.
+    2. **`UnpaidLeaveModal.tsx`**: the sidebar's "Request Unpaid Leave"
+       checkbox now reflects the modal's real open/closed state
+       (`checked={showUnpaidLeaveModal}`, was hardcoded `false`). The
+       modal's own 2-screen flow (form -> a separate "submitted"
+       confirmation screen with its own "Close" button) collapsed to one:
+       `handleSubmit()` now calls `onClose()` directly after a successful
+       submit, so clicking Submit itself closes the popup (previously
+       only Cancel did) - removed the now-dead confirmation screen and
+       its `result` state. Button text `"Submit request"` -> `"Submit"`.
+       **Tradeoff flagged, not silently decided**: this drops the
+       post-submit reference numbers (request/review IDs) and the
+       repeat-within-12-months note the old confirmation screen showed -
+       no toast/snackbar system exists in this app to show them another
+       way, and building one wasn't asked for. Reversible if the user
+       wants that information back some other way.
+    3. **Architecture Q&A, documentation only - no code**: the user asked
+       in detail how an employee learns a HITL decision, where HR
+       reviewers see the attached document, how specific specialists get
+       assigned, how many DB tables this needs, and asked for
+       documentation to be created/updated with the answers. Investigated
+       directly against the real schema/code (`hrb_lms_mcp`'s
+       `models.py`/`hitl_service.py`, `LeaveApprovalsPage.tsx`,
+       `unpaid_leave.py`) rather than recalled from the original design
+       doc, which predates Phase 162's real implementation and had
+       drifted from it in 3 places. Findings written into
+       `docs/dev-reference/leave-approval-a2a-design.html` as a new
+       §09 ("Phase 162 reality check") plus an updated §08 decision
+       table: **confirmed 2 existing tables cover everything already
+       built, zero new tables** (`hrb_emp_lms.leave_requests` +
+       `hrb_emp_lms.hitl_requests`, the document is just an S3 key inside
+       `hitl_requests.context`); **3 real gaps confirmed, none fixed yet
+       pending the user's direction** - (1) no employee notification
+       exists at all (the design doc's original SES "Notify" step was
+       never built, and the round-2 fix above just removed the UI's last
+       remaining confirmation screen too, so there is currently no way
+       for an employee to learn an outcome inside the app); (2) HR
+       reviewers can't open the attached document - `LeaveApprovalsPage`
+       shows only the raw S3 key as text, no presigned download URL
+       exists (only a presigned upload URL does); (3) `assigned_to` is a
+       hardcoded `"hr-team@company.com"` placeholder at creation
+       (confirmed in `hitl_service.py`) - a shared first-come-first-served
+       queue, not real per-specialist routing - and gets overwritten with
+       the resolver's full-name string (not `employee_id`) only at
+       resolution, so there's no structured record of who a request was
+       ever assigned to before someone resolved it.
+    4. **Status check, not new work - feature-specific test-data doc**:
+       confirmed no such document exists. `docs/agent-reference/
+       KNOWN-PERSONAS.md` already lists the login identities usable for
+       this (6 `hr_support` personas, several `employee` personas) but
+       has no walkthrough with concrete sample request data (dates,
+       purpose, a sample document) for this specific feature.
+    5. **Status check, not new work - sidebar history split**:
+       re-confirmed, same finding as round 1 - still not built, still
+       the deferred Phase 163 slice.
+    6. **Also built this round - a dedicated test-data doc**: new
+       `docs/agent-reference/UNPAID-LEAVE-TEST-DATA.md`, pairing
+       `KNOWN-PERSONAS.md`'s existing identities with concrete sample
+       request data for manually exercising both sides of this feature -
+       user asked for "both" the new doc and keeping `KNOWN-PERSONAS.md`,
+       not an either/or. Includes a 2-submission walkthrough for the
+       repeat-within-12-months path, since no seed data exercises it
+       (confirmed: zero `UNPAID`-type rows in `hrb_lms_mcp`'s sample
+       data).
+
+- [ ] **Phase 165 — User-directed: close the 3 confirmed Phase 164 gaps
+  (notification, document review, richer HITL tracking) and expand
+  "Request Unpaid Leave" into a general specialist-reviewed leave
+  request covering 4 leave types - design finalized across 3 rounds of
+  direct Q&A, not yet implemented.**
+  - **Context**: follow-on from Phase 164's §3 architecture questions.
+    The user answered 3 rounds of direct questions (notification
+    mechanism, specialist assignment model, how 2 new tables should
+    relate to the existing schema) and added 2 new requirements mid-
+    discussion: the employee-facing form should let the user pick among
+    Unpaid Leave/Critical CareGiver/STD/LTD (reviving this doc's own
+    original, never-built §04 proposal), and asked me to confirm the new
+    tables can hold the full HITL lifecycle, not just approve/reject.
+    Full finalized design, with the reasoning behind every choice, is in
+    `docs/dev-reference/leave-approval-a2a-design.html` §10 - this entry
+    summarizes it; that doc has the real detail (table columns, S3
+    layout, the one default I picked and flagged for override - same-
+    leave-type-only repeat detection).
+  - **A real conflict found and resolved before any schema was touched,
+    not after**: `GetLeaveHistory` (used by both the eligibility check
+    and any normal "what's my leave history" chat question) reads
+    directly from `hrb_emp_lms.leave_requests`. A full replacement of
+    that table for this feature would have silently broken both -
+    confirmed by reading `leave_request_service.py` directly, not
+    assumed. Resolved by augmenting instead of replacing: `leave_requests`/
+    `hitl_requests` keep being written exactly as today, unmodified; 2
+    new tables hold only what those 2 don't have columns for.
+  - **Spec** (full detail in the design doc §10):
+    - **`hrb_lms_mcp`**: 2 new tables in the `hrb_emp_lms` schema -
+      `unpaid_leave_documents` (one row per uploaded file: `s3_key`,
+      `original_filename`, `content_type`, FK to `leave_requests.id`) and
+      `specialist_leave_reviews` (the full review lifecycle:
+      `hr_specialist_employee_id` as a real FK - not a name string like
+      today's `hitl_requests.assigned_to` overload - `hr_comments`,
+      `decision`, `status`, `created_at`/`responded_at`; "elapsed time"
+      deliberately computed at read time, never stored, so it can't go
+      stale). `leave_types` gains 3 new rows (`CRITICAL_CAREGIVER`,
+      `STD`, `LTD`) and 1 new column (`requires_specialist_review`,
+      separate from the existing manager-approval `requires_approval`).
+      `resolve_hitl_request` extended to also write the new review table
+      and return the employee's email (so `hrb_chatbot_v2` doesn't need a
+      2nd round trip to send the notification). New MCP tools: a
+      presigned-download-URL helper (mirrors the existing upload one) and
+      a "list my own leave requests" tool for the employee-side view.
+    - **`hrb_chatbot_v2`**: `unpaid_leave_agent.py` (renamed concept, not
+      necessarily the file) accepts a `leave_type` parameter instead of
+      the hardcoded `"UNPAID"`; its eligibility check compares same-
+      leave-type-only (flagged default, §10). New route for the
+      presigned-download URL. New route + the resolve route extended to
+      call `send_email` with the employee's address on resolution. New
+      route for "my requests."
+    - **`hrb_chatbot_ui`**: `UnpaidLeaveModal.tsx` gains a leave-type
+      dropdown (4 options). `LeaveApprovalsPage.tsx` renders each
+      document as a real `target="_blank"` download link instead of raw
+      S3-key text. New "My Requests" page/section for the employee side.
+  - **Verification plan**: unit tests on both repos' new service methods
+    (fakes for DB/MCP, matching every other test in this project), full
+    suites green on both. Live: submit a request with a document for
+    each of the 4 leave types, confirm the repeat check is genuinely
+    same-type-scoped (not cross-type), resolve as a specialist and
+    confirm a real email arrives, confirm the document link actually
+    downloads the real file, confirm the "My Requests" view shows the
+    resolved status/comments. Cross-repo - same standing instruction:
+    implement, self-verify, stop before commit/push on both repos,
+    awaiting the user's own local review.
+  - **2 more refinements added after a direct follow-up ("how will
+    documents be trackable, any blind spots") - design doc §10 updated
+    before the build started**: (1) a real orphan-upload gap found by
+    reading `UnpaidLeaveModal.tsx`'s own upload-then-submit order
+    directly - a failed `submit` after a successful S3 upload used to
+    leave an untracked file with nothing in any database pointing at it.
+    Fixed by having `/upload-url` insert the manifest row immediately
+    (`leave_request_id` nullable, filled in once `submit` succeeds), so
+    every upload is trackable from the moment it happens, not only once a
+    request completes. (2) The new download endpoint needs an ownership
+    check on top of the existing role check - `require_role()` alone only
+    verifies `hr_support`/`employee`, never "does this specific record
+    belong to this specific caller" - without it, any employee could
+    fetch any other employee's document by guessing a `leave_request_id`.
+  - **Status: user gave explicit go-ahead ("Make sure to included these
+    task below are impl: ... Phase 165") after this design was presented
+    - built and verified across all 3 repos, NOT pushed/committed
+    anywhere (same standing instruction).**
+    - **`hrb_lms_mcp`**: `models.py` gained `requires_specialist_review`
+      on `LeaveType`, plus 2 new tables exactly as spec'd
+      (`unpaid_leave_documents`, `specialist_leave_reviews` -
+      `LeaveReviewDecision` enum alongside). New
+      `scripts/phase165_apply_schema.py` (idempotent - `ADD COLUMN IF NOT
+      EXISTS`, `Base.metadata.create_all()`, `ON CONFLICT DO NOTHING`
+      seed inserts) applied directly against the real local Neon
+      database - no `psql` client available, same workaround this
+      project's own earlier AWS-deploy planning already called out.
+      `leave_request_service.py::submit_unpaid_leave_request()` now takes
+      `leave_type_code` (was hardcoded `"UNPAID"`), creates the
+      `specialist_leave_reviews` row at queue-entry time (not just at
+      resolution, so "elapsed time since submitted" is always
+      computable), and links any pending document manifest row by
+      `s3_key` match. New methods: `register_leave_document()`,
+      `list_leave_documents()`, `list_my_leave_requests()`.
+      `hitl_service.py::resolve_hitl_request()` gained
+      `resolved_by_employee_id` (a real FK, separate from the existing
+      `resolved_by` display-name string) and now also updates the review
+      row and returns `employeeEmail` for the notification step. 3 new
+      MCP tools registered (`register_leave_document`,
+      `list_leave_documents`, `list_my_leave_requests`) - 12 total now,
+      confirmed via a fresh-process tool-manager inspection (importing
+      `mcp_server` alone registers 0 tools - `lms_mcp_tools.py` has to be
+      imported too to run its `@mcp.tool()` decorators; this project's
+      own silent trap, not a regression).
+      - **Live-verified, 3 layers, same discipline as Phase 162**: (1)
+        `scripts/phase165_live_verify.py` - a real service-layer round
+        trip (register a document -> submit an STD request linking it ->
+        confirm the document shows linked -> confirm "My Requests" shows
+        `PENDING` -> resolve as a real `EMP021` persona -> confirm the
+        review row now shows the real specialist name/id/decision/
+        timestamp) against real local Postgres, plus a separate direct
+        check that a document registered but never submitted is a real,
+        findable orphan (`leave_request_id IS NULL`) - confirming the
+        gap this phase closes is actually closed, not just designed. (2)
+        The real MCP wire protocol (`streamablehttp_client` + real
+        OAuth2 token) against the user's own already-running local
+        `hrb_lms_mcp` instance, for all 3 new tools plus the 2 extended
+        ones - `list_my_leave_requests`'s result matched the direct
+        service-layer call exactly. (3) No test suite exists in this
+        repo (confirmed, not assumed) - direct verification against real
+        Postgres is this project's own established pattern, not a gap
+        introduced here.
+    - **`hrb_chatbot_v2`**: `common/enums.py` gained `LeaveTypeCode`
+      (`UNPAID`/`CRITICAL_CAREGIVER`/`STD`/`LTD`) - a `StrEnum`, matching
+      this project's own "unknown value -> clean 422" convention, not a
+      plain `str`. `mcp_tools/__init__.py` gained wrappers for the 3 new
+      tools plus extended the 2 existing ones. `unpaid_leave_agent.py`'s
+      eligibility check now scopes "repeat within 12 months" to the same
+      `leave_type_code` only (a 2nd STD request flags; an unrelated CCG
+      request doesn't - a real HR-policy distinction, not a technical
+      default, flagged for the user in the design doc and left as spec'd
+      since no objection came back). `s3_upload_client.py` gained
+      `generate_leave_document_download_url()` - the symmetric
+      presigned-GET counterpart to the existing presigned-PUT.
+      `models/unpaid_leave.py` gained `leave_type_code` on the request
+      body, `leave_type` on the response, and the new document/My-
+      Requests response models. `error_codes.py` gained
+      `LEAVE_DOCUMENT_NOT_FOUND`. `api/leave/unpaid_leave.py`: `/upload-
+      url` now also registers the document manifest (best-effort - a
+      registration failure doesn't fail the upload, which has already
+      succeeded by that point); `/resolve` now passes
+      `resolved_by_employee_id` and sends a real decision email
+      (best-effort, same reasoning); 2 new routes, `GET /my-requests`
+      (query-param identity, Phase 96) and `GET /documents/
+      {leave_request_id}` (ownership-checked - owner employee or any
+      `hr_support` persona, 403 otherwise, 404 when no document exists).
+      - **Tests**: 4 new in `test_unpaid_leave_agent.py` (leave_type_code
+        defaulting/threading, same-leave-type-only repeat scoping both
+        directions). ~16 new in `test_unpaid_leave.py` (manifest
+        registration + its best-effort failure path, leave-type
+        threading/validation including a 422 for an unknown type,
+        `resolved_by_employee_id` threading, decision-email send + its
+        best-effort failure path, my-requests shape, document-download's
+        4 real paths - owner allowed, `hr_support` allowed even when not
+        the owner, an unrelated employee forbidden, no-document-404).
+        Full suite: 589 passed, 0 failed.
+      - **Live-verified end to end** against the real local backend +
+        the real `hrb_lms_mcp` instance (a fresh scratch port, not 8093 -
+        see Phase 166's own port-zombie note): submitted a real
+        `CRITICAL_CAREGIVER` request through the actual HTTP route (not
+        the service layer directly this time), resolved it as a real HR
+        specialist persona, confirmed a real SES send was attempted
+        (and failed only because of the already-known SES-sandbox-mode
+        limitation - `BACKLOG.md` - not a code defect, confirmed by
+        reading the real error: "Email address is not verified," the
+        expected sandbox response) and that the resolve response still
+        returned `200` (the best-effort design working as intended),
+        confirmed `/my-requests` showed both real submitted requests
+        with full specialist/decision/comment detail, and confirmed
+        `/documents/{id}`'s ownership check live - 404 for a request
+        with no document, 403 for an unrelated employee, and (on a
+        request that did have a linked document from the service-layer
+        verification above) reached the real S3 call correctly before
+        failing on the one genuine, pre-existing gap below.
+      - **One real, pre-existing config gap found live, not introduced
+        this phase**: `LEAVE_DOCS_S3_BUCKET` was never actually set in
+        the local `.env` - confirmed by grep, `S3_UPLOAD_BUCKET` (the KB
+        one) is configured but the leave-docs bucket Phase 162 was
+        supposed to use never was. This means neither the upload flow
+        nor the new download flow can complete a real S3 call locally
+        right now. Not fixed here - provisioning or naming a real S3
+        bucket is an infrastructure action, not something to guess at
+        unilaterally; flagged for the user's own `.env`/AWS decision,
+        same as the still-open `SES_SENDER_EMAIL` production gap this
+        project's `BACKLOG.md` already tracks the same way.
+    - **`hrb_chatbot_ui`**: `UnpaidLeaveModal.tsx` gained a leave-type
+      `<select>` (4 options via a new shared `LEAVE_TYPE_LABELS` map) and
+      its title changed from "Request Unpaid Leave" to "Request
+      Specialist Leave" (the old name no longer fit a form that now
+      submits STD/LTD/CCG too - flagged as a deliberate rename, not
+      silently done). `LeaveApprovalsPage.tsx` shows the real leave type
+      per request and a real "Open document" button (fetches a presigned
+      URL, opens it `target="_blank"` - a real download, never rendered
+      inside this app's own window) instead of the old raw-S3-key text.
+      New `MyLeaveRequestsPage.tsx` (`/my-leave-requests`) - a read-only
+      view of the caller's own requests, linked from a new "My requests"
+      button next to the (also renamed) "Request Specialist Leave"
+      checkbox in `ChatPage.tsx`.
+      - **Verified**: `tsc --noEmit` clean, `npm run lint` only the same
+        pre-existing warnings as every prior phase, `npm run build`
+        succeeds.
+
+- [ ] **Phase 166 — User-directed: split the sidebar's single "Conversation
+  history" list into 2 sections, "AI RAG Chat History" and "GenAI Chat
+  Workflow History" - the slice Phase 163 explicitly deferred.**
+  - **Context**: the user asked for this directly when Phase 163 was
+    scoped down ("Explicitly deferred to a later slice"), and asked again
+    this round to make sure it actually gets built, alongside Phase 165.
+    `chat_workflow_store.list_sessions()` already existed (built in
+    Phase 163 for exactly this), but nothing used it yet - no route, no
+    UI.
+  - **Spec**:
+    - **`chat_workflow_store.py`**: `load_turns()`'s SELECT extended to
+      also return `created_at` (previously only `user_query_text`/
+      `agent_response_text`) - additive, `_build_chat_history()` (the
+      POST route's own existing caller) only reads the other 2 keys, so
+      this can't break it.
+    - **`models/adhoc_chat.py`**: new `AdhocSessionSummary`/
+      `AdhocSessionListResponse`/`AdhocSessionTurn`/
+      `AdhocSessionDetailResponse`, same shape as the existing
+      `ConversationSummary`/`ConversationDetailResponse` models
+      (`api/conversations/`) for the other 3 modes' own history.
+    - **`api/adhoc_chat/adhoc_document_chat.py`**: 2 new GET routes,
+      `/sessions` and `/sessions/{session_id}`, same query-param-identity
+      pattern (Phase 96) as `manage_conversations.py`'s own list/detail
+      routes. `/sessions/{session_id}` checks the session actually
+      belongs to the caller (via `list_sessions()` first) before
+      returning its turns - the same ownership-check principle flagged
+      for Phase 165's document-download endpoint above, applied here
+      too, not just talked about.
+    - **`hrb_chatbot_ui`**: `types.ts`/`client.ts` gain the matching
+      types + `listAdhocSessions()`/`getAdhocSession()`.
+      `ConversationSidebar.tsx` gains a 2nd collapsible section; the
+      first section is relabeled "AI RAG Chat History" (was "Conversation
+      history"). `Conversation` gains `isAdhocWorkflow?: boolean` so the
+      sidebar can filter which section an entry belongs to without
+      inspecting message content (works even for a lazy-loaded entry with
+      no messages yet). `ChatPage.tsx`: a real pre-existing bug fixed as
+      part of wiring this up - a brand-new adhoc conversation's local
+      `id` used to be a random `makeId()`, never the real backend
+      `session_id` (`returnedConversationId` was hardcoded `null` for the
+      adhoc branch) - so a freshly-created adhoc chat and that same
+      session fetched later via `listAdhocSessions()` would never have
+      matched up as the same entry. Fixed by using `response.session_id`
+      instead.
+  - **A 2nd real bug found live, not by the unit tests first**: the
+    stored turn text (`stored_response_text`, Phase 163's own
+    `[System note: ...]` outcome-marking mechanism) is meant to be
+    internal-only - fed back into a later turn's `chat_history`, never
+    shown to a person. The new session-detail route would have rendered
+    it verbatim in the sidebar history view. Fixed with a
+    `_strip_system_notes()` helper (a regex stripping the trailing
+    `[System note: ...]` block(s)) applied before the route returns a
+    turn's content.
+  - **Built and verified - NOT pushed/deployed**:
+    - **Tests**: `tests/conftest.py`'s `FakeChatWorkflowStore.load_turns()`
+      updated to also return `created_at`. 6 new route tests (own-sessions-
+      only listing, 401 with no identity, alternating human/ai turns with
+      real timestamps, not-owned returns empty turns rather than someone
+      else's data, and the system-note-stripping regression test). Full
+      suite: 570 passed, 0 failed.
+    - **Frontend**: `tsc --noEmit` clean, `npm run lint` only the same
+      pre-existing warnings as every prior phase, `npm run build`
+      succeeds.
+    - **Live-verified** against a real local backend with real Postgres
+      data from earlier Phase 163 testing: `/sessions` returned 6 real
+      sessions scoped to the right employee; `/sessions/{id}` returned
+      real alternating turns with the `[System note: ...]` block
+      correctly stripped from the AI turn's content (confirmed both
+      before the fix, showing the raw leaked text, and after).
+    - **A session-local tooling problem, not a code problem, found while
+      live-verifying**: this session's own local dev server on port 8093
+      has accumulated multiple orphaned `uvicorn --reload` worker
+      processes from many restarts earlier in this conversation, at
+      least one of which answers real HTTP traffic (`server: uvicorn`,
+      correct `/ping` shape) but keeps serving pre-Phase-165/166 code no
+      matter how many times the "current" server is restarted - its PID
+      doesn't appear in `tasklist`/`Stop-Process`/`taskkill` from
+      PowerShell, nor survives a direct `kill` from Bash once identified,
+      yet `netstat` still shows it LISTENING and winning some or all new
+      connections. Verified the actual code is correct and unaffected by
+      confirming both routes work correctly, 5/5 consistent, on a
+      clean scratch port (8094) with no restart history. Flagged to the
+      user directly rather than silently worked around - needs either a
+      terminal/session restart or Task Manager to clear whatever is
+      still holding port 8093; not something further restarts from this
+      session can fix.
+
+- [ ] **Phase 167 — User-reported: 5 live-testing observations on Phase
+  165/166, after actually trying the submit popup, the RBAC boundary, and
+  the GenAI Chat Workflow in the browser.**
+  - **Context**: the user tried the real UI and hit a real `LEAVE_DOCS_S3_BUCKET`-
+    missing crash, a real RBAC gap (HR specialists could submit their own
+    leave requests), a stale-data popup, and a guardrail error that looked
+    like Phase 164's fix hadn't landed. One root cause tied 2 of these
+    together and explains the whole session's port-8093 saga from Phase
+    164/165/166: the dev server the user's browser was pointed at
+    (`hrb_chatbot_ui/.env`'s `VITE_API_BASE_URL=http://localhost:8093`)
+    had been silently serving pre-Phase-164 code this entire time.
+  - **Root cause, confirmed not guessed**: `netstat` kept reporting port
+    8093 LISTENING under old PIDs that `tasklist`/`Get-Process`/`taskkill`
+    - queried directly, every tool available - all agreed did not exist.
+    A full `query process` across every Windows session confirmed no
+    process anywhere was serving it. This is a genuine, unresolvable-by-
+    restart Windows networking artifact, not a code bug - confirmed by
+    moving to a succession of never-before-used ports until landing on
+    one (8100) that worked cleanly on first use. A 2nd, related finding
+    along the way: `uvicorn --reload`'s own file-watcher did not reliably
+    detect `.py` edits made via this session's own file-editing tool, on
+    more than one port - not just the well-known "`.env`/`.yml` aren't
+    watched" gap from Phase 164, but real `.py` changes too, on this
+    machine, from this tool. The reliable pattern that emerged: a plain
+    `uvicorn` process (no `--reload`), restarted explicitly after every
+    code change, verified against port- and route-specific behavior
+    before trusting it - not left running across edits.
+  - **`hrb_chatbot_v2/.env` and `hrb_chatbot_ui/.env` both updated**:
+    backend now runs on port 8100 (not 8093), `VITE_API_BASE_URL` updated
+    to match - the user's own normal `--reload` dev-server command is
+    unaffected by any of this (it only ever broke under this session's
+    own sandboxed background-process spawning, confirmed by every
+    restart that came from a real terminal working fine); this is a
+    one-time local config catch-up, not a new standing instruction to
+    avoid `--reload`.
+  - **`LEAVE_DOCS_S3_BUCKET` - the real, missing piece from Phase 162,
+    now actually fixed, not just flagged again**: confirmed via `aws s3
+    ls` that no leave-documents bucket existed at all. Created
+    `hrb-chatbot-leave-docs-dev` (us-east-1, all 4 public-access-block
+    flags on, matching `hrb-chatbot-kb-uploads-dev`'s own settings
+    exactly) and added `LEAVE_DOCS_S3_BUCKET` to `.env`. Live-verified a
+    complete real round trip - presigned PUT, a real file upload, presigned
+    GET, a real download - not just that the URL-generation call no
+    longer crashes.
+  - **RBAC gap - confirmed live exactly as the user described**: logged
+    in as `EMP021`/`hr_support` and successfully submitted a leave
+    request through `/v1/unpaid-leave/request` before this fix (a real
+    reproduction, not assumed from reading the code). `require_role()`
+    on `/upload-url`, `/request`, and `/my-requests` all changed from
+    `EMPLOYEE, MANAGER, HR_SUPPORT` to `EMPLOYEE, MANAGER` - HR
+    specialists review requests (`/pending`, `/resolve`, the "Leave
+    approvals" page, already correctly role-gated since Phase 162), they
+    never file their own through this entry point. `hrb_chatbot_ui`'s
+    `ChatPage.tsx` checkbox (and its "My requests" link, inside the same
+    conditional) now also hidden entirely for `hr_support` - defense in
+    depth matching this project's own client+server double-check
+    convention elsewhere, not reliance on the backend check alone.
+  - **Modal renamed back + now shows prior-request status on every
+    open**: "Request Specialist Leave" reverted to "Request Unpaid
+    Leave" (the Phase 164 rename is superseded - don't reintroduce it
+    without asking again). `UnpaidLeaveModal.tsx` now fetches
+    `listMyLeaveRequests()` on mount and renders a "Your requests"
+    section (status, decision, HR specialist name, comments) above the
+    submission form - this is what makes "the popup shows status/
+    comments when it loads" true: every open re-fetches fresh data, so a
+    specialist's resolution shows up the next time the employee opens
+    the popup, without needing a separate page. Submit still closes the
+    modal (the explicit Phase 164 round-2 behavior, deliberately not
+    reversed - a submitted request shows up correctly on the *next*
+    open, which the live-verified `my-requests` response above confirms).
+  - **GenAI Chat Workflow guardrail "still failing"**: re-tested the
+    exact scenario (a background-check-shaped file, a summarize+email
+    question) against the clean port-8100 server - works correctly,
+    confirming Phase 164's fix was correct all along and the user's
+    screenshot was the stale-8093-server symptom, not a surviving bug.
+  - **Tests**: 3 new (`test_hr_support_cannot_get_an_upload_url`,
+    `..._cannot_submit_an_unpaid_leave_request`,
+    `..._cannot_list_my_requests`). Full suite: 592 passed, 0 failed.
+    Frontend `tsc`/lint/build clean.
+  - **Live-verified, full real round trip, nothing faked**: real
+    presigned S3 upload of a real file -> real submit linking that
+    document (`CRITICAL_CAREGIVER`, flagged a real repeat correctly) ->
+    real resolve as a real `hr_support` persona -> `my-requests` showing
+    `COMPLETED`/`APPROVED`/the real HR comments/specialist name/
+    timestamps - exactly what the modal now renders on open -> a real
+    presigned download URL that actually downloads the real file (`HTTP
+    200` against the real S3 object, not just that generation succeeded).
+  - **1 more real bug found live, after the user's own local Vite dev
+    server landed on port 5174 instead of its default 5173** (an earlier
+    instance was still holding 5173 - the same "orphaned dev-server
+    process" pattern this whole session kept hitting, just on the
+    frontend side this time): `main.py`'s CORS `allow_origins` only ever
+    listed `5173`/`4173`/the production UI domain. A request from `5174`
+    was silently blocked by the browser before it ever reached the
+    backend - no structured error, just "Something went wrong reaching
+    the backend," indistinguishable from a real connectivity problem
+    without checking the browser's own network tab or this server's CORS
+    config directly. Fixed by adding `5174`/`5175` to the allowlist (Vite
+    auto-increments through these when lower ports are busy - a real,
+    recurring local-dev scenario, not a one-off). Live-verified with a
+    real `OPTIONS` preflight carrying `Origin: http://localhost:5174`
+    (confirmed `access-control-allow-origin` echoes it back) and a real
+    `POST /v1/unpaid-leave/request` with that same origin header,
+    reproducing the user's own exact scenario (`EMP001`/John Doe, a
+    `son's health treatment` unpaid-leave request) end to end. Backend
+    moved to port 8101 (same restart-produces-a-phantom-listener pattern
+    as every other port this session - see above), `hrb_chatbot_ui/.env`
+    updated to match. Full suite: 592 passed, 0 failed.
+  - **A 2nd, separate CORS gap - same symptom, different layer**: a
+    second request (this time with a document attached) still failed
+    after the above fix. Root cause: the direct browser-to-S3 upload
+    (`uploadFileToS3()` PUTs straight to the presigned URL, never through
+    this backend at all) needs its *own* CORS configuration on the S3
+    bucket itself - confirmed via `aws s3api get-bucket-cors` that
+    `hrb-chatbot-kb-uploads-dev` (the working KB bucket) has one and
+    `hrb-chatbot-leave-docs-dev` (created this session, Phase 167) had
+    none at all (`NoSuchCORSConfiguration`) - a real gap from when the
+    bucket was created, not caught earlier because every verification up
+    to that point used `curl`, which doesn't enforce CORS the way a
+    browser does. Fixed by applying the same CORS policy
+    (`PUT`/`GET`, the 3 known local Vite origins) the KB bucket already
+    uses. Live-verified with a real `OPTIONS` preflight directly against
+    S3 with `Origin: http://localhost:5174` - confirmed
+    `Access-Control-Allow-Origin` echoes back correctly. No backend
+    restart needed - this is bucket-level AWS config, not application
+    code.
+
+- [ ] **Phase 168 — User-directed: a new ADMIN role + an admin dashboard
+  (view + hard-delete) across 4 data categories - KB documents,
+  conversations, feedback, leave requests/HITL reviews.**
+  - **Context**: the user asked for a "super user" who can view and
+    delete backend data across use cases to manage the application and
+    clean up test data (this session has generated a lot of it).
+    Answered 3 scoping questions directly: all 4 categories (not just
+    leave requests), hard delete (not soft/audit-logged - "recommended
+    for a dev/test-cleanup tool"), and a brand-new `ADMIN` role with its
+    own persona(s), not an elevated `hr_support`.
+  - **Audited what already exists before writing anything new** (the
+    user's own explicit ask - "reuse existing service logic where it
+    exists"), via a dedicated research pass, not assumed:
+    - **KB documents**: list-all and delete-any already exist, fully
+      unscoped, just gated to `HR_SUPPORT` - `ingest_document.py`'s
+      `list_documents`/`delete_document`/`delete_all_documents`. Zero new
+      logic needed - just widen `require_role()` to also accept `ADMIN`.
+    - **Conversations**: list/delete both exist but are hard-scoped to
+      the caller's own `employee_id` at the SQL layer
+      (`conversation_store.py`) - by design, for the normal per-user
+      routes, which stay untouched. No "list/delete any employee's"
+      capability exists anywhere.
+    - **Feedback**: list-all already exists (`HR_SUPPORT` gets
+      `employee_id=None`, no scoping). Delete does not exist at all -
+      confirmed zero delete logic anywhere in `feedback_store.py`.
+    - **Leave requests/HITL**: `list_hitl_requests` (existing MCP tool)
+      already supports `status='all'` with no employee filter - true
+      list-all for free, just needs a new admin route calling it without
+      the `/pending` route's hardcoded `status=PENDING`/
+      `request_type=UNPAID_LEAVE_REQUEST` filters. Delete does not exist
+      anywhere in either repo - confirmed zero delete logic in
+      `hrb_lms_mcp`'s services or any exposed MCP tool, for any of the 4
+      models (`LeaveRequest`/`HitlRequest`/`SpecialistLeaveReview`/
+      `UnpaidLeaveDocument`). This is the one category needing real new
+      logic in both repos, not just RBAC widening.
+  - **Spec**:
+    - **`common/enums.py`**: `Role` gains `ADMIN = "admin"`.
+    - **`common/known_personas.py`**: 1 new `ADMIN`-role persona. Does
+      NOT need to be a real `hrb_emp_lms.employees` row (unlike every
+      other persona so far) - admin operations never resolve the
+      admin's own identity through MCP the way, say, `GetLeaveBalance`
+      would for an employee asking about themselves. Flagged as a
+      deliberate first exception to the "every persona is a real backing
+      row" rule this doc's own history otherwise holds to.
+    - **`hrb_lms_mcp`**: new `HitlService` method deleting a HITL
+      request's full cascade in the right FK order -
+      `SpecialistLeaveReview` row (if any) -> `UnpaidLeaveDocument` rows
+      linked to the same `leave_request_id` (returning their `s3_key`s,
+      since this repo has no AWS/S3 client of its own - actual object
+      deletion happens in `hrb_chatbot_v2`, which already has one) ->
+      the `LeaveRequest` row -> the `HitlRequest` row itself. One new
+      MCP tool wrapping it.
+    - **`hrb_chatbot_v2`**: new `ConversationStore`/`FeedbackStore`
+      methods for unscoped list/delete; new `api/admin/manage_admin.py`
+      router, `ADMIN`-only throughout:
+      - `GET /v1/admin/conversations`, `DELETE /v1/admin/conversations/{id}`
+      - `GET /v1/admin/feedback`, `DELETE /v1/admin/feedback/{id}`
+      - `GET /v1/admin/leave-requests`, `DELETE /v1/admin/leave-requests/{hitl_request_id}`
+        (calls the new MCP tool, then deletes any returned S3 keys from
+        `LEAVE_DOCS_S3_BUCKET`)
+      - KB documents: no new routes - `ingest_document.py`'s existing
+        `list_documents`/`delete_document`/`delete_all_documents` widened
+        to also accept `Role.ADMIN`.
+    - **`hrb_chatbot_ui`**: `Role` type gains `"admin"`, login form gains
+      an Admin option. New `AdminDashboardPage.tsx` - one page, 4
+      sections (not 4 separate pages), each a list + a delete button per
+      row, gated to `role === "admin"` the same way `LeaveApprovalsPage`
+      gates to `hr_support`. Linked from the existing Admin-menu dropdown
+      pattern (new "Admin dashboard" entry, shown only for `role ===
+      "admin"`).
+  - **Verification plan**: unit tests (fakes, matching every other test
+    in this project) for the new store methods and routes - RBAC
+    rejection for non-admin roles, successful list/delete for admin, the
+    leave-request delete's S3-cleanup best-effort behavior. Full suite
+    green both repos. Live: create and then delete a real record in each
+    of the 4 categories as the real admin persona, confirming it's
+    actually gone (re-list shows it missing) - not just that the delete
+    call returned 200.
+  - **Built and verified - NOT pushed/committed anywhere**:
+    - **`hrb_lms_mcp`**: `HitlService.admin_delete_hitl_request()` - the
+      full FK-safe cascade exactly as spec'd (review -> documents -> leave
+      request -> hitl request), returning the S3 keys for the caller to
+      clean up. 1 new MCP tool, 13 total now (confirmed via a fresh-
+      process tool-manager inspection, same "importing `mcp_server` alone
+      registers 0 tools" trap Phase 165 already found).
+      - **Live-verified**: `scripts/phase168_live_verify.py` - register a
+        document, submit an LTD request linking it, delete the whole
+        thing via the new method, then directly query all 4 tables to
+        confirm every row is actually gone (not just that delete returned
+        without error).
+    - **`hrb_chatbot_v2`**: `Role` gained `ADMIN`; 1 new persona
+      (`ADM001`, deliberately not a real `hrb_emp_lms.employees` row - see
+      spec above). KB documents: zero new routes, 4 existing
+      `ingest_document.py` routes widened to also accept `ADMIN`.
+      Conversations/feedback: new unscoped store methods
+      (`list_all_conversations`/`delete_conversation_any` in
+      `conversation_store.py`, `delete_feedback` in `feedback_store.py` -
+      the first delete capability that store has ever had) plus thin
+      `conversation_memory.py` wrappers. New `api/admin/manage_admin.py`
+      router (6 routes, `ADMIN`-only throughout) - lives in the
+      already-existing `api/admin/` package alongside `routes_health.py`,
+      not a new top-level package.
+      - **A real bug caught in my own test, not shipped**: the first
+        draft of the conversations admin tests monkeypatched
+        `manage_admin.get_db_gateway`, which does nothing - the admin
+        conversation routes go through `conversation_memory.py`, which
+        holds its own separate `get_db_gateway` import. The test silently
+        ran against the real local Postgres database instead of a fake
+        (confirmed by a real count of 23 real conversations coming back
+        instead of the fake's 2). No real data was harmed - the test's
+        own actions were a read and a delete-by-a-nonexistent-id - but
+        it's a direct illustration of why "reuse existing service logic"
+        has to be followed carefully: the reused function's *own*
+        dependencies need patching at their source, not at the caller.
+        Fixed by patching `conversation_memory`'s own reference instead.
+      - **Tests**: 18 new in `tests/hrb_chatbot/api/admin/test_manage_admin.py`
+        (RBAC rejection for non-admin on all 6 routes, successful list/
+        delete for admin across all 3 new categories, the leave-request
+        delete's S3-cleanup best-effort success/failure paths, a clear
+        500 on real failure). Full suite: 605 passed, 0 failed.
+      - **Live-verified end to end** against the real backend + real
+        `hrb_lms_mcp`: submitted a real throwaway leave request, confirmed
+        it appeared in the admin list (`status=all`, not just `PENDING`),
+        deleted it via the real HTTP route, confirmed a re-list no longer
+        shows it (count dropped by exactly 1) - not just that the delete
+        call returned `200`. Also confirmed real conversations (23) and
+        real feedback (2) list correctly for the admin persona, and that
+        an `hr_support` persona gets a real `403` on every admin route.
+    - **`hrb_chatbot_ui`**: `Role` type gained `"admin"`, login form
+      gained an Admin option. New `AdminDashboardPage.tsx` (`/admin`) -
+      one page, 4 sections, each a list + a delete button per row,
+      gated to `role === "admin"` the same way `LeaveApprovalsPage`
+      gates to `hr_support`. Linked from a new "Admin dashboard" entry in
+      the existing Admin-menu dropdown, shown only for `role === "admin"`.
+      Documents section reuses `listDocuments()`/`deleteDocumentById()`
+      unchanged - no new client functions needed for that one category.
+      - **Verified**: `tsc --noEmit` clean, `npm run lint` only the same
+        pre-existing warnings as every prior phase, `npm run build`
+        succeeds.
+  - **Still open from this same message, not yet answered**: the user
+    also asked for a "nice view" for HR's own leave-request review
+    experience "like Request Unpaid Leave" - asked back whether this
+    means further visual polish on the existing `LeaveApprovalsPage`
+    (which already shares the same `.panel`/`.panel-info` card styling
+    the popup's "Your requests" section and now the admin dashboard both
+    use) or an actual popup/modal UX instead of a full page - no answer
+    yet, not built either way this round.
+  - **Round 2, the user's own answer to the question above: a grid, with
+    row-click opening a popup (built this round) + a quick persona
+    rename.** `ADM001`'s `full_name` changed from the placeholder "Alice
+    Admin" to "Sree Rad" (`known_personas.py`, `KNOWN-PERSONAS.md`, the
+    admin test file's own fixture profile).
+    - **The real gap found**: `/pending` (both the old HR page and the
+      `list_hitl_requests` MCP tool backing it) only ever returned
+      `status=PENDING` - "past approvals/rejections" genuinely had
+      nowhere to be queried from at all before this round, for HR's own
+      view (the admin dashboard's `/v1/admin/leave-requests` is close but
+      wrong audience/shape - no `decision`/`hrComments`/
+      `hrSpecialistName`, since it reads the generic `hitl_requests` table
+      directly rather than joining `specialist_leave_reviews`).
+    - **`hrb_lms_mcp`**: new `LeaveRequestService.list_all_leave_requests()`
+      - the same `LeaveRequest`+`SpecialistLeaveReview` join
+        `list_my_leave_requests()` already uses, minus the employee_id
+        filter, plus `employeeId`/`employeeName`/`hitlRequestId` (needed
+        for the grid's own resolve action) the employee-facing version
+        has no reason to expose. 1 new MCP tool, 14 total now.
+      - **Live-verified** directly against real Postgres - returned the
+        user's own real `EMP001`/John Doe PENDING request (#41, "son's
+        health treatment") correctly alongside already-COMPLETED ones.
+    - **`hrb_chatbot_v2`**: new `list_all_leave_requests()` wrapper, new
+      `HrLeaveRequestSummary`/`HrLeaveRequestsResponse` models, new
+      `GET /v1/unpaid-leave/all` route (`HR_SUPPORT`-only, query-param
+      identity). 3 new tests (RBAC rejection, every-status-not-just-
+      pending, a clear 500 on failure). Full suite: 608 passed, 0 failed.
+      - **Live-verified end to end through the real resolve flow**:
+        resolved the user's own real request #41 through this exact data
+        path, then re-fetched `/all` and confirmed it now shows
+        `COMPLETED`/`APPROVED` with the real HR comments and specialist
+        name attached - not a synthetic test record.
+    - **`hrb_chatbot_ui`**: `LeaveApprovalsPage.tsx` rewritten from a
+      card list into a real `<table>` grid (reusing the existing
+      `.documents-table` styling `DocumentsPage`/`ViewFeedbackPage`
+      already established, not a new table style), fed by `/all` instead
+      of `/pending` so resolved requests stay visible, not just open
+      ones. Row click opens a new `LeaveReviewModal.tsx` - a popup
+      matching the employee side's own `UnpaidLeaveModal` shape: a
+      `PENDING` row shows the decision form (the Approve/Reject flow,
+      moved here from the old inline-on-the-page version); an
+      already-resolved row shows the real decision/comments/specialist/
+      timestamp read-only, plus an "Open document" button either way
+      (reuses the existing presigned-download route, handles a real
+      "no document attached" 404 with a plain inline message rather than
+      a raw error).
+      - **Verified**: `tsc --noEmit` clean, `npm run lint` only the same
+        pre-existing warnings as every prior phase, `npm run build`
+        succeeds.
+  - **Round 3, the user's own direct follow-up: the admin dashboard
+    should match the same grid+popup pattern, as 4 separate tabs, one per
+    category.** Asked back one scoping question first (should the
+    Conversations tab's popup show the full transcript, or just the
+    grid's own summary fields) - answered "full transcript," which this
+    round built.
+    - **`hrb_chatbot_v2`**: `conversation_store.py` gained
+      `get_conversation_turns_any()` (admin-only, unscoped - same
+      "separate method, not an optional-employee_id variant" reasoning as
+      `delete_conversation_any()`/`list_all_conversations()` already
+      established), `conversation_memory.py` got the matching wrapper,
+      `api/admin/manage_admin.py` got `GET /conversations/{conversation_id}`
+      reusing the existing `ConversationDetailResponse`/`ConversationTurn`
+      models unchanged. `GET /v1/unpaid-leave/all` (the HR grid's own
+      richer data source - decision/comments/specialist name, not just
+      the generic HITL shape `/v1/admin/leave-requests` has) widened to
+      also accept `ADMIN`, so the admin dashboard's Leave Requests tab
+      reuses the exact same endpoint and the exact same
+      `LeaveReviewModal` component the HR page uses - not a parallel,
+      duplicate implementation.
+      - **Tests**: 4 new (RBAC rejection + a real transcript fetch for
+        the new conversation route, ADMIN access confirmed on `/all`).
+        Full suite: 611 passed, 0 failed.
+      - **Live-verified** against the real backend: admin access to
+        `/v1/unpaid-leave/all` returns real data (9 total requests);
+        fetched a real employee's real conversation id from the admin
+        list, then fetched its real full transcript through the new
+        route and got the real question/answer content back, not a stub.
+    - **`hrb_chatbot_ui`**: `AdminDashboardPage.tsx` rebuilt from one
+      flat page into 4 tabs (Documents/Conversations/Feedback/Leave
+      Requests), each its own `.documents-table` grid; row click opens a
+      popup. 3 new modal components - `AdminDocumentModal.tsx`,
+      `AdminFeedbackModal.tsx` (both render already-fetched list detail,
+      no 2nd round trip), `AdminConversationModal.tsx` (the one that
+      does need a 2nd fetch - the grid row alone doesn't carry enough to
+      decide "is this safe to delete," so it loads the real transcript
+      on open). The 4th tab reuses `LeaveReviewModal.tsx` unchanged in
+      markup but extended with an admin-aware branch: an admin viewer
+      always sees the read-only detail view (never the HR resolve form,
+      even on a still-`PENDING` row - approving/rejecting isn't an admin
+      action) plus a real Delete button wired to the same
+      `deleteLeaveRequestAdmin()` the dashboard's old flat version
+      already had. The now-unused old `listAllLeaveRequestsAdmin()`
+      client function (superseded by reusing `listAllLeaveRequests()`)
+      was removed - genuinely dead code, not a capability anything still
+      calls; the backend route it talked to (`GET /v1/admin/leave-requests`)
+      was left alone (a real, tested, working capability, just not
+      wired to this particular UI anymore).
+      - **Verified**: `tsc --noEmit` clean, `npm run lint` only the same
+        pre-existing warnings as every prior phase, `npm run build`
+        succeeds.
+  - **Round 4, user-directed: bulk select/delete per tab (deleting rows
+    one at a time was too slow) plus a brighter, white-on-color grid
+    header row.**
+    - **`hrb_chatbot_ui`**: `AdminDashboardPage.tsx` gained a
+      per-category `Set`-based checkbox selection (header "select all"
+      checkbox + a per-row checkbox, `event.stopPropagation()` so
+      checking a row doesn't also open its detail modal), and a
+      "Delete N selected" button per tab that fires all of that
+      selection's deletes concurrently via `Promise.allSettled` (not one
+      at a time) - a partial failure reports a count and still refreshes/
+      clears what succeeded, rather than aborting the whole batch.
+      `App.css`'s `.documents-table th` recolored from
+      `--surface-sunken`/`--text-muted` to `--accent`/`--accent-contrast`
+      - reusing an existing themed token pair (already correct in dark
+        mode) instead of a literal color that would only read right in
+        one theme.
+      - **Verified**: `tsc --noEmit` clean, `npm run lint` only the same
+        pre-existing warnings as every prior phase, `npm run build`
+        succeeds.
+
+- [ ] **Phase 169 — User-directed: a masked "Secret Code" field, required
+  only when logging in as `admin`, as a lightweight extra barrier beyond
+  just picking "Admin" from the role dropdown.**
+  - **Context**: today `role` is fully self-asserted at login - Phase
+    106's `is_known_persona()` only checks that `employee_id`+`full_name`
+    +`role` match a known row, so anyone who knows `ADM001`/"Sree Rad"
+    (documented in `KNOWN-PERSONAS.md`) can select Admin with no further
+    check. The user asked for an additional secret-code field, masked
+    (not plain text) so it isn't visible on screen during a live demo.
+    This doesn't change this project's documented stance that RBAC is a
+    formality, not real auth (Phase 45) - it's one extra speed bump for
+    the one role that can hard-delete data, nothing more.
+  - **Spec**:
+    - **`common/known_personas.py`**: `ADM001`'s entry gains a
+      `secret_code` key - the only persona with one. New
+      `is_valid_admin_secret_code(employee_id, secret_code)` function,
+      deliberately separate from `is_known_persona()` (same
+      "augment, don't replace" shape as every other admin-only addition
+      this session), so the 18 non-admin personas are untouched.
+    - **`common/error_codes.py`**: new `INVALID_ADMIN_SECRET_CODE`.
+    - **`models/auth.py`**: `LoginRequest` gains
+      `secret_code: str | None = Field(default=None, max_length=50)` -
+      optional for every role, only read/checked when `role == "admin"`.
+    - **`api/auth/login.py`**: after the existing `is_known_persona()`
+      check, if `payload.role == "admin"`, also require
+      `is_valid_admin_secret_code(...)` to pass; 401 with the new code if
+      not.
+    - **`hrb_chatbot_ui`**: `LoginPage.tsx` gains a `secretCode` field,
+      rendered only when `role === "admin"`, `type="password"` (native
+      browser masking). `api/client.ts`'s `validateLogin()` gains an
+      optional `secretCode` param, sent as `secret_code` in the POST
+      body.
+
+- [ ] **Phase 170 — User-directed design proposal (spec only, implementation
+  held per explicit instruction until the Phase 162/165 HITL/A2A rework
+  below is addressed first): admin-only "view the architecture docs
+  in-app" feature, backed by a new S3-synced document-metadata table.**
+  - **Context**: the user asked for an admin-only icon at 11 named UI
+    locations that opens the relevant architecture/design doc in-app,
+    with the underlying `.md`/`.html` docs uploaded to S3 and tracked in
+    a new metadata table. Full gap analysis (staleness risk, the 2
+    "?" tooltip locations being a smaller separate ask, recommended
+    phased rollout) already given directly to the user in chat; this
+    entry just records the agreed data/API shape as a spec, per this
+    project's "spec before code" convention - **no implementation
+    happens under this phase until the user says so.**
+  - **Spec**:
+    - **New table, `doc_metadata`** (same Postgres database/connection
+      this project's other metadata already uses):
+      - `id` (PK)
+      - `feature_name` (which of the 11 UI locations this doc backs)
+      - `doc_title`
+      - `doc_type` (`architecture`/`design`/`faq`/`db-model`/...)
+      - `doc_version` (int, user-requested - bumped on each re-sync that
+        changes `content_hash`, so a stale-doc warning can eventually be
+        shown without needing full version history)
+      - `s3_bucket`, `s3_key`
+      - `source_local_path` (the real file under `docs/` this came from)
+      - `content_hash` (same dedup pattern KB ingestion already uses - a
+        re-sync only touches files that actually changed)
+      - `created_at`, `updated_at`, `last_synced_at`
+    - **Sync**: an on-demand script (not a running service) uploads the
+      relevant `docs/agent-reference/*.md` + `docs/dev-reference/**/*.html`
+      files to a new S3 prefix and upserts `doc_metadata` by
+      `content_hash`.
+    - **Backend**: `GET /v1/admin/docs` (list), `GET /v1/admin/docs/{id}/content`
+      (fetch from S3) - `ADMIN`-only, same RBAC pattern as `manage_admin.py`.
+    - **Frontend**: one shared, admin-only `DocLink` icon component
+      (suggested icon: a plain book glyph, not a brand mark), parameterized
+      by `feature_name`, reused at all named locations rather than 11
+      bespoke integrations; opens a modal/new-tab rendering the fetched
+      doc.
+    - **Explicitly out of scope for now**: the 2 chunking-strategy "?"
+      tooltips - smaller, separate, served directly from the existing
+      `CHUNKING_STRATEGIES` dict in code, no S3/DB round trip needed.
+  - **Round 1 - user-directed: a smaller first phase, not all 11 at once.**
+    2 locations only (`GenAI RAG Chat`, `Request Unpaid Leave`), proving
+    the pattern end to end before wiring the remaining 9.
+    - **S3 bucket choice**: reuses the existing `LEAVE_DOCS_S3_BUCKET`
+      under a new `admin-docs/` prefix - not a new bucket. Deliberately
+      NOT `S3_UPLOAD_BUCKET`: that bucket has a whole-bucket S3 event
+      notification that triggers the KB ingestion Lambda
+      (`docs/agent-reference/S3-ASYNC-UPLOAD-DESIGN.md`), so an admin doc
+      dropped there would silently get chunked into the RAG vector index -
+      the exact same reasoning Phase 162 already used to keep leave
+      documents off that bucket too.
+    - **Content delivery simplification**: `GET /v1/admin/docs/{id}/content`
+      returns a presigned S3 download URL (same shape as
+      `get_leave_document_download_url`), not raw HTML/markdown content -
+      the frontend opens it with `window.open()` in a new tab. Simpler and
+      avoids rendering fetched third-party HTML inline inside the React
+      app (a real CSP/XSS surface for no real benefit at this scope) -
+      one of the 2 options already named when this spec was first
+      written, picked here rather than inventing a new approach.
+    - **Spec**: `doc_metadata` table exactly as originally specified
+      (`id`, `feature_name`, `doc_title`, `doc_type`, `doc_version`,
+      `s3_bucket`, `s3_key`, `source_local_path`, `content_hash`,
+      `created_at`, `updated_at`, `last_synced_at`) - `feature_name`
+      unique, one doc per feature for this phase. New
+      `DocMetadataStore` (same psycopg + `asyncio.to_thread()` pattern).
+      New `scripts/sync_admin_docs.py` - a one-off script (same shape as
+      `ingest_kb_docs.py`), uploads
+      `docs/dev-reference/leave-approval-a2a-design.html` (feature
+      `request-unpaid-leave`) and `docs/dev-reference/rag-architecture-layers.html`
+      (feature `genai-rag-chat` - traces the actual genai-rag query
+      end-to-end by system layer, the closest real existing doc to a
+      "GenAI RAG Chat" overview; reused rather than writing a new,
+      inevitably-thinner one), upserts `doc_metadata` by content hash. New
+      `GET /v1/admin/docs` (list) + `GET /v1/admin/docs/{id}/content`
+      (presigned URL) in `manage_admin.py`, `ADMIN`-only. New
+      `DocLink.tsx` - a small book-icon link, admin-role-gated, taking a
+      `featureName` prop, fetching the doc list once and resolving its
+      own id; wired into `ChatPage.tsx`'s header (near the mode selector)
+      and `UnpaidLeaveModal.tsx`'s header.
+    - **Built and live-verified.** One correction made before building,
+      not after: the icon ended up a plain text "Doc" pill, not an emoji -
+      this project's own existing icon-free, text-button convention
+      (`.chunking-help-button`'s "?" glyph) was found and matched instead.
+      `scripts/sync_admin_docs.py` run twice against real S3 + Postgres -
+      first run uploaded both docs and inserted 2 real `doc_metadata` rows
+      (`doc_version=1`); second run correctly reported both "unchanged"
+      (content hash unchanged), proving the dedup. `GET /v1/admin/docs`
+      and `GET /v1/admin/docs/{id}/content` both live-verified against the
+      real rows - the returned presigned URL was fetched directly and
+      returned a real `200` with the real uploaded HTML. Non-admin
+      confirmed `403` on both routes. 20 `test_manage_admin.py` tests (4
+      new) + 3 new `test_doc_metadata_store.py` tests, all passing. Full
+      suite: 636 passed, 0 failed (up from 628 pre-this-round). Clean
+      `tsc`/lint/build on the frontend.
+
+- [ ] **Phase 171 — User-directed: stop storing the admin secret code as
+  plaintext, make the seeded code one-time (forces a real reset on first
+  use), and add an admin-only "change secret code" flow.**
+  - **Context**: Phase 169 stored `ADM001`'s secret code as a plaintext
+    literal in `known_personas.py` with a plain `==` comparison - the user
+    flagged this directly and asked for (1) a one-time seed code
+    (`$reeRad`) that forces a reset on first login, (2) a reset flow only
+    an already-authenticated admin can reach, (3) a better-than-plaintext
+    storage/validation scheme. Asked whether OAuth/JWT fit - answered
+    directly in chat: OAuth solves delegated third-party authorization
+    (not this problem) and JWT is a session-token format (a real, but
+    separate, upgrade to the project's already-documented "role is
+    self-asserted on every request" gap, not a storage mechanism for the
+    secret itself) - neither is the fix here. The actual fix is salted
+    hashing. Chose **stdlib `hashlib`/`secrets`/`hmac` (SHA-256 + a random
+    salt, constant-time compare)**, not a new `bcrypt`/`passlib`
+    dependency - zero new library (this project's own "no unreviewed
+    libraries without approval" standard), and matches `hrb_lms_mcp`'s own
+    existing precedent of SHA-256-hashed OAuth2 client secrets. Flagged
+    as weaker than bcrypt/argon2's deliberately-slow hashing (real
+    brute-force resistance), but proportionate for securing one admin
+    passphrase in a capstone demo, not a multi-tenant password system.
+  - **Spec**:
+    - **New table, `admin_credentials`** (same Postgres connection
+      `feedback_store.py`/`conversation_store.py` already use): `employee_id`
+      (PK), `secret_code_hash`, `secret_code_salt`, `must_reset` (bool,
+      default `true`), `updated_at`. New `AdminCredentialStore` class,
+      same `psycopg` + `asyncio.to_thread()` pattern as `feedback_store.py`
+      - `get_or_seed(employee_id, default_code)`: inserts a row with
+        `default_code`'s hash if none exists yet (idempotent - the
+        one-time seed), else returns the existing row unchanged.
+      - `verify_secret_code(employee_id, candidate)`: recomputes
+        `sha256(salt + candidate)` and compares to the stored hash with
+        `hmac.compare_digest` (constant-time, avoids a timing side
+        channel).
+      - `set_secret_code(employee_id, new_code)`: new salt + hash,
+        `must_reset = false`.
+    - **`db_gateway.py`**: new `admin_credential_store()` accessor, same
+      lazy-singleton shape as every other store.
+    - **`known_personas.py`**: `ADM001`'s plaintext `secret_code` key
+      removed - the DB table is now the only source of truth.
+      `is_valid_admin_secret_code()` removed from this file (it was sync
+      and had no DB access - replaced by the async, DB-backed check
+      below).
+    - **`models/auth.py`**: `LoginResponse` gains
+      `must_reset_secret_code: bool = False`. New
+      `ResetSecretCodeRequest` (`user_profile`, `current_secret_code`,
+      `new_secret_code`) and `ResetSecretCodeResponse`
+      (`employee_id`, `reset: bool`).
+    - **`api/auth/login.py`**: admin login calls
+      `get_or_seed("ADM001", "$reeRad")` then `verify_secret_code(...)` -
+      401 `INVALID_ADMIN_SECRET_CODE` on mismatch, else returns
+      `must_reset_secret_code` from the stored row. New
+      `POST /v1/auth/admin/reset-secret-code` - `require_role(ADMIN)`,
+      verifies `current_secret_code` first (so a stolen session token
+      alone still can't silently change the code - the caller must
+      already know the current one), then `set_secret_code(...)`.
+    - **`hrb_chatbot_ui`**: `validateLogin()` returns
+      `mustResetSecretCode` alongside `UserProfile`. On
+      `mustResetSecretCode === true`, `LoginPage.tsx` routes to a new
+      `ResetSecretCodePage.tsx` (current + new + confirm-new fields,
+      `type="password"`) instead of `/chat`, before anything else is
+      reachable. The admin dashboard also gets a "Change secret code"
+      link to the same page, for a voluntary change later - not only the
+      forced first one. New `resetAdminSecretCode()` in `client.ts`.
+
+- [ ] **Phase 172 — User-directed: make "Request Unpaid Leave" a genuine
+  A2A/HITL showcase instead of a deterministic 2-function pipeline -
+  real paused/resumed agent state, real agent reasoning, A2A-shaped task
+  vocabulary. User's explicit instruction: "ensure no deviations and no
+  surprise" - this spec is written to be followed exactly, not
+  reinterpreted during implementation; any point that turns out to be
+  infeasible as written gets flagged back before substituting anything.
+  - **Context**: the user pointed out, correctly, that Phase 162/165's
+    "Request Unpaid Leave" shipped as a deterministic 2-node pipeline
+    (`eligibility_check -> submit`, zero LLM calls) with the specialist's
+    decision handled as a completely separate REST call days later - not
+    the genuine A2A/HITL showcase this use case was meant to demonstrate.
+    3 concrete gaps, agreed with the user, this phase closes:
+    1. No durable paused/resumed agent state - submission and resolution
+       are 2 unrelated function calls sharing only a foreign key.
+    2. 2 LLM calls (an intake agent, a specialist-facing summarization
+       agent) planned in the original design
+       (`docs/dev-reference/leave-approval-a2a-design.html` §04) were
+       simplified away during implementation and never built.
+    3. No A2A-recognizable vocabulary (Task lifecycle, `contextId`,
+       Message/Parts, Artifact) anywhere in the data - just ad hoc status
+       strings.
+  - **One open decision before implementation starts - flagged, not
+    resolved unilaterally**: real pause/resume (gap 1) needs a durable
+    checkpointer so a graph invocation can pause at `interrupt()` and
+    resume later from a **different** process/request. LangGraph's own
+    Postgres-backed checkpointer lives in a separate package,
+    `langgraph-checkpoint-postgres`, confirmed NOT currently installed
+    (`import langgraph.checkpoint.postgres` fails) - adding it is a new
+    dependency, which this project's standing rule requires explicit
+    approval for before adding. The alternative, a hand-rolled JSON-blob
+    checkpoint table using only `psycopg` (already a dependency, same
+    pattern as every other store in `common/clients/db_client/`),
+    avoids the new dependency but reimplements a slice of what the
+    official checkpointer already does, and doesn't give genuine
+    `interrupt()`/`Command(resume=...)` semantics - a real deviation
+    from what was proposed, even if functionally similar. **Not decided
+    here - needs the user's explicit choice before this part of the
+    spec is implemented.** Everything else below (restoring the 2 LLM
+    calls, the A2A vocabulary/schema changes) doesn't depend on this
+    choice and can proceed either way.
+  - **Spec, gap 2 (restore the 2 dropped LLM calls)**:
+    - **`hrb_chatbot_v2/ai/agents/workflow_agents/unpaid_leave_agent.py`**:
+      new `intake_node` (LLM call) inserted before `eligibility_check_node`
+      - takes the raw submitted fields (dates/purpose/leave_type/
+      document_reference) and produces a structured, validated intake
+      summary (catches e.g. an incoherent purpose or a date range that
+      doesn't match the stated leave type) using this project's existing
+      multi-provider `ask()` client (`common/clients/llm_client/`), not a
+      new provider integration. New `review_brief_node` (LLM call),
+      inserted on the specialist-facing side - summarizes the request +
+      any attached document into the plain-English brief
+      `docs/dev-reference/leave-approval-a2a-design.html` §04 originally
+      called the "Review-support agent." Neither node decides anything -
+      the intake node validates/structures, the review-brief node
+      summarizes; the eligibility check stays pure date arithmetic (no
+      reason to force an LLM call onto a deterministic comparison), and
+      the specialist's own decision stays a human action, never an LLM
+      call - matching this project's own existing, correct boundary
+      (`resolve_hitl_request`'s own docstring: "Never an LLM call - a
+      human makes this call").
+    - **`hrb_chatbot_ui`**: `LeaveReviewModal.tsx` shows the new review
+      brief (plain text from the resolve/list response) above the raw
+      structured fields it already shows, not replacing them - the
+      specialist can still see the real underlying data, the brief is a
+      summary layer on top, not a replacement for it.
+  - **Spec, gap 3 (A2A-shaped vocabulary on data that already exists)**:
+    - **`hrb_lms_mcp`**: `specialist_leave_reviews.status` becomes an
+      explicit Task-lifecycle value (`submitted`/`working`/
+      `input_required`/`completed`/`rejected`) instead of today's
+      ad hoc `PENDING`/`COMPLETED` strings - `input_required` is the new
+      state representing "paused, waiting on the specialist" (today
+      conflated with plain `PENDING`). `hitl_request_context_id` (Phase
+      172-this-turn's rename) is formally documented as this flow's
+      `contextId` - the single id threading the submission and the
+      resolution together; no schema change needed beyond the rename
+      already done. The specialist's decision becomes a structured
+      `decision_message` JSON column (`{"role": "specialist", "parts":
+      [{"type": "text", "content": "..."}]}`) rather than a flat
+      `hr_comments` string column - Message/Parts shape, without
+      standing up the real A2A wire protocol. The decision email becomes
+      an explicit `produced_artifacts` JSON column
+      (`[{"type": "email", "recipient": "...", "sent_at": "..."}]`) on
+      the same row - an Artifact the Task produced, queryable, not just
+      a side-effecting function call with no record of what it made.
+    - **`hrb_chatbot_v2`**: `HrLeaveRequestSummary`/`MyLeaveRequestSummary`
+      gain `task_state`, `review_brief`, and `produced_artifacts` fields
+      surfacing the above; `status`/`decision`/`hr_comments` stay as they
+      are too (additive, not a breaking rename of the existing contract).
+  - **Verification plan**: real submit -> real specialist resolve ->
+    confirm (a) the graph genuinely paused and resumed (not just two
+    unrelated calls that happen to agree) - checked directly via
+    `AsyncPostgresSaver`'s own checkpoint table, not inferred; (b) both
+    new LLM calls actually ran - **correction caught while writing this
+    spec, before implementing it**: Phase 132/160's Explainability/LLM
+    Context capture is wired into `run_guarded_pipeline()`, which only
+    the 3 retrieval pipelines (`genai-rag`/`single-agentic-rag`/
+    `multi-agentic-rag`) go through - `/v1/unpaid-leave/*` never has and
+    isn't being changed to. Evidence is instead the new `review_brief`
+    field actually containing real generated text in the response (not
+    present at all if the call never ran), plus the call logged like
+    every other agent LLM call via `get_logger` - no borrowed machinery
+    that doesn't actually reach this endpoint family; (c) the new
+    Task-state/Message/Artifact columns hold real data after a real
+    resolve, not nulls. Full backend suite green. No change to
+    `/request`'s or `/resolve`'s existing request/response field names
+    beyond the additive fields above - every already-shipped UI surface
+    keeps working unchanged.
+  - **Built and live-verified.** User approved adding `langgraph-checkpoint-postgres`
+    (pinned to the `2.0.x` line - `2.0.25` - not latest `3.x`, which pulls
+    `langgraph-checkpoint>=4.0.0`, conflicting with `langgraph==0.3.21`'s
+    own `<3.0.0,>=2.0.10` requirement; `langgraph-checkpoint==2.1.2`
+    resolved cleanly instead, confirmed via `pip check`).
+    - **Real platform issue found and fixed, not glossed over**:
+      `AsyncPostgresSaver`'s raw async psycopg driver raises
+      `psycopg.InterfaceError` outright on Windows's default
+      `ProactorEventLoop` - confirmed directly. Fix: `_run_graph()` runs
+      the checkpointer + graph inside a brand-new `SelectorEventLoop`,
+      constructed directly (not via the global event loop policy) inside
+      an `asyncio.to_thread()`-dispatched worker thread - isolates the fix
+      to this one module; the main app's own event loop (uvicorn, every
+      other async client) is never touched.
+    - **`unpaid_leave_agent.py` rebuilt**: `intake_node` (LLM call,
+      restored) -> `eligibility_check_node` (unchanged, still pure) ->
+      `submit_to_mcp_node` -> `generate_review_brief` (LLM call, restored;
+      node renamed from `review_brief` - that name collided with the
+      state's own `review_brief` key, a real LangGraph constraint caught
+      live) -> `await_specialist_decision_node` (`interrupt()` - the real
+      pause) -> `finalize_node` (resumes via `Command(resume=...)`; now
+      also sends the decision email and records the Artifact, moved out
+      of the route since that's genuinely the resumed Task's own work).
+    - **New `common/clients/db_client/agent_thread_store.py`**: maps
+      `hitl_request_context_id` -> the LangGraph `thread_id`, in
+      `hrb_chatbot_v2`'s own Postgres (new `agent_threads` table) - pure
+      orchestration metadata this project owns itself, `hrb_lms_mcp` has
+      no reason to know about LangGraph thread ids.
+    - **`hrb_lms_mcp`**: `specialist_leave_reviews` gained `task_state`,
+      `review_brief`, `decision_message`, `produced_artifacts` columns
+      (migration: `scripts/phase172_apply_schema.py`, applied and
+      verified) - `status`/`decision`/`hr_comments` untouched. New
+      `set_review_brief`/`record_produced_artifact` MCP tools (16 tools
+      total now, confirmed). Live-verified directly against the service
+      layer first (`scripts/phase172_live_verify.py`), then through the
+      real MCP wire protocol end to end (below).
+    - **`api/leave/unpaid_leave.py`**: `/resolve` now calls the new
+      `resume_unpaid_leave_decision()` instead of calling
+      `resolve_hitl_request` directly; the email-sending block that used
+      to live here moved into `finalize_node`.
+    - **Tests**: 13 agent tests (was 9) - all new nodes faked (LLM via a
+      fake `build_agent_llm`, MCP calls via fakes, the checkpointer via a
+      real in-memory `MemorySaver` - genuine pause/resume semantics
+      exercised with zero real DB/network, same zero-network-call
+      guarantee every other test in this project keeps), including a
+      direct `test_full_submit_then_resolve_round_trip_resumes_the_same_paused_graph`
+      proving this is real pause/resume, not two unrelated calls. Route
+      tests updated to the new function name; the 2 email-specific tests
+      moved to the agent test file (that behavior moved there too). New
+      `FakeAgentThreadStore` in `conftest.py`. Full suite: 628 passed, 0
+      failed (up from 619 pre-Phase-171/172).
+    - **Live-verified end to end against real Postgres + a real running
+      `hrb_lms_mcp`** (not just fakes): submitted a real request -
+      confirmed `task_state='input_required'` and a real, genuinely
+      useful LLM-generated `review_brief` ("purpose appears to be
+      work-related, which may not align with the unpaid leave type")
+      written to the real `specialist_leave_reviews` row, a real
+      `agent_threads` mapping row, and 186 real rows in the checkpointer's
+      own `checkpoints` table - then resolved it through the real
+      `/resolve` route, confirmed the log line "Graph resumed and
+      completed," and confirmed the final row: `task_state='completed'`,
+      a real `decision_message` (Message/Parts shape) holding the actual
+      response text, and a real `produced_artifacts` entry - which
+      happened to capture a real, pre-existing, unrelated SES
+      sandbox-mode rejection (documented in `BACKLOG.md`) as a `sent:
+      false` Artifact rather than silently losing that information,
+      incidentally proving the best-effort failure path too. Cleaned up
+      the test record via the admin delete endpoint afterward; confirmed
+      that cascade delete still works with the new columns populated.
+    - **Known, accepted, non-blocking**: `langgraph-checkpoint-postgres`
+      2.0.25 emits its own `DeprecationWarning` ("incompatible versions of
+      langgraph and checkpoint-postgres") because its hardcoded check
+      wants `langgraph>=0.5`; this project is pinned to `0.3.21` for
+      other reasons. Everything was directly tested working regardless -
+      not dismissed, confirmed. Upgrading `langgraph` itself is a much
+      larger, separate migration (would touch every other LangGraph-based
+      pipeline in this project) and is out of scope here.
+
+- [ ] **Phase 173 — User-directed: Admin Dashboard Docs-tab discoverability
+  fix, Eval Score 3-group layout, and a pre-retrieval query-normalization
+  "sanity" pass across all 3 RAG pipelines.**
+  - **Context**: 3 separate user asks landed together. (1) The Phase 170
+    inline `DocLink`s were invisible in the screenshot the user sent -
+    confirmed not a bug, just correct mode-gating (GenAI RAG Chat's link
+    only shows in `genai-rag` mode, Unpaid Leave's only inside that
+    modal) - but genuinely too easy to miss, so a guaranteed-visible home
+    was added. (2) The Eval Scores panel's prior single flat list was
+    split into the user's own named 3 groups - their own words, "my ask
+    was simple," after an earlier overcomplicated answer. (3) Confirmed,
+    not assumed (direct code audit): no query normalization/rewriting
+    step existed anywhere in any of the 3 pipelines - a real, legitimate
+    gap, explicitly prioritized by the user over the other open items
+    this same turn.
+  - **Spec**:
+    - **`hrb_chatbot_v2`**: new `AdminTab = "docs"` in
+      `AdminDashboardPage.tsx`, reusing the already-built
+      `listAdminDocs`/`getAdminDocContent` endpoints (Phase 170) - a row
+      click opens the doc in a new tab via the existing presigned-URL flow.
+    - **`ExplainabilityModal.tsx`**: the Eval Scores panel split into 3
+      `.eval-score-group` sub-sections - Retrieval Score (currently a
+      placeholder note, no live values yet - see Phase 170/172-adjacent
+      DeepEval discussion), Response Score (Groundedness/Completeness,
+      unchanged values), Others (Judge methodology, judging time).
+    - **New `ai/pre_processing/query_normalize.py`**: `normalize_query(query) -> str`,
+      same structured-output LLM pattern as `query_decompose.py` - fixes
+      spelling/grammar/typos and standardizes phrasing only, never
+      changes meaning, never answers, falls back to the original query
+      unchanged on any failure (parse error, LLM error, empty result).
+      New `NORMALIZE_SYSTEM_PROMPT` in `ai/prompts/agent_prompts.py`.
+    - **Wired into all 3 pipelines' own top-level entry points** (not the
+      shared `guarded_pipeline.py` core - genai-rag/multi-agentic-rag
+      each call `check_input()` explicitly before that core ever runs,
+      for their own cache-key-building reasons, so normalization has to
+      happen at that same explicit-call layer to actually affect cache
+      keys and MCP keyword-routing, not after):
+      `rag_pipeline/pipeline.py::answer_query()`,
+      `orchestration_agent.py::run_agent()`,
+      `multi_agent_pipeline.py::run_multi_agent()` - each calls
+      `normalize_query()` as the very first step, before `check_input()`/
+      cache-key building, so a typo'd query still matches guardrail/
+      keyword-routing logic that expects clean text (e.g.
+      `decompose()`'s own required exact "What is my leave balance?"
+      phrasing).
+    - **Tests**: new `test_query_normalize.py` (7 cases, same shape as
+      `test_query_decompose.py`). Every default-suite test file that
+      calls `answer_query()`/`run_agent()`/`run_multi_agent()` directly
+      got a passthrough fake added (`test_pipeline.py`,
+      `test_orchestration_agent.py`, `test_multi_agent_pipeline.py`,
+      `test_multi_agent_pipeline_chaos.py`,
+      `test_routing_type_golden_cases.py`) - found by grepping every
+      caller, not assumed; the 3 `@pytest.mark.eval` golden-dataset files
+      (real-LLM-call, excluded from the default suite by design) were
+      deliberately left unmocked, consistent with their own stated
+      purpose.
+
+- [ ] **Phase 174 — User-directed design proposal (spec + design doc only,
+  implementation explicitly held): standardize eval scoring on DeepEval,
+  for both live queries and the offline golden dataset.**
+  - **Context**: a deliberate deviation from this project's own IK FDE
+    Module 5 courseware-fidelity default (hand-rolled LLM-as-judge
+    prompts) - the user named that tradeoff themselves and chose to
+    standardize on DeepEval anyway ("let's standardize this"), an
+    informed override, not a silent drift. Full research + architecture
+    in `docs/dev-reference/deepeval-standardization-design.html`.
+  - **Spec** (full detail in the design doc; summary here):
+    - New `deepeval` dependency - **not yet approved to install**, same
+      gate `langgraph-checkpoint-postgres` went through.
+    - New `ai/rag_core/deepeval_judge_model.py` - a `DeepEvalBaseLLM`
+      wrapper around this project's existing multi-provider `ask()`
+      clients (mirrors `langchain_chat_model.py`'s own `GatewayChatModel`
+      adapter), so DeepEval never bypasses the existing gateway.
+    - Metric mapping: Groundedness -> `FaithfulnessMetric`, Completeness
+      -> `GEval` (custom criteria, no DeepEval built-in fits),
+      Precision@k/Recall@k/F1 (golden only - needs `expected_output`) ->
+      `ContextualPrecisionMetric`/`ContextualRecallMetric`/derived F1,
+      new Answer Relevance (doesn't exist today) -> `AnswerRelevancyMetric`.
+    - Live F1 stays fundamentally an **estimate** even with DeepEval - no
+      metric removes the "no ground truth for a live, unlabeled question"
+      constraint; a live number would come from judging each retrieved
+      chunk's relevance on the fly, clearly labeled "estimated," never
+      conflated with the golden dataset's own exact-match F1.
+    - Real cost/latency tradeoff, not yet decided: full metric set live
+      (~4x today's judge call volume with per-chunk F1 estimation
+      included) vs. Faithfulness+Completeness live only (close to
+      today's cost), with Precision/Recall/AnswerRelevancy golden-only.
+    - Build order: judge-model wrapper -> swap
+      `golden_dataset_harness.py`'s internals first (lower risk, already
+      real-cost-accepted) -> swap each live pipeline one at a time, each
+      live-verified with real before/after comparisons -> wire AnswerRelevancy/
+      live-F1-estimate into the Phase 173 Retrieval Score UI group.
+  - **Explicitly held**: no code written for this phase - design/research
+    only, per direct user instruction.
+
+- [ ] **Phase 175 — User-directed: Admin Dashboard height stability, dynamic
+  per-option doc links for "RAG Pipeline:"/"Retrieval:", and doc links on
+  3 more Settings labels.**
+  - **Context**: the user corrected a real misunderstanding from Phase
+    170/173 - the doc links needed to be dynamic (resolve to a different
+    doc per the currently-selected dropdown option), not static, and
+    needed to sit next to specific Settings labels, not just the 2
+    locations already built. Explicit standing instruction from this
+    turn: state understanding concisely before implementing, going
+    forward.
+  - **Spec**:
+    - **`App.css`**: new `.admin-dashboard-table-scroll` (`min-height: 360px`)
+      applied to all 5 Admin Dashboard tab tables - `.documents-table-scroll`'s
+      own `max-height` only bounds a long tab, so a short tab visibly
+      shrunk the whole page on switch.
+    - **`scripts/sync_admin_docs.py`**: 4 new entries - `single-agentic-rag`
+      (`rag-retrieval/rag-pipeline-current-state.html` - confirmed by
+      direct content check to cover `orchestration_agent.py`
+      specifically, not guessed), `multi-agentic-rag`
+      (`react_agents/multi-agent-graph.html` - literally titled for this),
+      `retrieval-strategies` (`rag-validation-gates.html` - one doc shared
+      by all 4 search-strategy options, flagged directly to the user: no
+      per-method doc exists), `genai-chat-workflow`
+      (`genai-chat-workflow-architecture.html`). All 6 docs now synced
+      (`doc_metadata` ids 1-6), live-verified via `GET /v1/admin/docs`
+      and a real presigned-URL fetch (200).
+    - **`ChatPage.tsx`**: "RAG Pipeline:" `DocLink` now resolves
+      dynamically via a new `MODE_DOC_FEATURE` map keyed by
+      `effectiveMode`, shown in every mode (was genai-rag-only before).
+      "Retrieval:" gained a `DocLink` (`retrieval-strategies`, same doc
+      regardless of which of the 4 options is selected). "Request Unpaid
+      Leave" and "Enable GenAI Chat Workflow" checkboxes each gained
+      their own `DocLink`, separate from the one already inside the
+      Unpaid Leave modal.
+    - **`UnpaidLeaveModal.tsx`**: added a "My requests" navigation link
+      (to the existing `/my-leave-requests` page) inside the modal,
+      alongside the inline prior-requests summary that was already
+      there - additive, the external Settings-row link is untouched.
+    - **Explicitly skipped, flagged not guessed**: a doc link for the
+      sidebar's "AI RAG Chat History" section - no doc exists for
+      conversation-memory specifically (`genai-chat-workflow-memory-design.html`
+      is a different feature - the ad-hoc file-attachment chat's own
+      memory, not this).
+  - **Verified**: 642 backend tests still passing (no backend code
+    changed, only new S3/doc_metadata content), clean `tsc`/lint/build on
+    the frontend, live-verified `GET /v1/admin/docs` returns all 6 real
+    rows and a real presigned content URL resolves (200).
+  - **Still not done, explicitly separate scope**: the full "My Past
+    Requests" tab/grid/Edit-Resubmit/Cancel redesign inside the Unpaid
+    Leave modal (only the plain navigation link was added this round);
+    the remaining locations for ingestion-related docs, once this round
+    is confirmed.
+
+- [x] **Phase 176 (done, retroactively recorded) — User-directed: Admin
+  dropdown RBAC widened to admin, destination-page doc links, invalid-HTML
+  fix.**
+  - **Context**: `ingest_document.py`'s GET/DELETE document routes were
+    widened to accept `ADMIN` back in Phase 168, but `hrb_chatbot_ui`'s
+    Admin dropdown menu still gated "Upload documents"/"Manage documents"
+    to `hr_support` only - the frontend hadn't caught up, so an admin
+    couldn't even see the menu entries their own role already had backend
+    access to.
+  - **Spec**:
+    - **`ChatPage.tsx`**: Admin dropdown's "Upload documents"/"Manage
+      documents" visibility widened from `identity.role === "hr_support"`
+      to `(identity.role === "hr_support" || identity.role === "admin")`.
+    - Each menu entry's `<DocLink>` moved from nested inside the `<Link>`
+      (invalid HTML - an interactive `<button>` can't nest inside an
+      `<a>`, and the click would also trigger the outer navigation) to a
+      sibling inside a new `.admin-menu-item-row` flex wrapper.
+    - `UploadPage.tsx`/`DocumentsPage.tsx`: added `<DocLink>` next to each
+      page's own `<h1>`, so the doc link is visible on the destination
+      page itself, not only the nav menu entry that led there.
+
+- [x] **Phase 177 (done, retroactively recorded) — User-directed: DocLink
+  icon size + error-display fix.**
+  - **Context**: live-screenshotted bug - `DocLink`'s "No doc synced for
+    this feature yet." error rendered as a sibling `<span>` next to the
+    icon, which is fine in most contexts but wrapped across several lines
+    inside the Admin dropdown's narrow (`min-width: 180px`) menu, breaking
+    its layout. Icon itself was also reported too large.
+  - **Spec**:
+    - **`DocLink.tsx`**: removed the inline error `<span>` entirely; the
+      error message now lives only in the button's own `title`/
+      `aria-label` (a native tooltip can never affect a parent's layout).
+    - **`App.css`**: `.doc-link-button` shrunk 18px/13px-SVG ->
+      14px/9px-SVG; new `.doc-link-button-error` class (amber border/text,
+      reusing the existing `--gold` token) replaces the old
+      `.doc-link-error` block as the error's only visual cue.
+
+- [ ] **Phase 178 — User-directed: admin is a superuser - RBAC sweep so
+  `ADMIN` can use every employee/manager/HR-support feature, not just the
+  admin-exclusive ones.**
+  - **Context**: live-screenshotted gaps - `DocumentsPage.tsx` told an
+    admin "Only HR Support can view or delete indexed documents," and the
+    Admin dropdown's "Leave approvals" entry was `hr_support`-only, even
+    though the admin role conceptually outranks every other role. Direct
+    instruction: "admin user is a super user so must have access to all
+    features - employees, managers, HR support." A full audit of every
+    `require_role()` call site (`src/hrb_chatbot/api/**`) and every
+    frontend `identity.role` gate (`hrb_chatbot_ui/src/**`) found this is
+    a real, wide gap - most non-admin-exclusive routes never listed
+    `Role.ADMIN` at all, so an admin identity got a 403 even from routes
+    like `/v1/genai-rag-retrieval/query` or `/v1/feedback`.
+  - **Spec**:
+    - **Backend - add `Role.ADMIN` to every `require_role()` call that
+      doesn't already include it**, across: `rag/ingest_document.py`
+      (`upload_documents`, `reindex_document`, `rechunk_document`,
+      `request_presigned_upload`, `preview_test_noise_documents`,
+      `delete_test_noise_documents` - the other 4 routes in this file
+      already had `ADMIN` from Phase 168), `leave/unpaid_leave.py`
+      (`get_leave_document_upload_url`, `submit_unpaid_leave`,
+      `list_pending_unpaid_leave_requests`, `resolve_unpaid_leave_request`,
+      `list_my_unpaid_leave_requests`, `get_leave_document_download_url` -
+      plus its `is_specialist` ownership check widened to treat `ADMIN`
+      the same as `HR_SUPPORT`), `feedback/manage_feedback.py`
+      (`submit_feedback`, `list_feedback` - plus its `scope_employee_id`
+      "see everyone's" check widened the same way), `conversations/
+      manage_conversations.py` (all 3 routes - own-conversation-scoped
+      only, for every role including `HR_SUPPORT`, so this is purely
+      "let admin use its own chat history," not a new browse capability),
+      `rag/retrieve_document.py`, `agentic_rag/query_agent.py`,
+      `multi_agentic_rag/query_agent.py` (so an admin identity can use
+      all 3 chat pipelines directly), `adhoc_chat/adhoc_document_chat.py`
+      (all 3 routes).
+    - **Deliberately NOT touched - `HR_SUPPORT`'s own exclusion from
+      filing a leave request** (`get_leave_document_upload_url`,
+      `submit_unpaid_leave`, `list_my_unpaid_leave_requests` - Phase 165
+      round 2, confirmed live as a real conflict-of-interest gap: an
+      hr_support persona filing their own request through the same flow
+      they review). `ADMIN` is added alongside the existing
+      `EMPLOYEE`/`MANAGER` allow-list on these 3 routes, `HR_SUPPORT`
+      stays excluded - unrelated prior decision, not revisited here.
+    - **Frontend** - widened the matching role gates: `DocumentsPage.tsx`
+      (3 gates), `UploadPage.tsx` (1 gate), `LeaveApprovalsPage.tsx` (2
+      gates), each from `role !== "hr_support"` to also allow `"admin"`.
+    - **Flagged, not changed - a real conflict with a prior confirmed
+      decision**: `LeaveReviewModal.tsx`'s Phase 168-round-3 design is
+      "admins manage/clean up data, they don't make HR decisions - no
+      resolve form is ever shown for them, even on a PENDING row" (only a
+      read-only view + Delete button). That's in tension with "admin must
+      have access to all features including HR support's own" - left
+      exactly as-is pending explicit confirmation, since reversing it
+      changes a previously-reasoned-through UX decision, not just an
+      access gap.
+  - **Also this round, docs-only (no spec gate - doesn't touch
+    `src/hrb_chatbot/**`)**:
+    - **README.md privacy fix**: stripped the real admin persona's name
+      and one-time seed secret code from a curl example - admin access is
+      restricted to the project owner, so README (meant for anyone who
+      downloads the project) no longer documents how to obtain it. Also
+      corrected the `/resolve` wording to match the above (`hr_support`
+      only, not `admin`), and added `LEAVE_DOCS_S3_BUCKET`/
+      `SES_SENDER_EMAIL` to `.env.example` (present in the real `.env`,
+      missing from the example), plus fixed 3 other stale README claims
+      (content-hash dedup was never actually removed, guardrails/evals
+      have existed since Phase 98, the RAG pipeline itself has existed
+      for ~170 phases - none of "not built yet").
+    - **`docs/dev-reference/design/scaling-latency-design.html`**: 2 new
+      panels (7, 8) added to the existing diagram-dashboard style (kept
+      as-is per explicit direction, not reshaped), covering what the user
+      flagged as missing at the system level: Postgres/Neon (confirmed
+      now live in production, correcting a stale "not provisioned" claim
+      in `AWS-DEVOPS-RUNBOOK.md` - flagged, not fixed, out of this
+      phase's scope), Secrets Manager, RBAC's known self-asserted
+      limitation, the Redis-backed rate limiter, App Runner's managed
+      load balancing, CloudWatch logging's current basic state, LangSmith
+      sampling's real gap, and per-service container scaling (using
+      `hrb_lms_mcp`'s own already-live separate App Runner service as
+      proof the pattern works in this project, not a hypothetical).
+
+- [ ] **Phase 179 — User-directed: multi-document-per-feature admin docs
+  viewer (Spec/Architecture/Design/Decisions), piloted on one feature so
+  it can be reviewed visually before deciding whether to extend it.**
+  - **Context**: `spec-doc-initiative-plan.md` (written last round) proposed
+    4 new document categories per feature - Spec, Architecture (existing
+    style, unchanged), Design, Decisions - plus a parent entry point per
+    feature. The user said they can't meaningfully react to the proposal
+    in the abstract ("unless you complete the task and I see things
+    visually, I may not be able to comment") and asked for a real,
+    reviewable pilot, grounded in the standing instruction that these
+    documents are meant as the user's own interview/demo reference
+    material - not internal scratch notes, so content quality matters as
+    much as the mechanism. **Pilot feature: Admin Secret Code (Phase 169 +
+    171)** - small, single-concern, fully built/tested, already has rich
+    real decision history recorded in this file's own Phase 169/171
+    entries to draw the Decisions doc from directly, not invent.
+  - **Spec**:
+    - **`doc_metadata_store.py`**: the table's uniqueness moves from
+      `feature_name` alone (`UNIQUE` inline) to the composite
+      `(feature_name, doc_type)` - a feature can now have multiple doc rows,
+      one per type. Migration is additive/idempotent, matching this
+      project's existing `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`/
+      `CREATE INDEX IF NOT EXISTS` convention (`postgres_client.py`): drop
+      the old auto-named single-column constraint if present
+      (`ALTER TABLE ... DROP CONSTRAINT IF EXISTS doc_metadata_feature_name_key`),
+      then `CREATE UNIQUE INDEX IF NOT EXISTS` on the pair - a unique index
+      enforces the same guarantee as a named constraint without hitting
+      Postgres's lack of `ADD CONSTRAINT IF NOT EXISTS`. `upsert_doc()`'s
+      lookup changes from `WHERE feature_name = %s` to
+      `WHERE feature_name = %s AND doc_type = %s`.
+    - **`scripts/sync_admin_docs.py`**: `DOCS_TO_SYNC` restructured from
+      `feature_name -> one tuple` to `feature_name -> {doc_type: tuple}`,
+      so a feature can list several doc types. Existing 6 single-doc
+      features keep their one entry unchanged. New `admin-secret-code`
+      feature gets 4 entries (spec/architecture/design/decisions).
+    - **4 new docs** under `docs/dev-reference/admin-secret-code/`
+      (`spec.html`, `architecture.html`, `design.html`, `decisions.html`),
+      same design-system tokens/components as the existing dev-reference
+      dashboards (dark/light theme-aware, card/panel/status-pill
+      vocabulary) for visual consistency with everything already shipped.
+      Content grounded directly in `login.py`, `admin_credential_store.py`,
+      `models/auth.py`, and this file's own Phase 169/171 write-ups - not
+      invented. Decisions doc uses the exact
+      Context/Decision/Alternative/Why/Trade-off shape from
+      `spec-doc-initiative-plan.md`'s snip-url reference.
+    - **`DocLink.tsx`**: changes from `.find()` (one doc) to `.filter()`
+      (all docs for that `feature_name`). One match keeps today's
+      behavior (click opens it directly). More than one match opens a
+      small anchored popover listing each by `doc_type`, matching the
+      existing `.chunking-help-popover` visual pattern already in this
+      codebase rather than inventing a new overlay style.
+    - **Wired at**: `ResetSecretCodePage.tsx`'s heading (the one UI
+      surface this feature actually has).
+  - **Explicitly not done this phase**: the global, not-per-feature
+    "overview of every feature + system architecture" parent entry
+    discussed last round - queued as a follow-up once this pilot's
+    mechanism is confirmed, not built blind alongside it.
+  - **Built and live-verified.** Migration ran clean against the real dev
+    Postgres (`DROP CONSTRAINT IF EXISTS` + `CREATE UNIQUE INDEX IF NOT
+    EXISTS`, no errors). `scripts.sync_admin_docs` run twice for real: 1st
+    run - the 6 pre-existing docs correctly reported "unchanged" with
+    their original ids (1-6) preserved (confirms the s3_bucket/s3_key
+    refresh-on-no-op fix didn't duplicate rows when the key-naming scheme
+    changed to include `doc_type`), the 4 new `admin-secret-code` docs
+    inserted as ids 7-10, same `feature_name`, distinct `doc_type`. 2nd
+    run - all 10 correctly "unchanged" (true idempotency). `GET
+    /v1/admin/docs` against the real running backend returned all 10 rows,
+    4 sharing `feature_name: "admin-secret-code"` with distinct
+    `doc_type`. `GET /v1/admin/docs/10/content` returned a real presigned
+    URL; fetched directly - real `200` from S3 with the actual uploaded
+    Decisions doc. 643 backend tests passing (1 new:
+    `test_upsert_keys_by_feature_and_doc_type_not_feature_alone`), clean
+    `tsc`/build on the frontend.
+
+- [ ] **Phase 180 — User-directed: RAG Ingestion as the next real-feature
+  docs pilot (Spec/Architecture/Design/Decisions), per
+  `docs-and-admin-observability-expansion-plan.md`'s confirmed build
+  order.**
+  - **Context**: Admin Secret Code (Phase 179) proved the mechanism but
+    wasn't architecturally interesting - direct feedback: "it would have
+    been good if you would have picked a real use case (Chatbot features,
+    instead of login page)." RAG Ingestion (the S3 async batch pipeline)
+    was the user-confirmed next pilot.
+  - **A real discovery made before writing anything new**: a whole
+    `docs/dev-reference/deployment-guide/` folder already exists (10
+    docs + index, written 2026-10-05 - Java/Spring-Boot-to-AWS framed,
+    matching the user's own background), none of it in `doc_metadata`
+    yet. `05-rag-ingestion-batch.html` already has real, code-accurate
+    Mermaid sequence/component diagrams for this exact feature (verified
+    against `lambda_handlers/index_document_handler.py` directly - the
+    diagram's stages, DLQ/redrive handling, and `batchItemFailures`
+    pattern all match the real code). Reused rather than re-derived -
+    see Spec below for exactly how.
+  - **A real inconsistency flagged, not resolved here**: that same
+    deployment-guide's `08-milestone-plan.html` describes "Milestone 4 -
+    React UI (last), same repo, `frontend/` folder" as still-to-build -
+    but `hrb_chatbot_ui` already exists today as a long-since-mature,
+    separately-developed repo with dozens of phases of real work. The
+    guide's own "Milestone 1-4" sequence (Pinecone standing store → Redis
+    cache → S3 batch ingestion → React UI) does not match what was
+    actually built (real development went toward admin/RBAC/HITL/A2A/MCP/
+    docs-viewer work instead). Whether this guide is stale and should be
+    archived, or still represents real deferred production-readiness work
+    (Pinecone migration off Chroma, Redis cache, a true client-facing
+    async upload endpoint - Phase 89 still not built) worth eventually
+    doing, is the user's call, not assumed here.
+  - **Spec**:
+    - **`docs/dev-reference/rag-ingestion/architecture.html`** (new) -
+      the two Mermaid diagrams (sequence + component flowchart) from
+      `05-rag-ingestion-batch.html`, content reused verbatim (technically
+      verified accurate), wrapped in this project's own standard
+      dev-reference template instead of the deployment-guide's separate
+      `style.css` - every other synced admin doc is a single
+      self-contained file with no external stylesheet dependency, and a
+      presigned S3 URL opened directly has no sibling file to resolve a
+      relative `<link>` against, so serving the original file as-is would
+      render unstyled. Cross-links back to the full deployment-guide doc
+      for its NFR/testing-plan content, not duplicated here.
+    - **`docs/dev-reference/rag-ingestion/spec.html`** (new) - intent,
+      scope/non-scope (sync upload today vs. the Phase 89 async endpoint
+      still not built), personas (hr_support/admin who upload), acceptance
+      criteria for what's actually shipped vs. designed-only.
+    - **`docs/dev-reference/rag-ingestion/design.html`** (new) - API
+      contracts (`POST .../ingest-document/documents`, the Lambda SQS
+      trigger payload shape), DB fields `documents_service.py`/
+      `pipeline.py` write per status transition
+      (parsing/chunking/embedding/indexing/indexed/failed), key flows,
+      narrow NFR section citing `06-nfr-reliability-resilience.html`'s own
+      real finding (zero CloudWatch alarms configured today - confirmed via
+      `aws cloudwatch describe-alarms`, not assumed) rather than repeating it.
+    - **`docs/dev-reference/rag-ingestion/decisions.html`** (new) - real
+      trade-offs already on record: sync-in-request today vs. the S3→SQS→
+      Lambda design (why decoupled, `S3-ASYNC-UPLOAD-DESIGN.md`'s own 3
+      reasons); S3→SQS→Lambda vs. the originally-drafted direct S3→Lambda
+      trigger (Phase 88's real revision); Pinecone as Lambda's only usable
+      vector store (ChromaDB's file-based mode can't run in Lambda's
+      ephemeral filesystem) vs. Chroma remaining the local-dev default.
+    - **`scripts/sync_admin_docs.py`**: fills in the `upload-documents`
+      feature_name (previously flagged as having zero synced docs) with
+      these 4 new entries - no new frontend wiring needed, `UploadPage.tsx`
+      already renders `<DocLink featureName="upload-documents" />`.
+  - **Explicitly not done this phase**: resolving the Milestone-plan
+    staleness question above; building the actual Pinecone/Redis/async-
+    upload-endpoint work the deployment-guide describes (that's real
+    feature work, not a docs pilot).
+  - **Built and live-verified.** `scripts.sync_admin_docs` run twice: 1st
+    run - all 10 existing docs correctly "unchanged," the 4 new
+    `upload-documents` docs inserted as ids 11-14. 2nd run - all 14
+    correctly "unchanged" (idempotent). `GET /v1/admin/docs` against the
+    real running backend confirmed all 4 under `feature_name:
+    "upload-documents"` with the right `doc_type`s. `GET
+    /v1/admin/docs/12/content` (Architecture) returned a real presigned
+    URL; fetched directly - real `200`, 10,788 bytes, confirmed to contain
+    both the Mermaid script tag and the real page title. No backend code
+    touched this phase - docs/scripts only.
+  - **Round 2 - 2 real errors caught by direct user review, both fixed and
+    re-verified live:**
+    - **Mermaid syntax bug**: the sequence diagram's `Lambda->>Meta:
+      set_chunk_ids(id, new_ids); update_status(id, "indexed")` line broke
+      rendering - a semicolon inside a message label, not plain text to
+      Mermaid v10.9.1's sequence-diagram grammar. Found by test-rendering
+      the exact diagram text via `npx @mermaid-js/mermaid-cli` (not
+      guessed) - the parser error pointed at the comma right after the
+      semicolon. Fixed (comma instead of semicolon), re-rendered clean,
+      re-synced, fetched the live S3 content directly to confirm the fix
+      actually shipped, not just the local file.
+    - **A real factual error, not a style nit**: Spec/Architecture/Design/
+      Decisions all called the presigned-upload endpoint (Phase 89)
+      "designed, not built" - wrong. Direct grep of `ingest_document.py`
+      and `hrb_chatbot_ui/src/pages/UploadPage.tsx` confirmed
+      `POST .../presigned-upload` is real and is exactly what the
+      production upload UI calls (`requestPresignedUpload()` ->
+      `uploadFileToS3()` -> poll) - Phase 89 is "done, verified live on
+      AWS, 2026-10-06" per its own roadmap entry, not a gap. Corrected
+      across all 4 docs; replaced with the real remaining gaps Phase 89's
+      own entry documents (no CI/CD for the Lambda deployable - caused a
+      real incident where App Runner redeployed but the Lambda silently
+      ran stale code; no full local round-trip test). Also added the
+      presigned-URL generation mechanism (`boto3
+      generate_presigned_url("put_object", ...)`) and the raw-binary PUT
+      transfer mechanics (`fetch(url, {method:"PUT", body: file})`, no
+      base64/multipart) explicitly - a direct user question the first
+      draft left unanswered. Re-synced (`doc_version` 1->2 on all 4),
+      re-verified the live S3 content has the fix, not just the local file.
+  - **Round 3 - diagram standard changed: PowerPoint deck exports replace
+    Mermaid, user-directed.** The user has a real, actively-maintained
+    17-slide deck (`HRB_V2_Architecture_Deck_v9.pptx`,
+    `C:\Users\sreed\Downloads`) with professional swim-lane/numbered-step
+    diagrams - slide 12 ("Indexing Pipeline V2 - Target State") is an
+    exact match for this pilot. Installed `python-pptx` (read/edit real
+    `.pptx` shapes) and LibreOffice (`winget install
+    TheDocumentFoundation.LibreOffice` - headless `--convert-to pdf` for
+    slide export) plus `pymupdf` (extract one page as a high-res PNG) -
+    none of these touch `requirements.txt`, all one-off tooling for this
+    workflow. Corrected 4 real inaccuracies on slide 12 against the actual
+    code (event routing falsely showed EventBridge/SNS - real architecture
+    is direct S3->SQS; state-machine names didn't match the real enum
+    values in `documents_service.py`; "async batch" overstated Phase 89's
+    real single-file-only scope) - saved as a new `_v10.pptx`, not
+    overwriting the user's `v9` (a `~$...v9.pptx` lock file suggested it
+    was open in PowerPoint at the time). Exported slide 12 to PNG
+    (`docs/dev-reference/rag-ingestion/assets/architecture-indexing-pipeline-v2.png`,
+    2881x1801, 313KB) and rebuilt `architecture.html`'s panel 1 around it
+    (base64-embedded, keeping the "one self-contained file" convention
+    every other synced doc already follows) - both Mermaid diagrams
+    removed entirely, the sequence diagram's detail preserved as a plain-
+    prose numbered step list instead of a second diagram. Re-synced
+    (`doc_version` 2->3), re-verified the live S3 content has the image
+    embedded and zero Mermaid references.
+  - **Standardized going forward, not retrofitted everywhere yet**: future
+    Architecture docs should check whether a matching deck slide already
+    exists and export+correct it (this pilot's own pattern) before hand-
+    building a new diagram. Explicitly NOT done this round: migrating
+    Admin Secret Code's hand-coded CSS sequence diagram (no matching deck
+    slide exists for it) or any of `scaling-latency-design.html`'s own
+    panels (different style, no deck equivalent either) - both are
+    candidates for a later pass, not silently redone now.
+  - **Round 4 - User-directed: Spec/Design/Decisions for all 4 real
+    rag-retrieval features (genai-rag-chat, single-agentic-rag,
+    multi-agentic-rag, retrieval-strategies), plus the PowerPoint deck
+    itself uploaded to S3 as an admin-downloadable asset.**
+    - **Deck as a real S3 asset**: `sync_admin_docs.py` gained a new
+      `architecture-deck` feature_name (`doc_type: "deck"`), pointing at
+      the user's own `C:\Users\sreed\Downloads\HRB_V2_Architecture_Deck_v10.pptx`
+      directly - not a copy checked into this repo, since that file is
+      their live working copy, incremented each correction round. The
+      sync loop's S3 key previously hardcoded a `.html` extension for
+      every doc - fixed to derive the real extension from the source
+      file (`os.path.splitext`), needed for this entry to upload as a
+      real `.pptx`, not a mislabeled `.html`. Live-verified: `GET
+      /v1/admin/docs/15/content` returns a real presigned URL;
+      fetched directly - `200`, correct
+      `application/vnd.openxmlformats-officedocument.presentationml.presentation`
+      content-type, 360,816 bytes. Shows up in the Admin Dashboard's
+      existing Docs tab automatically (Phase 170) - zero new frontend
+      code needed, `handleOpenDoc()` was already doc_type-agnostic.
+    - **A real factual catch before shipping, not after**: genai-rag-chat's
+      first-drafted Decisions doc claimed the Redis answer cache "stays
+      genai-rag-only" (both from this project's own CLAUDE.md context and
+      an initial draft here). Direct inspection of `orchestration_agent.py`
+      (Phase 110) and `multi_agent_pipeline.py` (Phase 115) found both
+      real `answer_cache().get()/.set()` calls with their own
+      pipeline-namespaced cache keys and `LIVE_DATA_TOOLS` exclusion sets
+      - the claim was wrong, corrected across genai-rag-chat's Spec/
+      Design/Decisions before sync, not left to be found later.
+      Multi-agentic-rag's own docstring said "4 domain agents" - the real
+      `DOMAIN_AGENT_NODES` list has 5 (`vector_kb_agent`, `lms_ops_agent`,
+      `sql_db_agent`, `lms_analytics_agent`, `web_search_agent`) -
+      corrected to the real count, not copied from the comment.
+    - **Architecture docs deliberately kept as-is for all 4 features** -
+      see genai-rag-chat's own Decisions GR-1 for the specific reasoning
+      (the deck's one candidate slide for this feature set, slide 8,
+      needs structural correction beyond what this round's time budget
+      covered, not just small text fixes like slide 12 needed).
+    - **Where genuine uncertainty existed, flagged rather than guessed**:
+      single-agentic-rag's Decisions SA-1 (why `ChatOpenAI` directly
+      instead of the shared `GatewayChatModel` adapter) and
+      multi-agentic-rag's Decisions MA-1 (guardrails not yet migrated to
+      the Phase 98 shared core) are both explicitly marked as recorded
+      from the module's own docstring / this project's CLAUDE.md context,
+      not independently re-derived this round - an honest confidence
+      boundary, not presented as more verified than it is.
+    - **12 new docs total** (3 per feature × 4 features), all synced,
+      `doc_metadata` ids 16-27 (plus id 15 for the deck). Full suite not
+      re-run this round - no backend Python code changed beyond
+      `sync_admin_docs.py`'s extension-derivation fix, which has no test
+      coverage (an operational script, same as `ingest_kb_docs.py`).
+  - **Round 5 - User-directed rewrite: strip phase/gap narration out of
+    the documents themselves, diagram-first not text-first, add the
+    missing per-feature Overview/entry page.** Direct feedback on round 4
+    (screenshots): the docs had turned into session journals (phase
+    numbers, "flagged not independently verified," "known gap" tables
+    woven into prose) instead of clean technical references, were
+    text-heavy card-grids with no new diagrams for 4 of the 5 features,
+    and never got the agreed per-feature overview/entry page with child
+    links. Rebuilt RAG Ingestion's full 4-doc set as the one example to
+    confirm the corrected approach before touching the other 4 features:
+    - **New `overview.html`** (new `doc_type`) - the diagram, a 2-sentence
+      "what this is," then 4 link-cards (one line each) into Spec/
+      Architecture/Design/Decisions. Listed first in `DocLink`'s popover
+      now (`DOC_TYPE_ORDER`, new - the API's own tie order wasn't
+      guaranteed to put it first).
+    - **Architecture**: kept the real diagram, cut the prior round's
+      7-step numbered prose panel down to one short paragraph - the
+      diagram carries the explanation, not a second wall of text beside it.
+    - **Spec**: cards-with-status-pills replaced with plain bullet lists;
+      content roughly a third of round 4's length, same real facts.
+    - **Design**: kept the API contracts (structurally necessary, not
+      prose padding) and the real constraints; the state-machine table
+      became a one-line visual flow-strip instead of a 7-row table with
+      Built/Gap columns.
+    - **Decisions**: kept Context/Decision/Alternative/Why/Trade-off (the
+      right format for trade-offs) but cut phase-number citations out of
+      the prose entirely - they now live only in the summary table's own
+      Source column, confirmed via `grep -c "Phase [0-9]"` (2 hits total,
+      both in that one table cell, zero in prose).
+    - **Also fixed, confirmed from a live screenshot**: `DocLink`'s
+      popover was clipping off-screen for an icon sitting near a panel's
+      right edge (`left: 0` anchoring) - switched to `right: 0` anchoring.
+      A second screenshot showed `AccessDenied` on bare, unprefixed S3
+      URLs (`admin-docs/decisions.html`, no feature name) - checked the
+      real `doc_metadata` rows and the live-generated presigned URL for
+      the exact doc in question (id 18) directly; both were correctly
+      feature-prefixed, and no code path in `DocLink.tsx` or the backend
+      route can produce an unprefixed key - most likely a stale browser
+      tab/cache, not reproduced in the current code.
+    - **Explicitly not done yet**: the other 4 features (genai-rag-chat,
+      single-agentic-rag, multi-agentic-rag, retrieval-strategies) still
+      have round 4's text-heavy, phase-narrated docs and no Overview page
+      - queued, pending confirmation this rebuilt example is the right
+      shape before redoing all 4.
+  - **Round 6 - User-directed: the "stale browser tab" diagnosis from
+    round 5 was wrong - a real, reproducible bug, found and fixed; plus
+    Overview rewritten per explicit spec and the architecture diagram
+    pulled back out of it.**
+    - **The real root cause of the AccessDenied screenshots, confirmed
+      directly, not guessed**: every doc was uploaded as a flat
+      `admin-docs/{feature}-{doc_type}.html` S3 key. A document opened
+      from its own presigned URL (e.g.
+      `admin-docs/upload-documents-overview.html`) and containing a plain
+      `<a href="spec.html">` resolves that relative link per standard
+      URL rules against the *last path segment* of the current URL -
+      landing on `admin-docs/spec.html`, silently dropping the feature
+      prefix. Verified by fetching the real presigned URL for the exact
+      doc id from the screenshot and reproducing the resolution with
+      Python's own `urljoin()` - not assumed.
+    - **Fix**: `sync_admin_docs.py`'s S3 key is now
+      `admin-docs/{feature_name}/{doc_type}.html` - a real subdirectory
+      per feature, so sibling docs are true siblings and a bare
+      `href="spec.html"` resolves correctly. Re-verified live: fetched
+      `overview.html`, extracted every relative href, resolved each with
+      `urljoin()` against the real presigned base URL, and confirmed all
+      5 resolve to the exact real S3 paths (`admin-docs/upload-documents/
+      spec.html`, etc.).
+    - **A second, deeper constraint found while verifying the first
+      fix**: even with the correct path, a plain `<a href="sibling.html">`
+      still can't work - resolving a relative link with no query of its
+      own against a base URL that has one (the presigned signature)
+      drops the query entirely per RFC 3986 (confirmed directly via
+      `urljoin()`, not assumed), so the resolved link has the right path
+      but no credentials, and the bucket blocks all public access. No
+      static-HTML fix exists without either making the bucket public (a
+      real security regression for admin-only docs) or a new
+      authenticated redirect route in the app (real new work, with its
+      own local-vs-production origin problem for a file that has to work
+      identically from either). Short-term fix, applied across all 17
+      affected docs: the doc-nav pills and Overview's hub-cards are no
+      longer real anchors - inert, identically-styled `<span>`s, with one
+      note that real cross-doc navigation is the book-icon popover's job
+      (which works today - it calls the authenticated API fresh on every
+      click). In-page same-document anchors (`#d1`, `#gr-1`, etc. - the
+      Decisions summary table's own jump links) are unaffected by this
+      constraint and were verified still real `<a href="#...">` links
+      after the fix, not swept up with the cross-document ones (caught a
+      regression in the first pass of this fix, where the broad
+      link-to-span conversion also hit these; repaired separately,
+      re-matching each summary-table row to its real section `id` in
+      document order).
+    - **Overview rewritten per explicit spec**: the architecture diagram
+      is removed entirely (it belongs on the Architecture page only, not
+      duplicated into Overview) - file size dropped from 419KB (with the
+      embedded image) to 8.6KB. Replaced with four real sections: Purpose,
+      Scope (what's covered and what explicitly isn't), a 7-step
+      High-level workflow written as prose (not a diagram - Architecture
+      owns the diagram), and "Where this fits in the HR Benefits RAG
+      system" - naming the real sibling features (GenAI RAG Chat,
+      Single/Multi-Agentic RAG, Retrieval Strategies) that depend on this
+      one.
+    - **Scope note**: the other 4 features' docs got the link/CSS fix
+      (needed everywhere, not just the example) but not a full Overview
+      rewrite yet - still queued behind confirmation this round's shape
+      is right.
+  - **Round 7 - User-directed: layout bug fixed, and the "inert links"
+    compromise from round 6 replaced with real working ones.**
+    - **Workflow list layout bug (confirmed from a live screenshot)**:
+      Overview's numbered steps rendered one word per line. Root cause -
+      mixing a `::before` counter pseudo-element with raw/mixed inline
+      content (`<strong>` + bare text) as CSS Grid children is unreliable
+      across browsers. Fixed with a plain flexbox row and explicit
+      `<span class="step-num">`/`<span class="step-text">` wrappers - no
+      pseudo-elements, no grid, two real children every time.
+    - **Real fix for cross-document links, not just an honest explanation
+      of why they couldn't work**: new `hrb_chatbot_ui` route,
+      `/admin/open-doc?feature=X&type=Y` (`OpenDocPage.tsx`) - does
+      exactly what `DocLink`'s own click handler already does (ask the
+      authenticated API for a fresh presigned URL, then redirect to it),
+      just reachable from inside a static document instead of only from
+      the Settings/Admin-menu book icon. Every doc-nav pill, hub-card, and
+      inline citation across all 21 synced docs (the 17 from round 6 plus
+      `admin-secret-code`'s 4, which had the exact same dead-link bug and
+      were never swept up in round 6's fix) now links to
+      `https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?...` instead of
+      being an inert span.
+    - **Real, not yet resolved, deployment gap - flagged, not hidden**:
+      this route only exists in the local build right now. Production
+      (`https://hrb-chatbot-ui.rvsree.dev`, confirmed live and reachable
+      via a direct request) does not have it yet - its own catch-all
+      route sends `/admin/open-doc` to `/chat`. These links will not
+      actually work until `hrb_chatbot_ui` is deployed with this change.
+      Not deployed as part of this round, per the standing "implement and
+      self-verify, stop before deploy" convention.

@@ -36,6 +36,16 @@ def _fake_cache_and_eval_judges(monkeypatch):
     )
 
 
+@pytest.fixture(autouse=True)
+def _fake_normalize_query(monkeypatch):
+    """Phase 173 - same reasoning as test_multi_agent_pipeline.py's own fixture."""
+
+    async def _passthrough_normalize(query):
+        return query
+
+    monkeypatch.setattr(multi_agent_pipeline, "normalize_query", _passthrough_normalize)
+
+
 def _patch_guardrails(monkeypatch):
     async def _passthrough_check_input(query):
         return query
