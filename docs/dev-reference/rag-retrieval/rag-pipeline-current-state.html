@@ -87,6 +87,9 @@
   .callout svg { flex: none; width: 14px; height: 14px; margin-top: 1px; color: var(--text-faint); }
 
   footer { border-top: 1px solid var(--border); padding-top: 14px; font-size: 12px; color: var(--text-faint); line-height: 1.6; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--page); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav-item.current { background: var(--done-bg); border-color: var(--done-border); color: var(--done-text); }
 </style>
 
 <div class="wrap">
@@ -94,6 +97,13 @@
   <div class="titlebar">
     <h1 class="display">HRB Chatbot V2: RAG Pipeline Architecture — Current State</h1>
     <p>Same 6-column skeleton as your target-state reference (Client &rarr; Edge &rarr; API Layer/Preprocessing &rarr; Workflow Agents &rarr; Domain Agents &rarr; Tools and Knowledgebase), filled in with what's actually built and verified live as of 2026-10-04. Solid boxes are real; dashed/gray boxes are target-state future scope, kept visible so the gap is honest, not hidden.</p>
+  </div>
+
+  <div class="doc-nav">
+    <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=single-agentic-rag&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+    <span class="doc-nav-item current">Architecture</span>
+    <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=single-agentic-rag&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+    <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=single-agentic-rag&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
   </div>
 
   <div class="legend">

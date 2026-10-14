@@ -1,0 +1,154 @@
+<title>Request Unpaid Leave - Decisions</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --live: #147a4a; --live-bg: #e3f5eb; --live-border: #b5e3c8;
+    --design: #9a5a0c; --design-bg: #fbf1dd; --design-border: #edd6a2;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+      --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+    --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0b2b25;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  table.summary { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+  table.summary th { text-align: left; font-family: 'Archivo', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding: 10px 14px; background: var(--surface-alt); border-bottom: 1px solid var(--border); }
+  table.summary td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.summary tr:last-child td { border-bottom: none; }
+  table.summary td.id-cell { font-family: 'IBM Plex Mono', monospace; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  table.summary a { color: var(--text); text-decoration: none; }
+  table.summary a:hover { text-decoration: underline; }
+  td.source-cell { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-faint); }
+
+  section.decision { border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 14px; }
+  .decision-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .decision-id { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 12px; color: #fff; background: var(--band-dark); padding: 3px 9px; border-radius: 7px; }
+  .decision-title { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 16px; }
+  .decision-grid { display: grid; grid-template-columns: 110px 1fr; gap: 4px 14px; font-size: 13px; }
+  .decision-grid dt { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding-top: 2px; }
+  .decision-grid dd { margin: 0; color: var(--text-muted); line-height: 1.6; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+  .decision-grid dd:last-of-type { border-bottom: none; padding-bottom: 0; }
+  @media (max-width: 620px) { .decision-grid { grid-template-columns: 1fr; } .decision-grid dt { padding-top: 10px; } }
+  .trade-off { background: var(--design-bg); border: 1px solid var(--design-border); border-radius: 10px; padding: 10px 12px !important; color: var(--design) !important; }
+  .open { background: var(--design-bg); border: 1px solid var(--design-border); border-radius: 10px; padding: 10px 12px !important; color: var(--design) !important; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">decisions - context, alternatives, why, trade-offs</div>
+    <h1 class="display">Request Unpaid Leave</h1>
+    <p class="subtitle">Real "chose X over Y because Z" moments from a pre-build gap analysis that read both repos' actual code before proposing anything, plus decisions made while building it.</p>
+    <div class="doc-nav">
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <span class="doc-nav-item current">Decisions</span>
+    </div>
+  </header>
+
+  <table class="summary">
+    <thead><tr><th>ID</th><th>Decision</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td class="id-cell">RUL-1</td><td><a href="#d1">A new entry point, not the GenAI Chat Workflow popup</a></td><td class="source-cell">Pre-build gap analysis</td></tr>
+      <tr><td class="id-cell">RUL-2</td><td><a href="#d2">Postgres checkpointing, not an in-memory wait</a></td><td class="source-cell">Phase 162</td></tr>
+      <tr><td class="id-cell">RUL-3</td><td><a href="#d3">No new table in hrb_chatbot_v2</a></td><td class="source-cell">Pre-build gap analysis</td></tr>
+      <tr><td class="id-cell">RUL-4</td><td><a href="#d4">A separate private S3 bucket, not the KB ingestion path</a></td><td class="source-cell">Pre-build gap analysis</td></tr>
+      <tr><td class="id-cell">RUL-5</td><td><a href="#d5">HR_SUPPORT excluded from submitting its own requests</a></td><td class="source-cell">Phase 165 (round 2)</td></tr>
+      <tr><td class="id-cell">RUL-6</td><td><a href="#d6">ADMIN can clean up data, cannot resolve a decision</a></td><td class="source-cell">Phase 178 - open tension</td></tr>
+    </tbody>
+  </table>
+
+  <section class="decision" id="d1">
+    <div class="decision-head"><span class="decision-id">RUL-1</span><span class="decision-title display">A new entry point, not the GenAI Chat Workflow popup</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>The original ask described something like the attach-files popup extended to handle leave requests.</dd>
+      <dt>Decision</dt><dd>A genuinely new entry point ("Request Leave" form), not an extension of the GenAI Chat Workflow.</dd>
+      <dt>Why</dt><dd><span class="mono">adhoc_document_agent.py</span>'s own docstring is explicit: that agent has "no vector store or MCP access, by design." A leave request fundamentally needs MCP (to call <span class="mono">create_leave_request</span>/<span class="mono">create_hitl_request</span>). Building it into that popup would mean reversing a foundational scoping decision of a different, already-shipped feature - not extending it.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="d2">
+    <div class="decision-head"><span class="decision-id">RUL-2</span><span class="decision-title display">Postgres checkpointing, not an in-memory wait</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>A request can sit pending for hours to days before a specialist reviews it - across however many App Runner instances happen to be running, and through any redeploy in between.</dd>
+      <dt>Decision</dt><dd><span class="mono">AsyncPostgresSaver</span> checkpoints the entire graph state to Postgres at the <span class="mono">interrupt()</span> point; <span class="mono">resume_unpaid_leave_decision()</span> resumes the exact same run later, not a fresh invocation.</dd>
+      <dt>Why</dt><dd>This is real transactional business-process data that must never silently vanish and must be consistent regardless of which instance eventually handles the resume - a strictly stronger durability requirement than an in-memory or single-process wait could satisfy.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="d3">
+    <div class="decision-head"><span class="decision-id">RUL-3</span><span class="decision-title display">No new table in hrb_chatbot_v2</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>The natural instinct when adding a feature is often a new local table to track its state.</dd>
+      <dt>Decision</dt><dd>All request/review state lives in <span class="mono">hrb_lms_mcp</span>'s own Postgres schema (<span class="mono">leave_requests</span>, <span class="mono">hitl_requests</span>, <span class="mono">specialist_leave_reviews</span>) - this project's own side queries live via MCP each time, with no local cache table duplicating data the other service already owns.</dd>
+      <dt>Why</dt><dd>A cache table here would just be a second source of truth for the same data, with its own staleness problems - the same reasoning this project already applies to its own gateway/enum patterns elsewhere.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="d4">
+    <div class="decision-head"><span class="decision-id">RUL-4</span><span class="decision-title display">A separate private S3 bucket, not the KB ingestion path</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>RAG Ingestion already has a working presigned-upload pattern; reusing it directly would have been the fastest path.</dd>
+      <dt>Decision</dt><dd>A new, separate, private bucket for leave documents - the presigned-upload <em>pattern</em> is reused, the <em>bucket</em> is not.</dd>
+      <dt>Why</dt><dd>The KB ingestion path embeds uploaded content into the shared vector index. A medical certificate or supporting document for a leave request must never end up retrievable by every other employee's RAG query - the two document types have fundamentally different access requirements, even though the upload mechanics look similar.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="d5">
+    <div class="decision-head"><span class="decision-id">RUL-5</span><span class="decision-title display">HR_SUPPORT excluded from submitting its own requests</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>Before this fix, an hr_support persona could submit a leave request through the same flow employees use - confirmed live as a real gap, not theoretical.</dd>
+      <dt>Decision</dt><dd><span class="mono">require_role(EMPLOYEE, MANAGER, ADMIN)</span> on upload-url/request/my-requests - HR_SUPPORT deliberately excluded from all three.</dd>
+      <dt>Why</dt><dd>HR_SUPPORT's role in this feature is reviewing and deciding on other people's requests (<span class="mono">/pending</span>, <span class="mono">/resolve</span>), not filing their own through the same entry point.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="d6">
+    <div class="decision-head"><span class="decision-id">RUL-6</span><span class="decision-title display">ADMIN can clean up data, cannot resolve a decision</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>Phase 178's RBAC superuser sweep added ADMIN to most routes in this file (upload-url, request, my-requests, pending, list-all, delete) - but deliberately not <span class="mono">/resolve</span>.</dd>
+      <dt>Decision</dt><dd><span class="mono">/resolve</span> stays <span class="mono">require_role(HR_SUPPORT)</span> only - the one real HR-decision action in this feature is not opened to ADMIN.</dd>
+      <dt class="open">Open tension, flagged not resolved</dt><dd class="open">This directly conflicts with "admin is a superuser, reaches every feature" - the design reasoning here ("admins manage/clean up data, they don't make HR decisions," from <span class="mono">LeaveReviewModal.tsx</span>'s own Phase 168-round-3 design) is sound on its own, but it's a real exception to the superuser pattern applied everywhere else, noted directly in the route's own code rather than silently decided either way.</dd>
+    </dl>
+  </section>
+
+  <footer>
+    Companion to <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=design" target="_blank" rel="noopener noreferrer">Design</a> (API contracts, DB schema) and <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a> (the real LangGraph pause/resume sequence).
+  </footer>
+</div>

@@ -1,0 +1,119 @@
+<title>Single-Agentic RAG - Overview</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(26px, 4.2vw, 36px); letter-spacing: -0.01em; text-wrap: balance; }
+  .lede { margin: 0; color: var(--text-muted); font-size: 15px; max-width: 72ch; line-height: 1.6; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  section.panel { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel h2 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 15px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.03em; }
+  .panel p { margin: 0; font-size: 14px; color: var(--text-muted); line-height: 1.7; }
+  .panel p + p { margin-top: 2px; }
+
+  .workflow { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .workflow li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; color: var(--text-muted); line-height: 1.55; }
+  .workflow .step-num { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); display: flex; align-items: center; justify-content: center; font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 12px; margin-top: 1px; }
+  .workflow .step-text { flex: 1; min-width: 0; }
+  .workflow strong { color: var(--text); }
+
+  .hub-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .hub-card { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--surface-alt); text-decoration: none; color: inherit; transition: border-color 0.15s; }
+  .hub-card:hover { border-color: var(--accent-border); }
+  .hub-card .label { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 14px; color: var(--accent); }
+  .hub-card .desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 14px; font-size: 11.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">overview</div>
+    <h1 class="display">Single-Agentic RAG</h1>
+    <p class="lede">A real ReAct tool-calling agent - decides for itself whether to search the knowledge base, check a leave balance, or answer directly.</p>
+    <div class="doc-nav">
+      <span class="doc-nav-item current">Overview</span>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=single-agentic-rag&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=single-agentic-rag&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=single-agentic-rag&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=single-agentic-rag&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <h2>Purpose</h2>
+    <p>GenAI RAG Chat always retrieves, then always generates - it never decides anything. Single-Agentic RAG is the step up from that: a real ReAct loop where the LLM itself chooses, per query, whether to search the static knowledge base, call a live tool for the caller's own leave balance or leave history, or just answer directly - iterating up to a caller-set cap rather than following one fixed path.</p>
+    <p>This is the first mode in the system where "which tool to use" is a real model decision, not a keyword match or a fixed pipeline step - and the first place live, personal data (a real leave balance, not a document) enters an answer.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Scope</h2>
+    <p>Covers the full ReAct tool-calling loop: 3 real tools (<span class="mono">SearchKnowledgeBase</span>, <span class="mono">GetLeaveBalance</span>, <span class="mono">GetLeaveHistory</span> - the latter two real A2A calls to <span class="mono">hrb_lms_mcp</span> over OAuth2), a caller-set <span class="mono">max_iterations</span> bound, full guardrails and conversation memory via the shared Phase 98 core, and the same Redis answer cache the other modes share - with live-data-tool answers excluded from caching, since a cached leave balance could go stale the moment it's reused.</p>
+    <p>Does not cover parallel multi-agent dispatch across several domain agents at once (that's Multi-Agentic RAG, a genuinely different LangGraph graph) - this mode is always one agent, deciding one tool call at a time.</p>
+  </section>
+
+  <section class="panel">
+    <h2>High-level workflow</h2>
+    <ol class="workflow">
+      <li><span class="step-num">1</span><span class="step-text"><strong>Input guardrail</strong> - the query is checked via the shared <span class="mono">guarded_pipeline.py</span> core, same as every other mode.</span></li>
+      <li><span class="step-num">2</span><span class="step-text"><strong>Reason</strong> - the agent decides whether it has enough information to answer, or needs a tool.</span></li>
+      <li><span class="step-num">3</span><span class="step-text"><strong>Act</strong> - if a tool is needed, it calls one of the 3 (knowledge base search, or a live A2A call for the caller's own leave data).</span></li>
+      <li><span class="step-num">4</span><span class="step-text"><strong>Repeat</strong> - steps 2-3 loop until the agent has what it needs or <span class="mono">max_iterations</span> is hit.</span></li>
+      <li><span class="step-num">5</span><span class="step-text"><strong>Generate</strong> - a final answer is written from whatever was gathered, with <span class="mono">tools_used</span> naming exactly which tools actually ran.</span></li>
+      <li><span class="step-num">6</span><span class="step-text"><strong>Output guardrail + memory</strong> - checked and saved, same shared core as every other mode.</span></li>
+    </ol>
+  </section>
+
+  <section class="panel">
+    <h2>Where this fits in the HR Benefits RAG system</h2>
+    <p>One of three read paths over the same index and the same shared guardrail/memory/logging core. Where GenAI RAG Chat is the fixed baseline, Single-Agentic RAG is where real tool-calling judgment enters the system - and where a leave-balance question first becomes answerable at all, since GenAI RAG Chat's own MCP fast-path only covers a narrow keyword set, not a real reasoning loop. Multi-Agentic RAG then takes this same tool-calling idea and parallelizes it across several specialized agents at once.</p>
+  </section>
+
+  <div class="hub-grid">
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=single-agentic-rag&type=spec" target="_blank" rel="noopener noreferrer">
+      <span class="label">Spec</span>
+      <span class="desc">Intent, scope, personas, acceptance criteria.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=single-agentic-rag&type=architecture" target="_blank" rel="noopener noreferrer">
+      <span class="label">Architecture</span>
+      <span class="desc">Current-state lane diagram - what's really built vs. target scope.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=single-agentic-rag&type=design" target="_blank" rel="noopener noreferrer">
+      <span class="label">Design</span>
+      <span class="desc">API contract, NFRs, real constraints.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=single-agentic-rag&type=decisions" target="_blank" rel="noopener noreferrer">
+      <span class="label">Decisions</span>
+      <span class="desc">Why ChatOpenAI directly, not the GatewayChatModel adapter.</span>
+    </a>
+  </div>
+
+  <footer>Single-Agentic RAG — overview.html, spec.html, architecture.html, design.html, decisions.html</footer>
+</div>

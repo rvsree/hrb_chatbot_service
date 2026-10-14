@@ -1,0 +1,163 @@
+<title>GenAI Chat Workflow - Decisions</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --live: #147a4a; --live-bg: #e3f5eb; --live-border: #b5e3c8;
+    --design: #9a5a0c; --design-bg: #fbf1dd; --design-border: #edd6a2;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+      --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+    --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0b2b25;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  table.summary { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+  table.summary th { text-align: left; font-family: 'Archivo', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding: 10px 14px; background: var(--surface-alt); border-bottom: 1px solid var(--border); }
+  table.summary td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.summary tr:last-child td { border-bottom: none; }
+  table.summary td.id-cell { font-family: 'IBM Plex Mono', monospace; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  table.summary a { color: var(--text); text-decoration: none; }
+  table.summary a:hover { text-decoration: underline; }
+  td.source-cell { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-faint); }
+
+  section.decision { border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 14px; }
+  .decision-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .decision-id { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 12px; color: #fff; background: var(--band-dark); padding: 3px 9px; border-radius: 7px; }
+  .decision-title { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 16px; }
+  .decision-grid { display: grid; grid-template-columns: 110px 1fr; gap: 4px 14px; font-size: 13px; }
+  .decision-grid dt { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding-top: 2px; }
+  .decision-grid dd { margin: 0; color: var(--text-muted); line-height: 1.6; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+  .decision-grid dd:last-of-type { border-bottom: none; padding-bottom: 0; }
+  @media (max-width: 620px) { .decision-grid { grid-template-columns: 1fr; } .decision-grid dt { padding-top: 10px; } }
+  .trade-off { background: var(--design-bg); border: 1px solid var(--design-border); border-radius: 10px; padding: 10px 12px !important; color: var(--design) !important; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">decisions - context, alternatives, why, trade-offs</div>
+    <h1 class="display">GenAI Chat Workflow</h1>
+    <p class="subtitle">Real "chose X over Y because Z" moments, pulled from the route's own code comments and RAG-ROADMAP.md phase history - including two live-confirmed bugs the email-targeting logic went through before landing on its current behavior.</p>
+    <div class="doc-nav">
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-chat-workflow&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-chat-workflow&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-chat-workflow&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <span class="doc-nav-item current">Decisions</span>
+    </div>
+  </header>
+
+  <table class="summary">
+    <thead><tr><th>ID</th><th>Decision</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td class="id-cell">GCW-1</td><td><a href="#d1">One combined request, not attach-then-ask</a></td><td class="source-cell">Phase 136</td></tr>
+      <tr><td class="id-cell">GCW-2</td><td><a href="#d2">DOCX via stdlib, not python-docx</a></td><td class="source-cell">Phase 136</td></tr>
+      <tr><td class="id-cell">GCW-3</td><td><a href="#d3">Open to all 4 roles</a></td><td class="source-cell">Phase 136</td></tr>
+      <tr><td class="id-cell">GCW-4</td><td><a href="#d4">Reuse existing guardrails on file content</a></td><td class="source-cell">Phase 138</td></tr>
+      <tr><td class="id-cell">GCW-5</td><td><a href="#d5">Email recipient is informational, not a directive</a></td><td class="source-cell">Phase 159</td></tr>
+      <tr><td class="id-cell">GCW-6</td><td><a href="#d6">Two independent email paths, not one unified path</a></td><td class="source-cell">Phase 163</td></tr>
+      <tr><td class="id-cell">GCW-7</td><td><a href="#d7">System-note suffix for stored history</a></td><td class="source-cell">Phase 163/165</td></tr>
+    </tbody>
+  </table>
+
+  <section class="decision" id="d1">
+    <div class="decision-head"><span class="decision-id">GCW-1</span><span class="decision-title display">One combined request, not attach-then-ask</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>Files and the question could have been two separate calls - upload, get a handle back, then ask.</dd>
+      <dt>Decision</dt><dd>One multipart request carries files and the question together.</dd>
+      <dt>Why</dt><dd>No server-side temporary storage needed between steps - nothing to leak if a user never follows up, nothing to clean up on a timeout. The simplest shape that could work.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="d2">
+    <div class="decision-head"><span class="decision-id">GCW-2</span><span class="decision-title display">DOCX via stdlib zipfile+ElementTree, not python-docx</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>A real library (<span class="mono">python-docx</span>) would read Word files more completely - tables, formatting, headers.</dd>
+      <dt>Decision</dt><dd>Extract paragraph text directly from <span class="mono">word/document.xml</span> using only the stdlib (<span class="mono">zipfile</span> + <span class="mono">ElementTree</span>).</dd>
+      <dt class="trade-off">Trade-off</dt><dd class="trade-off">Cruder extraction - no tables, no formatting - accepted in exchange for zero new dependency, consistent with this project's "no unreviewed libraries without approval" standard. Flagged as a real future upgrade, not solved here.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="d3">
+    <div class="decision-head"><span class="decision-id">GCW-3</span><span class="decision-title display">Open to all 4 roles, not just HR_SUPPORT</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>Document upload (the main RAG ingestion path) is HR_SUPPORT-only - it writes to shared KB state.</dd>
+      <dt>Decision</dt><dd><span class="mono">require_role(EMPLOYEE, MANAGER, HR_SUPPORT, ADMIN)</span> - every role can use this workflow.</dd>
+      <dt>Why</dt><dd>This is a personal, ephemeral tool - nothing it does touches shared state the way indexing a document does, so the stricter gate upload-documents needs doesn't apply here.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="d4">
+    <div class="decision-head"><span class="decision-id">GCW-4</span><span class="decision-title display">Reuse existing guardrails on file content</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>Guardrails already screened typed questions; file content was initially exempt - the same gap this project's own document-upload guardrails work had already flagged once.</dd>
+      <dt>Decision</dt><dd>Every extracted file's text runs through <span class="mono">check_input()</span> independently, same as a typed question.</dd>
+      <dt>Why</dt><dd>File content reaches the LLM exactly like typed text does - there's no reason an attacker-controlled PDF should bypass a check a typed message can't.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="d5">
+    <div class="decision-head"><span class="decision-id">GCW-5</span><span class="decision-title display">Email recipient is informational, not a directive</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>Two prior attempts at wiring <span class="mono">recipient_email</span> into the agent's prompt both failed, confirmed live. Attempt 1 (unconditional "please email this") leaked into unrelated turns - a user asking "did you send the email?" got an email sent in response, because the instruction was appended to every message regardless of intent. Attempt 2 (a conditional directive re-stating "only if this message asks") overcorrected: 2 of 3 genuine "email it to me" requests silently didn't send, likely because the double conditional (the system prompt's own instruction plus this one re-explaining the same condition) confused the model rather than clarifying it.</dd>
+      <dt>Decision</dt><dd>The recipient email is folded into the question purely as reference information ("the user's email address is X, if needed") - no directive at all. The system prompt's own existing instruction ("only call this if the user explicitly asked") is trusted to be the one place that governs the decision.</dd>
+      <dt>Why</dt><dd>Removing the second, redundant conditional fixed both failure modes at once - confirmed live, not assumed.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="d6">
+    <div class="decision-head"><span class="decision-id">GCW-6</span><span class="decision-title display">Two independent email paths, not one unified path</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>A checkbox in the UI ("send email on answer") was added later, alongside the agent's own pre-existing in-text email decision.</dd>
+      <dt>Decision</dt><dd>The checkbox-driven path is separate code in the route itself, deliberately not merged into the agent's own <span class="mono">SendEmailWithAnswer</span> tool-call logic. Both can legitimately fire in the same turn - accepted as a known edge case, not prevented.</dd>
+      <dt>Why</dt><dd>Keeps the single-turn "summarize this and email it to me" case working through the agent's own reasoning, regardless of whether the checkbox path exists at all - the two paths don't need to know about each other to both work correctly.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="d7">
+    <div class="decision-head"><span class="decision-id">GCW-7</span><span class="decision-title display">System-note suffix for stored history</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>Session memory originally stored only the plain answer text - so a later turn's "did you send it?" had no way to know an earlier turn's email actually succeeded, and the model answered "I have not sent any email yet" even when it had. This was the exact bug from the original production report, reintroduced by memory itself rather than fixed by it - caught live before shipping.</dd>
+      <dt>Decision</dt><dd>The stored (never user-facing) version of each turn's answer gets a <span class="mono">[System note: ...]</span> suffix recording the real outcome of any email attempt that turn. <span class="mono">GET /sessions/{id}</span> strips this suffix before returning turns to the UI.</dd>
+      <dt>Why</dt><dd>A future turn's chat_history now actually knows what happened, not just what was said - without ever surfacing internal bookkeeping text to a person.</dd>
+    </dl>
+  </section>
+
+  <footer>
+    Companion to <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-chat-workflow&type=design" target="_blank" rel="noopener noreferrer">Design</a> (API contracts, session model) and <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-chat-workflow&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a> (layer diagram).
+  </footer>
+</div>

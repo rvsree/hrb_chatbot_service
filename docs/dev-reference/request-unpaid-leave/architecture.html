@@ -1,0 +1,182 @@
+<title>Request Unpaid Leave - Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --live: #147a4a; --live-bg: #e3f5eb; --live-border: #b5e3c8;
+    --wait: #9a5a0c; --wait-bg: #fbf1dd; --wait-border: #edd6a2;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+      --wait: #e0ac48; --wait-bg: #2c2311; --wait-border: #4a3a17;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+    --wait: #e0ac48; --wait-bg: #2c2311; --wait-border: #4a3a17;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0b2b25;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  section.panel { display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .panel-num { width: 30px; height: 30px; border-radius: 9px; background: var(--band-dark); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13px; }
+  .panel-title { display: flex; flex-direction: column; }
+  .panel-title .name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; }
+  .panel-title .sub { font-size: 12px; color: var(--text-faint); }
+  .panel p { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+  .graph-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .graph-node { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; padding: 9px 13px; border-radius: 10px; border: 1px solid var(--live-border); background: var(--live-bg); color: var(--live); }
+  .graph-node.wait { border-color: var(--wait-border); background: var(--wait-bg); color: var(--wait); }
+  .graph-arrow { color: var(--text-faint); font-size: 14px; }
+  .pause-marker { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  .pause-line { flex: 1; height: 2px; background: repeating-linear-gradient(90deg, var(--wait) 0 6px, transparent 6px 12px); }
+  .pause-label { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; font-weight: 700; color: var(--wait); text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+
+  .sequence { display: flex; flex-direction: column; gap: 0; }
+  .seq-step { display: grid; grid-template-columns: 150px 1fr; gap: 14px; padding: 12px 0; border-bottom: 1px dashed var(--border); position: relative; }
+  .seq-step:last-child { border-bottom: none; }
+  .seq-actor { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 12.5px; color: var(--accent); padding-top: 2px; }
+  .seq-body { display: flex; flex-direction: column; gap: 3px; }
+  .seq-action { font-size: 13px; font-weight: 600; }
+  .seq-detail { font-size: 11.5px; color: var(--text-faint); }
+  @media (max-width: 560px) { .seq-step { grid-template-columns: 1fr; gap: 3px; } }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">architecture - the real compiled LangGraph, Postgres-checkpointed</div>
+    <h1 class="display">Request Unpaid Leave</h1>
+    <p class="subtitle">A 6-node LangGraph <code class="mono">StateGraph</code> behind <code class="mono">POST /v1/unpaid-leave/request</code> - pauses for real, mid-graph, on a human decision, then resumes days later from exactly where it stopped.</p>
+    <div class="doc-nav">
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <span class="doc-nav-item current">Architecture</span>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">1</div>
+      <div class="panel-title">
+        <span class="name display">The graph</span>
+        <span class="sub">unpaid_leave_agent.py :: _build_graph()</span>
+      </div>
+    </div>
+    <div class="graph-strip">
+      <span class="graph-node">START</span><span class="graph-arrow">→</span>
+      <span class="graph-node">intake</span><span class="graph-arrow">→</span>
+      <span class="graph-node">eligibility_check</span><span class="graph-arrow">→</span>
+      <span class="graph-node">submit</span><span class="graph-arrow">→</span>
+      <span class="graph-node">generate_review_brief</span><span class="graph-arrow">→</span>
+      <span class="graph-node wait">await_specialist_decision</span><span class="graph-arrow">→</span>
+      <span class="graph-node">finalize</span><span class="graph-arrow">→</span>
+      <span class="graph-node">END</span>
+    </div>
+    <div class="pause-marker">
+      <span class="pause-line"></span>
+      <span class="pause-label">interrupt() fires here - graph genuinely pauses, hours to days, until a specialist decides</span>
+      <span class="pause-line"></span>
+    </div>
+    <p>Every node runs once, in order - no branching, no retry loop. The real work is the <strong>interrupt</strong> at <span class="mono">await_specialist_decision</span>: <span class="mono">langgraph.types.interrupt()</span> actually suspends execution and the checkpointer (<span class="mono">AsyncPostgresSaver</span>) persists the entire graph state to Postgres. The process can restart, the request can be redeployed, days can pass - <span class="mono">resume_unpaid_leave_decision()</span> picks the exact same run back up from that exact point, not a fresh invocation.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">2</div>
+      <div class="panel-title">
+        <span class="name display">Submission sequence</span>
+        <span class="sub">employee submits → graph runs to the pause point</span>
+      </div>
+    </div>
+    <div class="sequence">
+      <div class="seq-step">
+        <div class="seq-actor">hrb_chatbot_ui</div>
+        <div class="seq-body"><span class="seq-action">POST /v1/unpaid-leave/request</span><span class="seq-detail mono">leave_type_code, start_date, end_date, purpose, document_reference</span></div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-actor">intake</div>
+        <div class="seq-body"><span class="seq-action">Validates the request shape</span><span class="seq-detail">dates, leave type, document reference - before anything is written anywhere</span></div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-actor">eligibility_check</div>
+        <div class="seq-body"><span class="seq-action">Checks balance, repeat-request history</span><span class="seq-detail">flags <span class="mono">is_repeat_within_12_months</span> for leave types where that matters</span></div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-actor">submit</div>
+        <div class="seq-body"><span class="seq-action">create_leave_request + create_hitl_request via MCP</span><span class="seq-detail mono">hrb_lms_mcp - real rows in leave_requests and hitl_requests</span></div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-actor">generate_review_brief</div>
+        <div class="seq-body"><span class="seq-action">One real LLM call</span><span class="seq-detail">summarizes the request for the specialist - recommends nothing, decides nothing, stored as <span class="mono">review_brief</span></span></div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-actor">await_specialist_decision</div>
+        <div class="seq-body"><span class="seq-action">interrupt() - graph pauses</span><span class="seq-detail">the API call returns here with <span class="mono">hitl_status: "PENDING"</span>; nothing else runs until resume</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">3</div>
+      <div class="panel-title">
+        <span class="name display">Resume sequence</span>
+        <span class="sub">specialist decides, hours or days later → graph finishes</span>
+      </div>
+    </div>
+    <div class="sequence">
+      <div class="seq-step">
+        <div class="seq-actor">hr_support</div>
+        <div class="seq-body"><span class="seq-action">Leave Approvals queue → Approve/Reject</span><span class="seq-detail">reads the review brief + original document, decides</span></div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-actor">hrb_chatbot_ui</div>
+        <div class="seq-body"><span class="seq-action">POST /v1/unpaid-leave/resolve</span><span class="seq-detail mono">hitl_request_context_id, decision, response_text - require_role(HR_SUPPORT) only, deliberately not ADMIN</span></div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-actor">resume_unpaid_leave_decision()</div>
+        <div class="seq-body"><span class="seq-action">Resumes the SAME checkpointed run</span><span class="seq-detail">via <span class="mono">Command(resume=decision_payload)</span> - not a new graph invocation</span></div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-actor">finalize</div>
+        <div class="seq-body"><span class="seq-action">Writes the decision, sends the email, records the artifact</span><span class="seq-detail">flips <span class="mono">leave_requests.status</span>, sends an SES decision email, calls <span class="mono">record_produced_artifact</span> - all as part of this resumed node's own work</span></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Companion to <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=design" target="_blank" rel="noopener noreferrer">Design</a> (API contracts, DB schema) and <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a> (why Postgres checkpointing, why a new entry point instead of the GenAI Chat Workflow popup).
+  </footer>
+</div>
