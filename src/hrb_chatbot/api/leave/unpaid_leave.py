@@ -174,7 +174,9 @@ async def list_all_unpaid_leave_requests(user_profile: UserProfile | None = Depe
     try:
         data = await list_all_leave_requests(status="all")
     except Exception as error:
-        logger.error("Listing all leave requests failed: %s: %s", type(error).__name__, error)
+        logger.error(
+            "Listing all leave requests failed: %s: %s", type(error).__name__, error, exc_info=error
+        )
         return json_error(500, "Could not load leave requests. Please try again.", code=error_codes.LEAVE_REQUEST_FAILED)
 
     return HrLeaveRequestsResponse(
