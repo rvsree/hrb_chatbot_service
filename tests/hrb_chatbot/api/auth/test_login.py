@@ -49,7 +49,7 @@ def test_admin_login_with_correct_one_time_code_returns_200_and_flags_must_reset
 
     response = client.post(
         "/v1/auth/login",
-        json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "secret_code": "$reeRad"},
+        json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "secret_code": login.ADMIN_ONE_TIME_SEED_SECRET_CODE},
     )
 
     assert response.status_code == 200
@@ -85,7 +85,7 @@ def test_admin_login_after_reset_no_longer_flags_must_reset(monkeypatch):
 
     response = client.post(
         "/v1/auth/login",
-        json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "secret_code": "$reeRad"},
+        json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "secret_code": login.ADMIN_ONE_TIME_SEED_SECRET_CODE},
     )
     assert response.json()["must_reset_secret_code"] is True
 
@@ -93,7 +93,7 @@ def test_admin_login_after_reset_no_longer_flags_must_reset(monkeypatch):
         "/v1/auth/admin/reset-secret-code",
         json={
             "user_profile": {"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin"},
-            "current_secret_code": "$reeRad",
+            "current_secret_code": login.ADMIN_ONE_TIME_SEED_SECRET_CODE,
             "new_secret_code": "a-new-code",
         },
     )
@@ -142,14 +142,14 @@ def test_reset_with_wrong_current_code_is_401(monkeypatch):
 
 async def test_reset_with_correct_current_code_succeeds(monkeypatch):
     store = FakeAdminCredentialStore()
-    await store.get_or_seed("ADM001", "$reeRad")  # simulates having already logged in once
+    await store.get_or_seed("ADM001", login.ADMIN_ONE_TIME_SEED_SECRET_CODE)  # simulates having already logged in once
     monkeypatch.setattr(login, "get_db_gateway", lambda: FakeDBGateway(admin_credential_store=store))
 
     response = client.post(
         "/v1/auth/admin/reset-secret-code",
         json={
             "user_profile": {"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin"},
-            "current_secret_code": "$reeRad",
+            "current_secret_code": login.ADMIN_ONE_TIME_SEED_SECRET_CODE,
             "new_secret_code": "a-new-code",
         },
     )
