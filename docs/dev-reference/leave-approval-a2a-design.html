@@ -52,6 +52,9 @@ header.doc-head { display: flex; flex-direction: column; gap: 10px; padding-bott
 h1 { font-family: var(--font-display); font-size: clamp(26px, 4vw, 34px); margin: 0; text-wrap: balance; font-weight: 600; }
 .subtitle { color: var(--fg-muted); font-size: 15px; max-width: 65ch; }
 .status-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.doc-nav { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.doc-nav a, .doc-nav-item { font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--fg-muted); text-decoration: none; }
+.doc-nav-item.current { background: var(--good-soft); border-color: var(--good); color: var(--good); }
 .chip { font-family: var(--font-display); font-size: 11px; letter-spacing: 0.03em; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--fg-muted); background: var(--surface-sunken); }
 .chip.bad { color: var(--bad); background: var(--bad-soft); border-color: var(--bad-border); }
 .chip.warn { color: var(--warn); background: var(--warn-soft); border-color: var(--warn-border); }
@@ -117,6 +120,12 @@ footer.doc-foot { text-align: center; color: var(--fg-muted); font-size: 12px; p
     <span class="chip">Core flow + all 3 §09 gaps built &amp; live-verified (Phase 162/165)</span>
     <span class="chip warn">Spans 3 repos (+ UI)</span>
     <span class="chip bad">1 pre-existing config gap open - &sect;11</span>
+  </div>
+  <div class="doc-nav">
+    <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+    <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+    <span class="doc-nav-item current">Design (this page - original gap-analysis proposal)</span>
+    <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
   </div>
 </header>
 

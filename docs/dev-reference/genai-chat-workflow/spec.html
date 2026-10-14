@@ -1,0 +1,132 @@
+<title>GenAI Chat Workflow - Spec</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --live: #147a4a; --live-bg: #e3f5eb; --live-border: #b5e3c8;
+    --design: #9a5a0c; --design-bg: #fbf1dd; --design-border: #edd6a2;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+      --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+    --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  section.panel { display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .panel-num { width: 30px; height: 30px; border-radius: 9px; background: #0d3d34; color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13px; }
+  .panel-title { display: flex; flex-direction: column; }
+  .panel-title .name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; }
+  .panel p { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+  .panel ul { margin: 0; padding-left: 20px; font-size: 13px; color: var(--text-muted); line-height: 1.7; }
+  .panel li { margin-bottom: 4px; }
+
+  .grid.two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 720px) { .grid.two { grid-template-columns: 1fr; } }
+  .card { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 6px; }
+  .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .card-label { font-weight: 700; font-size: 13px; }
+  .card-desc { margin: 0; font-size: 12.5px; color: var(--text-muted); line-height: 1.55; }
+  .status-pill { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .status-pill.live { color: var(--live); background: var(--live-bg); border: 1px solid var(--live-border); }
+  .status-pill.design { color: var(--design); background: var(--design-bg); border: 1px solid var(--design-border); }
+
+  .ref-list { display: flex; flex-direction: column; gap: 8px; }
+  .ref-item { display: flex; flex-direction: column; gap: 2px; }
+  .ref-name { font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; font-weight: 600; color: var(--text); }
+  .ref-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">spec - intent, scope, personas, acceptance criteria</div>
+    <h1 class="display">GenAI Chat Workflow</h1>
+    <p class="subtitle">Ad-hoc document Q&amp;A, attached directly in the chat composer - a ReAct agent over files the user just uploaded, deliberately separate from the main RAG pipeline (no indexing, no persisted KB state).</p>
+    <div class="doc-nav">
+      <span class="doc-nav-item current">Spec</span>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-chat-workflow&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-chat-workflow&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-chat-workflow&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">1</div><div class="panel-title"><span class="name display">Intent</span></div></div>
+    <p>A one-off way to ask questions about files the user has in hand right now - a benefits summary PDF, a contract, a spreadsheet - without uploading them to the shared knowledge base. A ReAct agent reads the attached files, decides whether it needs to search the web for anything the files don't cover, and can email the answer on request. Completely separate code path from <span class="mono">ai/rag_pipeline/</span> and <span class="mono">ai/doc_processing/</span> indexing - nothing here ever touches the shared vector store.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">2</div><div class="panel-title"><span class="name display">Scope</span></div></div>
+    <div class="grid two">
+      <div class="card">
+        <div class="card-head"><span class="card-label">Live today</span><span class="status-pill live">built</span></div>
+        <ul>
+          <li>Up to 3 files per request (PDF/DOCX/CSV, 10MB each) - extracted to plain text in-request, nothing written to S3 or disk</li>
+          <li>A real ReAct agent with 3 tools: <span class="mono">ReadDocument</span>, <span class="mono">SearchWeb</span>, <span class="mono">SendEmailWithAnswer</span></li>
+          <li>Session memory (Phase 163) - always-on for this workflow, unlike the other 3 modes' opt-in <span class="mono">enable_conversation_memory</span></li>
+          <li>Two independent email paths that can both fire in the same turn: the agent's own in-text decision, and a checkbox-driven path the UI drives directly</li>
+          <li>Same input/output guardrails as genai-rag - file content is screened exactly like typed input, not exempted</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-label">Out of scope</span><span class="status-pill design">by design</span></div>
+        <ul>
+          <li>No indexing - files here never become searchable by any other feature</li>
+          <li>No citations/knowledge-sources fields in the response - there's no KB to cite</li>
+          <li>Stateless across sessions - re-attach files each new session; a session's memory doesn't carry the file contents forward, only the conversation</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">3</div><div class="panel-title"><span class="name display">Personas</span></div></div>
+    <div class="ref-list">
+      <div class="ref-item"><span class="ref-name">employee / manager / hr_support / admin</span><span class="ref-desc">All four roles - <span class="mono">require_role(EMPLOYEE, MANAGER, HR_SUPPORT, ADMIN)</span>. A personal, ephemeral tool that touches no shared state, unlike document upload (which is HR_SUPPORT-only).</span></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">4</div><div class="panel-title"><span class="name display">Acceptance criteria</span></div></div>
+    <div class="grid two">
+      <div class="card"><div class="card-head"><span class="card-label">Answers grounded in the attached files</span><span class="status-pill live">met</span></div><p class="card-desc"><span class="mono">files_used</span> in every response names exactly which attached files the agent actually read.</p></div>
+      <div class="card"><div class="card-head"><span class="card-label">Email only on real intent</span><span class="status-pill live">met</span></div><p class="card-desc">The model's own email decision fires only when the current turn explicitly asks for it - confirmed live after two earlier attempts leaked into unrelated turns or under-fired on genuine requests.</p></div>
+      <div class="card"><div class="card-head"><span class="card-label">Memory knows real email outcomes</span><span class="status-pill live">met</span></div><p class="card-desc">A later turn's "did you send it?" can answer correctly, since each turn's stored history carries a factual outcome note the user never sees directly.</p></div>
+      <div class="card"><div class="card-head"><span class="card-label">File content is screened, not trusted</span><span class="status-pill live">met</span></div><p class="card-desc">Every extracted file's text runs through the same input guardrail as typed questions, independently per file.</p></div>
+    </div>
+  </section>
+
+  <footer>
+    Architecture: <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-chat-workflow&type=architecture" target="_blank" rel="noopener noreferrer">genai-chat-workflow-architecture.html</a>. Companions: <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-chat-workflow&type=design" target="_blank" rel="noopener noreferrer">Design</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-chat-workflow&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>.
+  </footer>
+</div>

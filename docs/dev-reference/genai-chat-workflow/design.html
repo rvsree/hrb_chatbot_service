@@ -1,0 +1,141 @@
+<title>GenAI Chat Workflow - Design</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --live: #147a4a; --live-bg: #e3f5eb; --live-border: #b5e3c8;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  section.panel { display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .panel-num { width: 30px; height: 30px; border-radius: 9px; background: #0d3d34; color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13px; }
+  .panel-title { display: flex; flex-direction: column; }
+  .panel-title .name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; }
+  .panel p { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+  .endpoint { font-family: 'IBM Plex Mono', monospace; font-size: 13px; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; display: inline-block; }
+  .method { font-weight: 800; color: var(--accent); }
+
+  table.contract { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.contract th, table.contract td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.contract th { color: var(--text-faint); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.03em; }
+  table.contract td.field { font-family: 'IBM Plex Mono', monospace; font-weight: 600; white-space: nowrap; }
+  table.contract tr:last-child td { border-bottom: none; }
+
+  .flow-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+  .flow-node { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; font-weight: 600; padding: 7px 11px; border-radius: 999px; border: 1px solid var(--live-border); background: var(--live-bg); color: var(--live); }
+  .flow-arrow { color: var(--text-faint); font-size: 13px; }
+
+  .nfr-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .nfr-table th, .nfr-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .nfr-table th { color: var(--text-faint); font-weight: 600; font-size: 10.5px; text-transform: uppercase; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">design - api contracts, session model, real constraints</div>
+    <h1 class="display">GenAI Chat Workflow</h1>
+    <p class="subtitle">One multipart request in, one grounded answer out - with session memory, dual email paths, and per-file guardrail screening.</p>
+    <div class="doc-nav">
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-chat-workflow&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-chat-workflow&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <span class="doc-nav-item current">Design</span>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-chat-workflow&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">1</div><div class="panel-title"><span class="name display">API contract</span></div></div>
+    <p><span class="endpoint"><span class="method">POST</span> /v1/adhoc-document-chat/query</span> - multipart form, not JSON (file upload).</p>
+    <table class="contract">
+      <thead><tr><th>Form field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="field">user_profile</td><td>JSON string</td><td>Parsed via <span class="mono">UserProfile.model_validate_json</span>, same identity shape as every other route</td></tr>
+        <tr><td class="field">question</td><td>str, 1-2000 chars</td><td>Screened by the input guardrail before the agent sees it</td></tr>
+        <tr><td class="field">files</td><td>1-3 files</td><td>.pdf/.docx/.csv only, 10MB each - rejected as 422 otherwise</td></tr>
+        <tr><td class="field">session_id</td><td>str, optional</td><td>Omit on the first turn - server generates one; send it back to continue</td></tr>
+        <tr><td class="field">recipient_email</td><td>str, optional</td><td>Validated by a plain regex, not an email-validator dependency</td></tr>
+        <tr><td class="field">send_email_on_answer</td><td>bool, default false</td><td>Checkbox-driven path - requires a valid recipient_email when true</td></tr>
+        <tr><td class="field">cc_email</td><td>str, optional</td><td>Comma-separated; each address validated individually</td></tr>
+      </tbody>
+    </table>
+    <p>Response (<span class="mono">AdhocDocumentChatResponse</span>): <span class="mono">question</span>, <span class="mono">answer</span>, <span class="mono">files_used</span>, <span class="mono">web_searches</span>, <span class="mono">email_sent_to</span>, <span class="mono">email_evidence</span>, <span class="mono">session_id</span>, <span class="mono">model_used</span>, <span class="mono">iterations</span>, <span class="mono">llm_call_count</span>, <span class="mono">token_usage</span>, <span class="mono">latency_ms</span>. Deliberately no <span class="mono">vector_db</span>/<span class="mono">search_strategy</span>/<span class="mono">citations</span> fields - none apply, there's no KB here.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">2</div><div class="panel-title"><span class="name display">Request flow</span></div></div>
+    <div class="flow-strip">
+      <span class="flow-node">validate files</span><span class="flow-arrow">→</span>
+      <span class="flow-node">extract text</span><span class="flow-arrow">→</span>
+      <span class="flow-node">guardrail each file</span><span class="flow-arrow">→</span>
+      <span class="flow-node">guardrail question</span><span class="flow-arrow">→</span>
+      <span class="flow-node">load session history</span><span class="flow-arrow">→</span>
+      <span class="flow-node">ReAct agent</span><span class="flow-arrow">→</span>
+      <span class="flow-node">output guardrail</span><span class="flow-arrow">→</span>
+      <span class="flow-node">checkbox email</span><span class="flow-arrow">→</span>
+      <span class="flow-node">persist turn</span>
+    </div>
+    <p>A history-load failure for an existing session doesn't fail the request - it logs a warning and continues with empty history, same best-effort principle as persisting the turn afterward: a DB hiccup after the answer is already computed shouldn't turn a successful answer into a 500.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">3</div><div class="panel-title"><span class="name display">The two email paths</span></div></div>
+    <p>Two independent ways an email can be sent in the same turn, each persisted as its own event: the agent's own in-text <span class="mono">SendEmailWithAnswer</span> tool call (fires only when the current turn's question explicitly asks for it - governed purely by the system prompt, not a second directive layered on top), and the checkbox-driven path the route handles directly whenever <span class="mono">send_email_on_answer</span> is true. If both fire the same turn, the checkbox-driven one wins in the API response (the more deterministic, explicitly-requested one), but both still get their own row in <span class="mono">chat_workflow_store</span>'s email-event log.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">4</div><div class="panel-title"><span class="name display">Session memory</span></div></div>
+    <p>Always-on for this workflow (not an opt-in flag, unlike the other 3 retrieval modes' <span class="mono">enable_conversation_memory</span>) - a session is how a user asks "did you send that email?" in a later turn and gets a correct answer. The stored version of each turn's answer carries a short <span class="mono">[System note: ...]</span> suffix recording the real outcome of any email attempt that turn; this suffix is stripped before ever being shown to a person (<span class="mono">GET /sessions/{id}</span> strips it from every turn it returns).</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">5</div><div class="panel-title"><span class="name display">Real constraints (NFRs)</span></div></div>
+    <table class="nfr-table">
+      <thead><tr><th>Constraint</th><th>Value</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td>File count</td><td>≤ 3 per request</td><td>Bounds context size and extraction time per turn</td></tr>
+        <tr><td>File size</td><td>≤ 10MB each</td><td>Rejected as 422 before extraction is attempted</td></tr>
+        <tr><td>Extracted text</td><td>~12k chars/file truncation</td><td>Protects the model's context window; truncation is surfaced to the user, never silent</td></tr>
+        <tr><td>File lifetime</td><td>In-request only</td><td>Nothing written to S3 or disk - the file exists only for the duration of this one call</td></tr>
+        <tr><td>Session memory</td><td>Conversation only, not files</td><td>A continued session remembers what was said, not the attached files themselves - re-attach to ask about them again</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    Architecture: <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-chat-workflow&type=architecture" target="_blank" rel="noopener noreferrer">genai-chat-workflow-architecture.html</a>. Companions: <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-chat-workflow&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-chat-workflow&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>.
+  </footer>
+</div>
