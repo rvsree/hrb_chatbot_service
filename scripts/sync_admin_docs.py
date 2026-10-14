@@ -216,6 +216,19 @@ DOCS_TO_SYNC = {
             "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         ),
     },
+    # Phase 180 (round 9) - genai-rag-chat/design.html and single-agentic-
+    # rag/design.html both cross-reference this system-wide latency doc for
+    # their own NFR sections, but it was never synced under any feature
+    # name - every such link resolved to a literal "type=None" (confirmed
+    # live, found during the bookmark-link audit). System-level, not tied
+    # to one feature, so its own entry rather than folded into either.
+    "scaling-latency-design": {
+        "design": (
+            "Scaling & Latency Design",
+            "docs/dev-reference/design/scaling-latency-design.html",
+            "text/html",
+        ),
+    },
 }
 
 

@@ -105,6 +105,9 @@
     .card-row { padding: 11px 12px 14px 18px; }
     .stack .connect { margin-left: 24px; }
   }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav-item.current { background: var(--done-bg); border-color: var(--done-border); color: var(--done); }
 </style>
 
 <div class="wrap">
@@ -113,6 +116,12 @@
     <div class="eyebrow">hrb_chatbot_v2 &middot; component/layer view (companion to Six Gates of RAG Validation, which is the governance view of the same request)</div>
     <h1 class="display">RAG Request Architecture</h1>
     <p class="subtitle">The same <code class="mono">POST /v1/genai-rag/retrieve-document/query</code> request, this time organized by <strong>system layer</strong> instead of validation gate &mdash; which framework/library and which model actually runs at each step.</p>
+    <div class="doc-nav">
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <span class="doc-nav-item current">Architecture</span>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
     <div class="legend">
       <span class="legend-item"><span class="dot done"></span>Built &amp; tested</span>
       <span class="legend-item"><span class="dot missing"></span>Not built</span>

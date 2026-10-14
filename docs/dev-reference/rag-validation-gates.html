@@ -201,6 +201,9 @@
     .card-row { padding: 12px 12px 14px 18px; }
     .connector { padding-left: 48px; }
   }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav-item.current { background: var(--done-bg); border-color: var(--done-border); color: var(--done); }
 </style>
 
 <div class="wrap">
@@ -209,6 +212,12 @@
     <div class="eyebrow">hrb_chatbot_v2 &middot; not part of the IK FDE course &mdash; this project's own review framework</div>
     <h1 class="display">Six Gates of RAG Validation</h1>
     <p class="subtitle">Every real stage <code class="mono">POST /v1/genai-rag/retrieve-document/query</code> passes through, mapped onto the six-layer validation gateway pattern, colored by what's actually built and tested.</p>
+    <div class="doc-nav">
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=retrieval-strategies&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <span class="doc-nav-item current">Architecture</span>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=retrieval-strategies&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=retrieval-strategies&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
     <div class="legend">
       <span class="legend-item"><span class="dot done"></span>Built &amp; tested</span>
       <span class="legend-item"><span class="dot partial"></span>Partial / known gap</span>
