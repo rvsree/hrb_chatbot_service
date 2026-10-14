@@ -49,18 +49,17 @@ app = FastAPI(
 # allow_credentials is safe here.
 app.add_middleware(
     CORSMiddleware,
-    # 5174/5175 added (Phase 167) - Vite auto-increments past 5173 when an
-    # earlier dev-server instance is still holding it, which happened this
-    # session; a real CORS rejection on 5174 looked like a generic "can't
-    # reach the backend" with no explanation, since the browser blocks the
-    # request before any response (or error) comes back at all.
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:5175",
-        "http://localhost:4173",
-        "https://hrb-chatbot-ui.rvsree.dev",
-    ],
+    # Phase 167 hand-added 5174/5175 after Vite auto-incremented past 5173
+    # with an earlier dev-server instance still holding it - a real CORS
+    # rejection looked like a generic "can't reach the backend" with no
+    # explanation, since the browser blocks the request before any response
+    # (or error) comes back at all. That kept recurring (3+ stray local dev
+    # servers observed live, confirmed via netstat) since any fixed port
+    # list runs out eventually - allow_origin_regex covers any localhost
+    # port Vite might pick, permanently, while allow_origins still lists
+    # the one real non-localhost origin explicitly.
+    allow_origins=["https://hrb-chatbot-ui.rvsree.dev"],
+    allow_origin_regex=r"http://localhost:\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
