@@ -1,0 +1,119 @@
+<title>Request Unpaid Leave - Overview</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(26px, 4.2vw, 36px); letter-spacing: -0.01em; text-wrap: balance; }
+  .lede { margin: 0; color: var(--text-muted); font-size: 15px; max-width: 72ch; line-height: 1.6; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  section.panel { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel h2 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 15px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.03em; }
+  .panel p { margin: 0; font-size: 14px; color: var(--text-muted); line-height: 1.7; }
+  .panel p + p { margin-top: 2px; }
+
+  .workflow { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .workflow li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; color: var(--text-muted); line-height: 1.55; }
+  .workflow .step-num { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); display: flex; align-items: center; justify-content: center; font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 12px; margin-top: 1px; }
+  .workflow .step-text { flex: 1; min-width: 0; }
+  .workflow strong { color: var(--text); }
+
+  .hub-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .hub-card { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--surface-alt); text-decoration: none; color: inherit; transition: border-color 0.15s; }
+  .hub-card:hover { border-color: var(--accent-border); }
+  .hub-card .label { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 14px; color: var(--accent); }
+  .hub-card .desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 14px; font-size: 11.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">overview</div>
+    <h1 class="display">Request Unpaid Leave</h1>
+    <p class="lede">A real human-in-the-loop workflow - a leave request that genuinely pauses for a specialist's decision, then resumes and notifies the employee.</p>
+    <div class="doc-nav">
+      <span class="doc-nav-item current">Overview</span>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <h2>Purpose</h2>
+    <p>Four leave types - Unpaid, Critical CareGiver, STD, LTD - always need a real human specialist's judgment, not an automated approval. This feature is that path: an employee submits a structured request with an optional supporting document, a small LangGraph workflow validates it and generates a plain-English summary for the specialist, then the graph genuinely pauses - not a polling loop, a real suspended process, checkpointed to Postgres - until an HR specialist reviews the summary and the original document and decides. The graph then resumes from exactly where it stopped, records the decision, and emails the employee.</p>
+    <p>This is this project's most complete real-world A2A/HITL showcase: two LLM calls (intake validation, specialist-facing summary) bracket one genuine human decision that is never an LLM call at all.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Scope</h2>
+    <p>Covers the full lifecycle: document upload to a private, separate S3 bucket, request submission through the intake graph, specialist review (a queue of pending requests, each with an AI-generated brief and a link to the real document), resolution that resumes the paused graph and sends a decision email, and an employee-facing view of request status and HR comments. Also covers admin-only data cleanup (listing and hard-deleting requests), kept deliberately separate from the HR decision path itself.</p>
+    <p>Does not cover the other, simpler leave types (PTO, Sick, Sabbatical, Maternity, Paternity) that just need a regular manager's approval, not specialist review - those follow a different, simpler path this feature doesn't touch. Also deliberately not built into the GenAI Chat Workflow's attach-files popup, which has no MCP access by design.</p>
+  </section>
+
+  <section class="panel">
+    <h2>High-level workflow</h2>
+    <ol class="workflow">
+      <li><span class="step-num">1</span><span class="step-text"><strong>Submit</strong> - an employee fills out the Request Leave form, optionally attaching a supporting document first.</span></li>
+      <li><span class="step-num">2</span><span class="step-text"><strong>Validate &amp; file</strong> - the graph checks eligibility and creates the real leave request and HITL request via MCP.</span></li>
+      <li><span class="step-num">3</span><span class="step-text"><strong>Summarize</strong> - one LLM call writes a plain-English brief for the specialist - no recommendation, just context.</span></li>
+      <li><span class="step-num">4</span><span class="step-text"><strong>Pause</strong> - the graph genuinely suspends here, checkpointed to Postgres, for however long it takes a human to respond.</span></li>
+      <li><span class="step-num">5</span><span class="step-text"><strong>Specialist decides</strong> - an HR specialist reads the brief and the original document, approves or rejects.</span></li>
+      <li><span class="step-num">6</span><span class="step-text"><strong>Resume &amp; notify</strong> - the same graph run resumes, records the decision, emails the employee, and logs the email as a produced artifact.</span></li>
+    </ol>
+  </section>
+
+  <section class="panel">
+    <h2>Where this fits in the HR Benefits RAG system</h2>
+    <p>This sits apart from the RAG retrieval modes entirely - it's not a chat question, it's a structured workflow with a real pause for human judgment. It shares the <span class="mono">hrb_lms_mcp</span> A2A connection the retrieval modes also use for <span class="mono">GetLeaveBalance</span>/<span class="mono">GetLeaveHistory</span>, but goes further: those modes only ever read live data, this feature writes it, through a genuine multi-day-capable workflow. It's the system's clearest demonstration of HITL done for real, not simulated with a status flag.</p>
+  </section>
+
+  <div class="hub-grid">
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=spec" target="_blank" rel="noopener noreferrer">
+      <span class="label">Spec</span>
+      <span class="desc">Intent, scope, personas, acceptance criteria.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=architecture" target="_blank" rel="noopener noreferrer">
+      <span class="label">Architecture</span>
+      <span class="desc">The real 6-node LangGraph, pause/resume sequence diagrams.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=design" target="_blank" rel="noopener noreferrer">
+      <span class="label">Design</span>
+      <span class="desc">API contracts, real constraints.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=request-unpaid-leave&type=decisions" target="_blank" rel="noopener noreferrer">
+      <span class="label">Decisions</span>
+      <span class="desc">Why a new entry point, why Postgres checkpointing, the open ADMIN/HR_SUPPORT tension.</span>
+    </a>
+  </div>
+
+  <footer>Request Unpaid Leave — overview.html, spec.html, architecture.html, design.html, decisions.html</footer>
+</div>

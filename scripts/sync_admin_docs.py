@@ -22,10 +22,35 @@ ADMIN_DOCS_S3_PREFIX = "admin-docs/"
 # local_path, content_type)}. Every pre-Phase-179 feature keeps its single
 # "architecture"/"design" entry unchanged, just nested one level deeper.
 DOCS_TO_SYNC = {
+    # Phase 180 (round 10) - the design.html here is the pre-build gap
+    # analysis (real history, kept as-is); Overview/Spec/Architecture/
+    # Decisions added to match it against what's actually shipped since
+    # (Phases 162-180 - the real HITL resolve/list/delete/artifact tooling,
+    # confirmed built via the real route/graph code, not the proposal doc).
     "request-unpaid-leave": {
+        "overview": (
+            "Request Unpaid Leave - Overview",
+            "docs/dev-reference/request-unpaid-leave/overview.html",
+            "text/html",
+        ),
+        "spec": (
+            "Request Unpaid Leave - Spec",
+            "docs/dev-reference/request-unpaid-leave/spec.html",
+            "text/html",
+        ),
+        "architecture": (
+            "Request Unpaid Leave - Architecture",
+            "docs/dev-reference/request-unpaid-leave/architecture.html",
+            "text/html",
+        ),
         "design": (
             "Leave Approval A2A",
             "docs/dev-reference/leave-approval-a2a-design.html",
+            "text/html",
+        ),
+        "decisions": (
+            "Request Unpaid Leave - Decisions",
+            "docs/dev-reference/request-unpaid-leave/decisions.html",
             "text/html",
         ),
     },
@@ -38,6 +63,11 @@ DOCS_TO_SYNC = {
     # plain genai-rag, SQS-async cache/conversation writes - neither true
     # today, confirmed against the real code before deciding not to use it).
     "genai-rag-chat": {
+        "overview": (
+            "GenAI RAG Chat - Overview",
+            "docs/dev-reference/genai-rag-chat/overview.html",
+            "text/html",
+        ),
         "spec": (
             "GenAI RAG Chat - Spec",
             "docs/dev-reference/genai-rag-chat/spec.html",
@@ -61,6 +91,11 @@ DOCS_TO_SYNC = {
     },
     # Phase 175 - "RAG Pipeline:" dropdown, remaining 2 of 3 options.
     "single-agentic-rag": {
+        "overview": (
+            "Single-Agentic RAG - Overview",
+            "docs/dev-reference/single-agentic-rag/overview.html",
+            "text/html",
+        ),
         "spec": (
             "Single-Agentic RAG - Spec",
             "docs/dev-reference/single-agentic-rag/spec.html",
@@ -83,6 +118,11 @@ DOCS_TO_SYNC = {
         ),
     },
     "multi-agentic-rag": {
+        "overview": (
+            "Multi-Agentic RAG - Overview",
+            "docs/dev-reference/multi-agentic-rag/overview.html",
+            "text/html",
+        ),
         "spec": (
             "Multi-Agentic RAG - Spec",
             "docs/dev-reference/multi-agentic-rag/spec.html",
@@ -109,6 +149,11 @@ DOCS_TO_SYNC = {
     # doc exists yet, this is the closest real content (retrieval strategy
     # is one of its six gates) - flagged directly, not invented.
     "retrieval-strategies": {
+        "overview": (
+            "Retrieval Strategies - Overview",
+            "docs/dev-reference/retrieval-strategies/overview.html",
+            "text/html",
+        ),
         "spec": (
             "Retrieval Strategies - Spec",
             "docs/dev-reference/retrieval-strategies/spec.html",
@@ -130,11 +175,36 @@ DOCS_TO_SYNC = {
             "text/html",
         ),
     },
-    # Phase 175 - "Enable GenAI Chat Workflow" checkbox.
+    # Phase 175 - "Enable GenAI Chat Workflow" checkbox. Phase 180 (round
+    # 10) - the only doc_type synced here used to be architecture, and it
+    # described the feature as "design only, nothing built yet" even
+    # though Phase 136-165 shipped it for real (confirmed against the live
+    # route/agent code) - rewritten rather than left stale, and the
+    # Spec/Design/Decisions/Overview set filled in to match.
     "genai-chat-workflow": {
+        "overview": (
+            "GenAI Chat Workflow - Overview",
+            "docs/dev-reference/genai-chat-workflow/overview.html",
+            "text/html",
+        ),
+        "spec": (
+            "GenAI Chat Workflow - Spec",
+            "docs/dev-reference/genai-chat-workflow/spec.html",
+            "text/html",
+        ),
         "architecture": (
             "GenAI Chat Workflow Architecture",
             "docs/dev-reference/genai-chat-workflow-architecture.html",
+            "text/html",
+        ),
+        "design": (
+            "GenAI Chat Workflow - Design",
+            "docs/dev-reference/genai-chat-workflow/design.html",
+            "text/html",
+        ),
+        "decisions": (
+            "GenAI Chat Workflow - Decisions",
+            "docs/dev-reference/genai-chat-workflow/decisions.html",
             "text/html",
         ),
     },
@@ -142,6 +212,11 @@ DOCS_TO_SYNC = {
     # 4 doc_types for one feature, used to confirm the multi-doc viewer
     # works end to end before deciding whether to extend it further.
     "admin-secret-code": {
+        "overview": (
+            "Admin Secret Code - Overview",
+            "docs/dev-reference/admin-secret-code/overview.html",
+            "text/html",
+        ),
         "spec": (
             "Admin Secret Code - Spec",
             "docs/dev-reference/admin-secret-code/spec.html",
@@ -214,6 +289,19 @@ DOCS_TO_SYNC = {
             "HRB V2 Architecture Deck (PowerPoint)",
             r"C:\Users\sreed\Downloads\HRB_V2_Architecture_Deck_v10.pptx",
             "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        ),
+    },
+    # Phase 180 (round 9) - genai-rag-chat/design.html and single-agentic-
+    # rag/design.html both cross-reference this system-wide latency doc for
+    # their own NFR sections, but it was never synced under any feature
+    # name - every such link resolved to a literal "type=None" (confirmed
+    # live, found during the bookmark-link audit). System-level, not tied
+    # to one feature, so its own entry rather than folded into either.
+    "scaling-latency-design": {
+        "design": (
+            "Scaling & Latency Design",
+            "docs/dev-reference/design/scaling-latency-design.html",
+            "text/html",
         ),
     },
 }

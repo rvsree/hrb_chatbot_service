@@ -1,0 +1,117 @@
+<title>Multi-Agentic RAG - Overview</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(26px, 4.2vw, 36px); letter-spacing: -0.01em; text-wrap: balance; }
+  .lede { margin: 0; color: var(--text-muted); font-size: 15px; max-width: 72ch; line-height: 1.6; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  section.panel { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel h2 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 15px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.03em; }
+  .panel p { margin: 0; font-size: 14px; color: var(--text-muted); line-height: 1.7; }
+  .panel p + p { margin-top: 2px; }
+
+  .workflow { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .workflow li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; color: var(--text-muted); line-height: 1.55; }
+  .workflow .step-num { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); display: flex; align-items: center; justify-content: center; font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 12px; margin-top: 1px; }
+  .workflow .step-text { flex: 1; min-width: 0; }
+  .workflow strong { color: var(--text); }
+
+  .hub-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .hub-card { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--surface-alt); text-decoration: none; color: inherit; transition: border-color 0.15s; }
+  .hub-card:hover { border-color: var(--accent-border); }
+  .hub-card .label { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 14px; color: var(--accent); }
+  .hub-card .desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 14px; font-size: 11.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">overview</div>
+    <h1 class="display">Multi-Agentic RAG</h1>
+    <p class="lede">A real LangGraph multi-agent graph - a Planner dispatches to up to 5 domain agents in parallel, a Reviewer checks the combined result.</p>
+    <div class="doc-nav">
+      <span class="doc-nav-item current">Overview</span>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=multi-agentic-rag&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=multi-agentic-rag&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=multi-agentic-rag&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=multi-agentic-rag&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <h2>Purpose</h2>
+    <p>Single-Agentic RAG is one agent choosing one tool at a time. Multi-Agentic RAG is a genuinely different graph: a Planner Agent reads the query, decides which of 5 specialized domain agents it actually needs, fans out to them in parallel, then a Reviewer Agent merges and checks the combined result before anything returns to the caller. This is the mode built for questions that span more than one domain at once - a policy lookup plus a live leave balance, say - where running agents one after another would be slower and less coordinated than dispatching them together.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Scope</h2>
+    <p>Covers the full Planner → parallel dispatch → Reviewer graph: 5 real domain agents (<span class="mono">vector_kb_agent</span> for the static knowledge base, <span class="mono">lms_ops_agent</span>/<span class="mono">lms_analytics_agent</span> for A2A calls to <span class="mono">hrb_lms_mcp</span>, <span class="mono">sql_db_agent</span>, <span class="mono">web_search_agent</span>), conditional dispatch via a real LangGraph <span class="mono">add_conditional_edges</span> (not a hand-rolled loop), and <span class="mono">suggested_follow_up_questions</span> - a response field unique to this mode. Shares the same Redis answer cache as the other two modes, with the live-data exclusion applied at agent-dispatch granularity.</p>
+    <p>Guardrails are called directly here rather than through the Phase 98 shared core the other two modes use - a known, flagged gap (see Decisions), not yet migrated. Does not have a caller-tunable iteration cap - unlike Single-Agentic RAG's <span class="mono">max_iterations</span>, this mode's step count is just however many agents the Planner actually dispatches to, plus Planner and Reviewer themselves.</p>
+  </section>
+
+  <section class="panel">
+    <h2>High-level workflow</h2>
+    <ol class="workflow">
+      <li><span class="step-num">1</span><span class="step-text"><strong>Plan</strong> - the Planner Agent reads the query and decides which domain agents it needs.</span></li>
+      <li><span class="step-num">2</span><span class="step-text"><strong>Dispatch</strong> - a conditional edge sends the query to those agents, in parallel where the graph allows.</span></li>
+      <li><span class="step-num">3</span><span class="step-text"><strong>Domain agents run</strong> - each queried agent does its own real work (KB search, live A2A call, SQL, web search) independently.</span></li>
+      <li><span class="step-num">4</span><span class="step-text"><strong>Review</strong> - the Reviewer Agent reads every dispatched agent's result and merges them into one coherent answer.</span></li>
+      <li><span class="step-num">5</span><span class="step-text"><strong>Respond</strong> - the final answer returns with <span class="mono">tasks</span> naming exactly which agents ran, plus suggested follow-up questions.</span></li>
+    </ol>
+  </section>
+
+  <section class="panel">
+    <h2>Where this fits in the HR Benefits RAG system</h2>
+    <p>The most capable of the three read paths, built on the same index and most of the same guardrail/memory machinery as the other two - genai-rag-chat for simple lookups, single-agentic-rag for one tool decision at a time, multi-agentic-rag for questions that genuinely need several specialists working together. Picking the right mode for a question is a real tradeoff this system exposes directly in the UI's "RAG Pipeline:" selector, rather than hiding behind one fixed default.</p>
+  </section>
+
+  <div class="hub-grid">
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=multi-agentic-rag&type=spec" target="_blank" rel="noopener noreferrer">
+      <span class="label">Spec</span>
+      <span class="desc">Intent, scope, personas, acceptance criteria.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=multi-agentic-rag&type=architecture" target="_blank" rel="noopener noreferrer">
+      <span class="label">Architecture</span>
+      <span class="desc">The real compiled LangGraph graph, generated from draw_mermaid().</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=multi-agentic-rag&type=design" target="_blank" rel="noopener noreferrer">
+      <span class="label">Design</span>
+      <span class="desc">API contract, NFRs, real constraints.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=multi-agentic-rag&type=decisions" target="_blank" rel="noopener noreferrer">
+      <span class="label">Decisions</span>
+      <span class="desc">Why guardrails aren't on the shared core yet, why no caller-set iteration cap.</span>
+    </a>
+  </div>
+
+  <footer>Multi-Agentic RAG — overview.html, spec.html, architecture.html, design.html, decisions.html</footer>
+</div>
