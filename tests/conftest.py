@@ -43,6 +43,16 @@ Path(_TEST_SQLITE_DB_PATH).unlink(missing_ok=True)
 # this env default) with its own injected FakeRedisClient, not real Redis.
 os.environ["APP_RATE_LIMITING"] = "false"
 
+# Phase 44's LlamaIndex-based indexing (vector_indexer.py) constructs a
+# real llama_index OpenAIEmbedding unless LlamaIndex's own IS_TESTING
+# env var is set, in which case it uses MockEmbedding(embed_dim=8)
+# instead - a LlamaIndex convention this project had never actually
+# configured. Every test_vector_indexer.py test passed locally only
+# because a real OPENAI_API_KEY happens to be in .env there, masking
+# the gap - CI has no such key and failed with openai.OpenAIError on
+# every one of those tests, confirmed live before this fix.
+os.environ["IS_TESTING"] = "True"
+
 
 class FakeEmbeddings(Embeddings):
     """LangChain's own Embeddings interface, satisfied without a network

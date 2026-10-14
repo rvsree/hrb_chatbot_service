@@ -26,6 +26,11 @@ not applicable>
 **Flagged, not fixed:** <any out-of-scope issue noticed while working, one
 line each, or "none">
 
+**Docs in sync:** <if this task changed design/architecture/a contract, did
+the feature's own docs/dev-reference/<feature>/ set get updated and re-
+synced (see CLAUDE.md)? "yes, synced" / "yes, not yet synced - needs your
+go-ahead" / "n/a - no design/architecture/contract change">
+
 **Next step (suggested):** <one sentence>
 ```
 
