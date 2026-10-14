@@ -14352,7 +14352,8 @@ Explicitly deferred to a later, separate wave - not part of the above:
   - **Context**: Phase 169 stored `ADM001`'s secret code as a plaintext
     literal in `known_personas.py` with a plain `==` comparison - the user
     flagged this directly and asked for (1) a one-time seed code
-    (`$reeRad`) that forces a reset on first login, (2) a reset flow only
+    (redacted here - see `ADMIN_ONE_TIME_SEED_SECRET_CODE` in
+    `api/auth/login.py`) that forces a reset on first login, (2) a reset flow only
     an already-authenticated admin can reach, (3) a better-than-plaintext
     storage/validation scheme. Asked whether OAuth/JWT fit - answered
     directly in chat: OAuth solves delegated third-party authorization
@@ -14396,7 +14397,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       `new_secret_code`) and `ResetSecretCodeResponse`
       (`employee_id`, `reset: bool`).
     - **`api/auth/login.py`**: admin login calls
-      `get_or_seed("ADM001", "$reeRad")` then `verify_secret_code(...)` -
+      `get_or_seed("ADM001", ADMIN_ONE_TIME_SEED_SECRET_CODE)` then `verify_secret_code(...)` -
       401 `INVALID_ADMIN_SECRET_CODE` on mismatch, else returns
       `must_reset_secret_code` from the stored row. New
       `POST /v1/auth/admin/reset-secret-code` - `require_role(ADMIN)`,
