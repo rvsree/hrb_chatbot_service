@@ -1,0 +1,187 @@
+<title>Chunking Strategy - Decisions</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --live: #147a4a; --live-bg: #e3f5eb; --live-border: #b5e3c8;
+    --design: #9a5a0c; --design-bg: #fbf1dd; --design-border: #edd6a2;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+      --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+    --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0b2b25;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  table.summary { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+  table.summary th { text-align: left; font-family: 'Archivo', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding: 10px 14px; background: var(--surface-alt); border-bottom: 1px solid var(--border); }
+  table.summary td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.summary tr:last-child td { border-bottom: none; }
+  table.summary td.id-cell { font-family: 'IBM Plex Mono', monospace; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  table.summary a { color: var(--text); text-decoration: none; }
+  table.summary a:hover { text-decoration: underline; }
+
+  section.decision { border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 14px; }
+  .decision-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .decision-id { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 12px; color: #fff; background: var(--band-dark); padding: 3px 9px; border-radius: 7px; }
+  .decision-title { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 16px; }
+  .decision-grid { display: grid; grid-template-columns: 110px 1fr; gap: 4px 14px; font-size: 13px; }
+  .decision-grid dt { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding-top: 2px; }
+  .decision-grid dd { margin: 0; color: var(--text-muted); line-height: 1.6; padding-bottom: 10px; border-bottom: 1px solid var(--border); overflow-wrap: break-word; }
+  .decision-grid dd:last-of-type { border-bottom: none; padding-bottom: 0; }
+  @media (max-width: 620px) { .decision-grid { grid-template-columns: 1fr; } .decision-grid dt { padding-top: 10px; } }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">decisions - context, alternatives, why, trade-offs</div>
+    <h1 class="display">Chunking Strategy</h1>
+    <p class="subtitle">Real "chose X over Y because Z" moments, pulled from <span class="mono">text_chunker.py</span>'s own phase-labeled comments.</p>
+    <div class="doc-nav">
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=chunking-strategy&type=overview" target="_blank" rel="noopener noreferrer">Overview</a>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=chunking-strategy&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=chunking-strategy&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <span class="doc-nav-item current">Decisions</span>
+    </div>
+  </header>
+
+  <table class="summary">
+    <thead><tr><th>ID</th><th>Decision</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td class="id-cell">CS-1</td><td><a href="#d1">6 LangChain splitters + 1 own, no custom reimplementation</a></td><td>Workshop Module 2</td></tr>
+      <tr><td class="id-cell">CS-2</td><td><a href="#d2">Tables always pulled out, kept whole</a></td><td>Phase 75</td></tr>
+      <tr><td class="id-cell">CS-3</td><td><a href="#d3">semantic / document_structure stay explicit-only</a></td><td>Phase 124</td></tr>
+      <tr><td class="id-cell">CS-4</td><td><a href="#d4">Oversized-chunk safety net on every strategy</a></td><td>Phase 149/156</td></tr>
+      <tr><td class="id-cell">CS-5</td><td><a href="#d5">Chunk size auto-scales for large documents</a></td><td>Phase 75</td></tr>
+      <tr><td class="id-cell">CS-6</td><td><a href="#d6">section_id derived from heading text, not number</a></td><td>Phase 124</td></tr>
+    </tbody>
+  </table>
+
+  <section class="decision" id="d1">
+    <div class="decision-head"><span class="decision-id">CS-1</span><span class="decision-title display">6 LangChain splitters + 1 own, no custom reimplementation</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>Text splitting is a well-covered problem; LangChain already ships several real splitter implementations.</dd>
+      <dt>Decision</dt><dd><span class="mono">fixed</span> / <span class="mono">recursive</span> / <span class="mono">semantic</span> / <span class="mono">markdown</span> / <span class="mono">html</span> are thin wrappers over LangChain's own <span class="mono">CharacterTextSplitter</span> / <span class="mono">RecursiveCharacterTextSplitter</span> / <span class="mono">SemanticChunker</span> / <span class="mono">MarkdownHeaderTextSplitter</span> / <span class="mono">HTMLHeaderTextSplitter</span> - only <span class="mono">document_structure</span> is this project's own logic, since it depends on this project's real KB heading format.</dd>
+      <dt>Why</dt><dd>Matches the workshop's own Module 2 approach directly - six plain functions, no classes, nothing reinvented that a maintained library already does well.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="d2">
+    <div class="decision-head"><span class="decision-id">CS-2</span><span class="decision-title display">Tables always pulled out, kept whole</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>A table split mid-row by a size-based chunk boundary becomes unreadable noise at retrieval time, regardless of which strategy caused it.</dd>
+      <dt>Decision</dt><dd>Every <span class="mono">[TABLE]...[/TABLE]</span> block is removed before any strategy runs and reattached afterward as its own whole chunk - the rest of the document's chunk sizing isn't influenced by table size either.</dd>
+      <dt>Why</dt><dd>A table's internal structure matters more than uniform chunk sizing; no strategy needs to special-case tables since they never see them.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="d3">
+    <div class="decision-head"><span class="decision-id">CS-3</span><span class="decision-title display">semantic / document_structure stay explicit-only</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd><span class="mono">semantic</span> costs one embedding call per sentence - real money per document. <span class="mono">document_structure</span> would actually fire for nearly every real KB document if auto-selected (they all use the real "Section N:" heading format).</dd>
+      <dt>Decision</dt><dd>Neither is reachable from <span class="mono">decide_chunking_strategy()</span> - both only run when a caller names them directly.</dd>
+      <dt>Why</dt><dd><span class="mono">semantic</span>: cost control, not a correctness issue. <span class="mono">document_structure</span>: auto-enabling it risks silently shifting golden-dataset scores on a routine re-index - kept opt-in deliberately, not an oversight.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="d4">
+    <div class="decision-head"><span class="decision-id">CS-4</span><span class="decision-title display">Oversized-chunk safety net on every strategy</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>Phase 149 built <span class="mono">_split_oversized_chunks()</span> for <span class="mono">semantic</span> alone - it has no size ceiling of its own, so a topically-uniform document could collapse into one or two 15K+ character chunks, diluting their embeddings.</dd>
+      <dt>Decision</dt><dd>Phase 156 extended the same safety net to <span class="mono">markdown</span>/<span class="mono">html</span>/<span class="mono">none</span> too - every strategy now respects a caller-given <span class="mono">chunk_size</span>, not just the 3 that take it as a direct split target.</dd>
+      <dt>Why</dt><dd>A big document under <span class="mono">none</span>, or PDF-extracted text with no real markdown/HTML headers under those 2 strategies, hit the exact same uncapped-giant-chunk problem - one shared fix, not three separate ones.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="d5">
+    <div class="decision-head"><span class="decision-id">CS-5</span><span class="decision-title display">Chunk size auto-scales for large documents</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>A long document at the default 1000-char chunk size fragments into 10+ tiny pieces, each losing surrounding context the next piece has.</dd>
+      <dt>Decision</dt><dd><span class="mono">decide_chunk_size()</span> bumps the target to 1500 chars once the table-free text exceeds 10,000 characters - only ever grows past the default, never shrinks it.</dd>
+      <dt>Why</dt><dd>Tables no longer factor into this decision either - each becomes its own whole chunk regardless of size, so there's no need to inflate chunk size for the rest of the document just because one table happens to be large.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="d6">
+    <div class="decision-head"><span class="decision-id">CS-6</span><span class="decision-title display">section_id derived from heading text, not number</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd><span class="mono">document_structure</span> tags each chunk with a <span class="mono">section_id</span> so retrieval can cite which section a chunk came from.</dd>
+      <dt>Decision</dt><dd>The id is a slug of the heading's own text (e.g. <span class="mono">eligibility</span>), not its number (e.g. <span class="mono">section-2</span>).</dd>
+      <dt>Why</dt><dd>A document renumbered on a later edit (section 2 becomes section 3) keeps the same stable <span class="mono">section_id</span> as long as the heading text itself doesn't change - a number-based id would silently break every existing citation pointing at that section.</dd>
+    </dl>
+  </section>
+
+  <footer>
+    Companion to <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=chunking-strategy&type=design" target="_blank" rel="noopener noreferrer">Design</a> (API contract, the 7 strategies) and <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=chunking-strategy&type=overview" target="_blank" rel="noopener noreferrer">Overview</a>.
+  </footer>
+</div>
+<!-- local-nav-fallback -->
+<script>
+(function () {
+  if (location.protocol !== "file:") return;
+  var LOCAL_DOCS = {
+    "overview": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/chunking-strategy/overview.html",
+    "spec": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/chunking-strategy/spec.html",
+    "design": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/chunking-strategy/design.html",
+    "decisions": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/chunking-strategy/decisions.html"
+  };
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    var match = a.href.match(/[?&]type=([^&]+)/);
+    if (!match) return;
+    var localPath = LOCAL_DOCS[match[1]];
+    if (localPath) {
+      a.href = localPath;
+      a.removeAttribute("target");
+    }
+  });
+})();
+</script>
+<!-- app-base-nav -->
+<script>
+(function () {
+  if (location.protocol === "file:") return;
+  var hashMatch = location.hash.match(/app_base=([^&]+)/);
+  if (!hashMatch) return;
+  var appBase = decodeURIComponent(hashMatch[1]).replace(/\/$/, "");
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      a.href = appBase + url.pathname + url.search + "#app_base=" + encodeURIComponent(appBase);
+    } catch (e) {}
+  });
+})();
+</script>

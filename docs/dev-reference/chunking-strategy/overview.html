@@ -1,0 +1,150 @@
+<title>Chunking Strategy - Overview</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(26px, 4.2vw, 36px); letter-spacing: -0.01em; text-wrap: balance; }
+  .lede { margin: 0; color: var(--text-muted); font-size: 15px; max-width: 72ch; line-height: 1.6; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  section.panel { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel h2 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 15px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.03em; }
+  .panel p { margin: 0; font-size: 14px; color: var(--text-muted); line-height: 1.7; }
+  .panel p + p { margin-top: 2px; }
+
+  .workflow { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .workflow li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; color: var(--text-muted); line-height: 1.55; }
+  .workflow .step-num { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); display: flex; align-items: center; justify-content: center; font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 12px; margin-top: 1px; }
+  .workflow .step-text { flex: 1; min-width: 0; }
+  .workflow strong { color: var(--text); }
+
+  .hub-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .hub-card { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--surface-alt); text-decoration: none; color: inherit; transition: border-color 0.15s; }
+  .hub-card:hover { border-color: var(--accent-border); }
+  .hub-card .label { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 14px; color: var(--accent); }
+  .hub-card .desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 14px; font-size: 11.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">overview</div>
+    <h1 class="display">Chunking Strategy</h1>
+    <p class="lede">Turning one document's extracted text into appropriately-sized pieces before embedding - 7 real strategies, auto-selected by content shape, override-able per document.</p>
+    <div class="doc-nav">
+      <span class="doc-nav-item current">Overview</span>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=chunking-strategy&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=chunking-strategy&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=chunking-strategy&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <h2>Purpose</h2>
+    <p>How a chunk is drawn matters as much as what embeds it - too small and a chunk loses context, too large and its embedding gets diluted across unrelated ideas. This feature is the real chunking layer: <span class="mono">text_chunker.py</span>'s 7 functions, each a different technique (fixed-size, recursive, semantic, markdown/HTML headers, whole-document, or this project's own document-structure splitter), picked automatically from the document's shape or chosen explicitly per document from the Documents page.</p>
+    <p>Every table extracted from a PDF is pulled out before any strategy runs and kept as its own whole chunk afterward - no strategy, auto-picked or explicit, is ever allowed to split a table across a chunk boundary.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Scope</h2>
+    <p>Covers all 7 real strategies (<span class="mono">fixed</span>, <span class="mono">recursive</span>, <span class="mono">semantic</span>, <span class="mono">markdown</span>, <span class="mono">html</span>, <span class="mono">none</span>, <span class="mono">document_structure</span>), the auto-selection logic that picks one when a caller doesn't (<span class="mono">decide_chunking_strategy()</span>), chunk-size auto-scaling for large documents, the oversized-chunk safety net every strategy now respects, and the Documents page's own per-document re-chunk control (re-embeds and re-indexes with a new strategy on demand).</p>
+    <p>Does not cover embedding generation or vector-store writes themselves - those are <span class="mono">embedding_generator.py</span>/<span class="mono">vector_indexer.py</span>'s own jobs, called right after chunking finishes.</p>
+  </section>
+
+  <section class="panel">
+    <h2>High-level workflow</h2>
+    <ol class="workflow">
+      <li><span class="step-num">1</span><span class="step-text"><strong>Tables pulled out</strong> - every <span class="mono">[TABLE]...[/TABLE]</span> block is set aside before any strategy sees the text.</span></li>
+      <li><span class="step-num">2</span><span class="step-text"><strong>Strategy resolved</strong> - explicit if the caller gave one, otherwise auto-picked from markdown/HTML heading sniffing or document length.</span></li>
+      <li><span class="step-num">3</span><span class="step-text"><strong>Chunk size resolved</strong> - explicit if given, otherwise auto-scaled up for long documents.</span></li>
+      <li><span class="step-num">4</span><span class="step-text"><strong>Strategy runs</strong> - one of the 7 functions splits the table-free text.</span></li>
+      <li><span class="step-num">5</span><span class="step-text"><strong>Oversized-chunk safety net</strong> - any chunk still over the resolved size gets re-split recursively.</span></li>
+      <li><span class="step-num">6</span><span class="step-text"><strong>Tables reattached</strong> - each table block comes back as its own whole chunk, appended after the prose chunks.</span></li>
+    </ol>
+  </section>
+
+  <section class="panel">
+    <h2>Where this fits in the HR Benefits RAG system</h2>
+    <p>Called from <span class="mono">ai/doc_processing/pipeline.py::index_document()</span> on every document upload, and again from the Documents page's "Chunking Strategy" dropdown whenever HR Support explicitly re-chunks an already-indexed document (<span class="mono">POST .../documents/{document_id}/rechunk</span>) - same underlying function either way, just whether <span class="mono">chunking_strategy</span> is auto-picked or caller-given.</p>
+  </section>
+
+  <div class="hub-grid">
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=chunking-strategy&type=spec" target="_blank" rel="noopener noreferrer">
+      <span class="label">Spec</span>
+      <span class="desc">Intent, scope, personas, acceptance criteria.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=chunking-strategy&type=design" target="_blank" rel="noopener noreferrer">
+      <span class="label">Design</span>
+      <span class="desc">API contract, the 7 strategies, real constraints.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=chunking-strategy&type=decisions" target="_blank" rel="noopener noreferrer">
+      <span class="label">Decisions</span>
+      <span class="desc">Why 2 strategies stay explicit-only, why tables are never split.</span>
+    </a>
+  </div>
+
+  <footer>Chunking Strategy — overview.html, spec.html, design.html, decisions.html</footer>
+</div>
+<!-- local-nav-fallback -->
+<script>
+(function () {
+  if (location.protocol !== "file:") return;
+  var LOCAL_DOCS = {
+    "overview": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/chunking-strategy/overview.html",
+    "spec": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/chunking-strategy/spec.html",
+    "design": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/chunking-strategy/design.html",
+    "decisions": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/chunking-strategy/decisions.html"
+  };
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    var match = a.href.match(/[?&]type=([^&]+)/);
+    if (!match) return;
+    var localPath = LOCAL_DOCS[match[1]];
+    if (localPath) {
+      a.href = localPath;
+      a.removeAttribute("target");
+    }
+  });
+})();
+</script>
+<!-- app-base-nav -->
+<script>
+(function () {
+  if (location.protocol === "file:") return;
+  var hashMatch = location.hash.match(/app_base=([^&]+)/);
+  if (!hashMatch) return;
+  var appBase = decodeURIComponent(hashMatch[1]).replace(/\/$/, "");
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      a.href = appBase + url.pathname + url.search + "#app_base=" + encodeURIComponent(appBase);
+    } catch (e) {}
+  });
+})();
+</script>

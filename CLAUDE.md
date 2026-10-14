@@ -158,12 +158,28 @@ shape inline; `.claude/skills/spec-new/SKILL.md`,
 is a recorded exception, not a drift back toward parallel spec/ADR folders -
 everything else still lives in `docs/agent-reference/RAG-ROADMAP.md`/`docs/agent-reference/FAQ.md`.
 
-**Two working norms that apply everywhere, not just to SDD:**
+**Four working norms that apply everywhere, not just to SDD:**
 - **One task at a time.** No multi-file autonomous changes across unrelated
   concerns. Finish one phase/task, report, wait for review.
 - **Flag, don't fix.** Something noticed outside the current task's scope
   gets a one-line note in the delivery note (see below), not an unprompted
   fix.
+- **Nothing gets pushed/deployed/synced to AWS without the user's own local
+  review and explicit go-ahead first - 2026-10-14.** Implement and self-
+  verify locally, then stop and wait for confirmation before any `git push`,
+  `scripts/sync_admin_docs.py` run, or other action that changes what's
+  live in production. This applies even when a push is clearly the obvious
+  next step - ask anyway, every time, not just the first time.
+- **Docs stay in sync with reality - 2026-10-14.** Any design, architecture,
+  or major implementation change must be reflected in that feature's own
+  `docs/dev-reference/<feature>/` doc set (Spec/Architecture/Design/
+  Decisions) before the work is considered done - not left for a later
+  catch-up pass. The updated docs then need `python -m
+  scripts.sync_admin_docs` run against them so the live admin-docs S3
+  bucket and the `doc_metadata` table (which tracks `doc_version` by
+  content-hash, so an unchanged file is a no-op) actually reflect what's
+  in the repo - gated by the no-push-without-go-ahead norm just above,
+  same as any other push.
 
 **Available skills** (`.claude/skills/<name>/SKILL.md`, each also a
 `/<name>` slash command):

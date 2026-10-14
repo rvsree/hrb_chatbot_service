@@ -44,8 +44,8 @@ DOCS_TO_SYNC = {
             "text/html",
         ),
         "design": (
-            "Leave Approval A2A",
-            "docs/dev-reference/leave-approval-a2a-design.html",
+            "Request Unpaid Leave - Design",
+            "docs/dev-reference/request-unpaid-leave/design.html",
             "text/html",
         ),
         "decisions": (
@@ -193,8 +193,8 @@ DOCS_TO_SYNC = {
             "text/html",
         ),
         "architecture": (
-            "GenAI Chat Workflow Architecture",
-            "docs/dev-reference/genai-chat-workflow-architecture.html",
+            "GenAI Chat Workflow - Architecture",
+            "docs/dev-reference/genai-chat-workflow/architecture.html",
             "text/html",
         ),
         "design": (
@@ -287,7 +287,7 @@ DOCS_TO_SYNC = {
     "architecture-deck": {
         "deck": (
             "HRB V2 Architecture Deck (PowerPoint)",
-            r"C:\Users\sreed\Downloads\HRB_V2_Architecture_Deck_v10.pptx",
+            r"C:\Users\sreed\Downloads\HRB_V2_Architecture_Deck_v11.pptx",
             "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         ),
     },
@@ -301,6 +301,99 @@ DOCS_TO_SYNC = {
         "design": (
             "Scaling & Latency Design",
             "docs/dev-reference/design/scaling-latency-design.html",
+            "text/html",
+        ),
+    },
+    # Pre-existing 10-page series + index, found disconnected from this
+    # dict entirely - its own internal links were plain relative hrefs,
+    # which a confirmed-live 403 showed
+    # don't work once served via presigned S3 URLs (see
+    # scripts/fix_deployment_guide_links.py, run once before this
+    # registration to rewrite them to the standard /admin/open-doc pattern
+    # every other doc here already uses). Not a Spec/Architecture/Design/
+    # Decisions feature - a standalone howto series, so its doc_types are
+    # named after the series' own pages instead of forcing that shape.
+    "deployment-guide": {
+        "index": (
+            "Deployment Guide - Index",
+            "docs/dev-reference/deployment-guide/index.html",
+            "text/html",
+        ),
+        "deployment-aws": (
+            "Deployment & AWS Operations",
+            "docs/dev-reference/deployment-guide/01-deployment-aws.html",
+            "text/html",
+        ),
+        "neon-postgres": (
+            "Neon Postgres",
+            "docs/dev-reference/deployment-guide/02-neon-postgres.html",
+            "text/html",
+        ),
+        "pinecone-standard": (
+            "Pinecone as the Standing Vector Store",
+            "docs/dev-reference/deployment-guide/03-pinecone-standard.html",
+            "text/html",
+        ),
+        "redis-cache": (
+            "Redis Cache",
+            "docs/dev-reference/deployment-guide/04-redis-cache.html",
+            "text/html",
+        ),
+        "rag-ingestion-batch": (
+            "RAG Ingestion Batch Process",
+            "docs/dev-reference/deployment-guide/05-rag-ingestion-batch.html",
+            "text/html",
+        ),
+        "nfr-reliability-resilience": (
+            "NFR: Reliability & Resilience",
+            "docs/dev-reference/deployment-guide/06-nfr-reliability-resilience.html",
+            "text/html",
+        ),
+        "reactjs-ui": (
+            "React UI",
+            "docs/dev-reference/deployment-guide/07-reactjs-ui.html",
+            "text/html",
+        ),
+        "milestone-plan": (
+            "Milestone Plan & Golden Dataset Gate",
+            "docs/dev-reference/deployment-guide/08-milestone-plan.html",
+            "text/html",
+        ),
+        "custom-domain-setup": (
+            "Custom Domain Setup",
+            "docs/dev-reference/deployment-guide/09-custom-domain-setup.html",
+            "text/html",
+        ),
+        "observability-howto": (
+            "Checking LangSmith & CloudWatch",
+            "docs/dev-reference/deployment-guide/10-observability-howto.html",
+            "text/html",
+        ),
+    },
+    # Previously the Documents page's "Chunking Strategy" tooltip reused
+    # upload-documents' own doc set - a deliberate simplification at the
+    # time (the help content was thin). Given its own set now, per direct
+    # instruction - grounded in ai/doc_processing/chunking/text_chunker.py's
+    # real 7 strategies, not a thin restating of upload-documents.
+    "chunking-strategy": {
+        "overview": (
+            "Chunking Strategy - Overview",
+            "docs/dev-reference/chunking-strategy/overview.html",
+            "text/html",
+        ),
+        "spec": (
+            "Chunking Strategy - Spec",
+            "docs/dev-reference/chunking-strategy/spec.html",
+            "text/html",
+        ),
+        "design": (
+            "Chunking Strategy - Design",
+            "docs/dev-reference/chunking-strategy/design.html",
+            "text/html",
+        ),
+        "decisions": (
+            "Chunking Strategy - Decisions",
+            "docs/dev-reference/chunking-strategy/decisions.html",
             "text/html",
         ),
     },

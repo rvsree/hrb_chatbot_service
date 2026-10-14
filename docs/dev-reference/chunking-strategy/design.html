@@ -1,0 +1,177 @@
+<title>Chunking Strategy - Design</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --live: #147a4a; --live-bg: #e3f5eb; --live-border: #b5e3c8;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  section.panel { display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .panel-num { width: 30px; height: 30px; border-radius: 9px; background: #0d3d34; color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13px; }
+  .panel-title { display: flex; flex-direction: column; }
+  .panel-title .name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; }
+  .panel p { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+  .endpoint { font-family: 'IBM Plex Mono', monospace; font-size: 13px; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; display: inline-block; }
+  .method { font-weight: 800; color: var(--accent); }
+
+  table.contract { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.contract th, table.contract td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.contract th { color: var(--text-faint); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.03em; }
+  table.contract td.field { font-family: 'IBM Plex Mono', monospace; font-weight: 600; white-space: nowrap; }
+  table.contract tr:last-child td { border-bottom: none; }
+
+  .flow-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+  .flow-node { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; font-weight: 600; padding: 7px 11px; border-radius: 999px; border: 1px solid var(--live-border); background: var(--live-bg); color: var(--live); }
+  .flow-arrow { color: var(--text-faint); font-size: 13px; }
+
+  .nfr-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .nfr-table th, .nfr-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .nfr-table th { color: var(--text-faint); font-weight: 600; font-size: 10.5px; text-transform: uppercase; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">design - api contract, the 7 strategies, real constraints</div>
+    <h1 class="display">Chunking Strategy</h1>
+    <p class="subtitle">One function dispatch table (<span class="mono">CHUNKING_STRATEGIES</span>) over 7 real LangChain-backed splitters, with a shared table-extraction step and oversized-chunk safety net around all of them.</p>
+    <div class="doc-nav">
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=chunking-strategy&type=overview" target="_blank" rel="noopener noreferrer">Overview</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=chunking-strategy&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <span class="doc-nav-item current">Design</span>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=chunking-strategy&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">1</div><div class="panel-title"><span class="name display">API contract</span></div></div>
+    <p><span class="endpoint"><span class="method">POST</span> /v1/genai-rag/ingest-document/documents/{document_id}/rechunk</span> - the only HTTP entry point; a fresh upload calls <span class="mono">chunk_text_with_sections()</span> directly inside <span class="mono">index_document()</span>, no separate route.</p>
+    <table class="contract">
+      <thead><tr><th>Body field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="field">user_profile</td><td>object</td><td>Same <span class="mono">UserProfile</span> shape every route uses</td></tr>
+        <tr><td class="field">chunk_info.chunking_strategy</td><td>str</td><td>One of the 7 keys in <span class="mono">CHUNKING_STRATEGIES</span> - an unknown value raises a <span class="mono">ValueError</span></td></tr>
+        <tr><td class="field">chunk_info.chunk_size</td><td>int, optional</td><td>Omitted lets the backend auto-pick via <span class="mono">decide_chunk_size()</span></td></tr>
+        <tr><td class="field">chunk_info.chunk_overlap</td><td>int, optional</td><td>Defaults to 150 if omitted</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">2</div><div class="panel-title"><span class="name display">Request flow</span></div></div>
+    <div class="flow-strip">
+      <span class="flow-node">split tables out</span><span class="flow-arrow">→</span>
+      <span class="flow-node">resolve strategy</span><span class="flow-arrow">→</span>
+      <span class="flow-node">resolve chunk_size</span><span class="flow-arrow">→</span>
+      <span class="flow-node">run strategy function</span><span class="flow-arrow">→</span>
+      <span class="flow-node">oversized-chunk safety net</span><span class="flow-arrow">→</span>
+      <span class="flow-node">reattach table blocks</span>
+    </div>
+    <p>Strategy resolution: explicit value wins; otherwise <span class="mono">decide_chunking_strategy()</span> sniffs markdown heading lines (<span class="mono">#</span>) first, then HTML heading tags (<span class="mono">&lt;h1&gt;</span>/<span class="mono">&lt;h2&gt;</span>/<span class="mono">&lt;h3&gt;</span>), then falls back to <span class="mono">none</span> (document ≤ 1000 chars) or <span class="mono">recursive</span> (longer) - <span class="mono">semantic</span> and <span class="mono">document_structure</span> are never reached by auto-selection.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">3</div><div class="panel-title"><span class="name display">The 7 strategies</span></div></div>
+    <table class="contract">
+      <thead><tr><th>Strategy</th><th>Real technique</th><th>Auto-selected?</th></tr></thead>
+      <tbody>
+        <tr><td class="field">fixed</td><td><span class="mono">CharacterTextSplitter</span>, single <span class="mono">\n</span> separator - fast, may cut a sentence in half</td><td>no (explicit-reachable, not auto)</td></tr>
+        <tr><td class="field">recursive</td><td><span class="mono">RecursiveCharacterTextSplitter</span> - paragraph → line → sentence → hard cut, the general-text default</td><td>yes - fallback when nothing else matches</td></tr>
+        <tr><td class="field">semantic</td><td><span class="mono">SemanticChunker</span> - embeds each sentence, splits where meaning shifts; 1 embedding call per sentence</td><td>no, explicit-only</td></tr>
+        <tr><td class="field">markdown</td><td><span class="mono">MarkdownHeaderTextSplitter</span> on <span class="mono">#</span>/<span class="mono">##</span>/<span class="mono">###</span></td><td>yes - when a <span class="mono">#</span>-prefixed line is found</td></tr>
+        <tr><td class="field">html</td><td><span class="mono">HTMLHeaderTextSplitter</span> on <span class="mono">&lt;h1&gt;</span>/<span class="mono">&lt;h2&gt;</span>/<span class="mono">&lt;h3&gt;</span></td><td>yes - when an HTML heading tag is found</td></tr>
+        <tr><td class="field">none</td><td>No splitting at all, just the size-cap safety net</td><td>yes - for documents ≤ 1000 chars</td></tr>
+        <tr><td class="field">document_structure</td><td>This project's own splitter on real "Section N:"/"N.N Subtitle" headings, tagging each chunk with a stable <span class="mono">section_id</span></td><td>no, explicit-only</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">4</div><div class="panel-title"><span class="name display">Real constraints (NFRs)</span></div></div>
+    <table class="nfr-table">
+      <thead><tr><th>Constraint</th><th>Value</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td>Default chunk size</td><td>1000 chars</td><td>Keeps a chunk topically focused without over-fragmenting</td></tr>
+        <tr><td>Default overlap</td><td>150 chars</td><td>Roughly a sentence - a boundary-split sentence still appears whole somewhere</td></tr>
+        <tr><td>Whole-document threshold</td><td>≤ 1000 chars → <span class="mono">none</span></td><td>Not critical for short documents, matches the workshop's own takeaway</td></tr>
+        <tr><td>Large-document chunk size</td><td>&gt; 10,000 chars → 1500</td><td>Avoids 10+ tiny fragments, each losing surrounding context</td></tr>
+        <tr><td>Oversized-chunk cap</td><td>Applied to all 7 strategies</td><td>Phase 156 extended Phase 149's semantic-only fix after <span class="mono">markdown</span>/<span class="mono">html</span>/<span class="mono">none</span> showed the same uncapped-giant-chunk risk</td></tr>
+        <tr><td>Table handling</td><td>Always pulled out, always whole</td><td>A table split mid-row is useless at retrieval time, regardless of strategy</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    Overview: <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=chunking-strategy&type=overview" target="_blank" rel="noopener noreferrer">overview.html</a>. Companions: <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=chunking-strategy&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=chunking-strategy&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>.
+  </footer>
+</div>
+<!-- local-nav-fallback -->
+<script>
+(function () {
+  if (location.protocol !== "file:") return;
+  var LOCAL_DOCS = {
+    "overview": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/chunking-strategy/overview.html",
+    "spec": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/chunking-strategy/spec.html",
+    "design": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/chunking-strategy/design.html",
+    "decisions": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/chunking-strategy/decisions.html"
+  };
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    var match = a.href.match(/[?&]type=([^&]+)/);
+    if (!match) return;
+    var localPath = LOCAL_DOCS[match[1]];
+    if (localPath) {
+      a.href = localPath;
+      a.removeAttribute("target");
+    }
+  });
+})();
+</script>
+<!-- app-base-nav -->
+<script>
+(function () {
+  if (location.protocol === "file:") return;
+  var hashMatch = location.hash.match(/app_base=([^&]+)/);
+  if (!hashMatch) return;
+  var appBase = decodeURIComponent(hashMatch[1]).replace(/\/$/, "");
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      a.href = appBase + url.pathname + url.search + "#app_base=" + encodeURIComponent(appBase);
+    } catch (e) {}
+  });
+})();
+</script>
