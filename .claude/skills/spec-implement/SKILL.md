@@ -38,6 +38,13 @@ Preconditions - stop and report if either is missing, don't proceed anyway:
    its row in the "Status at a glance" table, and add a short "Verified:
    ..." line to the bullet describing what was actually checked - the same
    pattern every other completed phase in that file already follows.
+7. If this phase changed design, architecture, or a request/response
+   contract that the feature's own `docs/dev-reference/<feature>/` doc set
+   already describes (Spec/Architecture/Design/Decisions), update those
+   docs to match now - don't leave them to drift and get caught later.
+   Re-syncing them (`python -m scripts.sync_admin_docs`) is still a real
+   push to production, so it's gated by `CLAUDE.md`'s no-push-without-go-
+   ahead norm - update the docs locally, then ask before running the sync.
 
 Do not start a second phase in the same turn. One phase, reviewed, then
 stop - matches `CLAUDE.md`'s "one task at a time" rule.

@@ -8,12 +8,12 @@
 </head>
 <body>
 <div class="wrap">
-<div class="crumbs"><a href="index.html">&larr; Deployment Guide</a></div>
+<div class="crumbs"><a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=index" target="_blank" rel="noopener noreferrer">&larr; Deployment Guide</a></div>
 
 <h1>React UI</h1>
 <p class="subtitle">Coming from Angular v2/TypeScript and ASP.NET — your TypeScript carries over directly. The mental model shifts more than the language does.</p>
 
-<div class="flag"><strong>Sequencing, confirmed — this is the last milestone.</strong> Starts only after <a href="03-pinecone-standard.html">Pinecone</a>, <a href="04-redis-cache.html">Redis</a>, and <a href="05-rag-ingestion-batch.html">S3+Lambda batch ingestion</a> are all implemented, tested, and deployed to AWS. Don't start scaffolding until all three are done — see <a href="08-milestone-plan.html">the milestone plan</a> for the full order.</div>
+<div class="flag"><strong>Sequencing, confirmed — this is the last milestone.</strong> Starts only after <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=pinecone-standard" target="_blank" rel="noopener noreferrer">Pinecone</a>, <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=redis-cache" target="_blank" rel="noopener noreferrer">Redis</a>, and <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=rag-ingestion-batch" target="_blank" rel="noopener noreferrer">S3+Lambda batch ingestion</a> are all implemented, tested, and deployed to AWS. Don't start scaffolding until all three are done — see <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=milestone-plan" target="_blank" rel="noopener noreferrer">the milestone plan</a> for the full order.</div>
 
 <div class="flag"><strong>Update, 2026-10-06: all three prerequisites are done (Phases 88-90) — this milestone is unblocked.</strong> Before any scaffolding starts: <a href="../ui-wireframes-review.html">wireframes for 5 screens</a> (login, chat, feedback popup, explainability popup, batch upload) are published for review and explicit sign-off — not yet approved, not yet implemented.</div>
 
@@ -64,10 +64,53 @@
 </ul>
 
 <div class="pager">
-<a href="06-nfr-reliability-resilience.html">&larr; NFR &amp; Resilience</a>
-<a href="08-milestone-plan.html">Next: Milestone Plan &amp; Golden Dataset Gate &rarr;</a>
+<a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=nfr-reliability-resilience" target="_blank" rel="noopener noreferrer">&larr; NFR &amp; Resilience</a>
+<a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=milestone-plan" target="_blank" rel="noopener noreferrer">Next: Milestone Plan &amp; Golden Dataset Gate &rarr;</a>
 </div>
 
 </div>
 </body>
 </html>
+<!-- app-base-nav -->
+<script>
+(function () {
+  if (location.protocol === "file:") return;
+  var hashMatch = location.hash.match(/app_base=([^&]+)/);
+  if (!hashMatch) return;
+  var appBase = decodeURIComponent(hashMatch[1]).replace(/\/$/, "");
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      a.href = appBase + url.pathname + url.search + "#app_base=" + encodeURIComponent(appBase);
+    } catch (e) {}
+  });
+})();
+</script>
+<!-- local-nav-fallback -->
+<script>
+(function () {
+  if (location.protocol !== "file:") return;
+  var LOCAL_DOCS = {
+    "index": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/deployment-guide/index.html",
+    "deployment-aws": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/deployment-guide/01-deployment-aws.html",
+    "neon-postgres": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/deployment-guide/02-neon-postgres.html",
+    "pinecone-standard": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/deployment-guide/03-pinecone-standard.html",
+    "redis-cache": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/deployment-guide/04-redis-cache.html",
+    "rag-ingestion-batch": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/deployment-guide/05-rag-ingestion-batch.html",
+    "nfr-reliability-resilience": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/deployment-guide/06-nfr-reliability-resilience.html",
+    "reactjs-ui": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/deployment-guide/07-reactjs-ui.html",
+    "milestone-plan": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/deployment-guide/08-milestone-plan.html",
+    "custom-domain-setup": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/deployment-guide/09-custom-domain-setup.html",
+    "observability-howto": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/deployment-guide/10-observability-howto.html"
+  };
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    var match = a.href.match(/[?&]type=([^&]+)/);
+    if (!match) return;
+    var localPath = LOCAL_DOCS[match[1]];
+    if (localPath) {
+      a.href = localPath;
+      a.removeAttribute("target");
+    }
+  });
+})();
+</script>

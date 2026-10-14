@@ -263,8 +263,18 @@ async def test_an_existing_conversation_id_seeds_prior_history_into_the_messages
 
 async def test_guardrail_blocked_input_raises_so_the_route_can_catch_it(monkeypatch):
     """Phase 98: previously impossible - this pipeline had no input
-    guardrail at all to ever raise this."""
+    guardrail at all to ever raise this.
+
+    run_agent() builds the real LLM client (_build_llm()) unconditionally
+    before run_guarded_pipeline() ever checks the guardrail - the
+    guardrail rejection doesn't skip that construction, so this test
+    needs _patch_llm() like every other test in this file, even though
+    the fake LLM is never actually invoked. Missing this masked a real
+    CI failure (openai.OpenAIError: Missing credentials) that a real
+    OPENAI_API_KEY in a local .env silently papered over - found live."""
     from src.hrb_chatbot.ai.pre_processing.guardrails_input import GuardrailBlockedError
+
+    _patch_llm(monkeypatch, [])
 
     async def _blocked_check_input(query):
         raise GuardrailBlockedError("blocked")
