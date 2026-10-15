@@ -66,7 +66,8 @@ branch immediately, not as a surprise when you open a PR.
 | Static security analysis | `ci.yml` `security` job, `bandit -ll` | zero MEDIUM+ findings | Yes |
 | Dependency CVE scan | `ci.yml` `security` job, `pip-audit` | none set yet - report only | **No, `continue-on-error: true`** |
 | Docker image builds | `ci.yml` `docker-build` job | must build with the load-bearing flags | Yes |
-| A/B eval (golden dataset) | Not wired into CI yet - hand-written harness is Phase 8, still planned | see [A/B testing](#ab-testing-once-phase-8-exists) below | Not yet applicable |
+| Golden-dataset release gate (genai-rag only) | `eval-gate.yml`, `scripts/run_release_gate.py` - manual `workflow_dispatch` only, not on every push | `get_release_decision()`'s PASS/REVIEW/BLOCK thresholds (recall/groundedness/completeness) | Yes, when run - but not automatic, so a push can still land without it |
+| A/B eval (variant comparison) | Not wired into CI yet - hand-written harness is Phase 8, still planned. Different from the release gate above: this compares two variants against each other, not one variant against a fixed threshold | see [A/B testing](#ab-testing-once-phase-8-exists) below | Not yet applicable |
 
 ### Why 45%, not some rounder number
 

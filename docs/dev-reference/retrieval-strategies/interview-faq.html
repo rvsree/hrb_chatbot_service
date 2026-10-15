@@ -1,0 +1,395 @@
+<title>Retrieval Strategies - Interview FAQ</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --built: #147a4a; --built-bg: #e3f5eb; --built-border: #b5e3c8;
+    --different: #9a5a0c; --different-bg: #fbf1dd; --different-border: #edd6a2;
+    --none: #6b7286; --none-bg: #eef0f4; --none-border: #d5d9e3;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --built: #52c98a; --built-bg: #12261a; --built-border: #1f4530;
+      --different: #e0ac48; --different-bg: #2c2311; --different-border: #4a3a17;
+      --none: #8991a8; --none-bg: #191d29; --none-border: #2a2f42;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --built: #52c98a; --built-bg: #12261a; --built-border: #1f4530;
+    --different: #e0ac48; --different-bg: #2c2311; --different-border: #4a3a17;
+    --none: #8991a8; --none-bg: #191d29; --none-border: #2a2f42;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band: #0b2b25;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; } .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(26px, 4.2vw, 36px); letter-spacing: -0.01em; text-wrap: balance; }
+  .lede { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.6; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); padding: 5px 10px 5px 8px; border-radius: 999px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot.built { background: var(--built); } .dot.different { background: var(--different); } .dot.none { background: var(--none); }
+
+  section.topic { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+  .topic-head { background: var(--band); color: #fff; padding: 11px 16px; display: flex; align-items: center; gap: 10px; }
+  .topic-head .t-name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 14px; }
+  .topic-head .t-count { margin-left: auto; font-size: 11px; opacity: 0.75; }
+  .topic-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+
+  .qa-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 7px; }
+  .qa-q { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13px; }
+  .qa-a { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--text-muted); line-height: 1.6; }
+  .qa-a li { margin-bottom: 2px; }
+  .qa-here { display: flex; align-items: flex-start; gap: 8px; font-size: 11.5px; padding-top: 4px; border-top: 1px dashed var(--border); }
+  .status-pill { font-size: 9.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; display: inline-block; flex: none; margin-top: 1px; }
+  .status-pill.built { color: var(--built); background: var(--built-bg); border: 1px solid var(--built-border); }
+  .status-pill.different { color: var(--different); background: var(--different-bg); border: 1px solid var(--different-border); }
+  .status-pill.none { color: var(--none); background: var(--none-bg); border: 1px solid var(--none-border); }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">interview prep, grounded in this feature's real code - not a copy of any course material</div>
+    <h1 class="display">Retrieval Strategies - Interview FAQ</h1>
+    <p class="lede">The retrieval/search slice of the RAG interview-prep weeks - 30 source questions condensed into 29 cards below (one pair of closely-related questions merged), answered independently against <span class="mono">ai/rag_pipeline/query_retrieval/retriever.py</span>, <span class="mono">bm25_search.py</span>, <span class="mono">answer_cache.py</span>, and <span class="mono">golden_dataset_harness.py</span>. System-wide agent/protocol topics live on the separate <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=interview-faqs&type=system" target="_blank" rel="noopener noreferrer">system-level FAQ</a>; chunking and ingestion have their own pages too.</p>
+    <div class="doc-nav">
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=retrieval-strategies&type=overview" target="_blank" rel="noopener noreferrer">Overview</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=retrieval-strategies&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=retrieval-strategies&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=retrieval-strategies&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+      <span class="doc-nav-item current">Interview FAQ</span>
+    </div>
+    <div class="legend">
+      <span class="legend-item"><span class="dot built"></span>Built here</span>
+      <span class="legend-item"><span class="dot different"></span>Built, differently</span>
+      <span class="legend-item"><span class="dot none"></span>Not built here</span>
+    </div>
+  </header>
+
+  <section class="topic">
+    <div class="topic-head"><span class="t-name display">Embeddings &amp; Similarity</span><span class="t-count">4 cards</span></div>
+    <div class="topic-body">
+
+      <div class="qa-card">
+        <div class="qa-q">What is an embedding, and why does cosine similarity work as the comparison metric?</div>
+        <ul class="qa-a">
+          <li>A vector encoding of meaning - similar text gets similar vectors even with almost no shared words. Cosine similarity compares direction, not magnitude, so it ignores text length and matches how most embedding models were trained to begin with.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">Delegated to the vector store (Chroma/Pinecone) rather than custom-coded - matches the course's own recommendation that this is the right default, not something to reinvent.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">How do you choose an embedding model?</div>
+        <ul class="qa-a">
+          <li>Shortlist from public benchmarks, then test on a few hundred real questions from your own data - that's what actually decides it. Check dimension count (storage/speed), max input length against your chunk size, and whether switching later means re-embedding everything.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note"><span class="mono">text-embedding-3-small</span> throughout - no side-by-side model comparison was run as its own feature; the choice was made once and used consistently.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">How do embeddings handle company jargon and acronyms?</div>
+        <ul class="qa-a">
+          <li>Badly - rare terms were barely seen in training and get matched on spelling, not meaning. Fixes: keep a glossary and expand acronyms, add keyword search alongside embeddings (exactly where embeddings fail), fine-tune on your own data if you have enough.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">The "add keyword search alongside embeddings" fix is real here - <span class="mono">search_hybrid()</span> (BM25 + vector) exists specifically to catch exact rare terms embeddings miss. No glossary/acronym-expansion step or fine-tuned embedding model.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">What's a good embedding-choice checklist beyond the raw benchmark score?</div>
+        <ul class="qa-a">
+          <li>Hosted API vs. self-hosted (cost, speed, whether data can leave your network), language support if documents aren't all English, and the real hidden cost: switching models later means re-embedding your entire index, so choose deliberately rather than casually.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill none">none</span><span class="note">No embedding-model migration tooling exists - switching today would mean a manual full re-ingest, with no side-by-side old/new index comparison step built.</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="topic">
+    <div class="topic-head"><span class="t-name display">Hybrid Search, Reranking &amp; Multi-Query</span><span class="t-count">4 cards</span></div>
+    <div class="topic-body">
+
+      <div class="qa-card">
+        <div class="qa-q">What is hybrid search, and how do you merge differently-scaled scores?</div>
+        <ul class="qa-a">
+          <li>Running keyword (BM25, great at exact matches) and embedding search (great at meaning) together, since each covers what the other misses. You can't just add the scores - BM25 is unbounded, embedding similarity is 0-1 - so use Reciprocal Rank Fusion: <span class="mono">score = sum(1 / (k + rank))</span> across lists, which needs no tuning.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">Real, live - <span class="mono">search_hybrid()</span> (<span class="mono">bm25_search.py</span>, Phase 131) runs <span class="mono">BM25Okapi</span> + vector similarity and merges with RRF, <span class="mono">RRF_K = 60</span> - the standard constant, matching the textbook value exactly.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">What is a reranker, and where does it sit in the pipeline?</div>
+        <ul class="qa-a">
+          <li>A cross-encoder that reads the question and one chunk together, so it judges relevance more accurately than embedding search alone (which never sees them together). Sits between search and the prompt: retrieve wide, rerank, keep the best few - too slow to run over the whole corpus, which is why you still retrieve first.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill none">none</span><span class="note">No cross-encoder reranking step exists. MMR (<span class="mono">search_mmr()</span>) is the closest built equivalent, but it optimizes for diversity among already-retrieved results, not relevance re-scoring - a genuinely different mechanism, not a lesser version of the same one.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">What is multi-query retrieval, and when is it worth the extra cost?</div>
+        <ul class="qa-a">
+          <li>Turn one question into 3-4 differently-worded versions in a single LLM call, search all of them in parallel, merge with RRF and de-dupe. Best for vague questions; a waste of a call on precise ones, so turn it on selectively.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">LangChain's own <span class="mono">MultiQueryRetriever</span> (Phase 20), opt-in via <span class="mono">RagQueryRequest.use_multi_query</span> - a real library class layered on top, not hand-written, exactly because the rewriting logic isn't something worth reinventing.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">The model keeps picking the wrong search strategy, or search looks fine but answers are still wrong - how do you find where it broke?</div>
+        <ul class="qa-a">
+          <li>Check the three RAG measures separately: were the retrieved chunks relevant, is every claim grounded in them, does the answer address the question. Bad context means fix search; good context but a wrong answer means fix the prompt - don't guess which layer broke.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">All three are real, separately-scored metrics here (<span class="mono">evaluate_groundedness</span>/<span class="mono">evaluate_completeness</span> plus precision/recall, DeepEval-backed) - returned on every live answer, not just in offline eval.</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="topic">
+    <div class="topic-head"><span class="t-name display">Vector Stores, Multi-Tenancy &amp; Caching</span><span class="t-count">6 cards</span></div>
+    <div class="topic-body">
+
+      <div class="qa-card">
+        <div class="qa-q">What is a vector store, and FAISS or Chroma - how would you choose?</div>
+        <ul class="qa-a">
+          <li>A database built to store embeddings and search by similarity rather than exact match. FAISS is a fast search library with no built-in metadata filtering or persistence handling; Chroma wraps a vector index with filtering/collections/storage included - the easier default under a few million chunks.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">Both real, selectable via <span class="mono">VectorDB</span> enum - ChromaDB (local default) and Pinecone (hosted, metadata-filterable) behind one gateway interface. No FAISS - skipped entirely since this project always wanted managed filtering/persistence, exactly the gap FAISS leaves open.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">What metadata should you store with each chunk?</div>
+        <ul class="qa-a">
+          <li><span class="mono">source_id</span>/<span class="mono">source_path</span> for citations, <span class="mono">chunk_index</span> for ordering, tenant/access tags, <span class="mono">updated_at</span>, <span class="mono">doc_type</span>, and the embedding model name - adding metadata later means re-processing everything, so decide early.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">Real fields: <span class="mono">doc_category</span>/<span class="mono">department</span>/<span class="mono">doc_description</span>/<span class="mono">effective_date</span>/<span class="mono">section_id</span>, used by Self-Query filtering. No embedding-model-name field is stored per chunk, since only one model has ever been used.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">How do you keep one customer's documents from being visible to another?</div>
+        <ul class="qa-a">
+          <li>Store a tenant ID on every chunk, apply it as a filter <em>inside</em> the search query (filtering after results come back can silently leave you with fewer results or none), make a missing tenant ID an error rather than a search-everything fallback, and write a test proving a query without one returns nothing.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill none">none</span><span class="note">Not applicable - this is a single-tenant deployment (one organization's HR documents), so no tenant-filtering mechanism exists. <span class="mono">is_current</span> filtering plays an analogous "always applied inside the query" role for document versioning, not tenancy.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">How do you switch to a new embedding model without downtime?</div>
+        <ul class="qa-a">
+          <li>You can't mix models in one index - their numbers mean different things. Build a second index with the new model, backfill while the old one keeps serving, compare both on a real test set, then move traffic gradually behind a flag, keeping the old index ready to roll back to.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill none">none</span><span class="note">No dual-index migration path exists - switching the embedding model today would mean a manual full re-ingest with real downtime, since only one collection/namespace is ever active per vector DB.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">Where can you safely cache in a RAG system?</div>
+        <ul class="qa-a">
+          <li>Question embeddings (safe, long-lived, no document data). Search results, keyed on question + tenant + filters, with an index-version bump whenever documents change. Full answers with a short expiry - most valuable, most risky if stale. Any cache built from document content must include the tenant ID in its key, enforced in the cache wrapper, not left to callers to remember.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill different">different</span><span class="note">Real full-answer caching exists (Redis, <span class="mono">answer_cache.py</span>, Phase 78) - exact-match on the normalized query plus every search parameter, shared across all 3 retrieval modes, each pipeline-namespaced. No separate embedding-level or search-result-level cache - just the one answer-level layer, and live-data tool calls (e.g. leave balance) are explicitly excluded from caching since a cached live answer would be a correctness bug.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">Should an agent with both API tools and RAG decide which to use, and how?</div>
+        <ul class="qa-a">
+          <li>APIs for live, exact, per-user facts (this employee's leave balance); RAG for written knowledge (policies, guides). Expose search as just another tool with a clear description of what it's <em>not</em> for, and keep user-specific live data out of the search index entirely so it physically can't answer a live question from a stale document.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">Exactly this split - <span class="mono">try_route_to_mcp()</span> checks first for live-data keywords (leave balance/history) and routes to the real MCP tool; everything else falls through to vector retrieval. Live leave data has never been indexed into the vector store.</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="topic">
+    <div class="topic-head"><span class="t-name display">Context Injection, Prompting &amp; Multi-Hop</span><span class="t-count">8 cards</span></div>
+    <div class="topic-body">
+
+      <div class="qa-card">
+        <div class="qa-q">What is RAG in simple terms?</div>
+        <ul class="qa-a">
+          <li>Search your own documents for the relevant bits, then paste them into the prompt - an open-book exam instead of a memory test. Lets the model answer about private/up-to-date data, and lets you show sources so answers can be checked, with no retraining needed.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">The whole shape of this project - retrieve real benefits-policy chunks, inject into the prompt, generate grounded in them, return real sources alongside the answer.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">What goes in a RAG prompt template besides the retrieved chunks, and how do you stop the model answering from its own knowledge?</div>
+        <ul class="qa-a">
+          <li>An instruction to answer only from the provided text, permission to say "I don't know," each chunk clearly numbered and labeled, the question placed last. If the model still ignores retrieved text: first confirm the right chunk was actually retrieved (a search problem, not a prompt problem); if it was, make the instruction more explicit, require a citation on every claim, and verify in code that every citation actually points to a chunk you sent.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">Real, structured prompt template with few-shot examples (<span class="mono">response_generator.py</span>, Phase 48) and real citations returned as <span class="mono">sources</span> alongside every answer. No automated check that strips a citation pointing at a chunk never sent, though - that verification step is manual, not code-enforced.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">You have 40 relevant chunks and room for 10 - how do you choose?</div>
+        <ul class="qa-a">
+          <li>Rerank and keep the top 10, remove near-duplicates (wasted slots), make sure not all 10 come from one document, put the strongest chunks at the start and end (the middle gets less model attention). Summarize-then-inject if it still doesn't fit.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill different">different</span><span class="note"><span class="mono">top_k</span> (default 5) bounds the retrieval itself rather than over-fetching and trimming down - no reranking pass, no explicit single-document diversity cap. MMR (when selected as the search strategy) is the closest built mechanism for avoiding redundant results.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">Why do follow-up questions break RAG search, and how do you fix it?</div>
+        <ul class="qa-a">
+          <li>A follow-up like "what about the enterprise tier?" leaves out the subject - searching that alone matches almost nothing, since the missing context lives in earlier messages, not the current one. Fix: rewrite into a standalone question using the chat history (a small model call) before searching, and log the rewritten question since it's the first thing to check when search fails.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill none">none</span><span class="note">A real, honest gap - conversation history is passed to the <em>generation</em> step (<span class="mono">chat_history</span> parameter, <span class="mono">generate_answer()</span>) but the <em>search</em> query itself is never rewritten using it. A vague follow-up would search literally and likely under-retrieve, even though memory is enabled.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">A question needs facts from three different documents - why does RAG struggle, and what's the fix?</div>
+        <ul class="qa-a">
+          <li>One search looks for a single chunk matching the whole question - no such chunk exists when each document holds only one piece, so each piece looks like a weak match individually. Fix: break the question into sub-questions, search each separately, combine in one final step.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">Exactly this - <span class="mono">decompose()</span> (Phase 130/68) splits a compound question into sub-questions, each retrieved/answered independently, then merged by <span class="mono">reviewer_agent.review()</span> when there's more than one.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">Two retrieved chunks contradict each other - what should the system do?</div>
+        <ul class="qa-a">
+          <li>By default the model just picks one, usually whichever it saw first - bad. Store and send metadata (source, status, effective date) so the model has something to decide with; give it a clear rule (prefer current version, prefer the official source); if it still can't resolve, show both with their dates rather than confidently picking wrong.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill different">different</span><span class="note">Resolved upstream instead of at answer-time: the <span class="mono">is_current</span>/<span class="mono">supersedes</span> model means only one version of a policy is ever marked current and searchable by default - so two live, contradicting, equally-current chunks shouldn't normally coexist in the first place, rather than being resolved by the model at generation time.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">How do you add citations so users can check an answer, and strip a fake one?</div>
+        <ul class="qa-a">
+          <li>Give each prompt chunk a short ID (<span class="mono">[1]</span>, <span class="mono">[2]</span>), tell the model to cite after sentences drawn from it, then look up and show the real source. Remove any ID the model invented that was never actually sent - that's a fake citation, worse than none.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill different">different</span><span class="note">Real sources are returned with every answer (the actual retrieved chunks, not model-generated citation markers), which sidesteps the "model invents a citation" failure mode by construction - there's no in-text <span class="mono">[1]</span>/<span class="mono">[2]</span> marker scheme for the model to fabricate from.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">What should happen when the documents genuinely can't answer the question?</div>
+        <ul class="qa-a">
+          <li>Search always returns its top results even when nothing is relevant, so you need an explicit check after retrieval - a score threshold or a cheap "could these actually answer this?" check. Say so clearly and suggest rewording rather than sending weak chunks and hoping. Log every refusal; that list is the best guide to what content is actually missing.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">Real relevance-bar filtering exists at the search layer (<span class="mono">_meets_relevance_bar()</span>, Chroma-distance/Pinecone-score thresholds in <span class="mono">search_similarity()</span>) - chunks below the bar are dropped before reaching the prompt. No explicit "nothing cleared the bar" refusal log, though.</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="topic">
+    <div class="topic-head"><span class="t-name display">RAG Evaluation</span><span class="t-count">7 cards</span></div>
+    <div class="topic-body">
+
+      <div class="qa-card">
+        <div class="qa-q">What are precision and recall in retrieval, and which matters more?</div>
+        <ul class="qa-a">
+          <li>Recall: of everything that could answer the question, how much did you retrieve. Precision: of what you retrieved, how much was actually useful. Recall matters more in RAG - an answer that's never retrieved can never be given; low precision costs tokens and can distract the model, but is survivable.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill different">different</span><span class="note">Real, both computed (Phase 55) - but via DeepEval's LLM-judged <span class="mono">ContextualPrecision</span>/<span class="mono">Recall</span>, not the course's exact-set-based calculation. F1 is computed with the same formula either way.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">You have no labelled data - how do you build a RAG test set?</div>
+        <ul class="qa-a">
+          <li>Pick a few hundred chunks across your document types, ask an LLM to write a question each chunk alone can answer - free question-and-correct-chunk pairs. Check a sample by hand (generated questions often reuse the chunk's exact wording, which makes search look better than it is), and add real user questions from logs, which are messier on purpose.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">Real golden dataset exists (<span class="mono">resources/golden_dataset/golden_dataset.json</span>, 22 hand-written cases) - hand-curated rather than LLM-generated-then-sampled, so it skips the "reuses the chunk's exact words" risk this question describes, at the cost of being smaller.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">What are the three things you measure in a RAG system (the "RAG triad")?</div>
+        <ul class="qa-a">
+          <li>Context relevance (were the retrieved chunks about the question), groundedness (is every claim in the answer supported by those chunks), answer relevance (does the answer address what was asked). Together they tell you which layer to fix, not just that something's broken.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">All three real and returned live - <span class="mono">evaluate_groundedness</span>/<span class="mono">evaluate_completeness</span> (DeepEval Faithfulness/AnswerRelevancy) plus precision/recall, scored on every real answer via <span class="mono">_score_live_answer()</span>, not just offline.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">What is an LLM judge, and how do you know it can be trusted?</div>
+        <ul class="qa-a">
+          <li>A model used to score another model's answers - cheap and fast, but it's a model too, so it can be wrong. Validate it by hand-labeling a couple hundred examples including tricky middle cases, comparing agreement against how often two humans agree, and using a different model as judge than the one that wrote the answer.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill different">different</span><span class="note">Real LLM-judge scoring (DeepEval) is live in production, not just offline eval. No documented human-agreement validation pass exists to calibrate the judge against - trusted as-is, a solo project with no second annotator to compare against (an honest, factual limitation, not a gap to silently assume away).</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">Retrieval finds the right chunks but users still get wrong answers - where's the problem?</div>
+        <ul class="qa-a">
+          <li>In the prompt or generation step, not search. Check groundedness specifically - common causes are the model preferring its own knowledge over the provided text, or the key chunk being buried in the middle of a long prompt where it gets less attention.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">Directly diagnosable here - groundedness is scored separately from context relevance on every answer, so this exact failure mode (good context, bad groundedness) shows up as a number, not a guess.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">How would you test a RAG change before showing it to users?</div>
+        <ul class="qa-a">
+          <li>Run it against the offline test set first - stop if it loses there. Shadow it (serve the old version, run the new one in parallel, score both on the same real questions, no user risk), then a small percentage of real traffic, with guardrails that auto-stop the test on errors/latency/refusal-rate spikes.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill different">different</span><span class="note">The offline-test-set step is real and wired into CI (<span class="mono">eval-gate.yml</span>, manual trigger, Phase 80) - a genuine PASS/REVIEW/BLOCK gate before a release is considered safe. No shadow-testing or percentage-rollout infrastructure exists; a change that passes the gate ships fully, not gradually.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">You have no labelled data for a brand-new domain, and your eval harness needs to prove it actually catches regressions - how do you know it works?</div>
+        <ul class="qa-a">
+          <li>Deliberately break something (remove a document, corrupt a chunk) and confirm the harness's score actually drops - an eval harness that never fails on a known-bad case isn't proving anything.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">Verified for real, not hypothetically - the golden-dataset harness was confirmed to score 0.00 on a 401(k) question specifically because 3 of 6 KB documents were missing from the index at the time (a real incident, <span class="mono">BACKLOG.md</span>), proving the harness does catch a real regression rather than always reporting green.</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <footer>Source material: "RAG-Powered Knowledge Agents" Weeks 2 &amp; 3 (retrieval/search/eval-tagged questions), each answer written independently. Related: <code class="mono">docs/dev-reference/interview-faqs/system.html</code> (agent/protocol topics), <code class="mono">docs/dev-reference/chunking-strategy/interview-faq.html</code> and <code class="mono">docs/dev-reference/rag-ingestion/interview-faq.html</code> (the other 2 feature-level pages from this same source material). Retrieval Strategies — overview.html, spec.html, design.html, decisions.html, interview-faq.html</footer>
+</div>
+<!-- local-nav-fallback -->
+<script>
+(function () {
+  if (location.protocol !== "file:") return;
+  var LOCAL_DOCS = {
+    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/retrieval-strategies/overview.html",
+    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/retrieval-strategies/spec.html",
+    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/retrieval-strategies/design.html",
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/retrieval-strategies/decisions.html",
+    "faq": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/retrieval-strategies/interview-faq.html"
+  };
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    var match = a.href.match(/[?&]type=([^&]+)/);
+    if (!match) return;
+    var localPath = LOCAL_DOCS[match[1]];
+    if (localPath) {
+      a.href = localPath;
+      a.removeAttribute("target");
+    }
+  });
+})();
+</script>
+<!-- app-base-nav -->
+<script>
+(function () {
+  if (location.protocol === "file:") return;
+  var hashMatch = location.hash.match(/app_base=([^&]+)/);
+  if (!hashMatch) return;
+  var appBase = decodeURIComponent(hashMatch[1]).replace(/\/$/, "");
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      a.href = appBase + url.pathname + url.search + "#app_base=" + encodeURIComponent(appBase);
+    } catch (e) {}
+  });
+})();
+</script>

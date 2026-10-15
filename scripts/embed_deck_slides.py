@@ -20,6 +20,9 @@ EMBEDS = {
     "docs/dev-reference/react_agents/multi-agent-graph.html": "multi-agent-graph-slide.png",
     "docs/dev-reference/deployment-guide/01-deployment-aws.html": "deployment-aws-slide.png",
     "docs/dev-reference/rag-validation-gates.html": "rag-validation-gates-slide.png",
+    "docs/dev-reference/database/db-model-overview.html": "db-model-overview-slide.png",
+    "docs/dev-reference/IK-FDE/course-topic-coverage-review.html": "course-topic-coverage-review-slide.png",
+    "docs/dev-reference/genai-rag-chat/architecture.html": "architecture-slide.png",
 }
 
 
