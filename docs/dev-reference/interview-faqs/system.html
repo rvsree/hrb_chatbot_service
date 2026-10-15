@@ -1,0 +1,699 @@
+<title>Interview FAQs - System Level</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #f1f1f6; --surface: #ffffff; --surface-alt: #f5f5fa; --border: #dcdce6;
+    --text: #181a24; --text-muted: #565c70; --text-faint: #888da0;
+    --built: #146b3f; --built-bg: #e3f6ea; --built-border: #b7e4c8;
+    --different: #9a5a0c; --different-bg: #fbf1dd; --different-border: #edd6a2;
+    --none: #6b7286; --none-bg: #eef0f4; --none-border: #d5d9e3;
+    --accent: #3d3ca0; --accent-bg: #ebebf8; --accent-border: #cfcdee;
+    --shadow: 0 2px 4px rgba(15,20,30,0.06), 0 10px 22px rgba(15,20,30,0.07);
+    --band: #23264a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d0e16; --surface: #15161f; --surface-alt: #171924; --border: #292b3d;
+      --text: #e8e9f0; --text-muted: #a6abbf; --text-faint: #6c7288;
+      --built: #4fc989; --built-bg: #132a1e; --built-border: #204a32;
+      --different: #e0ac48; --different-bg: #2c2311; --different-border: #4a3a17;
+      --none: #8991a8; --none-bg: #191d29; --none-border: #2a2f42;
+      --accent: #9c9bf0; --accent-bg: #201f3a; --accent-border: #38366a;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 12px 26px rgba(0,0,0,0.4);
+      --band: #1a1c38;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d0e16; --surface: #15161f; --surface-alt: #171924; --border: #292b3d;
+    --text: #e8e9f0; --text-muted: #a6abbf; --text-faint: #6c7288;
+    --built: #4fc989; --built-bg: #132a1e; --built-border: #204a32;
+    --different: #e0ac48; --different-bg: #2c2311; --different-border: #4a3a17;
+    --none: #8991a8; --none-bg: #191d29; --none-border: #2a2f42;
+    --accent: #9c9bf0; --accent-bg: #201f3a; --accent-border: #38366a;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 12px 26px rgba(0,0,0,0.4);
+    --band: #1a1c38;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, sans-serif; padding-inline: 16px; padding-block: 28px 56px; }
+  .display { font-family: 'Archivo', sans-serif; } .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1140px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 3.8vw, 32px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 13.5px; max-width: 82ch; line-height: 1.6; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); padding: 5px 10px 5px 8px; border-radius: 999px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot.built { background: var(--built); } .dot.different { background: var(--different); } .dot.none { background: var(--none); }
+
+  .callout { font-size: 12.5px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; line-height: 1.6; }
+
+  section.week { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+  .week-head { background: var(--band); color: #fff; padding: 12px 18px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .week-head .w-num { font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 13px; background: rgba(255,255,255,0.15); border-radius: 6px; padding: 3px 9px; }
+  .week-head .w-name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 15px; }
+  .week-head .w-count { margin-left: auto; font-size: 11px; opacity: 0.75; }
+  .week-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 16px; }
+
+  .topic-group { display: flex; flex-direction: column; gap: 10px; }
+  .topic-group h3 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13px; color: var(--accent); }
+
+  .qa-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 7px; }
+  .qa-q { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13px; }
+  .qa-a { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--text-muted); line-height: 1.6; }
+  .qa-a li { margin-bottom: 2px; }
+  .qa-here { display: flex; align-items: flex-start; gap: 8px; font-size: 11.5px; padding-top: 4px; border-top: 1px dashed var(--border); }
+  .status-pill { font-size: 9.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; display: inline-block; flex: none; margin-top: 1px; }
+  .status-pill.built { color: var(--built); background: var(--built-bg); border: 1px solid var(--built-border); }
+  .status-pill.different { color: var(--different); background: var(--different-bg); border: 1px solid var(--different-border); }
+  .status-pill.none { color: var(--none); background: var(--none-bg); border: 1px solid var(--none-border); }
+  .qa-here span.note { color: var(--text-muted); line-height: 1.55; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">interview prep, grounded in this project's real code - not a copy of any course material</div>
+    <h1 class="display">Interview FAQs - System Level</h1>
+    <p class="subtitle">Agent fundamentals, multi-agent orchestration, and agent-to-agent/tool protocols - the cross-cutting, system-wide topics, not owned by one feature. Feature-level FAQs (RAG-specific and conversational-agent-specific topics) are a separate, later page per feature. Every answer here is written independently; the "in <span class="mono">hrb_chatbot_v2</span>" line is what actually ties it to this codebase.</p>
+    <div class="doc-nav">
+      <span class="doc-nav-item current">System Level</span>
+      <span class="doc-nav-item" style="opacity:0.55;">Feature-level pages (coming next milestone)</span>
+    </div>
+    <div class="legend">
+      <span class="legend-item"><span class="dot built"></span>Built here, close to the textbook version</span>
+      <span class="legend-item"><span class="dot different"></span>Built, but structured differently</span>
+      <span class="legend-item"><span class="dot none"></span>Not built / not a concern here</span>
+    </div>
+  </header>
+
+  <div class="callout">Covers the 3 "system design" weeks: Agentic AI Foundations &amp; Reflex Agents, Multi-Agent Systems, and Agent Communication Protocols (MCP/A2A/ACP). The 2 RAG-retrieval weeks and the conversational/multimodal week move to feature-level pages instead, next milestone, since those map cleanly onto <span class="mono">chunking-strategy</span>, <span class="mono">rag-ingestion</span>, <span class="mono">rag-retrieval</span>, and <span class="mono">genai-rag-chat</span>'s own doc sets.</div>
+
+  <section class="week">
+    <div class="week-head"><span class="w-num">01</span><span class="w-name display">Agentic AI Foundations &amp; Reflex Agents</span><span class="w-count">21 cards, from 22 source questions</span></div>
+    <div class="week-body">
+
+      <div class="topic-group">
+        <h3>Agent types: reflex, goal-based, utility</h3>
+
+        <div class="qa-card">
+          <div class="qa-q">What is an AI agent, and how is it different from a chatbot?</div>
+          <ul class="qa-a">
+            <li>A chatbot maps input to output text. An agent runs a loop: decide an action, take it (often by calling a tool), observe the result, decide again - until it has an answer or hits a stop condition.</li>
+            <li>The defining trait isn't "uses an LLM" - it's that the program's next action depends on the outcome of its previous one, not just on the user's message.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note">The ReAct-style tool-calling loop in <span class="mono">orchestration_agent.py</span> (single-agentic-rag) is a real instance of this - it calls a tool, reads the result, and decides whether to call another or answer.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">What is a reflex agent, and does this project use one?</div>
+          <ul class="qa-a">
+            <li>The simplest agent type: a fixed input-to-output mapping, no planning, no memory, no model call required.</li>
+            <li>Good for high-frequency, low-ambiguity cases; useless the moment the task needs more than one step.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note"><span class="mono">ai/rag_pipeline/tools/mcp_tools/__init__.py</span>'s <span class="mono">try_route_to_mcp()</span> is exactly this - plain keyword matching (e.g. "leave balance") routes straight to an MCP tool call, no LLM involved in the routing decision itself. Its own docstring calls it "a prototype before real ReAct tool selection."</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">Goal-based vs. utility-based agents - what's the real difference?</div>
+          <ul class="qa-a">
+            <li>Goal-based: binary - did it reach the target state or not.</li>
+            <li>Utility-based: scores multiple acceptable options against each other (cost, speed, quality) and picks the best, not just any valid one.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill none">none</span><span class="note">Neither pattern applies cleanly here - this project's agents classify/retrieve/generate, they don't plan multi-step paths toward a stateful goal.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">When would you choose a reflex layer over a full planning agent?</div>
+          <ul class="qa-a">
+            <li>When most traffic is simple and repetitive - a rule-based fast path is cheaper, faster, and trivially testable, with a hand-off to the full agent only when confidence is low.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note">That's the literal shape of <span class="mono">genai-rag</span>'s pipeline: MCP keyword fast-path first, full retrieve-generate pipeline only on a miss.</span></div>
+        </div>
+      </div>
+
+      <div class="topic-group">
+        <h3>Agent architecture: Controller, Toolset, Memory, Environment</h3>
+
+        <div class="qa-card">
+          <div class="qa-q">What are the 4 parts of an agent's architecture?</div>
+          <ul class="qa-a">
+            <li><strong>Controller</strong>: runs the loop, builds the prompt, calls the model, decides what happens next.</li>
+            <li><strong>Toolset</strong>: the functions the agent can call, each with a name/description/schema.</li>
+            <li><strong>Memory</strong>: what persists within a run and across turns.</li>
+            <li><strong>Environment</strong>: everything outside - APIs, databases, the user.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note">The separation is real but the names differ: controller = <span class="mono">run_agent()</span>'s own loop in <span class="mono">orchestration_agent.py</span>; toolset = <span class="mono">agentic_tools.py</span>; memory = <span class="mono">conversation_memory.py</span> (Postgres); environment = the vector store, MCP server, and LLM provider behind their own gateways.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">What does the controller actually do, step by step?</div>
+          <ul class="qa-a">
+            <li>Build the prompt from instructions + memory + tool list, call the model, check whether the reply is a final answer or a tool-call request, run the tool if so, feed the result back in, repeat.</li>
+            <li>It also owns the stop rules - without them a confused model loops forever.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note">Exactly this shape in <span class="mono">orchestration_agent.py</span>'s <span class="mono">run_agent()</span> - a bounded <span class="mono">for</span> loop, not <span class="mono">while True</span>.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">What stop conditions does a real agent loop need?</div>
+          <ul class="qa-a">
+            <li>A max-iteration cap, ideally also a budget/timeout, plus a repeat-call detector - and always return <em>why</em> it stopped, not just a blank result.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note"><span class="mono">DEFAULT_MAX_ITERATIONS = 5</span> is real and enforced (<span class="mono">orchestration_agent.py</span>). No budget/dollar cap or repeat-call detector exists yet - a real, logged gap, not silently assumed covered.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">Why keep controller, toolset, memory, and environment as separate concerns?</div>
+          <ul class="qa-a">
+            <li>Each becomes independently testable and swappable - change the model without touching tools, fake the environment without touching the loop.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note">This is exactly why <span class="mono">common/clients/**</span> gateways exist - the model/vector-store/MCP clients are swappable behind one interface each, independent of the agent loop that calls them.</span></div>
+        </div>
+      </div>
+
+      <div class="topic-group">
+        <h3>Prompt chaining vs. function chaining</h3>
+
+        <div class="qa-card">
+          <div class="qa-q">What is prompt chaining, and what's its real failure mode?</div>
+          <ul class="qa-a">
+            <li>Feeding one LLM call's output into the next. Works when every step genuinely needs language understanding.</li>
+            <li>Failure mode: errors compound - four 90%-accurate steps in a row is roughly 65% accurate overall, and a long chain hides exactly where it broke unless each step's output is checked before moving on.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note"><span class="mono">genai-rag</span>'s own multi-step shape (decompose -&gt; per sub-question retrieve/generate -&gt; merge) is a real prompt chain, with structured JSON between steps specifically to avoid the compounding-error trap.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">How is function chaining different, and why prefer it?</div>
+          <ul class="qa-a">
+            <li>Plain code controls the order; the LLM is used only at the specific steps that need it. Deterministic steps (math, lookups, formatting) stay as regular code - faster, cheaper, and testable without an API key.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note">Across this whole codebase, actually - chunking/embedding/caching/eval-scoring are all plain code; only generation, decomposition, guardrail checks, and tool-routing decisions are real LLM calls.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">In an extraction-then-validate-then-decide pipeline, which steps need an LLM?</div>
+          <ul class="qa-a">
+            <li>Only the step that genuinely needs language understanding (e.g. parsing varied document layouts). Arithmetic/validation must be code - an LLM can get numbers wrong with no reason to accept that risk. Policy decisions belong in config, not a prompt.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note"><span class="mono">ai/doc_processing/pipeline.py</span>'s ingestion flow: LLM only for chunk-worthy text extraction; chunk-size/table decisions are plain code in <span class="mono">text_chunker.py</span>.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">Write the basic agent loop in pseudocode.</div>
+          <ul class="qa-a">
+            <li><span class="mono">for step in range(max_steps): response = model(messages, tools); if no tool call: return response; else: run tool, append result, continue</span>. After the loop ends with no answer, return a clear "ran out of steps" result, never silence.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note">Near-identical real code in <span class="mono">orchestration_agent.py</span>'s <span class="mono">run_agent()</span>.</span></div>
+        </div>
+      </div>
+
+      <div class="topic-group">
+        <h3>Tool calling with parameter schemas</h3>
+
+        <div class="qa-card">
+          <div class="qa-q">How does tool calling actually work - does the model run the tool itself?</div>
+          <ul class="qa-a">
+            <li>No. The model only replies with a tool name and arguments; your own code runs the real function and sends the result back. The model picks a tool mainly from its description, so descriptions matter more than names.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note"><span class="mono">agentic_tools.py</span>'s 3 tools, each with a name/description/JSON-schema, called via LangChain's own tool-calling convention.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">What makes a good parameter schema?</div>
+          <ul class="qa-a">
+            <li>A one-line description per field saying the exact expected format, enums wherever the values are a fixed set (stops invented values), explicit min/max and required fields. Good descriptions do more for accuracy than good types.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note">Tool schemas are plain JSON-schema dicts today, not Pydantic models - flagged as a real, open gap (confirmed via a direct course-coverage check this project ran), not silently assumed covered.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">The model keeps picking the wrong tool - what do you check first?</div>
+          <ul class="qa-a">
+            <li>Overlapping tool descriptions (the most common cause) - rewrite to say what each tool is <em>not</em> for. Check for confusing names, too many tools exposed at once, and whether you're showing only the tools relevant to the current step.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note">single-agentic-rag exposes a small, fixed toolset (3 tools) specifically to keep this risk low; multi-agentic-rag's Planner (<span class="mono">planner_agent.py</span>) does the equivalent routing one level up, picking which <em>agents</em> run rather than which tool a single agent calls.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">A tool call arrives with invalid arguments - what should happen?</div>
+          <ul class="qa-a">
+            <li>Don't run it and don't silently fix the value. Validate against the schema, send a specific error back to the model (which field, which rule, a valid example), allow one or two retries, then stop.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note">Tools in <span class="mono">agentic_tools.py</span> return a plain error string on bad input (verified in tests) rather than a structured schema-validation error with a retry budget - close in spirit, less formal.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">How would you make a destructive tool (e.g. delete_account) safe?</div>
+          <ul class="qa-a">
+            <li>Split preview/confirm into two tools so one call can't reach it; require human approval for anything marked destructive; use soft-delete with a restore window; check permissions inside the tool itself, never trust the schema alone.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill none">none</span><span class="note">No destructive tool exists in this project's own toolset - every real tool is read-only (retrieve, look up leave data). The pattern would matter the moment a write-capable tool is added.</span></div>
+        </div>
+      </div>
+
+      <div class="topic-group">
+        <h3>Deterministic reflex responses</h3>
+
+        <div class="qa-card">
+          <div class="qa-q">What is a deterministic reflex response, and when do you need one?</div>
+          <ul class="qa-a">
+            <li>A response that's exactly the same every time for a given input - from a template or lookup, not generated. Needed for anything that must be word-perfect (legal text, prices). Temperature 0 reduces variation but doesn't guarantee it - model versions change over time too.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill none">none</span><span class="note">No templated/lookup-only answer path exists - every real answer in this project passes through an LLM generation step at least once, even the MCP fast-path (which returns real tool data, formatted, not a canned string).</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">How would you build a reflex layer in front of an agent?</div>
+          <ul class="qa-a">
+            <li>A function that returns an answer or <span class="mono">None</span> to fall through - try exact match, then keyword/regex, then similarity search, in order. Pick what goes in it from real traffic, and track the hit rate so it isn't confidently answering the wrong thing.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note">This is a precise description of <span class="mono">try_route_to_mcp()</span> - keyword match, returns a real result or <span class="mono">None</span> to fall through to full retrieval.</span></div>
+        </div>
+      </div>
+
+      <div class="topic-group">
+        <h3>Logs &amp; unit tests</h3>
+
+        <div class="qa-card">
+          <div class="qa-q">What should you log on every agent run?</div>
+          <ul class="qa-a">
+            <li>A run/session ID, which model and prompt version, every step's prompt/reply/tool-call/result, tokens and time per step, and why the run stopped - as structured data, never passwords or PII in plain text.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note"><span class="mono">log_backend_call()</span> (used throughout) logs structured step-level data per backend call. No single run/session ID threads every log line yet - that's the same gap as "correlation ID" below, tracked once in <span class="mono">BACKLOG.md</span>, not duplicated per topic.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">How do you unit-test an agent when the model's output changes every time?</div>
+          <ul class="qa-a">
+            <li>Test everything that isn't the model as normal code. Replace the model with a fake returning a scripted reply so the loop/retries/error paths are fully predictable. For the rare case that truly needs the model, check properties ("valid JSON", "right tool chosen"), not exact text - and keep those slower tests in their own suite.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note">This is this project's whole testing philosophy, stated directly in CLAUDE.md: "No test needs a real API key" - every client has a fake matching its real signature exactly (<span class="mono">tests/conftest.py</span>).</span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="week">
+    <div class="week-head"><span class="w-num">02</span><span class="w-name display">Multi-Agent Systems (Planner-Executor-Critic)</span><span class="w-count">21 cards, from 22 source questions</span></div>
+    <div class="week-body">
+
+      <div class="topic-group">
+        <h3>Planner-Executor-Critic pattern</h3>
+
+        <div class="qa-card">
+          <div class="qa-q">What is a multi-agent system, and when is it the wrong choice?</div>
+          <ul class="qa-a">
+            <li>Several agents, each with a narrow job, passing structured messages instead of one agent doing everything. Costs more (every agent is another model call) and adds a coordination layer with its own bugs. Wrong choice most of the time - use it only when steps genuinely benefit from parallelism or different permissions, and prove the win with a real test set.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note"><span class="mono">multi-agentic-rag</span> is a real instance (Planner + 5 parallel domain agents + Reviewer, <span class="mono">multi_agent_pipeline.py</span>) - built specifically because some queries genuinely need more than one data source answered in parallel (KB + live leave data + web search).</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">Explain the Planner, Executor, and Critic roles.</div>
+          <ul class="qa-a">
+            <li>Planner: turns the goal into steps. Executor: runs one step at a time, calling tools. Critic: checks the executor's work and says accept, retry, or replan - the piece that catches mistakes before the user sees them.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note">Planner and Executors are real (<span class="mono">planner_agent.py</span> + 5 domain agents). The third node, <span class="mono">reviewer_agent.py</span>, is explicitly a <strong>merge</strong> step, not a Critic - no accept/retry/reject verdict exists. Recorded directly as decision MA-3 in <span class="mono">multi-agentic-rag/decisions.html</span>, not left implicit.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">What should the planner's output look like?</div>
+          <ul class="qa-a">
+            <li>Structured JSON, not prose - each step with an ID, which tool/agent runs it, inputs that can reference an earlier step's output, a <span class="mono">depends_on</span> list, and success criteria a critic can check against. Validate the plan (tools exist, no loops) before running anything - catching a broken plan costs one function call; running half of one costs real money.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note"><span class="mono">PlannerOutput</span> is just <span class="mono">{tasks: [{agent, focus}]}</span> - no <span class="mono">depends_on</span>, no success criteria. A deliberate simplification (decision MA-5): every dispatched task runs in parallel via LangGraph's <span class="mono">Send()</span>, so there's no real dependency graph to express yet.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">The planner does well on simple requests, badly on complex ones - why, and how do you fix it?</div>
+          <ul class="qa-a">
+            <li>One planning call can't hold a long plan together coherently. Fix: plan in two levels (phases first, detail later), replan after each phase instead of committing everything up front, and add a critic that checks the plan before anything runs.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill none">none</span><span class="note">Not a live concern yet - the Planner here does one shallow classification pass (which agents, what focus), not a deep multi-level plan, so this failure mode hasn't shown up.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">Design a multi-agent system for automated code review.</div>
+          <ul class="qa-a">
+            <li>No planner needed if the workflow is always the same (a fan-out, not a plan). One step finds changed files, several narrow reviewers (correctness/security/performance/style) run in parallel on the diff, a verifier tries to disprove each finding before it's shown (LLM reviewers produce confident false alarms), then merge and sort by severity.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill none">none</span><span class="note">Outside this project's own domain (HR benefits, not code review) - included for completeness since it's a named interview topic, not because this project implements it.</span></div>
+        </div>
+      </div>
+
+      <div class="topic-group">
+        <h3>Critic-based quality evaluation</h3>
+
+        <div class="qa-card">
+          <div class="qa-q">What does a good critic return, and how is it used?</div>
+          <ul class="qa-a">
+            <li>A decision (accept/retry/replan) plus specific, actionable problems - "quality: 6/10" tells the executor nothing it can act on; "missing the Q3 revenue figure" does. Limit retries per step and per run so one stubborn step can't eat the whole budget.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill none">none</span><span class="note">No critic exists in this codebase to return a verdict from (see MA-3) - this answer is the textbook shape, not a description of real behavior here.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">What should a critic actually check, concretely?</div>
+          <ul class="qa-a">
+            <li>Check what you can verify, not what you have to feel. Citation-points-to-a-real-source and covers-every-sub-question are both plain lookups, no model needed. Only the harder judgment (faithful to sources?) needs the model - run the cheap checks first so most rejections cost nothing.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note">The groundedness/completeness scoring this project does run (<span class="mono">evaluate_groundedness</span>/<span class="mono">evaluate_completeness</span>, DeepEval-backed) happens <em>after</em> the final answer is produced, for observability - not as a gate that can send work back for a retry.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">Your critic accepts bad output about a third of the time - what do you check?</div>
+          <ul class="qa-a">
+            <li>Measure it first against real labeled examples. Check what the critic can actually see (inputs/tool results/criteria, not just the output). A vague rubric gets agreeable answers; replace it with a specific checklist. If the same model wrote and reviewed the output, it shares the same blind spots - use a different one.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill none">none</span><span class="note">No critic to debug - same gap as above.</span></div>
+        </div>
+      </div>
+
+      <div class="topic-group">
+        <h3>Orchestration frameworks: CrewAI, Autogen</h3>
+
+        <div class="qa-card">
+          <div class="qa-q">What do CrewAI and Autogen do, and when would you build your own instead?</div>
+          <ul class="qa-a">
+            <li>Both are libraries for wiring multiple agents together so you write less plumbing. CrewAI thinks in roles/tasks; Autogen thinks in conversations between agents. Building your own is a few hundred lines and full control of prompts/logging - common path is prototype with a framework, hand-roll once the shape is clear.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note">Neither framework is used - orchestration is a real LangGraph <span class="mono">StateGraph</span> (<span class="mono">multi_agent_pipeline.py</span>), which is lower-level than CrewAI/Autogen but higher-level than hand-rolling the dispatch/merge logic from scratch.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">Three agents run in parallel, then results are merged - how do you write that?</div>
+          <ul class="qa-a">
+            <li>Group independent steps into a level, run the level with <span class="mono">asyncio.gather()</span> (or your framework's own fan-out primitive), cap concurrency with a semaphore, pass <span class="mono">return_exceptions=True</span> so one failure doesn't cancel the others, and record start/end time per agent so you can see which one was slow.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note">Real parallel fan-out exists, but via LangGraph's own <span class="mono">Send()</span> API (<span class="mono">dispatch_to_agents()</span>), not raw <span class="mono">asyncio.gather()</span> - the framework's own primitive does the same job.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">How do you add a human-approval step without blocking the whole system?</div>
+          <ul class="qa-a">
+            <li>Gate only irreversible steps (spend money, delete things), not every run. Save the run's full state so it can pause for hours and resume later rather than holding a process open. Send approvals to a queue with what/why/impact, one click to approve/reject.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill none">none</span><span class="note">No human-in-the-loop gate exists anywhere in this project's agent flows today - every tool is read-only, so nothing yet needs this kind of approval step.</span></div>
+        </div>
+      </div>
+
+      <div class="topic-group">
+        <h3>Task decomposition &amp; message passing</h3>
+
+        <div class="qa-card">
+          <div class="qa-q">How would you split "research this company and write a summary" into subtasks?</div>
+          <ul class="qa-a">
+            <li>Split by what can be researched independently (financials, competitors, leadership, news), not by sections of the final document - those run in parallel since none depends on the others. One writer agent then takes all the structured findings and writes the summary; don't give each agent a section to write, or you get disconnected pieces.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note">Exactly this shape - 5 domain agents each own an independent data source (KB, leave ops, SQL, analytics, web search), running in parallel, then <span class="mono">reviewer_agent.py</span> is the single writer that synthesizes them into one answer.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">Should agents pass plain text or structured data to each other?</div>
+          <ul class="qa-a">
+            <li>Structured data with a defined shape at every boundary - plain text makes each agent guess what the last one meant, and small wording changes break things silently with no error anywhere. Text is fine <em>inside</em> a field (a summary is a string); control information (type, sender, trace ID) should be structured.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note">Each domain agent returns a fixed dict shape (<span class="mono">agent</span>/<span class="mono">focus</span>/<span class="mono">result</span>/<span class="mono">sources</span>/<span class="mono">latency_ms</span>, see <span class="mono">multi_agent_pipeline.py</span>'s node functions) - structured control fields, free text only inside <span class="mono">result</span>.</span></div>
+        </div>
+      </div>
+
+      <div class="topic-group">
+        <h3>Cost/latency tracking</h3>
+
+        <div class="qa-card">
+          <div class="qa-q">How do you track cost and latency across a multi-agent run?</div>
+          <ul class="qa-a">
+            <li>Record tokens in/out, model, and time on every single model call; roll up per step, per agent role, per whole run. The two numbers that matter: cost per finished request, and p95 total time - then find the biggest single contributor and fix that first.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note"><span class="mono">latency_ms</span> per stage and <span class="mono">llm_call_count</span> are real and returned on every response (<span class="mono">multi_agent_pipeline.py</span>). Per-domain-agent token capture specifically is a known, logged gap (BACKLOG.md) - the overall count is real, the per-agent token breakdown isn't yet.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">Write a budget guard for an agent run.</div>
+          <ul class="qa-a">
+            <li>A budget object with token/dollar/time/step limits, checked <em>before</em> every model call (checking after is too late - you already paid). Raise a clear exceeded-error the orchestrator can catch and turn into a partial result; make counters thread-safe since parallel agents update them at once; warn at 80% so monitoring sees it coming.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill none">none</span><span class="note">No budget enforcement exists anywhere in this project - only the fixed <span class="mono">DEFAULT_MAX_ITERATIONS = 5</span> step cap (single-agentic-rag), nothing dollar- or token-denominated.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">Your multi-agent version costs 8x more and is 15% better - what do you do?</div>
+          <ul class="qa-a">
+            <li>Find out where the 15% actually comes from. If it's concentrated in the hardest slice of questions, route only those through the expensive path - usually captures most of the gain for a fraction of the cost. Try removing parts individually; often one piece (e.g. the critic alone) accounts for most of the improvement.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill none">none</span><span class="note">No A/B harness exists yet to even measure this comparison (see <span class="mono">CICD-BRANCHING-STRATEGY.md</span>'s own "Phase 8, still planned" note) - the question is relevant the moment genai-rag and multi-agentic-rag are compared head to head.</span></div>
+        </div>
+      </div>
+
+      <div class="topic-group">
+        <h3>Multi-agent debugging patterns</h3>
+
+        <div class="qa-card">
+          <div class="qa-q">The critic keeps rejecting and the executor keeps producing the same thing - how do you break the loop?</div>
+          <ul class="qa-a">
+            <li>Detect it: hash the output each round and compare to previous rounds - near-identical output after feedback means the feedback wasn't usable. Always cap retries per step as a backstop regardless of cause. After repeated failures, escalate to the planner; if that fails too, stop and explain why.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill none">none</span><span class="note">No critic-executor loop exists to get stuck - directly follows from the no-Critic gap (MA-3/MA-4).</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">How do you trace a multi-agent run so you can debug it?</div>
+          <ul class="qa-a">
+            <li>A tree, not a flat log - run at the top, plan steps below it, agent/tool calls below those. Every level records inputs, outputs, tokens, time, status, so you can tell a bad plan followed correctly from a good plan followed badly, which a flat log can't show.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note">LangSmith tracing exists and gives this tree shape automatically when enabled (<span class="mono">common/observability/langsmith_tracing.py</span>) - off by default (free-tier trace budget), so it's available, not always on.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">One agent in a five-agent pipeline fails - what are your options?</div>
+          <ul class="qa-a">
+            <li>Retry for transient errors; degrade (skip that agent, mark the result partial) for a nice-to-have step; replan for a genuinely wrong route; fail fast only when the step is essential with no alternative. Mark each step critical or not in the plan - don't use one global rule for all of them.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note">Today it's always "degrade silently" - a failing domain agent returns an <span class="mono">"Error: ..."</span> string (e.g. <span class="mono">lms_ops_agent.py</span>) that flows straight to the merge step with no retry/replan/fail-fast branch. Recorded as decision MA-4, an accepted gap at today's traffic, not a hidden bug.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">How do you unit-test a single agent inside a multi-agent system?</div>
+          <ul class="qa-a">
+            <li>Because messages are structured, an agent is just a function from input to output - save real production messages as fixtures, replace the model with a fake, and test prompt-building/validation/error-handling fully predictably. For real model behavior, check properties, not exact text.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note"><span class="mono">test_multi_agent_pipeline.py</span>/<span class="mono">test_planner_agent.py</span>/<span class="mono">test_reviewer_agent.py</span> all follow exactly this pattern with fakes, no real API key required.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">Should agents share one memory store, or pass everything in messages?</div>
+          <ul class="qa-a">
+            <li>A shared mutable store is convenient but hides who depends on what, breaks under parallel writes, and can't be replayed deterministically. Messages make dependencies visible and each agent independently testable; a good middle ground is a shared <em>read-only</em> context nobody can mutate.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note">Mixed: domain agents communicate via structured messages (no shared mutable store between them), but multi-agentic-rag's own Planner never loads conversation memory at all yet (confirmed - <span class="mono">multi_agent_pipeline.py</span> never calls <span class="mono">load_history()</span>), a real, open gap, not the "shared store" problem this question is about.</span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="week">
+    <div class="week-head"><span class="w-num">03</span><span class="w-name display">Agent Communication Protocols (MCP, A2A, ACP)</span><span class="w-count">20 cards, from 22 source questions</span></div>
+    <div class="week-body">
+
+      <div class="topic-group">
+        <h3>Intro to MCP, A2A, ACP</h3>
+
+        <div class="qa-card">
+          <div class="qa-q">What is MCP, and what problem does it solve?</div>
+          <ul class="qa-a">
+            <li>Model Context Protocol - a standard way to connect an agent to tools/data, like one plug shape instead of a custom cable per device. An MCP server exposes tools/resources/prompts; the agent discovers what's available rather than having it hardcoded, so a new server-side tool needs no agent redeploy.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note">Real and live - this project connects to <span class="mono">hrb_lms_mcp</span> as a genuine MCP server over OAuth2 client-credentials auth (Phase 53), with its tools registered via a real <span class="mono">tools/list</span> discovery call, not hand-entered (Phase 50).</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">MCP vs. A2A vs. ACP - what's the real distinction?</div>
+          <ul class="qa-a">
+            <li>MCP: agent-to-tool. A2A: agent-to-agent, for independently-built agents working together as peers. ACP: a general umbrella term for agent-communication rules. They're complementary - an agent can use MCP for its tools and A2A to delegate to another agent.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note">MCP is real (above). Nothing in this project is A2A in the formal sense - the domain agents in <span class="mono">multi-agentic-rag</span> are all owned and orchestrated by this same codebase, not independently-built peer agents negotiating as equals.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">Why would you use MCP instead of just writing tool functions directly?</div>
+          <ul class="qa-a">
+            <li>Pays off when the same tools are needed by several different agents/apps, or when another team owns the tool and should own its interface. Gives you discovery (no hardcoded list) and lets a new tool appear with no agent redeploy. Cost: another process to run, plus network calls.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note">Exactly the real reason MCP was adopted here - <span class="mono">hrb_lms_mcp</span>'s leave data is owned by a separate service; this project calls it as a client rather than re-implementing that data access itself.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">What are the security risks of connecting an agent to an external MCP server?</div>
+          <ul class="qa-a">
+            <li>Tool descriptions come from the server and the model reads them as instructions - a malicious description can redirect the agent (prompt injection). Data the server returns is untrusted input, not fact. Only connect to reviewed servers, keep permissions narrow, require human approval for destructive tools, log every call.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note">The real MCP connection (<span class="mono">hrb_lms_mcp</span>) is first-party and OAuth2-authenticated (not an arbitrary external server), which narrows but doesn't eliminate this risk - its tool descriptions are still read as instructions by the model. No explicit prompt-injection-from-tool-description defense is documented as tested.</span></div>
+        </div>
+      </div>
+
+      <div class="topic-group">
+        <h3>Structured messages: states, transitions</h3>
+
+        <div class="qa-card">
+          <div class="qa-q">Why do agents need a structured message format instead of free text?</div>
+          <ul class="qa-a">
+            <li>Free text makes the receiving agent guess; a structured message has fixed, validatable fields (type, sender, recipient, correlation ID, payload) that catch bad messages at the boundary instead of three steps later, and can be saved and replayed to test one agent alone.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note">Every domain-agent result in <span class="mono">multi_agent_pipeline.py</span> follows one fixed shape; MCP calls themselves are real JSON-RPC-style structured messages by protocol definition.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">What are states and transitions in an agent conversation, and why write them down?</div>
+          <ul class="qa-a">
+            <li>A state is where things currently stand (e.g. "awaiting approval"); a transition is a move between states, triggered by a message or event. Writing them down turns vague behavior into something you can reason about, makes illegal moves impossible, and makes the system resumable (save state, reload later).</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note">LangGraph's own <span class="mono">StateGraph</span> (<span class="mono">multi_agent_pipeline.py</span>) is a real state machine with explicit nodes/edges - but it's a fixed, single-pass DAG (planner -&gt; dispatch -&gt; domain agents -&gt; reviewer -&gt; end), not one with conditional states like "awaiting approval" that this project actually uses today.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">Design the message format for two agents working on one task.</div>
+          <ul class="qa-a">
+            <li><span class="mono">message_id</span> (dedupe), <span class="mono">correlation_id</span> (tracing), <span class="mono">sender</span>/<span class="mono">recipient</span>, <span class="mono">type</span> (request/response/error/status), <span class="mono">payload</span> validated per type, <span class="mono">timestamp</span>, <span class="mono">schema_version</span> so the format can evolve without breaking older agents.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note">The real domain-agent result dict has most of these conceptually (<span class="mono">agent</span> = sender, <span class="mono">result</span> = payload) but no explicit <span class="mono">message_id</span>, <span class="mono">correlation_id</span>, or <span class="mono">schema_version</span> field - see correlation-ID gap below, same root cause.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">How do you version message schemas as your agents change?</div>
+          <ul class="qa-a">
+            <li>Put a <span class="mono">schema_version</span> field in every message from day one. Only make additive changes when you can; when you must break it, run both versions side by side, update receivers to accept both before updating senders, and log unknown fields rather than rejecting them.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill none">none</span><span class="note">No message versioning exists - internal dict shapes change freely since every caller is this same codebase, deployed together. Would matter the moment an external, independently-deployed consumer exists.</span></div>
+        </div>
+      </div>
+
+      <div class="topic-group">
+        <h3>LangGraph communication graphs</h3>
+
+        <div class="qa-card">
+          <div class="qa-q">What is LangGraph, and why model an agent as a graph instead of a chain?</div>
+          <ul class="qa-a">
+            <li>Builds a workflow as nodes (a model call, a tool, a bit of code) and edges (what runs next, possibly conditional on the result). A graph handles loops and branches a straight-line chain can't, and supports pausing/resuming - which matters for human-approval steps.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note">Real, live - <span class="mono">multi_agent_pipeline.py</span>'s <span class="mono">_build_graph()</span> is a genuine LangGraph <span class="mono">StateGraph</span>, chosen specifically for its <span class="mono">Send()</span> fan-out over plain Python for the parallel-dispatch step.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">What is conditional routing in an agent graph, and how do you avoid infinite loops in it?</div>
+          <ul class="qa-a">
+            <li>An edge whose destination is picked by a function reading the current state - e.g. "retry" goes back, "accept" goes forward. Always include a counter in state with a hard exit path; make the routing function pure code, not a model call, so it's predictable.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note">Conditional routing is real (<span class="mono">dispatch_to_agents()</span> picks which domain-agent nodes run), but it's a one-shot fan-out with no loop-back edge anywhere in the graph - so there's no retry loop to guard against yet (also follows from no-Critic, MA-3).</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">Draw the graph for a research agent with a review step.</div>
+          <ul class="qa-a">
+            <li>Start (plan) -&gt; Search (possibly parallel sources) -&gt; Write (draft from findings) -&gt; Review (check draft against sources) -&gt; conditional edge: accept goes to end, reject goes back to search, with a retry counter and an error edge from every node to a failure handler.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note">This project's real graph is the fan-out/merge shape (Planner -&gt; parallel domain agents -&gt; Reviewer -&gt; End) - no reject-and-loop-back edge, matching the no-Critic decision (MA-3) again rather than this textbook review-graph shape.</span></div>
+        </div>
+      </div>
+
+      <div class="topic-group">
+        <h3>WebSockets for agent streams</h3>
+
+        <div class="qa-card">
+          <div class="qa-q">What is a WebSocket, and why would an agent use one?</div>
+          <ul class="qa-a">
+            <li>A connection that stays open so either side can send messages anytime, unlike request-then-close HTTP. Lets you stream the answer as it's written, push progress updates ("searching documents"), and let the user cancel mid-run. Server-sent events are a simpler alternative when you only need server-to-client.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill none">none</span><span class="note">Neither exists - every endpoint in this project is plain request/response HTTP. A deliberate, recorded choice (not an oversight) - see the polling-over-streaming decision in <span class="mono">rag-architecture-layers.html</span>'s own history.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">What has to be handled when a WebSocket connection drops mid-run?</div>
+          <ul class="qa-a">
+            <li>Don't stop the run just because the socket closed - keep it going server-side, give every message a sequence number, let the client say which number it last received on reconnect, and replay from there. Add exponential backoff and periodic heartbeats so both sides notice a dead connection.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill none">none</span><span class="note">Not applicable - no streaming connection exists to drop.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">How would you stream an agent's output to a browser?</div>
+          <ul class="qa-a">
+            <li>Open a WebSocket or SSE connection at run start, send typed events (<span class="mono">token</span>, <span class="mono">tool_start</span>, <span class="mono">tool_end</span>, <span class="mono">error</span>, <span class="mono">done</span>) rather than raw text, include run ID and sequence number on every event, and send a final <span class="mono">done</span> event with the complete answer so the client can verify.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill none">none</span><span class="note">Not built - every response today is one complete JSON payload returned after the full pipeline finishes, no incremental events.</span></div>
+        </div>
+      </div>
+
+      <div class="topic-group">
+        <h3>Error propagation &amp; retry logic</h3>
+
+        <div class="qa-card">
+          <div class="qa-q">An error happens deep inside a chain of agents - how should it travel back?</div>
+          <ul class="qa-a">
+            <li>Wrap it so the caller knows which agent failed and at which step, keep the original error (don't replace it with something generic), carry the correlation ID, and mark whether it's retryable or permanent - the key field. Never swallow an error into an empty result; that hides the failure.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note">A failing domain agent's error becomes a plain string embedded in a normal-looking result (<span class="mono">"Error: ..."</span>) rather than a distinct, typed error object the orchestrator can branch on - exactly the gap recorded as MA-4.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">Write retry logic with exponential backoff - and which errors should never be retried?</div>
+          <ul class="qa-a">
+            <li>Loop up to 3-5 attempts, only for retryable error types (timeouts, 429s, 5xx), doubling the wait each time with a small random jitter and a cap, respecting a <span class="mono">Retry-After</span> header if present. Never retry bad input, auth/permission errors, not-found, or any non-idempotent action that may have already succeeded (e.g. a payment) - retrying those either can't help or can cause real harm.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill none">none</span><span class="note">No retry-with-backoff exists on any LLM or vector-store call in this project - confirmed directly across every client (<span class="mono">openai_client.py</span>, <span class="mono">anthropic_client.py</span>, <span class="mono">bedrock_client.py</span>, <span class="mono">open_router_client.py</span>). Only <span class="mono">tavily_client.py</span> (web search) has any. A real, documented gap, not an oversight glossed over.</span></div>
+        </div>
+      </div>
+
+      <div class="topic-group">
+        <h3>Multi-agent debugging &amp; tracing</h3>
+
+        <div class="qa-card">
+          <div class="qa-q">What is a correlation ID, and why does it matter?</div>
+          <ul class="qa-a">
+            <li>One ID generated at the start of a request, passed to everything it touches - every log line, message, and tool call carries it, so one complaint means searching one ID instead of guessing across separate log files. The cheapest debugging feature you can build, and the one people skip.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill none">none</span><span class="note">Confirmed not built - grepped the whole codebase for a real correlation/request-ID field threaded through log lines; none exists. Listed as an open item in <span class="mono">BACKLOG.md</span>'s Observability section, worth adding once this app sees real concurrent traffic.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">How would you trace a request that passes through four agents?</div>
+          <ul class="qa-a">
+            <li>Spans in a tree - one root span for the request, child spans per agent, their tool/model calls as children of that. Every span carries the correlation ID, start time, duration, status, inputs, and outputs. OpenTelemetry is the general standard; LangSmith gives this shape for LLM apps directly, out of the box.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note">LangSmith tracing is real and gives exactly this tree shape when enabled - but it's off by default to stay inside the free-tier trace budget (<span class="mono">LANGSMITH_ENABLED=false</span>), so it's available infrastructure, not an always-on practice today.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">One agent is slow but you can't tell which - how do you find out?</div>
+          <ul class="qa-a">
+            <li>Look at the trace tree sorted by span duration. Check whether it's the model call (usually a too-long prompt) or a tool call (usually a slow external API). Check whether steps that could run in parallel are actually running sequentially. Use p95, not the average - averages hide the bad cases.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill different">different</span><span class="note">Per-stage <span class="mono">latency_ms</span> is captured and returned on every real response (both genai-rag and multi-agentic-rag), which answers "which stage" without needing a trace tool - genuinely useful, just coarser-grained than full per-span tracing.</span></div>
+        </div>
+
+        <div class="qa-card">
+          <div class="qa-q">Two agents disagree about who should do a task - how do you avoid that?</div>
+          <ul class="qa-a">
+            <li>Don't let agents negotiate ownership if you can avoid it - unreliable and slow. Assign each task to exactly one agent in the plan before anything runs, with clearly non-overlapping job descriptions. If delegation is unavoidable, use a single coordinator that decides - one decision-maker beats several agents negotiating.</li>
+          </ul>
+          <div class="qa-here"><span class="status-pill built">built</span><span class="note">Exactly this - the Planner assigns each task to exactly one named agent (<span class="mono">{agent, focus}</span>) before dispatch; domain agents never negotiate with each other, and their job descriptions (KB/leave-ops/SQL/analytics/web-search) are non-overlapping by design.</span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <footer>
+    Source material: 6 weekly "FDE Interview Prep" study guides (132 questions total, Weeks 1-6). This page covers the 3 system-level weeks (1, 4, 6) - 66 source questions condensed into 62 cards above (a few closely-related questions merged where splitting them added no real signal), every answer written independently rather than reproduced from the source - a paid cohort's own material, not republished here. Feature-level pages (Weeks 2, 3, 5 - RAG retrieval and conversational/multimodal topics) land per-feature, next milestone. Related: <code class="mono">docs/dev-reference/IK-FDE/course-topic-coverage-review.html</code> (a different taxonomy - the course's own 6 workshop modules, not these interview-prep weeks).
+  </footer>
+
+</div>

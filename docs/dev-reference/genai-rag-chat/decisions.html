@@ -138,6 +138,7 @@
       <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
       <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=design" target="_blank" rel="noopener noreferrer">Design</a>
       <span class="doc-nav-item current">Decisions</span>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=faq" target="_blank" rel="noopener noreferrer">Interview FAQ</a>
     </div>
   </header>
 
@@ -148,6 +149,8 @@
       <tr><td class="id-cell">GR-1</td><td><a href="#gr-1">Kept the existing rag-architecture-layers.html Architecture doc, didn't force-fit a deck slide</a></td><td class="source-cell">this pilot round</td></tr>
       <tr><td class="id-cell">GR-2</td><td><a href="#gr-2">Shared Redis answer cache across all 3 modes, each with its own live-data exclusion filter</a></td><td class="source-cell">Phase 78 / 110 / 115</td></tr>
       <tr><td class="id-cell">GR-3</td><td><a href="#gr-3">Guardrails moved to a shared core instead of each pipeline wiring its own</a></td><td class="source-cell">Phase 98</td></tr>
+      <tr><td class="id-cell">GR-4</td><td><a href="#gr-4">Conversation memory is full-history buffer memory, not summary or vector memory</a></td><td class="source-cell">Phase 76, doc gap closed 2026-10-14</td></tr>
+      <tr><td class="id-cell">GR-5</td><td><a href="#gr-5">Revisited GR-1 - built a fresh real current-state diagram instead of correcting slide 8</a></td><td class="source-cell">2026-10-14, milestone 2 diagram pass</td></tr>
     </tbody>
   </table>
 
@@ -160,6 +163,7 @@
       <dt>Why</dt><dd><span class="mono">rag-architecture-layers.html</span> (Phase 170, already synced) was independently verified accurate for this exact feature before this round even started. Replacing working, accurate content with content requiring a much larger correction pass - just to match a stylistic preference - would have been a worse outcome than keeping what already works.</dd>
       <dt>Trade-off</dt><dd class="trade-off">This Architecture doc looks visually different from RAG Ingestion's (still a styled HTML view, not a deck-image panel) - a real, visible inconsistency across the doc family. Accepted deliberately; flagged here rather than silently normalized by force-fitting inaccurate content. Slide 8 remains genuinely interesting as a <em>target-state</em> reference (a future microservices decomposition) - a candidate for its own clearly-labeled callout or companion doc later, not this round.</dd>
     </dl>
+    <p style="margin:0; font-size:11.5px; color:var(--text-faint);"><strong>Revisited:</strong> see GR-5 - this feature got its own real-current-state slide after all, 2026-10-14, by building fresh rather than correcting slide 8.</p>
   </section>
 
   <section class="decision" id="gr-2">
@@ -184,6 +188,28 @@
     </dl>
   </section>
 
+  <section class="decision" id="gr-4">
+    <div class="decision-head"><span class="decision-id">GR-4</span><span class="decision-title display">Conversation memory is full-history buffer memory, not summary or vector memory</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>Multi-turn chat needs some strategy for what past conversation to send back to the model. The three common options: buffer memory (keep recent turns verbatim), summary memory (compress older turns via an extra LLM call), vector memory (embed and retrieve only relevant past turns).</dd>
+      <dt>Decision</dt><dd><span class="mono">ai/pre_processing/conversation_memory.py</span> implements plain buffer memory: <span class="mono">load_history()</span> returns every turn ever saved for a <span class="mono">conversation_id</span> from Postgres, unsummarized and untruncated - no distinction between "short-term" and "long-term" memory tiers despite the module's own docstring using those terms; it's one durable store, read in full every time.</dd>
+      <dt>Alternative</dt><dd>Summary memory (rewrite older turns into a running summary once the buffer grows) or vector memory (embed turns, retrieve only relevant ones) - neither is implemented. No code path truncates, summarizes, or selectively retrieves history.</dd>
+      <dt>Why</dt><dd>Simplest option that works for this project's actual conversation lengths - no extra LLM call per turn (unlike summary memory), no extra retrieval infrastructure (unlike vector memory). Matches this project's general bias toward the simplest option that works over a more "correct" one, until a real problem forces a change.</dd>
+      <dt>Trade-off</dt><dd class="trade-off">A long-running conversation grows the prompt on every turn with no ceiling - no code enforces a token or turn-count limit today. This is an accepted, undocumented-until-now gap, not a hidden bug: a conversation long enough to hit the model's context window would fail loudly (a real API error), not silently lose history.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="gr-5">
+    <div class="decision-head"><span class="decision-id">GR-5</span><span class="decision-title display">Revisited GR-1 - built a fresh real current-state diagram instead of correcting slide 8</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>GR-1 deferred this feature's own Architecture doc, reusing <span class="mono">rag-architecture-layers.html</span> instead, because slide 8's target-state design (separate microservices, LangGraph, SQS) was too structurally different from the real code to honestly "correct" with small text edits.</dd>
+      <dt>Decision</dt><dd>Not correcting slide 8 - GR-1's objection to that still holds. Instead, slide 28 is a brand new swim-lane slide, built from scratch against <span class="mono">ai/rag_pipeline/pipeline.py</span> and <span class="mono">ai/rag_core/guarded_pipeline.py</span> (both read in full first), matching the real call order including a detail that doesn't match this feature's own <span class="mono">design.html</span> text exactly (the answer-cache check happens before conversation-memory load, not after, confirmed directly from the code). Slide 8 stays in the deck untouched, as historical reference.</dd>
+      <dt>Alternative</dt><dd>Keep reusing <span class="mono">rag-architecture-layers.html</span> indefinitely - rejected now because the milestone's own goal was closing the "weakest diagram" gap feature-by-feature, and a shared system-level doc standing in for a feature-specific one was flagged as exactly that kind of gap.</dd>
+      <dt>Why</dt><dd>A fresh slide sidesteps GR-1's real objection entirely - there's nothing dishonest about a new diagram that only shows what's actually true, unlike editing an existing one built around different assumptions.</dd>
+      <dt>Trade-off</dt><dd class="trade-off">This feature now has two architecture-shaped diagrams in the deck (slide 8, historical/inaccurate-as-target-state; slide 28, real/current) - a reader going straight to the deck instead of this doc could pick the wrong one. Mitigated by this doc's own Architecture tab pointing only at slide 28, and slide 28's own subtitle naming slide 8 explicitly.</dd>
+    </dl>
+  </section>
+
 
   <footer>
     Full history: <code class="mono">docs/agent-reference/RAG-ROADMAP.md</code> Phase 78/98. Companions: <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=design" target="_blank" rel="noopener noreferrer">Design</a>.
@@ -196,9 +222,10 @@
   var LOCAL_DOCS = {
     overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/overview.html",
     spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/spec.html",
-    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/rag-architecture-layers.html",
+    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/architecture.html",
     design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/design.html",
-    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/decisions.html"
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/decisions.html",
+    "faq": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/interview-faq.html"
   };
   document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
     var match = a.href.match(/[?&]type=([^&]+)/);

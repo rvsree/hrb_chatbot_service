@@ -147,6 +147,9 @@
     <tbody>
       <tr><td class="id-cell">MA-1</td><td><a href="#ma-1">Guardrails still called directly, not migrated to the Phase 98 shared core</a></td><td class="source-cell">Phase 98's own scope note</td></tr>
       <tr><td class="id-cell">MA-2</td><td><a href="#ma-2">Hierarchical/supervisor LangGraph pattern over independent parallel agents</a></td><td class="source-cell">Phase 64</td></tr>
+      <tr><td class="id-cell">MA-3</td><td><a href="#ma-3">The Reviewer node is a merge/synthesis step, not a Critic</a></td><td class="source-cell">Phase 64, doc gap closed 2026-10-14</td></tr>
+      <tr><td class="id-cell">MA-4</td><td><a href="#ma-4">No retry/replan/fail-fast policy for a failed domain agent</a></td><td class="source-cell">Phase 64, doc gap closed 2026-10-14</td></tr>
+      <tr><td class="id-cell">MA-5</td><td><a href="#ma-5">Planner output has no depends_on or success_criteria fields</a></td><td class="source-cell">Phase 64, doc gap closed 2026-10-14</td></tr>
     </tbody>
   </table>
 
@@ -169,6 +172,39 @@
       <dt>Alternative</dt><dd>A flatter fan-out-to-all-agents-always pattern - simpler routing logic, but wastes real LLM calls on agents irrelevant to a given query (e.g. running <span class="mono">web_search_agent</span> on a pure internal-policy question).</dd>
       <dt>Why</dt><dd>Conditional dispatch means only the agents a query actually needs run at all - directly cheaper and faster than an always-fan-out design, at the cost of needing a real Planner step to get routing right.</dd>
       <dt>Trade-off</dt><dd class="trade-off">The Planner's own routing decision is itself an LLM call that can be wrong - a misrouted query either runs an irrelevant agent (wasted cost) or skips a relevant one (an incomplete answer), a failure mode the simpler always-fan-out design wouldn't have.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="ma-3">
+    <div class="decision-head"><span class="decision-id">MA-3</span><span class="decision-title display">The Reviewer node is a merge/synthesis step, not a Critic</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>The Planner-Executor-Critic pattern (domain agents = executors, Reviewer = critic) implies the final node judges the executors' work and can reject or send it back. <span class="mono">reviewer_agent.py</span>'s own docstring already calls it "multi-agentic-rag's merge step."</dd>
+      <dt>Decision</dt><dd><span class="mono">review()</span> (<span class="mono">reviewer_agent.py:23-68</span>) always combines every domain agent's result into one final answer via a single LLM call - there is no accept/retry/reject verdict, no quality score, and nothing it can send back to a domain agent or the Planner. It runs unconditionally, even for a single agent result, because a domain agent's raw output isn't presentable on its own.</dd>
+      <dt>Alternative</dt><dd>A real critic step that can reject a domain agent's result and trigger a retry or replan - not built. The graph (<span class="mono">multi_agent_pipeline.py:179-194</span>) has no edge back from <span class="mono">reviewer</span> to any domain agent or to <span class="mono">planner</span>; every domain agent always flows straight to <span class="mono">reviewer</span>, which always flows to <span class="mono">END</span>.</dd>
+      <dt>Why</dt><dd>Following the IK FDE Travel Planner reference notebook's own <span class="mono">synthesizer_node()</span> pattern (cited directly in the module docstring) - that reference implementation merges, it doesn't critique either.</dd>
+      <dt>Trade-off</dt><dd class="trade-off">A domain agent that fails or returns a wrong/empty result still gets merged into the final answer by the LLM as best it can, rather than being caught and retried. See MA-4 for the related failure-handling gap this leaves open.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="ma-4">
+    <div class="decision-head"><span class="decision-id">MA-4</span><span class="decision-title display">No retry/replan/fail-fast policy for a failed domain agent</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>A domain agent can fail (e.g. <span class="mono">lms_ops_agent.py:10-11</span> returns <span class="mono">"Error: no employee ID available for this request."</span> instead of raising, when it's dispatched without one). Interview-prep material frames this as a design choice between retry, degrade, replan, and fail-fast per step.</dd>
+      <dt>Decision</dt><dd>None of the four is implemented at the graph level. A failing domain agent returns its own error string inside the normal <span class="mono">agent_results</span> shape; the graph (<span class="mono">multi_agent_pipeline.py:190-193</span>) routes it straight to <span class="mono">reviewer</span> exactly like a success. The only place this is visible downstream is <span class="mono">tools_used[].success</span>, computed post-hoc by checking whether the result text starts with <span class="mono">"Error:"</span> (line 283) - informational only, not acted on.</dd>
+      <dt>Alternative</dt><dd>A conditional edge after each domain agent node that retries on a transient failure, replans when a task was misrouted, or fails the whole run fast for a critical step - none built; every path is effectively "degrade and continue," the one option the interview-prep material calls safe only for non-critical steps.</dd>
+      <dt>Why</dt><dd>Not independently re-derived - this is the real behavior found by tracing the code, not a decision recorded elsewhere at the time it was built. Flagging it here closes the documentation gap; it does not mean the gap in the behavior itself is closed.</dd>
+      <dt>Trade-off</dt><dd class="trade-off">A single misrouted or failing domain agent degrades answer quality silently rather than being retried, replanned, or surfaced as a partial result - acceptable for a capstone project's current traffic, worth a real policy before this pattern sees production load from more agents.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="ma-5">
+    <div class="decision-head"><span class="decision-id">MA-5</span><span class="decision-title display">Planner output has no depends_on or success_criteria fields</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>A typical Planner-Executor-Critic design gives each planned step an ID, inputs that can reference an earlier step's output, a <span class="mono">depends_on</span> list for ordering, and <span class="mono">success_criteria</span> a critic checks against.</dd>
+      <dt>Decision</dt><dd><span class="mono">PlannerOutput</span> (<span class="mono">planner_agent.py:23-29</span>) is just <span class="mono">{tasks: [{agent, focus}]}</span> - a flat classification list, no dependency graph, no success criteria. This matches the real shape of the problem: all dispatched domain agents run in parallel via <span class="mono">Send()</span> (<span class="mono">dispatch_to_agents()</span>, line 90-96), with no step ever depending on another step's output.</dd>
+      <dt>Alternative</dt><dd>The fuller schema (IDs, <span class="mono">depends_on</span>, <span class="mono">success_criteria</span>) - not needed today because this graph has exactly 2 levels (dispatch, then merge), not a multi-step sequential plan. Adding those fields now would be speculative, not load-bearing.</dd>
+      <dt>Why</dt><dd>The Planner's one real job today is classification/routing (which agents, what focus for each), not sequencing - a narrower, genuinely simpler problem than the general pattern, built to match.</dd>
+      <dt>Trade-off</dt><dd class="trade-off">If a future query genuinely needs one domain agent's output before another can run (a real multi-hop case), today's flat <span class="mono">PlannerOutput</span> can't express that - it would need a real schema change, not just a bigger prompt.</dd>
     </dl>
   </section>
 

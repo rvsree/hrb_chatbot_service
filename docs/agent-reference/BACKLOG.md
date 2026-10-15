@@ -354,10 +354,10 @@ explicit earlier decision to keep as-is for later, not a new finding.
   earlier live-DB-deletion incident, only 3 PDFs got re-uploaded
   afterward. Found via the DeepEval harness scoring 0.00 on a 401(k)
   question. Re-upload is simple, not done - your call on priority.
-- **DeepEval CI gate not wired up.** The scoring harness
-  (`golden_dataset_harness.py`) exists and is verified live; the actual
-  PASS/REVIEW/BLOCK threshold job (`docs/agent-reference/CICD-BRANCHING-STRATEGY.md`'s
-  practical-significance bar) isn't hooked into a CI workflow yet.
+- ~~**DeepEval CI gate not wired up.**~~ Resolved, Phase 80 (2026-10-05):
+  `eval-gate.yml`/`scripts/run_release_gate.py` wire `get_release_decision()`
+  into a real, manually-triggered CI gate. See the "Release gate follow-up"
+  section below for genai-rag-only scope and what's still open.
 - **PII in a query gets blocked, not masked.** `self check input`'s LLM
   judgment flags SSN-like content before the dedicated `mask sensitive
   data on input` rail gets a turn (rails run in sequence). Defensible

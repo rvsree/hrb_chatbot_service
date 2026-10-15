@@ -138,6 +138,7 @@
       <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
       <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=design" target="_blank" rel="noopener noreferrer">Design</a>
       <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=faq" target="_blank" rel="noopener noreferrer">Interview FAQ</a>
     </div>
   </header>
 
@@ -190,7 +191,7 @@
 
 
   <footer>
-    Architecture: <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=architecture" target="_blank" rel="noopener noreferrer">rag-architecture-layers.html</a> (unchanged, already verified accurate - see Decisions for why this pilot kept it rather than forcing a deck-slide replacement). Companions: <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=design" target="_blank" rel="noopener noreferrer">Design</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>.
+    Architecture: <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=architecture" target="_blank" rel="noopener noreferrer">architecture.html</a> (real current-state swim-lane, added 2026-10-14 - see Decisions GR-1 for why it took this long). Companions: <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=design" target="_blank" rel="noopener noreferrer">Design</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>.
   <!-- spec-sync-note -->
     <p style="margin-top:8px; font-size:11.5px;">Keep this in sync: any design, architecture, or major implementation change must be reflected in this doc set and re-synced to S3 (<code>python -m scripts.sync_admin_docs</code>, tracked by doc_version) before the work is considered done.</p>
   </footer>
@@ -202,9 +203,10 @@
   var LOCAL_DOCS = {
     overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/overview.html",
     spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/spec.html",
-    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/rag-architecture-layers.html",
+    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/architecture.html",
     design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/design.html",
-    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/decisions.html"
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/decisions.html",
+    "faq": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/interview-faq.html"
   };
   document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
     var match = a.href.match(/[?&]type=([^&]+)/);

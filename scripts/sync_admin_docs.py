@@ -57,11 +57,13 @@ DOCS_TO_SYNC = {
     # Phase 180 (round 4) - Spec/Design/Decisions added for all 4 real
     # rag-retrieval features, per direct instruction. Architecture stays
     # the existing, already-verified doc for each - deliberately NOT a
-    # deck-slide replacement here (see genai-rag-chat's own Decisions
-    # GR-1: the deck's closest candidate, slide 8, depicts a materially
-    # different target microservices architecture - LangGraph even for
-    # plain genai-rag, SQS-async cache/conversation writes - neither true
-    # today, confirmed against the real code before deciding not to use it).
+    # GR-1 (2026-09) deferred a deck-slide replacement here - the deck's
+    # closest candidate, slide 8, depicted a materially different target
+    # microservices architecture (LangGraph even for plain genai-rag,
+    # SQS-async cache/conversation writes), neither true today. GR-5
+    # (2026-10-14) revisited that: a fresh slide 28 was built from scratch
+    # against the real code instead of correcting slide 8, so this feature
+    # now has its own architecture.html - see genai-rag-chat's own Decisions.
     "genai-rag-chat": {
         "overview": (
             "GenAI RAG Chat - Overview",
@@ -74,8 +76,8 @@ DOCS_TO_SYNC = {
             "text/html",
         ),
         "architecture": (
-            "RAG Architecture Layers",
-            "docs/dev-reference/rag-architecture-layers.html",
+            "GenAI RAG Chat - Architecture",
+            "docs/dev-reference/genai-rag-chat/architecture.html",
             "text/html",
         ),
         "design": (
@@ -86,6 +88,11 @@ DOCS_TO_SYNC = {
         "decisions": (
             "GenAI RAG Chat - Decisions",
             "docs/dev-reference/genai-rag-chat/decisions.html",
+            "text/html",
+        ),
+        "faq": (
+            "GenAI RAG Chat - Interview FAQ",
+            "docs/dev-reference/genai-rag-chat/interview-faq.html",
             "text/html",
         ),
     },
@@ -172,6 +179,11 @@ DOCS_TO_SYNC = {
         "decisions": (
             "Retrieval Strategies - Decisions",
             "docs/dev-reference/retrieval-strategies/decisions.html",
+            "text/html",
+        ),
+        "faq": (
+            "Retrieval Strategies - Interview FAQ",
+            "docs/dev-reference/retrieval-strategies/interview-faq.html",
             "text/html",
         ),
     },
@@ -271,6 +283,11 @@ DOCS_TO_SYNC = {
         "decisions": (
             "RAG Ingestion - Decisions",
             "docs/dev-reference/rag-ingestion/decisions.html",
+            "text/html",
+        ),
+        "faq": (
+            "RAG Ingestion - Interview FAQ",
+            "docs/dev-reference/rag-ingestion/interview-faq.html",
             "text/html",
         ),
     },
@@ -394,6 +411,24 @@ DOCS_TO_SYNC = {
         "decisions": (
             "Chunking Strategy - Decisions",
             "docs/dev-reference/chunking-strategy/decisions.html",
+            "text/html",
+        ),
+        "faq": (
+            "Chunking Strategy - Interview FAQ",
+            "docs/dev-reference/chunking-strategy/interview-faq.html",
+            "text/html",
+        ),
+    },
+    # Milestone 3 (2026-10-14): system-level interview-prep FAQ, grounded in
+    # this project's real code - not a copy of the source course material.
+    # Covers the 3 "system design" weeks (agent fundamentals, multi-agent
+    # orchestration, protocols); feature-level pages (RAG/conversational
+    # weeks) land per-feature, next milestone, each under its own existing
+    # feature's doc_type rather than here.
+    "interview-faqs": {
+        "system": (
+            "Interview FAQs - System Level",
+            "docs/dev-reference/interview-faqs/system.html",
             "text/html",
         ),
     },

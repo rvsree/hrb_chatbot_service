@@ -1,0 +1,302 @@
+<title>GenAI RAG Chat - Interview FAQ</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --built: #147a4a; --built-bg: #e3f5eb; --built-border: #b5e3c8;
+    --different: #9a5a0c; --different-bg: #fbf1dd; --different-border: #edd6a2;
+    --none: #6b7286; --none-bg: #eef0f4; --none-border: #d5d9e3;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --built: #52c98a; --built-bg: #12261a; --built-border: #1f4530;
+      --different: #e0ac48; --different-bg: #2c2311; --different-border: #4a3a17;
+      --none: #8991a8; --none-bg: #191d29; --none-border: #2a2f42;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --built: #52c98a; --built-bg: #12261a; --built-border: #1f4530;
+    --different: #e0ac48; --different-bg: #2c2311; --different-border: #4a3a17;
+    --none: #8991a8; --none-bg: #191d29; --none-border: #2a2f42;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band: #0b2b25;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; } .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(26px, 4.2vw, 36px); letter-spacing: -0.01em; text-wrap: balance; }
+  .lede { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.6; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); padding: 5px 10px 5px 8px; border-radius: 999px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot.built { background: var(--built); } .dot.different { background: var(--different); } .dot.none { background: var(--none); }
+
+  section.topic { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+  .topic-head { background: var(--band); color: #fff; padding: 11px 16px; display: flex; align-items: center; gap: 10px; }
+  .topic-head .t-name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 14px; }
+  .topic-head .t-count { margin-left: auto; font-size: 11px; opacity: 0.75; }
+  .topic-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+
+  .qa-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 7px; }
+  .qa-q { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13px; }
+  .qa-a { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--text-muted); line-height: 1.6; }
+  .qa-a li { margin-bottom: 2px; }
+  .qa-here { display: flex; align-items: flex-start; gap: 8px; font-size: 11.5px; padding-top: 4px; border-top: 1px dashed var(--border); }
+  .status-pill { font-size: 9.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; display: inline-block; flex: none; margin-top: 1px; }
+  .status-pill.built { color: var(--built); background: var(--built-bg); border: 1px solid var(--built-border); }
+  .status-pill.different { color: var(--different); background: var(--different-bg); border: 1px solid var(--different-border); }
+  .status-pill.none { color: var(--none); background: var(--none-bg); border: 1px solid var(--none-border); }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">interview prep, grounded in this feature's real code - not a copy of any course material</div>
+    <h1 class="display">GenAI RAG Chat - Interview FAQ</h1>
+    <p class="lede">The conversational-agent slice of the interview-prep weeks (Week 5: memory, persona, voice, session, chat UI) - 22 source questions condensed into 18 cards below, answered independently against <span class="mono">ai/pre_processing/conversation_memory.py</span> and <span class="mono">api/feedback/manage_feedback.py</span>. Voice/multimodal questions are included for completeness even though nothing in that area is built here - marked honestly, not glossed over. System-wide agent/protocol topics live on the separate <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=interview-faqs&type=system" target="_blank" rel="noopener noreferrer">system-level FAQ</a>.</p>
+    <div class="doc-nav">
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=overview" target="_blank" rel="noopener noreferrer">Overview</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+      <span class="doc-nav-item current">Interview FAQ</span>
+    </div>
+    <div class="legend">
+      <span class="legend-item"><span class="dot built"></span>Built here</span>
+      <span class="legend-item"><span class="dot different"></span>Built, differently</span>
+      <span class="legend-item"><span class="dot none"></span>Not built here</span>
+    </div>
+  </header>
+
+  <section class="topic">
+    <div class="topic-head"><span class="t-name display">Memory &amp; Session Persistence</span><span class="t-count">8 cards</span></div>
+    <div class="topic-body">
+
+      <div class="qa-card">
+        <div class="qa-q">Why does a chatbot need memory at all, and what's the simplest form (buffer memory)?</div>
+        <ul class="qa-a">
+          <li>The model has no memory of its own between calls - anything it should remember must be sent again in the next prompt. Buffer memory is the simplest answer: keep the last N messages and send them all every time. Nothing is lost within that window, but the prompt grows every turn until you hit the context limit.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill different">different</span><span class="note">Real, but not windowed - <span class="mono">load_history()</span> (<span class="mono">conversation_memory.py</span>) returns the <em>entire</em> stored history for a conversation every time, not just the last N messages. One durable Postgres store, no separate short-term/long-term split despite the module's own docstring using those terms (recorded directly as decision GR-4).</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">What is summary memory, and what does it cost you?</div>
+        <ul class="qa-a">
+          <li>Instead of keeping every message, an LLM call periodically rewrites the older part of the conversation into a shorter summary once the buffer fills up. Keeps the prompt small no matter how long the conversation runs, at the cost of an extra model call each time and real detail loss that repeated summarization can compound.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill none">none</span><span class="note">Not built - no summarization step exists anywhere in <span class="mono">conversation_memory.py</span>. A real, undocumented-until-now gap: nothing currently stops the prompt from growing without bound on a long conversation (see GR-4's own trade-off note).</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">What is vector memory, and when do you actually need it?</div>
+        <ul class="qa-a">
+          <li>Past messages are embedded and stored in a vector store; each new message searches that store and pulls back only the relevant older turns - RAG applied to the conversation itself. Needed when history is long and older facts still matter, at the cost of possibly missing context that matters but doesn't match the search.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill none">none</span><span class="note">Not built - this project's conversation memory has no search/retrieval step over past turns at all, only full linear replay.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">A support bot breaks after 40 turns - which memory type do you actually ship?</div>
+        <ul class="qa-a">
+          <li>Most likely the prompt has outgrown the context window - check that first, it's usually a hard error, not a mysterious quality drop. What most real systems ship is a hybrid: keep the last 5-10 turns exactly, summarize older ones, and store hard facts (order number, customer name) as structured fields that never get summarized away.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill none">none</span><span class="note">This project's own full-history approach would hit exactly this failure mode on a long enough conversation - there's no truncation, summarization, or structured-fact extraction to fall back on, an accepted gap at today's traffic (GR-4).</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">How do you store structured facts about a user separately from the chat history?</div>
+        <ul class="qa-a">
+          <li>A small profile object (name, preferences, open items) in a normal database, not buried in the conversation log - update it when the user tells you something worth remembering, inject it as a short block into every prompt (cheap in tokens), and let users see/delete what's stored about them.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill none">none</span><span class="note">Not built - no structured per-user fact store exists separate from the raw conversation turns themselves.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">What is session persistence, and where would you store chat sessions?</div>
+        <ul class="qa-a">
+          <li>Saving a conversation so closing the app and coming back doesn't lose it - message history with roles/timestamps, the session ID and owner, any summary/facts, model and prompt versions used. A normal database like Postgres is the right default - easy to query and back up; add Redis in front only if active-conversation reads need to be very fast.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">Real, Postgres-backed (Phase 76) - replaced an earlier in-memory dict specifically because a server restart wiped every live conversation. <span class="mono">conversation_turns</span> table, keyed by <span class="mono">conversation_id</span>, survives restarts by design.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">Two browser tabs have the same conversation open - what can go wrong, and how do you fix it?</div>
+        <ul class="qa-a">
+          <li>Both tabs read the same history, both append - messages can end up out of order or one tab's write overwrites the other's. Fix: append with a server-assigned sequence number instead of rewriting the whole history, use a version check so a stale write is rejected, or simplest, allow only one active tab per session.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill none">none</span><span class="note">No concurrency control exists - <span class="mono">save_turn()</span> is a plain append with no sequence number or version check, so two simultaneous writers to the same <span class="mono">conversation_id</span> would both succeed with no conflict detection. Not yet a problem at today's traffic, but a real gap, not an invisible one.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">How do you keep personal data safe when it's flowing through a conversation memory system?</div>
+        <ul class="qa-a">
+          <li>Chat logs contain personal data - set a retention policy, and make it possible to delete one user's sessions completely on request, not just hide them from the UI.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">Real, exercised - <span class="mono">delete_conversation()</span> removes every turn for a conversation, the documented logic behind this project's own NFR delete-my-data endpoint. No separate time-based retention policy auto-expires old conversations, though; deletion today is request-driven, not scheduled.</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="topic">
+    <div class="topic-head"><span class="t-name display">Persona &amp; Dialogue Design</span><span class="t-count">3 cards</span></div>
+    <div class="topic-body">
+
+      <div class="qa-card">
+        <div class="qa-q">What makes a good agent persona?</div>
+        <ul class="qa-a">
+          <li>A short, specific description of who the agent is and how it speaks - role, tone, how long answers should be by default, what it must never do, and what to say when it doesn't know something. Concrete beats vague ("friendly but brief, two sentences by default" beats "be helpful") - a long persona eats context and gets ignored anyway.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">Real system prompts exist per mode (<span class="mono">prompts/agent_prompts.py</span>) with a defined role and scope (HR benefits assistant) - tested but not formally measured for adherence over long conversations.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">An agent's tone drifts over a long conversation - why, and what do you do about it?</div>
+        <ul class="qa-a">
+          <li>The persona sits at the top of a long prompt, far from where generation happens, and loses influence as the prompt grows; the model also copies the style of its own recent (possibly long) replies, so one long answer snowballs into more. Fixes: repeat a short version of the persona right before the latest message, and cap output length in code rather than trusting the prompt alone.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill none">none</span><span class="note">Not measured - no test checks answer length/style consistency across a long conversation (turn 2 vs. turn 30), and the system prompt isn't re-injected mid-conversation beyond its normal place in the message list.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">How do you design what happens when the agent doesn't understand the question?</div>
+        <ul class="qa-a">
+          <li>Decide this on purpose rather than leaving it to the model - say clearly it didn't understand rather than guessing, ask one specific clarifying question (not "can you rephrase?"), limit to one or two attempts then offer a human, and never loop asking the same thing. Log every one - it shows what the agent is actually missing.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill different">different</span><span class="note">The no-answer-found path (relevance-bar filtering, see the retrieval-strategies FAQ) is the closest real equivalent - a clear "couldn't find this" response rather than a guess. No structured clarifying-question flow or attempt-limit exists specifically for "I don't understand" as distinct from "I don't have the data."</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="topic">
+    <div class="topic-head"><span class="t-name display">Voice &amp; Multimodal</span><span class="t-count">4 cards, all not built</span></div>
+    <div class="topic-body">
+
+      <div class="qa-card">
+        <div class="qa-q">What is Whisper, and how would a voice assistant pipeline work end to end?</div>
+        <ul class="qa-a">
+          <li>Whisper is OpenAI's speech-to-text model - audio in, text out, fairly robust to accents/noise. A voice pipeline: capture audio -&gt; detect when the user stops speaking -&gt; Whisper for text -&gt; the LLM agent -&gt; TTS for audio back -&gt; play it. Every stage adds delay, so start speaking the first sentence while the model is still writing the rest, rather than waiting for the whole answer.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill none">none</span><span class="note">Not built - this is a text-only chatbot, no audio input/output anywhere in the pipeline.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">TTS - gTTS vs. ElevenLabs, and how do you keep personal data safe in a voice agent?</div>
+        <ul class="qa-a">
+          <li>gTTS is free and simple but sounds clearly robotic; ElevenLabs is paid with natural, human-sounding voices and real voice cloning/emotion control. For privacy: decide up front whether to keep audio at all, encrypt and set a short retention period if you do, check whether your STT/TTS providers train on your data, and make sure a deletion request removes audio, transcript, and any embeddings together.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill none">none</span><span class="note">Not applicable - no voice data of any kind is captured, so none of this privacy surface exists here.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">How does an agent handle an image the user uploads?</div>
+        <ul class="qa-a">
+          <li>Use a vision-capable model, send the image plus a question, get text back - resize before sending (most tasks don't need full resolution), check file type/size before accepting, and verify anything important since vision models still make things up.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill none">none</span><span class="note">Not built - no image/vision handling anywhere; every input is plain text.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">A voice agent feels slow - where does the time actually go, and how do you fix mis-transcribed product names?</div>
+        <ul class="qa-a">
+          <li>Measure each stage separately - silence detection and full-recording STT are common hidden costs, since transcription can't start until the user finishes speaking. The biggest win is streaming the LLM output and starting TTS on the first sentence immediately. For mis-transcribed names: pass a vocabulary hint to the STT call, correct known repeat-mistakes with a lookup table built from real transcripts, and ask the user to confirm critical values like order numbers.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill none">none</span><span class="note">Not applicable - no voice pipeline exists to have a latency budget or a transcription-accuracy problem in the first place.</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="topic">
+    <div class="topic-head"><span class="t-name display">Chat UI &amp; Feedback</span><span class="t-count">3 cards</span></div>
+    <div class="topic-body">
+
+      <div class="qa-card">
+        <div class="qa-q">What makes a good chat UI for an AI agent, and how do you show a long-running agent is still working?</div>
+        <ul class="qa-a">
+          <li>Stream the answer so progress is visible immediately, show what the agent is doing rather than a blank spinner ("searching documents"), let the user stop a bad response, show sources as links, make it obvious this is AI and can be wrong, and suggest a few starting prompts since a blank box is intimidating. For long runs: push server-side progress events rather than making the user wait on silence, and always allow canceling.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill none">none</span><span class="note">No streaming exists anywhere - every response is one complete payload after the full pipeline finishes (see the system-level FAQ's WebSocket answer - a deliberate, recorded choice, not an oversight). No mid-run progress events or cancel button either, since there's no long-lived connection to carry them.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">How would you collect useful feedback from chat users?</div>
+        <ul class="qa-a">
+          <li>Thumbs up/down on each answer - low effort, so people actually use it. On a thumbs-down, ask one optional question with a few fixed reasons (easier to analyze than free text). Link every rating back to the full trace of that run, and also watch implicit signals (rephrasing the same question, abandoning the chat) - often more honest than explicit ratings.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">Real: <span class="mono">POST /v1/feedback</span> takes a <span class="mono">vote</span>, <span class="mono">reason_tags</span>, and free-text <span class="mono">notes</span>, tied to <span class="mono">conversation_id</span>/<span class="mono">message_id</span> plus the actual question/answer text (<span class="mono">manage_feedback.py</span>). No implicit-signal tracking (repeated questions, abandonment) exists - only explicit votes.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">What UI detail matters most for trust in an AI product, beyond the answer itself?</div>
+        <ul class="qa-a">
+          <li>Showing real sources as checkable links, and being honest about uncertainty rather than always sounding confident - a user who can verify an answer trusts the system more than one who has to take it on faith.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">Real sources (actual retrieved chunks, not model-generated citation markers) are returned with every answer across all 3 retrieval modes - see the retrieval-strategies FAQ's citations answer for why that sidesteps the "fabricated citation" failure mode by construction.</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <footer>Source material: "Conversational &amp; Multimodal Agents" Week 5, each answer written independently. Related: <code class="mono">docs/dev-reference/interview-faqs/system.html</code> (agent/protocol topics), this feature's own <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=genai-rag-chat&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a> doc (GR-4: the real memory-strategy decision in full). GenAI RAG Chat — overview.html, spec.html, architecture.html, design.html, decisions.html, interview-faq.html</footer>
+</div>
+<!-- local-nav-fallback -->
+<script>
+(function () {
+  if (location.protocol !== "file:") return;
+  var LOCAL_DOCS = {
+    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/overview.html",
+    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/spec.html",
+    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/architecture.html",
+    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/design.html",
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/decisions.html",
+    "faq": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/interview-faq.html"
+  };
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    var match = a.href.match(/[?&]type=([^&]+)/);
+    if (!match) return;
+    var localPath = LOCAL_DOCS[match[1]];
+    if (localPath) {
+      a.href = localPath;
+      a.removeAttribute("target");
+    }
+  });
+})();
+</script>
+<!-- app-base-nav -->
+<script>
+(function () {
+  if (location.protocol === "file:") return;
+  var hashMatch = location.hash.match(/app_base=([^&]+)/);
+  if (!hashMatch) return;
+  var appBase = decodeURIComponent(hashMatch[1]).replace(/\/$/, "");
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      a.href = appBase + url.pathname + url.search + "#app_base=" + encodeURIComponent(appBase);
+    } catch (e) {}
+  });
+})();
+</script>
