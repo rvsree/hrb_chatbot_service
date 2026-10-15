@@ -23,6 +23,9 @@ SLIDE_EXPORTS = {
     "docs/dev-reference/react_agents/multi-agent-graph-slide.png": 23,
     "docs/dev-reference/deployment-guide/deployment-aws-slide.png": 24,
     "docs/dev-reference/rag-validation-gates-slide.png": 25,
+    "docs/dev-reference/database/db-model-overview-slide.png": 26,
+    "docs/dev-reference/IK-FDE/course-topic-coverage-review-slide.png": 27,
+    "docs/dev-reference/genai-rag-chat/architecture-slide.png": 28,
 }
 
 
