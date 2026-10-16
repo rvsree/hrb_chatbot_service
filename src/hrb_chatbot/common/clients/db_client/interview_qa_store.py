@@ -147,8 +147,11 @@ class InterviewQaStore:
         placeholders = ", ".join(["%s"] * len(columns))
         with self._connect() as conn:
             with conn.cursor(row_factory=self._dict_row_factory) as cur:
+                # columns come only from the fixed _TEXT_FIELDS/_JSON_FIELDS
+                # module constants above, never from request data; every
+                # actual value is still %s-parameterized below.
                 cur.execute(
-                    f"INSERT INTO interview_qa_cards ({', '.join(columns)}) VALUES ({placeholders}) RETURNING *",
+                    f"INSERT INTO interview_qa_cards ({', '.join(columns)}) VALUES ({placeholders}) RETURNING *",  # nosec B608
                     values,
                 )
                 row = cur.fetchone()
@@ -170,8 +173,10 @@ class InterviewQaStore:
         values.append(card_id)
         with self._connect() as conn:
             with conn.cursor(row_factory=self._dict_row_factory) as cur:
+                # set_clause's column names are the same fixed constants as
+                # above, never request data; values stay %s-parameterized.
                 cur.execute(
-                    f"UPDATE interview_qa_cards SET {set_clause}, updated_at = now() WHERE id = %s RETURNING *",
+                    f"UPDATE interview_qa_cards SET {set_clause}, updated_at = now() WHERE id = %s RETURNING *",  # nosec B608
                     values,
                 )
                 row = cur.fetchone()
