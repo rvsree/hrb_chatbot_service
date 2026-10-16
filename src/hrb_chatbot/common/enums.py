@@ -51,12 +51,18 @@ class Role(StrEnum):
     """Who's calling the API - HR_SUPPORT uploads documents, all three can retrieve.
     Phase 168 - ADMIN: a separate "manage the application" super-user role,
     not an elevated HR_SUPPORT - reviews leave requests vs. deletes any
-    record across the app are genuinely different concerns."""
+    record across the app are genuinely different concerns.
+    2026-10-15 - EMPLOYEE_ADMIN: a second, narrower admin tier ("Employee
+    Admin") - KB documents/conversations/feedback/leave-requests oversight,
+    same as ADMIN, but never Architecture Docs or any future
+    build/deployment/evals view. ADMIN itself is unchanged in meaning
+    ("Engineering Admin" - everything), not renamed."""
 
     EMPLOYEE = "employee"
     MANAGER = "manager"
     HR_SUPPORT = "hr_support"
     ADMIN = "admin"
+    EMPLOYEE_ADMIN = "employee_admin"
 
 
 class FeedbackVote(StrEnum):

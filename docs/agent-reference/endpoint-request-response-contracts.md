@@ -511,6 +511,210 @@ no change needed there either, it already matches this exercise's pattern:
 ```
 `/ping`: `{"status": "ok"}`, unchanged - it's deliberately minimal (no provider calls).
 
+## GET /v1/admin/golden-dataset — Finalized (Phase 181)
+
+Identity: query params (`?employee_id=...&full_name=...&role=...`), same
+Phase 96 convention every other admin-only `GET` route already uses - this
+is an application of that settled pattern to a new resource, not a new
+negotiation. `Role.ADMIN` only (Engineering Admin) - Employee Admin does
+not get this, same split as `/v1/admin/docs`. Read-only - no POST/PUT/
+DELETE in this phase; editing stays in the source JSON files, mirrored in
+by `scripts/sync_golden_dataset.py`, not edited through the API.
+
+```json
+{
+  "count": 25,
+  "cases": [
+    {
+      "id": 1,
+      "case_key": "401k-01",
+      "dataset": "genai_rag",
+      "category": "happy",
+      "query": "What percentage does JPMorgan Chase match on my 401(k) contributions?",
+      "raw_case": {
+        "id": "401k-01",
+        "category": "happy",
+        "query": "What percentage does JPMorgan Chase match on my 401(k) contributions?",
+        "expected_source_document": "401k.pdf",
+        "expected_answer": "JPMorgan Chase matches 100% of employee contributions (dollar-for-dollar) up to 5% of Eligible Compensation, available after one year of service.",
+        "expected_keywords": ["100%", "dollar-for-dollar", "5%", "one year of service"],
+        "call_type": "llm_call"
+      },
+      "updated_at": "2026-10-15T00:00:00Z"
+    }
+  ]
+}
+```
+`raw_case` is the original JSON case object verbatim (jsonb column) - every
+field from `golden_dataset.json`/`nfr_golden_dataset.json` renders without
+the API needing to know each dataset's exact field set up front. `dataset`
+is `"genai_rag"` or `"nfr"`, matching which source file the case came from.
+
+## GET /v1/admin/eval-runs, GET /v1/admin/eval-runs/{id} — Finalized (Phase 182)
+
+Identity: query params, same Phase 96 convention. `Role.ADMIN` only. List
+returns summaries (no per-case detail); `{id}` adds the full per-case
+breakdown.
+
+```json
+{
+  "count": 3,
+  "runs": [
+    {
+      "id": 1,
+      "run_at": "2026-10-15T12:00:00Z",
+      "decision": "PASS",
+      "flags": [],
+      "aggregated_scores": { "recall": 0.96, "groundedness": 0.91, "completeness": 0.88 },
+      "total_cases": 23,
+      "scored_cases": 23,
+      "failed_case_ids": [],
+      "retrieval_k": 5
+    }
+  ]
+}
+```
+`GET /eval-runs/{id}` returns one run object (same shape) plus `"cases":
+[{"case_id": "401k-01", "category": "happy", "scores": {"recall": 1.0,
+"groundedness": 0.9, "completeness": 0.85}, "status": "scored"}, ...]`.
+404 (`ADMIN_EVAL_RUN_NOT_FOUND`) for an unknown id.
+
+## GET /v1/admin/ci-status — Finalized (Phase 183)
+
+Identity: query params, same Phase 96 convention. `Role.ADMIN` only. Live
+read of this repo's own GitHub Actions `ci.yml`/`deploy.yml` runs (5
+latest each) via `github_actions_client.py`. Never 500s on a GitHub-side
+failure (unset `GITHUB_TOKEN`, rate limit, network) - each workflow's own
+`error` field carries that instead of a crashed request.
+
+```json
+{
+  "ci": {
+    "runs": [
+      {
+        "id": 123456,
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d870681",
+        "head_commit_message": "Add golden dataset Postgres mirror",
+        "html_url": "https://github.com/rvsree/hrb_chatbot_v2/actions/runs/123456",
+        "created_at": "2026-10-15T03:58:22Z"
+      }
+    ],
+    "error": null
+  },
+  "deploy": {
+    "runs": [],
+    "error": null
+  }
+}
+```
+`error` is a string (e.g. `"GITHUB_TOKEN not configured"`) when the
+GitHub-side call failed - `runs` is then always `[]`, never a partial list.
+
+## GET /v1/admin/request-metrics — Finalized (Phase 184)
+
+Identity: query params, same Phase 96 convention, plus `window` (hours,
+default 24). `Role.ADMIN` only. Aggregated from `request_metrics`, which
+`common/observability/response_metrics.py`'s `time_and_log()` writes once
+per real response from genai-rag/single-agentic-rag/multi-agentic-rag's
+own route handlers (fire-and-forget - a logging failure never affects the
+real response). No `cost_usd` field - no verified per-model price table
+exists in this project, so cost is never estimated/guessed.
+
+```json
+{
+  "window_hours": 24,
+  "rows": [
+    {
+      "pipeline": "genai-rag",
+      "status": "success",
+      "request_count": 42,
+      "avg_latency_ms": 850.3,
+      "p50_latency_ms": 700.0,
+      "p95_latency_ms": 1800.0,
+      "total_tokens": 12000
+    }
+  ]
+}
+```
+`total_tokens` is `null` for `multi-agentic-rag` rows - no per-domain-
+agent token usage exists yet (`BACKLOG.md`'s own documented gap), not
+fabricated to look complete.
+
+## POST /v1/faq/submit, GET /v1/admin/faq-submissions, POST .../restructure, POST .../review, GET /v1/faq/published — Finalized (Phase 186)
+
+`POST /v1/faq/submit` - body identity (every other `EMPLOYEE`-reachable
+route's convention), `{"user_profile": {...}, "query": "..."}`. Any role.
+Response: the created row.
+```json
+{
+  "id": 1,
+  "employee_id": "EMP052",
+  "query": "Does the tuition reimbursement cover certifications, not just degrees?",
+  "external_llm_answer": "Based on the knowledge base, ...",
+  "internal_review_status": "pending",
+  "answer_restructuring_status": "not_started",
+  "final_answer": null,
+  "published": false,
+  "reviewed_by": null,
+  "created_at": "2026-10-15T...",
+  "updated_at": "2026-10-15T..."
+}
+```
+`GET /v1/admin/faq-submissions` - query-param identity (Phase 96),
+`Role.HR_SUPPORT`/`ADMIN`. Returns `{"count": N, "submissions": [...same
+shape as above...]}`.
+
+`POST /v1/admin/faq-submissions/{id}/restructure` - body identity,
+`{"user_profile": {...}}`, same 2 roles. Returns the updated row with
+`final_answer` set to Claude's suggested rewrite and
+`answer_restructuring_status: "claude_restructured"` - a draft, not
+published.
+
+`POST /v1/admin/faq-submissions/{id}/review` - body identity,
+`{"user_profile": {...}, "internal_review_status": "approved", "final_answer": "...", "published": true}`.
+Returns the updated row, `reviewed_by` set to the caller's `employee_id`.
+
+`GET /v1/faq/published` - query-param identity, any role. Returns
+`{"count": N, "faqs": [{"id": 1, "query": "...", "final_answer": "..."}]}`
+- only the 2 public-facing fields, none of the review-workflow internals.
+
+## GET/POST/PUT/DELETE /v1/admin/interview-qa — Finalized (Phase 187)
+
+Identity: query params on `GET`, body on `POST`/`PUT`/`DELETE` (Phase 96/45
+conventions, same split every other admin resource uses). `Role.ADMIN`
+only. Real CRUD, not read-only - this is genuinely editable content.
+
+```json
+{
+  "id": 1,
+  "topic": "Tool integration: search, browser, retrieval; failures & circuit breakers",
+  "topic_order": 2,
+  "card_order": 2,
+  "question": "What is a circuit breaker for tool calls, and why not just retry on failure?",
+  "hint": "N consecutive failures → trip → skip real calls for a cooldown → fail open if the check itself fails",
+  "concept": "...",
+  "situation": "...",
+  "task": "...",
+  "action": "...",
+  "result": "...",
+  "project_link": "...",
+  "leadership_angle": "...",
+  "trade_offs": ["...", "..."],
+  "keywords": [{"term": "Circuit breaker", "definition": "..."}],
+  "tech_stack": ["Python", "FastAPI", "psycopg"],
+  "feature_references": [{"label": "_check_circuit_breaker()", "file_path": "src/hrb_chatbot/ai/rag_pipeline/tools/mcp_tools/__init__.py"}],
+  "created_at": "2026-10-15T...",
+  "updated_at": "2026-10-15T..."
+}
+```
+`GET /v1/admin/interview-qa` (list, optional `?topic=...` filter) wraps
+this in `{"count": N, "cards": [...]}`. `POST` body omits `id`/
+`created_at`/`updated_at`. `PUT`/`DELETE` take `{id}` in the path, `PUT`
+body is the same shape as `POST`. 404 (new code `ADMIN_INTERVIEW_QA_NOT_FOUND`)
+for an unknown id on `PUT`/`DELETE`/`GET .../{id}`.
+
 ## POST /v1/genai-rag/ingest-document/documents/presigned-upload — Finalized (Phase 89)
 
 **Additive, confirmed with the user 2026-10-06 - does not replace, and

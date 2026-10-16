@@ -5,6 +5,7 @@ API key, so these fakes match the real clients' method signatures exactly.
 restores it automatically - like Mockito, but on Python's module names."""
 
 import os
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from langchain_core.embeddings import Embeddings
@@ -660,17 +661,40 @@ class FakeAnswerCache:
 
 
 class FakeAdminCredentialStore:
-    """Stands in for AdminCredentialStore (Phase 171) - plain in-memory dict,
-    same async interface as the real salted-hash Postgres-backed one, never
-    touches a real database."""
+    """Stands in for AdminCredentialStore (Phase 171, lockout added
+    Milestone 3) - plain in-memory dict, same async interface as the real
+    salted-hash Postgres-backed one, never touches a real database."""
+
+    MAX_FAILED_ATTEMPTS = 5
 
     def __init__(self):
         self._credentials: dict[str, dict] = {}
 
+    def _row(self, employee_id):
+        row = self._credentials[employee_id]
+        locked_until = row["locked_until"]
+        is_locked = locked_until is not None and locked_until > datetime.now(UTC)
+        return {
+            "must_reset": row["must_reset"],
+            "failed_attempts": row["failed_attempts"],
+            "locked_until": locked_until,
+            "is_locked": is_locked,
+        }
+
     async def get_or_seed(self, employee_id, default_secret_code):
         if employee_id not in self._credentials:
-            self._credentials[employee_id] = {"secret_code": default_secret_code, "must_reset": True}
-        return {"must_reset": self._credentials[employee_id]["must_reset"]}
+            self._credentials[employee_id] = {
+                "secret_code": default_secret_code,
+                "must_reset": True,
+                "failed_attempts": 0,
+                "locked_until": None,
+            }
+        return self._row(employee_id)
+
+    async def get_credential(self, employee_id):
+        if employee_id not in self._credentials:
+            return None
+        return self._row(employee_id)
 
     async def verify_secret_code(self, employee_id, candidate):
         # Deliberately never seeds - matches the real store's fix (a wrong
@@ -681,7 +705,31 @@ class FakeAdminCredentialStore:
         return candidate == self._credentials[employee_id]["secret_code"]
 
     async def set_secret_code(self, employee_id, new_secret_code):
-        self._credentials[employee_id] = {"secret_code": new_secret_code, "must_reset": False}
+        self._credentials[employee_id] = {
+            "secret_code": new_secret_code,
+            "must_reset": False,
+            "failed_attempts": 0,
+            "locked_until": None,
+        }
+
+    async def record_failed_attempt(self, employee_id):
+        row = self._credentials[employee_id]
+        row["failed_attempts"] += 1
+        if row["failed_attempts"] >= self.MAX_FAILED_ATTEMPTS:
+            row["locked_until"] = datetime.now(UTC) + timedelta(minutes=15)
+
+    async def reset_failed_attempts(self, employee_id):
+        row = self._credentials[employee_id]
+        row["failed_attempts"] = 0
+        row["locked_until"] = None
+
+    async def force_unlock_and_require_reset(self, employee_id, temp_secret_code):
+        self._credentials[employee_id] = {
+            "secret_code": temp_secret_code,
+            "must_reset": True,
+            "failed_attempts": 0,
+            "locked_until": None,
+        }
 
     def health_check(self):
         return {"provider": "postgres", "status": "healthy"}
@@ -726,6 +774,219 @@ class FakeDocMetadataStore:
         return {"provider": "postgres", "status": "healthy"}
 
 
+class FakeGoldenDatasetStore:
+    """Stands in for GoldenDatasetStore (Phase 181) - plain in-memory list,
+    same async interface as the real Postgres-backed one, never touches a
+    real database."""
+
+    def __init__(self, cases: list[dict] | None = None):
+        self._cases = cases or []
+
+    async def list_cases(self):
+        return list(self._cases)
+
+    def health_check(self):
+        return {"provider": "postgres", "status": "healthy"}
+
+
+class FakeEvalRunStore:
+    """Stands in for EvalRunStore (Phase 182) - plain in-memory list, same
+    async interface as the real Postgres-backed one, never touches a real
+    database."""
+
+    def __init__(self, runs: list[dict] | None = None):
+        self._runs = runs or []
+        self._next_id = max((run["id"] for run in self._runs), default=0) + 1
+
+    async def record_run(self, decision, flags, aggregated_scores, total_cases, scored_cases, failed_case_ids, retrieval_k, case_results):
+        run_id = self._next_id
+        self._next_id += 1
+        self._runs.append(
+            {
+                "id": run_id,
+                "run_at": "2026-10-15T00:00:00Z",
+                "decision": decision,
+                "flags": flags,
+                "aggregated_scores": aggregated_scores,
+                "total_cases": total_cases,
+                "scored_cases": scored_cases,
+                "failed_case_ids": failed_case_ids,
+                "retrieval_k": retrieval_k,
+                "cases": case_results,
+            }
+        )
+        return run_id
+
+    async def list_runs(self):
+        return [{k: v for k, v in run.items() if k != "cases"} for run in self._runs]
+
+    async def get_run(self, run_id):
+        for run in self._runs:
+            if run["id"] == run_id:
+                return run
+        return None
+
+    def health_check(self):
+        return {"provider": "postgres", "status": "healthy"}
+
+
+class FakeRequestMetricsStore:
+    """Stands in for RequestMetricsStore (Phase 184) - plain in-memory list,
+    same async interface as the real Postgres-backed one, never touches a
+    real database. Every query-route test now goes through this (via
+    time_and_log()), so it must exist here even though most tests don't
+    assert anything about it."""
+
+    def __init__(self):
+        self.logged_calls: list[dict] = []
+
+    async def log_request(self, endpoint, pipeline, token_count, latency_ms, status, error_code=None):
+        self.logged_calls.append(
+            {
+                "endpoint": endpoint,
+                "pipeline": pipeline,
+                "token_count": token_count,
+                "latency_ms": latency_ms,
+                "status": status,
+                "error_code": error_code,
+            }
+        )
+
+    async def aggregate(self, window_hours):
+        return {"window_hours": window_hours, "rows": []}
+
+    def health_check(self):
+        return {"provider": "postgres", "status": "healthy"}
+
+
+class FakeFaqSubmissionStore:
+    """Stands in for FaqSubmissionStore (Phase 186) - plain in-memory list,
+    same async interface as the real Postgres-backed one, never touches a
+    real database."""
+
+    def __init__(self):
+        self._rows: dict[int, dict] = {}
+        self._next_id = 1
+
+    async def create_submission(self, employee_id, query, external_llm_answer):
+        row = {
+            "id": self._next_id,
+            "employee_id": employee_id,
+            "query": query,
+            "external_llm_answer": external_llm_answer,
+            "internal_review_status": "pending",
+            "answer_restructuring_status": "not_started",
+            "final_answer": None,
+            "published": False,
+            "reviewed_by": None,
+            "created_at": "2026-10-15T00:00:00Z",
+            "updated_at": "2026-10-15T00:00:00Z",
+        }
+        self._rows[self._next_id] = row
+        self._next_id += 1
+        return dict(row)
+
+    async def list_submissions(self):
+        return [dict(row) for row in sorted(self._rows.values(), key=lambda r: r["id"], reverse=True)]
+
+    async def list_published(self):
+        return [
+            {"id": row["id"], "query": row["query"], "final_answer": row["final_answer"]}
+            for row in self._rows.values()
+            if row["published"]
+        ]
+
+    async def get_submission(self, submission_id):
+        row = self._rows.get(submission_id)
+        return dict(row) if row else None
+
+    async def update_restructured_answer(self, submission_id, final_answer):
+        row = self._rows.get(submission_id)
+        if row is None:
+            return None
+        row["final_answer"] = final_answer
+        row["answer_restructuring_status"] = "claude_restructured"
+        return dict(row)
+
+    async def review_submission(self, submission_id, internal_review_status, final_answer, published, reviewed_by, restructuring_status):
+        row = self._rows.get(submission_id)
+        if row is None:
+            return None
+        row["internal_review_status"] = internal_review_status
+        row["final_answer"] = final_answer
+        row["published"] = published
+        row["reviewed_by"] = reviewed_by
+        row["answer_restructuring_status"] = restructuring_status
+        return dict(row)
+
+    def health_check(self):
+        return {"provider": "postgres", "status": "healthy"}
+
+
+class FakeInterviewQaStore:
+    """Stands in for InterviewQaStore (Phase 187) - plain in-memory dict,
+    same async interface as the real Postgres-backed one, never touches a
+    real database."""
+
+    def __init__(self):
+        self._rows: dict[int, dict] = {}
+        self._next_id = 1
+
+    async def list_cards(self, topic=None):
+        rows = list(self._rows.values())
+        if topic:
+            rows = [row for row in rows if row["topic"] == topic]
+        return [dict(row) for row in sorted(rows, key=lambda r: (r["topic_order"], r["card_order"]))]
+
+    async def get_card(self, card_id):
+        row = self._rows.get(card_id)
+        return dict(row) if row else None
+
+    async def create_card(self, fields):
+        row = {
+            "id": self._next_id,
+            "topic": fields.get("topic"),
+            "topic_order": fields.get("topic_order", 0),
+            "card_order": fields.get("card_order", 0),
+            "question": fields.get("question"),
+            "hint": fields.get("hint"),
+            "concept": fields.get("concept"),
+            "situation": fields.get("situation"),
+            "task": fields.get("task"),
+            "action": fields.get("action"),
+            "result": fields.get("result"),
+            "project_link": fields.get("project_link"),
+            "leadership_angle": fields.get("leadership_angle"),
+            "trade_offs": fields.get("trade_offs") or [],
+            "keywords": fields.get("keywords") or [],
+            "tech_stack": fields.get("tech_stack") or [],
+            "feature_references": fields.get("feature_references") or [],
+            "created_at": "2026-10-15T00:00:00Z",
+            "updated_at": "2026-10-15T00:00:00Z",
+        }
+        self._rows[self._next_id] = row
+        self._next_id += 1
+        return dict(row)
+
+    async def update_card(self, card_id, fields):
+        row = self._rows.get(card_id)
+        if row is None:
+            return None
+        for key in (
+            "topic", "topic_order", "card_order", "question", "hint", "concept", "situation", "task", "action",
+            "result", "project_link", "leadership_angle", "trade_offs", "keywords", "tech_stack", "feature_references",
+        ):
+            if key in fields:
+                row[key] = fields[key]
+        return dict(row)
+
+    async def delete_card(self, card_id):
+        return self._rows.pop(card_id, None) is not None
+
+    def health_check(self):
+        return {"provider": "postgres", "status": "healthy"}
+
+
 class FakeDBGateway:
     """Stands in for DBGateway - returns the one FakeVectorStore/FakeMetadataStore/
     FakeConversationStore/FakeEmbeddingCache/FakeAnswerCache given to it regardless
@@ -744,6 +1005,11 @@ class FakeDBGateway:
         admin_credential_store: "FakeAdminCredentialStore | None" = None,
         agent_thread_store: "FakeAgentThreadStore | None" = None,
         doc_metadata_store: "FakeDocMetadataStore | None" = None,
+        golden_dataset_store: "FakeGoldenDatasetStore | None" = None,
+        eval_run_store: "FakeEvalRunStore | None" = None,
+        request_metrics_store: "FakeRequestMetricsStore | None" = None,
+        faq_submission_store: "FakeFaqSubmissionStore | None" = None,
+        interview_qa_store: "FakeInterviewQaStore | None" = None,
     ):
         self._vector_store = vector_store or FakeVectorStore()
         self._metadata_store = metadata_store or FakeMetadataStore()
@@ -755,6 +1021,11 @@ class FakeDBGateway:
         self._admin_credential_store = admin_credential_store or FakeAdminCredentialStore()
         self._agent_thread_store = agent_thread_store or FakeAgentThreadStore()
         self._doc_metadata_store = doc_metadata_store or FakeDocMetadataStore()
+        self._golden_dataset_store = golden_dataset_store or FakeGoldenDatasetStore()
+        self._eval_run_store = eval_run_store or FakeEvalRunStore()
+        self._request_metrics_store = request_metrics_store or FakeRequestMetricsStore()
+        self._faq_submission_store = faq_submission_store or FakeFaqSubmissionStore()
+        self._interview_qa_store = interview_qa_store or FakeInterviewQaStore()
 
     def vector_store(self, provider=None):
         return self._vector_store
@@ -785,3 +1056,18 @@ class FakeDBGateway:
 
     def doc_metadata_store(self):
         return self._doc_metadata_store
+
+    def golden_dataset_store(self):
+        return self._golden_dataset_store
+
+    def eval_run_store(self):
+        return self._eval_run_store
+
+    def request_metrics_store(self):
+        return self._request_metrics_store
+
+    def faq_submission_store(self):
+        return self._faq_submission_store
+
+    def interview_qa_store(self):
+        return self._interview_qa_store

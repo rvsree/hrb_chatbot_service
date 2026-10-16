@@ -1,0 +1,149 @@
+<title>Vector DB Indexing & Re-indexing Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef4f2; --surface: #ffffff; --surface-alt: #f3f7f5; --border: #d8e4e0;
+    --text: #131c1a; --text-muted: #4f5f5a; --text-faint: #839290;
+    --live: #14713f; --live-bg: #e3f6eb; --live-border: #b6e4c8;
+    --planned: #9a5a0c; --planned-bg: #fbf1dd; --planned-border: #edd6a2;
+    --proto: #106b78; --proto-bg: #e1f3f6; --proto-border: #b7e2e9;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0e2e26;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0a1310; --surface: #141f1a; --surface-alt: #16221c; --border: #253630;
+      --text: #e6efec; --text-muted: #9fb5ae; --text-faint: #647873;
+      --live: #4fc989; --live-bg: #132a1e; --live-border: #204a32;
+      --planned: #e0ac48; --planned-bg: #2c2311; --planned-border: #4a3a17;
+      --proto: #4fc7d6; --proto-bg: #0f2a2e; --proto-border: #1c454c;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0a1f19;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0a1310; --surface: #141f1a; --surface-alt: #16221c; --border: #253630;
+    --text: #e6efec; --text-muted: #9fb5ae; --text-faint: #647873;
+    --live: #4fc989; --live-bg: #132a1e; --live-border: #204a32;
+    --planned: #e0ac48; --planned-bg: #2c2311; --planned-border: #4a3a17;
+    --proto: #4fc7d6; --proto-bg: #0f2a2e; --proto-border: #1c454c;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0a1f19;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; } .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--proto); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 3.8vw, 32px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 13.5px; max-width: 82ch; line-height: 1.6; }
+
+  section.panel { display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 10px; }
+  .panel-num { width: 28px; height: 28px; border-radius: 8px; background: var(--band-dark); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 12px; }
+  .panel-title { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 16px; }
+
+  table.strat-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.strat-table th, table.strat-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+  table.strat-table th { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--text-faint); background: var(--surface-alt); }
+  table.strat-table tr:last-child td { border-bottom: none; }
+
+  .callout { display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; border-radius: 10px; padding: 11px 14px; line-height: 1.55; }
+  .callout.live { background: var(--live-bg); border: 1px solid var(--live-border); color: var(--live); }
+  .callout.planned { background: var(--planned-bg); border: 1px solid var(--planned-border); color: var(--planned); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .card { border: 1px solid var(--border); border-radius: 12px; padding: 13px 15px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 6px; }
+  .card-label { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13px; }
+  .card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+  .steps { display: flex; flex-direction: column; gap: 8px; }
+  .step { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; line-height: 1.55; }
+  .step-num { font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 11px; color: #fff; background: var(--band-dark); border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; flex: none; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">chunking strategy, chunk sizing, re-indexing triggers, and vector DB choice - grounded in the real code</div>
+    <h1 class="display">Vector DB Indexing &amp; Re-indexing Optimization Guide</h1>
+    <p class="subtitle">Every tradeoff below matches this project's own real <span class="mono">text_chunker.py</span>/<span class="mono">vector_indexer.py</span> code and the chunking-strategy help text already shown in the UI - not generic RAG advice.</p>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">01</div><div class="panel-title">Choosing a chunking strategy</div></div>
+    <p style="margin:0;font-size:12.5px;color:var(--text-muted);">6 strategies, auto-selected by <span class="mono">decide_chunking_strategy()</span> when not given explicitly - picks based on document length (very short documents skip chunking entirely; very long ones get a larger chunk size).</p>
+    <div class="table-wrap">
+      <table class="strat-table">
+        <thead><tr><th>Strategy</th><th>What it does</th><th>Chunk-count tendency</th><th>Retrieval impact</th></tr></thead>
+        <tbody>
+          <tr><td><span class="mono">recursive</span> (default)</td><td>Paragraph → line → sentence breaks, falls back to a hard cut.</td><td>Many, similarly-sized chunks.</td><td>Balanced precision/completeness - a boundary can still split a fact across two chunks.</td></tr>
+          <tr><td><span class="mono">fixed</span></td><td>Splits on a single separator only.</td><td>Many, similarly-sized chunks.</td><td>Similar to recursive, slightly higher chance of a mid-sentence cut.</td></tr>
+          <tr><td><span class="mono">semantic</span></td><td>An embedding call decides where topics shift - no size ceiling of its own, capped by a safety-net re-split.</td><td>Fewer, topic-grouped chunks.</td><td>Better completeness on broad questions, can bury a narrow fact in a larger chunk. Costs a real embedding call per sentence.</td></tr>
+          <tr><td><span class="mono">markdown</span> / <span class="mono">html</span></td><td>Splits on markdown headers or HTML heading tags.</td><td>Depends entirely on real headers existing.</td><td>Can hurt precision badly if the document has none - most PDF-extracted text has neither.</td></tr>
+          <tr><td><span class="mono">none</span></td><td>No deliberate splitting - one chunk, capped only as a safety net.</td><td>Exactly 1 chunk (or a few, for a very large document).</td><td>Best completeness, zero targeted retrieval - every query against this document returns the same chunk(s).</td></tr>
+          <tr><td><span class="mono">document_structure</span></td><td>This project's own real section headings ("Section 2: Eligibility", "2.1 ...") - confirmed by regex count against the real KB PDFs, not a generic heading guess.</td><td>Follows the document's real sections.</td><td>Better completeness for section-level questions, when real headings exist.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout live">
+      <span><strong>A table is never split across two chunks</strong> - <span class="mono">table_extractor.py</span> pulls <span class="mono">[TABLE]...[/TABLE]</span> blocks out before chunking runs, regardless of strategy.</span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">02</div><div class="panel-title">Chunk size and overlap - what actually moves the needle</div></div>
+    <div class="grid">
+      <div class="card">
+        <div class="card-label">Chunk size (default 1000 chars)</div>
+        <div class="card-desc">Smaller = more precise for narrow fact lookups, but loses surrounding context. Larger = keeps context together, but a too-large chunk dilutes its own embedding and hurts retrieval precision - the same problem re-indexing with a different strategy is meant to fix.</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Overlap (default 150 chars, ~15%)</div>
+        <div class="card-desc">Repeats a few characters between consecutive chunks so a sentence right on a boundary still appears whole in at least one chunk. Too little risks losing a boundary fact; too much just duplicates content across chunks, wasting index space for no retrieval gain.</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Document-length thresholds</div>
+        <div class="card-desc">Below <span class="mono">DEFAULT_CHUNK_SIZE</span> (1000 chars), a document fits in one chunk regardless of strategy. Above <span class="mono">CHUNK_LARGE_DOCUMENT_MIN_LENGTH</span> (10,000 chars default), the default size would fragment it into 10+ tiny, low-context chunks - auto-selection switches to a larger size instead.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">03</div><div class="panel-title">When to actually re-index a document</div></div>
+    <div class="steps">
+      <div class="step"><span class="step-num">1</span><span><strong>Embedding model mismatch</strong> - the clearest, UI-surfaced trigger. A document indexed with one embedding model but queried against a different active one shows a real "⚠ mismatch" warning in the Documents table today - retrieval against that document is unreliable until it's re-indexed with the current model.</span></div>
+      <div class="step"><span class="step-num">2</span><span><strong>Retrieval quality looks wrong for one document specifically</strong> - a narrow-fact query never surfaces a document you know contains the answer. Try <span class="mono">document_structure</span> (if the doc has real section headings) or a smaller chunk size before assuming the embedding model itself is the problem.</span></div>
+      <div class="step"><span class="step-num">3</span><span><strong>A document's own source content changed</strong> - re-uploading via "replace" (not a fresh upload) marks the old version not-current and indexes the new file as current, handled by <span class="mono">vector_indexer.py</span>'s supersede logic automatically, not something to trigger by hand.</span></div>
+    </div>
+    <div class="callout live">
+      <span><strong>Re-indexing is a full re-embed, not incremental</strong> - every chunk for that document is deleted and rewritten (old chunk ids computed, stale ones removed, new ones written), confirmed in <span class="mono">write_chunks()</span>. There's no partial/delta re-index - budget for a real embedding-API cost per re-index, same as the original upload.</span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">04</div><div class="panel-title">Vector DB choice: ChromaDB vs. Pinecone</div></div>
+    <div class="grid">
+      <div class="card">
+        <div class="card-label">ChromaDB - local dev default</div>
+        <div class="card-desc">File-based, no external account needed, zero cost - the right choice for local development and testing. Cannot run in AWS Lambda's ephemeral filesystem (a real constraint this project hit directly), so it's not an option for any serverless ingestion path.</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Pinecone - the real production backend</div>
+        <div class="card-desc"><span class="mono">RAG_VECTOR_DB=pinecone</span> is this project's actual live configuration in production. A managed, hosted service - usable from Lambda, no filesystem constraint - at the cost of a real external dependency and its own API latency per call.</div>
+      </div>
+    </div>
+    <div class="callout planned">
+      <span>Switching the active vector DB is a config value (<span class="mono">RAG_VECTOR_DB</span>), not a code change - but switching does NOT migrate existing indexed chunks between backends. Every document indexed under the old backend needs a real re-index under the new one before it's queryable there.</span>
+    </div>
+  </section>
+
+  <footer>
+    Grounded in: <code class="mono">ai/doc_processing/chunking/text_chunker.py</code>, <code class="mono">ai/doc_processing/indexing/vector_indexer.py</code>, <code class="mono">hrb_chatbot_ui/src/pages/DocumentsPage.tsx</code>'s own chunking-strategy help text, <code class="mono">docs/agent-reference/AWS-DEVOPS-RUNBOOK.md</code> (Pinecone/Lambda constraint). Snapshot: 2026-10-15.
+  </footer>
+
+</div>

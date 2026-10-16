@@ -8,7 +8,6 @@ Phase 165 expanded this past UNPAID-only (CRITICAL_CAREGIVER/STD/LTD added),
 closed the no-notification/no-document-review gaps (email on resolve + a
 real download link), and added an employee-facing "My Requests" view."""
 
-import json
 import uuid
 
 from fastapi import APIRouter, Depends, Request
@@ -19,7 +18,7 @@ from src.hrb_chatbot.ai.agents.workflow_agents.unpaid_leave_agent import (
     run_unpaid_leave_request,
 )
 from src.hrb_chatbot.ai.rag_pipeline.tools.mcp_tools import (
-    _call_mcp_tool,
+    _call_mcp_tool_json,
     list_all_leave_requests,
     list_leave_documents,
     list_my_leave_requests,
@@ -134,10 +133,9 @@ async def list_pending_unpaid_leave_requests(user_profile: str, request: Request
     await enforce_rate_limit(request)
 
     try:
-        mcp_result = await _call_mcp_tool(
+        data = await _call_mcp_tool_json(
             "list_hitl_requests", {"status": "PENDING", "request_type": "UNPAID_LEAVE_REQUEST"}
         )
-        data = json.loads(mcp_result["content"][0])
     except Exception as error:
         logger.error("Listing pending unpaid leave requests failed: %s: %s", type(error).__name__, error)
         return json_error(500, "Could not load pending leave requests. Please try again.", code=error_codes.LEAVE_REQUEST_FAILED)
@@ -168,8 +166,9 @@ async def list_all_unpaid_leave_requests(user_profile: UserProfile | None = Depe
     identity (Phase 96), same as every other GET route here. Also ADMIN-
     accessible (round 3) - the admin dashboard's own Leave Requests tab
     reuses this exact route/shape rather than the narrower generic-HITL
-    one /v1/admin/leave-requests returns, for the same richer popup."""
-    require_role(user_profile, Role.HR_SUPPORT, Role.ADMIN)
+    one /v1/admin/leave-requests returns, for the same richer popup.
+    Also EMPLOYEE_ADMIN (2026-10-15) - same tab, same two admin tiers."""
+    require_role(user_profile, Role.HR_SUPPORT, Role.ADMIN, Role.EMPLOYEE_ADMIN)
 
     try:
         data = await list_all_leave_requests(status="all")
@@ -298,7 +297,7 @@ async def get_leave_document_download_url(
     specific caller may see this specific request's document") - without
     it, any employee could fetch any other employee's document just by
     guessing a leave_request_id."""
-    user = require_role(user_profile, Role.EMPLOYEE, Role.MANAGER, Role.HR_SUPPORT, Role.ADMIN)
+    user = require_role(user_profile, Role.EMPLOYEE, Role.MANAGER, Role.HR_SUPPORT, Role.ADMIN, Role.EMPLOYEE_ADMIN)
 
     try:
         data = await list_leave_documents(leave_request_id)
@@ -309,7 +308,8 @@ async def get_leave_document_download_url(
     is_owner = data.get("ownerEmployeeId") == user.employee_id
     # Phase 178 - ADMIN sees every document the same way HR_SUPPORT does,
     # matching list_all_unpaid_leave_requests()'s own ADMIN-visibility.
-    is_specialist = user.role in (Role.HR_SUPPORT, Role.ADMIN)
+    # 2026-10-15 - EMPLOYEE_ADMIN too, same Leave Approvals tab.
+    is_specialist = user.role in (Role.HR_SUPPORT, Role.ADMIN, Role.EMPLOYEE_ADMIN)
     if not (is_owner or is_specialist):
         return json_error(403, "You don't have access to this document.", code=error_codes.FORBIDDEN)
 

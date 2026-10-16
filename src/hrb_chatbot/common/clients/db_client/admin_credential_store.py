@@ -7,6 +7,7 @@ import asyncio
 import hashlib
 import hmac
 import secrets
+from datetime import UTC, datetime, timedelta
 
 import psycopg
 
@@ -22,9 +23,25 @@ CREATE TABLE IF NOT EXISTS admin_credentials (
     secret_code_hash TEXT NOT NULL,
     secret_code_salt TEXT NOT NULL,
     must_reset BOOLEAN NOT NULL DEFAULT TRUE,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    failed_attempts INTEGER NOT NULL DEFAULT 0,
+    locked_until TIMESTAMPTZ NULL
 )
 """
+
+# Milestone 3 - a table created before this phase won't have these columns
+# yet; CREATE TABLE IF NOT EXISTS above is a no-op against an existing
+# table, so this is the real migration for anyone who already has rows.
+ADD_LOCKOUT_COLUMNS = """
+ALTER TABLE admin_credentials ADD COLUMN IF NOT EXISTS failed_attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE admin_credentials ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ NULL;
+"""
+
+# Hybrid design (user-confirmed, 2026-10-15): auto-expiring lockout, plus a
+# separate recovery code that clears it immediately - see ADMIN_UNLOCK_CODE
+# in login.py. Numbers are deliberately generous, not tuned from real data.
+MAX_FAILED_ATTEMPTS = 5
+LOCKOUT_DURATION_MINUTES = 15
 
 
 def _hash_secret_code(secret_code: str, salt: str) -> str:
@@ -67,6 +84,7 @@ class AdminCredentialStore:
     def _ensure_table_sync(self) -> None:
         with self._connect() as conn:
             conn.execute(CREATE_ADMIN_CREDENTIALS_TABLE)
+            conn.execute(ADD_LOCKOUT_COLUMNS)
             conn.commit()
 
     async def _ensure_table(self) -> None:
@@ -77,13 +95,24 @@ class AdminCredentialStore:
 
     def _get_credential_sync(self, employee_id: str) -> dict | None:
         with self._connect() as conn:
+            # is_locked computed by the database's own clock, not the app
+            # server's - avoids any clock-skew between the two mattering.
             row = conn.execute(
-                "SELECT secret_code_hash, secret_code_salt, must_reset FROM admin_credentials WHERE employee_id = %s",
+                "SELECT secret_code_hash, secret_code_salt, must_reset, failed_attempts, locked_until, "
+                "(locked_until IS NOT NULL AND locked_until > now()) AS is_locked "
+                "FROM admin_credentials WHERE employee_id = %s",
                 (employee_id,),
             ).fetchone()
             if row is None:
                 return None
-            return {"secret_code_hash": row[0], "secret_code_salt": row[1], "must_reset": row[2]}
+            return {
+                "secret_code_hash": row[0],
+                "secret_code_salt": row[1],
+                "must_reset": row[2],
+                "failed_attempts": row[3],
+                "locked_until": row[4],
+                "is_locked": row[5],
+            }
 
     async def get_credential(self, employee_id: str) -> dict | None:
         """Plain lookup - never inserts. Deliberately separate from
@@ -105,7 +134,14 @@ class AdminCredentialStore:
             )
             conn.commit()
         logger.info("Seeded one-time admin secret code for employee_id=%s", employee_id)
-        return {"secret_code_hash": secret_code_hash, "secret_code_salt": salt, "must_reset": True}
+        return {
+            "secret_code_hash": secret_code_hash,
+            "secret_code_salt": salt,
+            "must_reset": True,
+            "failed_attempts": 0,
+            "locked_until": None,
+            "is_locked": False,
+        }
 
     async def get_or_seed(self, employee_id: str, default_secret_code: str) -> dict:
         """Idempotent: seeds a one-time code only if this employee_id has no
@@ -127,6 +163,64 @@ class AdminCredentialStore:
             return False
         expected_hash = _hash_secret_code(candidate, credential["secret_code_salt"])
         return hmac.compare_digest(expected_hash, credential["secret_code_hash"])
+
+    def _record_failed_attempt_sync(self, employee_id: str) -> None:
+        locked_until = datetime.now(UTC) + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE admin_credentials SET failed_attempts = failed_attempts + 1, "
+                "locked_until = CASE WHEN failed_attempts + 1 >= %s THEN %s ELSE locked_until END "
+                "WHERE employee_id = %s",
+                (MAX_FAILED_ATTEMPTS, locked_until, employee_id),
+            )
+            conn.commit()
+
+    async def record_failed_attempt(self, employee_id: str) -> None:
+        """Called only for a real wrong-code attempt that should count
+        toward the lockout - never for the login page's own speculative
+        blur-check (see LoginRequest.count_as_attempt), or a user's typing
+        mistakes while still entering their own correct code would burn
+        through the lockout budget before they ever submit."""
+        await self._ensure_table()
+        with log_backend_call(logger, "postgres", "admin_credentials.record_failed_attempt", employee_id=employee_id):
+            await asyncio.to_thread(self._record_failed_attempt_sync, employee_id)
+
+    def _reset_failed_attempts_sync(self, employee_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE admin_credentials SET failed_attempts = 0, locked_until = NULL WHERE employee_id = %s",
+                (employee_id,),
+            )
+            conn.commit()
+
+    async def reset_failed_attempts(self, employee_id: str) -> None:
+        """Called on a correct secret code - a real admin logging in
+        successfully clears any attempt count their own earlier typos ran up."""
+        await self._ensure_table()
+        with log_backend_call(logger, "postgres", "admin_credentials.reset_failed_attempts", employee_id=employee_id):
+            await asyncio.to_thread(self._reset_failed_attempts_sync, employee_id)
+
+    def _force_unlock_and_require_reset_sync(self, employee_id: str, temp_secret_code: str) -> None:
+        salt = secrets.token_hex(16)
+        secret_code_hash = _hash_secret_code(temp_secret_code, salt)
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE admin_credentials SET secret_code_hash = %s, secret_code_salt = %s, must_reset = TRUE, "
+                "failed_attempts = 0, locked_until = NULL, updated_at = now() WHERE employee_id = %s",
+                (secret_code_hash, salt, employee_id),
+            )
+            conn.commit()
+
+    async def force_unlock_and_require_reset(self, employee_id: str, temp_secret_code: str) -> None:
+        """The recovery-code path (login.py's ADMIN_UNLOCK_CODE) - clears
+        the lock and replaces the (now-unknown-to-the-admin) secret code
+        with temp_secret_code, exactly the same must_reset=TRUE pattern
+        get_or_seed() already uses for a brand-new admin. The admin then
+        authenticates the /admin/reset-secret-code page with
+        temp_secret_code as their "current" code, same flow either way."""
+        await self._ensure_table()
+        with log_backend_call(logger, "postgres", "admin_credentials.force_unlock_and_require_reset", employee_id=employee_id):
+            await asyncio.to_thread(self._force_unlock_and_require_reset_sync, employee_id, temp_secret_code)
 
     def _set_secret_code_sync(self, employee_id: str, new_secret_code: str) -> None:
         salt = secrets.token_hex(16)

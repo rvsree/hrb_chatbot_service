@@ -1,0 +1,272 @@
+<title>Build Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef4f2; --surface: #ffffff; --surface-alt: #f3f7f5; --border: #d8e4e0;
+    --text: #131c1a; --text-muted: #4f5f5a; --text-faint: #839290;
+    --live: #14713f; --live-bg: #e3f6eb; --live-border: #b6e4c8;
+    --planned: #9a5a0c; --planned-bg: #fbf1dd; --planned-border: #edd6a2;
+    --proto: #106b78; --proto-bg: #e1f3f6; --proto-border: #b7e2e9;
+    --gap: #a4321f; --gap-bg: #fbe9e5; --gap-border: #f0c3b8;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0e2e26; --band-mid: #16453a;
+    --lib-chip-bg: #eaf2ef; --lib-chip-text: #435750;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0a1310; --surface: #141f1a; --surface-alt: #16221c; --border: #253630;
+      --text: #e6efec; --text-muted: #9fb5ae; --text-faint: #647873;
+      --live: #4fc989; --live-bg: #132a1e; --live-border: #204a32;
+      --planned: #e0ac48; --planned-bg: #2c2311; --planned-border: #4a3a17;
+      --proto: #4fc7d6; --proto-bg: #0f2a2e; --proto-border: #1c454c;
+      --gap: #e2795f; --gap-bg: #2c1712; --gap-border: #4a271e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0a1f19; --band-mid: #123128;
+      --lib-chip-bg: #1c2823; --lib-chip-text: #a4bab3;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0a1310; --surface: #141f1a; --surface-alt: #16221c; --border: #253630;
+    --text: #e6efec; --text-muted: #9fb5ae; --text-faint: #647873;
+    --live: #4fc989; --live-bg: #132a1e; --live-border: #204a32;
+    --planned: #e0ac48; --planned-bg: #2c2311; --planned-border: #4a3a17;
+    --proto: #4fc7d6; --proto-bg: #0f2a2e; --proto-border: #1c454c;
+    --gap: #e2795f; --gap-bg: #2c1712; --gap-border: #4a271e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0a1f19; --band-mid: #123128;
+    --lib-chip-bg: #1c2823; --lib-chip-text: #a4bab3;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; } .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1140px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--proto); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(26px, 4.2vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 80ch; line-height: 1.55; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); padding: 5px 10px 5px 8px; border-radius: 999px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot.live { background: var(--live); } .dot.planned { background: var(--planned); } .dot.gap { background: var(--gap); }
+
+  .group-head { display: flex; align-items: baseline; gap: 12px; margin-top: 6px; padding-bottom: 6px; border-bottom: 2px solid var(--band-dark); }
+  .group-num { font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 13px; color: #fff; background: var(--band-dark); border-radius: 8px; padding: 3px 9px; flex: none; }
+  .group-title { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 20px; }
+  .group-sub { font-size: 12.5px; color: var(--text-faint); }
+
+  section.panel { display: flex; flex-direction: column; gap: 16px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .panel-num { width: 32px; height: 32px; border-radius: 9px; background: var(--band-dark); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 13px; }
+  .panel-title { display: flex; flex-direction: column; }
+  .panel-title .name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17.5px; }
+  .panel-title .sub { font-size: 12px; color: var(--text-faint); }
+  .panel-badge { margin-left: auto; font-size: 11px; font-weight: 700; padding: 4px 11px; border-radius: 999px; text-transform: uppercase; }
+  .panel-badge.live { color: var(--live); background: var(--live-bg); border: 1px solid var(--live-border); }
+  .panel-badge.planned { color: var(--planned); background: var(--planned-bg); border: 1px solid var(--planned-border); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .card { border: 1px solid var(--border); border-radius: 12px; padding: 13px 15px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 6px; }
+  .card-label { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13px; }
+  .card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+  .chip { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; padding: 2px 6px; border-radius: 5px; background: var(--lib-chip-bg); color: var(--lib-chip-text); }
+
+  .callout { display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; border-radius: 10px; padding: 11px 14px; line-height: 1.55; }
+  .callout svg { flex: none; width: 16px; height: 16px; margin-top: 1px; }
+  .callout.planned { background: var(--planned-bg); border: 1px solid var(--planned-border); color: var(--planned); }
+  .callout.live { background: var(--live-bg); border: 1px solid var(--live-border); color: var(--live); }
+  .callout.gap { background: var(--gap-bg); border: 1px solid var(--gap-border); color: var(--gap); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table caption { text-align: left; font-size: 11px; color: var(--text-faint); margin-bottom: 6px; }
+  th, td { text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.5; }
+  th { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-faint); background: var(--surface-alt); }
+  tr:last-child td { border-bottom: none; }
+  td .mono, th .mono { font-size: 11.5px; }
+  .table-wrap { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .table-wrap table { margin: 0; }
+  .badge-yes { color: var(--live); font-weight: 700; }
+  .badge-no { color: var(--gap); font-weight: 700; }
+
+  .steps { display: flex; flex-direction: column; gap: 10px; }
+  .step { display: flex; gap: 12px; border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface-alt); }
+  .step-num { font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 13px; color: #fff; background: var(--band-mid); border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; flex: none; }
+  .step-body { display: flex; flex-direction: column; gap: 6px; }
+  .step-title { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13.5px; }
+  .step-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.55; }
+  pre.cmd { margin: 0; background: var(--band-dark); color: #d9efe6; border-radius: 8px; padding: 10px 12px; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; overflow-x: auto; line-height: 1.5; }
+
+  .diagram-wrap { background: var(--surface-alt); border: 1px solid var(--border); border-radius: 10px; padding: 10px; overflow-x: auto; }
+  .diagram-wrap img { display: block; width: 100%; height: auto; border-radius: 6px; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">for anyone building and shipping a change in hrb_chatbot_v2</div>
+    <h1 class="display">Build Guide</h1>
+    <p class="subtitle">How to build and ship a change in this project: the local dev loop, the branch strategy, every real CI gate and its threshold, the Docker build flags that are each load-bearing, and the ECR push - every command and threshold below is real, not illustrative. Stops at "image pushed to ECR"; triggering, polling, and smoke-testing the actual App Runner deploy is covered in <span class="mono">docs/dev-reference/deployment-verification-guide/</span>. Split out of <span class="mono">docs/dev-reference/developer-onboarding/</span> on 2026-10-15.</p>
+    <div class="legend">
+      <span class="legend-item"><span class="dot live"></span>Confirmed in real code/docs</span>
+      <span class="legend-item"><span class="dot planned"></span>Design only / not yet live</span>
+      <span class="legend-item"><span class="dot gap"></span>Unconfirmed - flagged, not guessed</span>
+    </div>
+  </header>
+
+  <!-- ============================================================ -->
+  <div class="group-head">
+    <span class="group-num">1</span>
+    <div><div class="group-title display">Build Manual - Local Dev Loop Through ECR Push</div><div class="group-sub">step by step, grouped by topic - every command and threshold below is real, not illustrative</div></div>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">01</div>
+      <div class="panel-title"><span class="name display">Local dev loop</span><span class="sub">the fast inner loop, before anything touches git</span></div>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Install into a venv</div>
+          <div class="step-desc">Python 3.12 only, not 3.13/3.14 - <span class="mono">chromadb</span> depends on removed Pydantic v1 internals on newer Pythons. Everything imports as <span class="mono">from src.hrb_chatbot....</span>, so always run as a module from the repo root.</div>
+          <pre class="cmd">.venv\Scripts\python.exe -m pip install -r requirements.txt -r requirements-dev.txt</pre>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">Run the full test suite</div>
+          <div class="step-desc">No test needs a real API key, network call, or costs money - <span class="mono">tests/conftest.py</span>'s fakes match every real client's method signature exactly, so this passes identically with or without <span class="mono">.env</span> configured.</div>
+          <pre class="cmd">.venv\Scripts\python.exe -m pytest -v --cov=src/hrb_chatbot --cov-report=term-missing --cov-fail-under=45</pre>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">Run it locally and hit it</div>
+          <div class="step-desc">The equivalent of <span class="mono">mvn spring-boot:run</span> - a separate process, not something <span class="mono">main.py</span> does by itself (see the Developer Onboarding Guide's bootstrap row). If <span class="mono">/health</span> doesn't come back <span class="mono">{"status": "healthy", ...}</span>, nothing downstream (Docker, ECR, App Runner) will work either - don't skip straight to containerizing.</div>
+          <pre class="cmd">.venv\Scripts\python.exe -m uvicorn src.hrb_chatbot.main:app --reload --port 8093
+curl http://127.0.0.1:8093/health</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">02</div>
+      <div class="panel-title"><span class="name display">Branch strategy - why each promotion exists</span><span class="sub"><span class="mono">feature-*</span> &rarr; <span class="mono">develop</span> &rarr; <span class="mono">master</span></span></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Branch</th><th>What it's for</th><th>What deploys from it</th></tr></thead>
+        <tbody>
+          <tr><td><span class="mono">feature-&lt;short-name&gt;</span></td><td>one area of new work - one per effort, not one per person. Named <span class="mono">feature-&lt;short-kebab-name&gt;</span>, e.g. the current <span class="mono">feature-hrb-chatbot-subdomain</span>.</td><td>nothing directly - <span class="mono">ci.yml</span> runs (tests, coverage, security) on every push, so a gate failing is visible immediately, not as a surprise later</td></tr>
+          <tr><td><span class="mono">develop</span></td><td>integration branch - where finished feature branches land and get tested together before they're trusted</td><td>nothing today - it has no deploy target at all; a real gap against "test on develop, then deploy from there," documented as an open, un-made decision (Option A: keep as-is vs. Option B: a second App Runner service, an ongoing AWS cost not provisioned without explicit go-ahead)</td></tr>
+          <tr><td><span class="mono">master</span></td><td>production - what's actually live</td><td><span class="mono">deploy.yml</span> - every push here builds, pushes to ECR, and redeploys the real App Runner service. This is the only branch that arms the deploy workflow, no matter how many times <span class="mono">develop</span> or a feature branch gets pushed.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout gap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+      <span>Unlike a Spring shop with branch-protection rules, <strong>nothing here technically stops a direct push straight to <span class="mono">master</span></strong>, bypassing every gate below - no GitHub branch-protection rule requiring a passing CI run or an approval is configured yet (<span class="mono">docs/agent-reference/CICD-BRANCHING-STRATEGY.md</span>). The gates exist in CI; nothing today <em>requires</em> going through them.</span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">03</div>
+      <div class="panel-title"><span class="name display">Every CI gate on a push/PR, and its real threshold</span><span class="sub"><span class="mono">.github/workflows/ci.yml</span> runs on every branch, every push - not just on the way into <span class="mono">develop</span></span></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Gate</th><th>Enforced by</th><th>Threshold today</th><th>Blocking?</th></tr></thead>
+        <tbody>
+          <tr><td>Import sanity</td><td><span class="mono">ci.yml</span> <span class="mono">test</span> job</td><td>app must import cleanly</td><td><span class="badge-yes">Yes</span></td></tr>
+          <tr><td>Unit + integration tests</td><td><span class="mono">test</span> job, <span class="mono">pytest</span></td><td>100% pass rate</td><td><span class="badge-yes">Yes</span> - zero flaky tolerance</td></tr>
+          <tr><td>Coverage floor</td><td><span class="mono">test</span> job, <span class="mono">pytest-cov</span></td><td><span class="mono">--cov-fail-under=45</span> - a ratchet floor, chosen after measuring real coverage (46%), not a round number picked first</td><td><span class="badge-yes">Yes</span></td></tr>
+          <tr><td>Static security analysis</td><td><span class="mono">security</span> job, <span class="mono">bandit -ll</span></td><td>zero MEDIUM+ findings</td><td><span class="badge-yes">Yes</span></td></tr>
+          <tr><td>Dependency CVE scan</td><td><span class="mono">security</span> job, <span class="mono">pip-audit</span></td><td>none set - report only; a real triage plan exists to flip this on, not done yet</td><td><span class="badge-no">No</span> - <span class="mono">continue-on-error: true</span></td></tr>
+          <tr><td>Docker image builds</td><td><span class="mono">docker-build</span> job</td><td>must build with the same load-bearing flags as production (the Docker build panel below)</td><td><span class="badge-yes">Yes</span></td></tr>
+          <tr><td>Golden-dataset release gate (<span class="mono">genai-rag</span> only)</td><td><span class="mono">eval-gate.yml</span>, <span class="mono">scripts/run_release_gate.py</span> - manual <span class="mono">workflow_dispatch</span> only</td><td><span class="mono">get_release_decision()</span>'s PASS/REVIEW/BLOCK thresholds on recall/groundedness/completeness</td><td><span class="badge-yes">Yes, when run</span> - but not automatic, so a push can land without it ever running</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout live">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      <span>45% is deliberately not a textbook-sounding round number - the first attempt used 70% before ever actually running the suite, which would have failed on its very first run against code nobody had touched yet. Raise it as real tests get added for real code; never lower it to make a failing build pass.</span>
+    </div>
+    <div class="callout live">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      <span><span class="mono">ci.yml</span> needs no AWS credentials at all - it runs on every push/PR to any branch with zero AWS access, proving only that the app imports, tests pass at the coverage floor, bandit is clean, and the Docker image builds with the real flags (<span class="mono">pip-audit</span> runs here too but is report-only). <span class="mono">deploy.yml</span> is the only workflow that ever touches real AWS credentials - see the Deployment Verification Guide.</span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">04</div>
+      <div class="panel-title"><span class="name display">The Docker build - and why those exact flags</span><span class="sub">a plain <span class="mono">docker build</span> silently produces a container App Runner pulls but never starts</span></div>
+    </div>
+    <pre class="cmd">docker buildx build \
+  --provenance=false --sbom=false \
+  --output type=image,name=418884736369.dkr.ecr.us-east-1.amazonaws.com/hrb-chatbot:latest,oci-mediatypes=false,push=true \
+  .</pre>
+    <p style="margin:0; font-size:12.5px; color:var(--text-muted); line-height:1.6;">Every one of these flags is load-bearing, discovered by hitting the exact same generic failure (<span class="mono">CREATE_FAILED</span>, image pulled fine, zero application logs) three separate times:</p>
+    <div class="grid">
+      <div class="card">
+        <div class="card-label">1. Secret ARN missing its random suffix</div>
+        <div class="card-desc">Secrets Manager appends one to every secret name; App Runner requires the exact full ARN. Fix: never hand-type an ARN, resolve it via <span class="mono">secretsmanager list-secrets</span> at deploy time.</div>
+      </div>
+      <div class="card">
+        <div class="card-label">2. BuildKit's default provenance/SBOM attestations</div>
+        <div class="card-desc">A plain <span class="mono">docker build</span> wraps the real image in an OCI image index plus an attestation manifest - App Runner pulls it "successfully" and never actually runs it. Fix: <span class="mono">--provenance=false --sbom=false</span>.</div>
+      </div>
+      <div class="card">
+        <div class="card-label">3. OCI manifest instead of classic Docker v2 schema2</div>
+        <div class="card-desc">A second, independent cause of the <em>identical</em> symptom, confirmed via <span class="mono">docker manifest inspect</span> even after fix #2. Fix: <span class="mono">--output type=image,...,oci-mediatypes=false,push=true</span> via <span class="mono">buildx</span>, not plain <span class="mono">docker build</span>.</div>
+      </div>
+    </div>
+    <pre class="cmd"># validate before pushing
+docker image inspect hrb-chatbot:local --format "{{.Os}}/{{.Architecture}}"   # expect: linux/amd64
+
+# validate what actually got pushed
+docker manifest inspect 418884736369.dkr.ecr.us-east-1.amazonaws.com/hrb-chatbot:latest
+# expect mediaType: "application/vnd.docker.distribution.manifest.v2+json"</pre>
+    <div class="callout gap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+      <span>If you ever need to touch that build line, re-run both verification commands above <em>before</em> pushing, not after a failed deploy - someone "simplifying" it back to a bare <span class="mono">docker build -t ... .</span> would silently reintroduce one of these three.</span>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">05</div>
+      <div class="panel-title"><span class="name display">Push to ECR</span><span class="sub">the last build-side step before anything can be deployed</span></div>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Push to ECR</div>
+          <div class="step-desc">Already done by the <span class="mono">docker buildx build ... push=true</span> command above. A manual push, if you ever need one for a differently-built image:</div>
+          <pre class="cmd">aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 418884736369.dkr.ecr.us-east-1.amazonaws.com
+docker push 418884736369.dkr.ecr.us-east-1.amazonaws.com/hrb-chatbot:latest</pre>
+        </div>
+      </div>
+    </div>
+    <div class="callout gap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+      <span>The image is in ECR now, but nothing redeploys automatically from that alone (<span class="mono">AutoDeploymentsEnabled=false</span>) - triggering the actual App Runner deployment, polling for <span class="mono">RUNNING</span>, and smoke-testing it is the Deployment Verification Guide's job, not this one.</span>
+    </div>
+  </section>
+
+  <footer>
+    Grounded in: <code class="mono">requirements.txt</code>, <code class="mono">requirements-dev.txt</code>, <code class="mono">pytest.ini</code>, <code class="mono">tests/conftest.py</code>, <code class="mono">.github/workflows/ci.yml</code>, <code class="mono">docs/agent-reference/CICD-BRANCHING-STRATEGY.md</code>, <code class="mono">docs/agent-reference/AWS-DEVOPS-RUNBOOK.md</code>, <code class="mono">scripts/run_release_gate.py</code>. Snapshot: 2026-10-15. Split out of <code class="mono">docs/dev-reference/developer-onboarding/guide.html</code>'s original Section 3 (panels 06-09, plus the ECR-push half of panel 10).
+  </footer>
+
+</div>

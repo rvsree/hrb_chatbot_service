@@ -19,8 +19,12 @@ from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import (
     evaluate_groundedness,
     get_release_decision,
 )
+from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 from src.hrb_chatbot.common.config.settings import read_setting
+from src.hrb_chatbot.common.logging.logger import get_logger
 from src.hrb_chatbot.common.rag_query_params import RagQueryParams
+
+logger = get_logger("run_release_gate")
 
 METRICS = ("precision", "recall", "f1", "groundedness", "completeness")
 
@@ -111,6 +115,7 @@ async def main() -> int:
 
     per_metric_scores: dict[str, list[float]] = {metric: [] for metric in METRICS}
     failed_ids: list[str] = []
+    case_results: list[dict] = []
     print(f"Scoring {len(scorable_cases)} golden case(s) against genai-rag (retrieval k={RETRIEVAL_K})...\n")
 
     for case in scorable_cases:
@@ -122,10 +127,14 @@ async def main() -> int:
             traceback.print_exc()
             sys.stdout.flush()
             failed_ids.append(case["id"])
+            case_results.append({"case_id": case["id"], "category": case.get("category"), "scores": {}, "status": "failed"})
             continue
         for metric, score in result["scores"].items():
             if metric in per_metric_scores and score is not None:
                 per_metric_scores[metric].append(score)
+        case_results.append(
+            {"case_id": result["case_id"], "category": result["category"], "scores": result["scores"], "status": "scored"}
+        )
         print(f"  {case['id']}: {result['scores']}", flush=True)
 
     aggregated = {metric: sum(scores) / len(scores) for metric, scores in per_metric_scores.items() if scores}
@@ -157,6 +166,24 @@ async def main() -> int:
     print(f"\nRelease decision: {decision}")
     for flag in flags:
         print(f"  - {flag}")
+
+    # Phase 182 - persist this run so the Deployment Dashboard has history,
+    # not just this run's own stdout. Never allowed to affect the gate's
+    # own exit code - a persistence failure (e.g. POSTGRES_DB_HOST unset
+    # in this CI job's environment) degrades to a logged warning only.
+    try:
+        await get_db_gateway().eval_run_store().record_run(
+            decision=decision,
+            flags=flags,
+            aggregated_scores=aggregated,
+            total_cases=len(scorable_cases),
+            scored_cases=len(scorable_cases) - len(failed_ids),
+            failed_case_ids=failed_ids,
+            retrieval_k=RETRIEVAL_K,
+            case_results=case_results,
+        )
+    except Exception as error:
+        logger.warning("Could not persist this eval run - gate's own decision is unaffected: %s", error)
 
     return 1 if decision == "BLOCK" else 0
 

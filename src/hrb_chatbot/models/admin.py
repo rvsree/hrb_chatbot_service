@@ -62,3 +62,93 @@ class AdminDocListResponse(BaseModel):
 class AdminDocContentResponse(BaseModel):
     download_url: str
     expires_in_seconds: int
+
+
+class GoldenDatasetCaseSummary(BaseModel):
+    """Phase 181 - one row of the Deployment Dashboard's golden-dataset
+    viewer. raw_case carries the full original JSON case object verbatim,
+    so a new field in either source file renders without a model change."""
+
+    id: int
+    case_key: str
+    dataset: str
+    category: str | None
+    query: str | None
+    raw_case: dict
+    created_at: str
+    updated_at: str
+
+
+class GoldenDatasetListResponse(BaseModel):
+    count: int
+    cases: list[GoldenDatasetCaseSummary]
+
+
+class EvalRunSummary(BaseModel):
+    """Phase 182 - one row of the Deployment Dashboard's Eval Runs list."""
+
+    id: int
+    run_at: str
+    decision: str
+    flags: list[str]
+    aggregated_scores: dict[str, float]
+    total_cases: int
+    scored_cases: int
+    failed_case_ids: list[str]
+    retrieval_k: int
+
+
+class EvalRunListResponse(BaseModel):
+    count: int
+    runs: list[EvalRunSummary]
+
+
+class EvalRunCaseDetail(BaseModel):
+    case_id: str
+    category: str | None
+    scores: dict[str, float]
+    status: str
+
+
+class EvalRunDetail(EvalRunSummary):
+    cases: list[EvalRunCaseDetail]
+
+
+class WorkflowRunSummary(BaseModel):
+    """Phase 183 - one GitHub Actions run, as the CI/Build Status tab shows it."""
+
+    id: int
+    status: str
+    conclusion: str | None
+    head_sha: str
+    head_commit_message: str
+    html_url: str
+    created_at: str
+
+
+class WorkflowStatus(BaseModel):
+    runs: list[WorkflowRunSummary]
+    error: str | None
+
+
+class CiStatusResponse(BaseModel):
+    ci: WorkflowStatus
+    deploy: WorkflowStatus
+
+
+class PipelineMetricsRow(BaseModel):
+    """Phase 184 - one (pipeline, status) group from request_metrics,
+    aggregated over the requested time window."""
+
+    pipeline: str
+    status: str
+    request_count: int
+    avg_latency_ms: float | None
+    p50_latency_ms: float | None
+    p95_latency_ms: float | None
+    total_tokens: int | None
+
+
+class RequestMetricsResponse(BaseModel):
+    window_hours: int
+    rows: list[PipelineMetricsRow]

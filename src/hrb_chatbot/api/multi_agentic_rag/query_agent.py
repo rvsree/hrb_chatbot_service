@@ -11,6 +11,7 @@ from src.hrb_chatbot.api.gateway.rbac import require_role
 from src.hrb_chatbot.common import error_codes
 from src.hrb_chatbot.common.enums import Role
 from src.hrb_chatbot.common.logging.logger import get_logger
+from src.hrb_chatbot.common.observability.response_metrics import time_and_log
 from src.hrb_chatbot.common.rate_limiting.rate_limiter import enforce_rate_limit
 from src.hrb_chatbot.models.common import ToolCallInfo
 from src.hrb_chatbot.models.multi_agentic_rag import AgentTaskInfo, MultiAgenticRagRequest, MultiAgenticRagResponse
@@ -27,11 +28,20 @@ async def query(payload: MultiAgenticRagRequest, request: Request):
     await enforce_rate_limit(request)
 
     try:
-        result = await multi_agent_pipeline.run_multi_agent(
-            payload.query,
-            userProfile.employee_id,
-            enable_conversation_memory=payload.enable_conversation_memory,
-            conversation_id=payload.conversation_id,
+        # token_count always None here - no per-domain-agent token usage
+        # exists yet (the real `token_usage=None` below, same known gap -
+        # see BACKLOG.md's "multi-agentic-rag has no per-domain-agent
+        # token usage" entry), not fabricated to make this tab look complete.
+        result = await time_and_log(
+            "/v1/multi-agentic-rag-retrieval/query",
+            "multi-agentic-rag",
+            lambda: multi_agent_pipeline.run_multi_agent(
+                payload.query,
+                userProfile.employee_id,
+                enable_conversation_memory=payload.enable_conversation_memory,
+                conversation_id=payload.conversation_id,
+            ),
+            lambda r: None,
         )
     except GuardrailBlockedError as error:
         return json_error(422, str(error), code=error_codes.INPUT_GUARDRAIL_BLOCKED)

@@ -10,6 +10,7 @@ from src.hrb_chatbot.api.admin import manage_admin, routes_health
 from src.hrb_chatbot.api.agentic_rag import query_agent
 from src.hrb_chatbot.api.auth import login
 from src.hrb_chatbot.api.conversations import manage_conversations
+from src.hrb_chatbot.api.faq import faq_submission
 from src.hrb_chatbot.api.feedback import manage_feedback
 from src.hrb_chatbot.api.leave import unpaid_leave
 from src.hrb_chatbot.api.multi_agentic_rag import query_agent as multi_query_agent
@@ -85,6 +86,7 @@ app.include_router(manage_feedback.router_manage_feedback, prefix="/v1/feedback"
 app.include_router(adhoc_document_chat.router_adhoc_document_chat, prefix="/v1/adhoc-document-chat")
 app.include_router(unpaid_leave.router_unpaid_leave, prefix="/v1/unpaid-leave")
 app.include_router(manage_admin.router_manage_admin, prefix="/v1/admin")
+app.include_router(faq_submission.router_faq_submission, prefix="/v1/faq")
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):

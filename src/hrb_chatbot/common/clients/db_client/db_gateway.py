@@ -10,6 +10,11 @@ from src.hrb_chatbot.common.clients.db_client.chat_workflow_store import ChatWor
 from src.hrb_chatbot.common.clients.db_client.chroma_client import ChromaDBClient
 from src.hrb_chatbot.common.clients.db_client.conversation_store import ConversationStore
 from src.hrb_chatbot.common.clients.db_client.doc_metadata_store import DocMetadataStore
+from src.hrb_chatbot.common.clients.db_client.eval_run_store import EvalRunStore
+from src.hrb_chatbot.common.clients.db_client.faq_submission_store import FaqSubmissionStore
+from src.hrb_chatbot.common.clients.db_client.golden_dataset_store import GoldenDatasetStore
+from src.hrb_chatbot.common.clients.db_client.interview_qa_store import InterviewQaStore
+from src.hrb_chatbot.common.clients.db_client.request_metrics_store import RequestMetricsStore
 from src.hrb_chatbot.common.clients.db_client.feedback_store import FeedbackStore
 from src.hrb_chatbot.common.clients.db_client.pinecone_client import PineconeClient
 from src.hrb_chatbot.common.clients.db_client.postgres_client import PostgresClient
@@ -40,6 +45,11 @@ class DBGateway:
         self.admin_credential_store_client = None
         self.agent_thread_store_client = None
         self.doc_metadata_store_client = None
+        self.golden_dataset_store_client = None
+        self.eval_run_store_client = None
+        self.request_metrics_store_client = None
+        self.faq_submission_store_client = None
+        self.interview_qa_store_client = None
 
     def chroma(self) -> ChromaDBClient:
         # Return the shared ChromaDB client, building it on first use.
@@ -115,6 +125,36 @@ class DBGateway:
         if self.doc_metadata_store_client is None:
             self.doc_metadata_store_client = DocMetadataStore()
         return self.doc_metadata_store_client
+
+    def golden_dataset_store(self) -> GoldenDatasetStore:
+        """Return the shared golden-dataset store, building it on first use (Phase 181)."""
+        if self.golden_dataset_store_client is None:
+            self.golden_dataset_store_client = GoldenDatasetStore()
+        return self.golden_dataset_store_client
+
+    def eval_run_store(self) -> EvalRunStore:
+        """Return the shared eval-run store, building it on first use (Phase 182)."""
+        if self.eval_run_store_client is None:
+            self.eval_run_store_client = EvalRunStore()
+        return self.eval_run_store_client
+
+    def request_metrics_store(self) -> RequestMetricsStore:
+        """Return the shared request-metrics store, building it on first use (Phase 184)."""
+        if self.request_metrics_store_client is None:
+            self.request_metrics_store_client = RequestMetricsStore()
+        return self.request_metrics_store_client
+
+    def faq_submission_store(self) -> FaqSubmissionStore:
+        """Return the shared FAQ-submission store, building it on first use (Phase 186)."""
+        if self.faq_submission_store_client is None:
+            self.faq_submission_store_client = FaqSubmissionStore()
+        return self.faq_submission_store_client
+
+    def interview_qa_store(self) -> InterviewQaStore:
+        """Return the shared interview-Q&A store, building it on first use (Phase 187)."""
+        if self.interview_qa_store_client is None:
+            self.interview_qa_store_client = InterviewQaStore()
+        return self.interview_qa_store_client
 
     def embedding_cache(self) -> EmbeddingCache:
         """Return the shared embedding cache, building it on first use (Phase 77)."""
