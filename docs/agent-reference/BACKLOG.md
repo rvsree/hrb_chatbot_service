@@ -196,6 +196,25 @@ resolved; `❖` marks something still genuinely open.
   `master`. **Still open**: no branch protection rules exist (nothing
   requires CI to pass, or a review, before a merge into
   `develop`/`master`).
+- **`eval-gate.yml`'s results vanish when it actually runs via GitHub
+  Actions.** Found 2026-10-16 while answering a user question about CI/CD
+  status persistence (unrelated to the question - flagged here, not
+  fixed). The workflow spins up its own disposable `postgres:16` service
+  container inside the runner (`POSTGRES_DB_HOST: localhost`, meaning
+  *inside that ephemeral VM*, not this project's real Neon database).
+  `scripts/run_release_gate.py`'s `record_run()` call (Phase 182) writes
+  there successfully, but the row is destroyed the instant the job ends -
+  it never reaches Neon or any developer's local Postgres. The 40
+  `eval_runs` rows that exist in both local dev and production today got
+  there because someone ran the script by hand with `.env` pointed at
+  each target, never through this workflow. If `eval-gate.yml` is ever
+  triggered for real via `workflow_dispatch` - its entire purpose - its
+  result currently disappears. Fix would be pointing this workflow's own
+  `POSTGRES_DB_*` at Neon via GitHub Actions secrets (same pattern
+  `deploy.yml` already uses for its AWS secrets), traded off against the
+  ingested-KB-and-cache state in that job needing a real schema to write
+  into that isn't shared with production's own live data - not a trivial
+  swap, needs its own decision before changing.
 
 ## API hardening (same shape as the sibling project's NFR backlog)
 

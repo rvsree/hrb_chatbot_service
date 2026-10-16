@@ -118,6 +118,7 @@ class WorkflowRunSummary(BaseModel):
     """Phase 183 - one GitHub Actions run, as the CI/Build Status tab shows it."""
 
     id: int
+    run_number: int
     status: str
     conclusion: str | None
     head_sha: str
@@ -134,6 +135,63 @@ class WorkflowStatus(BaseModel):
 class CiStatusResponse(BaseModel):
     ci: WorkflowStatus
     deploy: WorkflowStatus
+
+
+class PipelineStepDetail(BaseModel):
+    """Phase 188 - one real GitHub Actions step, as the Pipeline stepper shows it."""
+
+    name: str
+    status: str
+    conclusion: str | None
+    started_at: str | None
+    completed_at: str | None
+
+
+class PipelineJobDetail(BaseModel):
+    name: str
+    status: str
+    conclusion: str | None
+    html_url: str
+    steps: list[PipelineStepDetail]
+
+
+class PipelineWorkflowRun(BaseModel):
+    """One workflow file's run (ci.yml / deploy.yml) for a single commit."""
+
+    workflow_file: str
+    id: int
+    run_number: int
+    status: str
+    conclusion: str | None
+    html_url: str
+    created_at: str
+    jobs: list[PipelineJobDetail]
+
+
+class PipelineStatusResponse(BaseModel):
+    head_sha: str
+    head_commit_message: str
+    head_branch: str
+    event: str
+    actor_login: str
+    runs: list[PipelineWorkflowRun]
+    eval_gate: EvalRunSummary | None
+    error: str | None
+
+
+class PipelineSnapshotSummary(BaseModel):
+    """Phase 189 - one persisted pipeline snapshot, as the history picker
+    lists it - not the full stage detail, just enough to pick one."""
+
+    id: int
+    head_sha: str
+    head_commit_message: str
+    captured_at: str
+
+
+class PipelineSnapshotListResponse(BaseModel):
+    count: int
+    snapshots: list[PipelineSnapshotSummary]
 
 
 class PipelineMetricsRow(BaseModel):

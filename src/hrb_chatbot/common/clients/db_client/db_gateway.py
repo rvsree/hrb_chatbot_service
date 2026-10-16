@@ -14,6 +14,7 @@ from src.hrb_chatbot.common.clients.db_client.eval_run_store import EvalRunStore
 from src.hrb_chatbot.common.clients.db_client.faq_submission_store import FaqSubmissionStore
 from src.hrb_chatbot.common.clients.db_client.golden_dataset_store import GoldenDatasetStore
 from src.hrb_chatbot.common.clients.db_client.interview_qa_store import InterviewQaStore
+from src.hrb_chatbot.common.clients.db_client.pipeline_run_store import PipelineRunStore
 from src.hrb_chatbot.common.clients.db_client.request_metrics_store import RequestMetricsStore
 from src.hrb_chatbot.common.clients.db_client.feedback_store import FeedbackStore
 from src.hrb_chatbot.common.clients.db_client.pinecone_client import PineconeClient
@@ -48,6 +49,7 @@ class DBGateway:
         self.golden_dataset_store_client = None
         self.eval_run_store_client = None
         self.request_metrics_store_client = None
+        self.pipeline_run_store_client = None
         self.faq_submission_store_client = None
         self.interview_qa_store_client = None
 
@@ -137,6 +139,13 @@ class DBGateway:
         if self.eval_run_store_client is None:
             self.eval_run_store_client = EvalRunStore()
         return self.eval_run_store_client
+
+    def pipeline_run_store(self) -> PipelineRunStore:
+        """Return the shared pipeline-run-snapshot store, building it on
+        first use (Phase 189)."""
+        if self.pipeline_run_store_client is None:
+            self.pipeline_run_store_client = PipelineRunStore()
+        return self.pipeline_run_store_client
 
     def request_metrics_store(self) -> RequestMetricsStore:
         """Return the shared request-metrics store, building it on first use (Phase 184)."""

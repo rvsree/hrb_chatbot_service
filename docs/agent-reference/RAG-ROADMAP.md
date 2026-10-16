@@ -15825,3 +15825,497 @@ Explicitly deferred to a later, separate wave - not part of the above:
     a real browser** - no browser-automation tool was available this
     session; the user should confirm the tab renders/behaves correctly
     before considering this phase fully closed.
+
+- [x] **Phase 188 - CI/CD Pipeline Visibility: a real-time, stage-by-stage
+  view of this repo's own GitHub Actions pipeline, inside the Admin
+  Dashboard.**
+  - **Context**: user-requested, 2026-10-16, from direct experience during
+    the real Phase 181-187 deploy earlier that day - the only way to know
+    what stage `deploy.yml` was in, what had passed/failed, or how long it
+    would take was asking Claude Code to poll `gh pr checks`/`gh run view`
+    and narrate it back in chat. Full doc set (Spec/Architecture/Design/
+    Decisions) already written and user-reviewed at
+    `docs/dev-reference/cicd-pipeline-visibility/` before this phase
+    opened - this bullet is the implementation spec, that doc set is the
+    detailed rationale (buy-vs-build evaluation, UI mock, polling design).
+  - **Scope, grounded in the real workflow files** (not generic Jenkins
+    stage names - verified against `.github/workflows/ci.yml`/`deploy.yml`/
+    `eval-gate.yml` directly before writing this): the logical pipeline
+    spans 3 separate GitHub Actions workflow files, stitched into one view
+    by commit SHA - `ci.yml` (Install dependencies + import sanity + unit/
+    integration tests; Security scan - pip-audit + bandit; Docker image
+    builds - sanity build only, never pushed), `eval-gate.yml` (golden-
+    dataset release gate - `workflow_dispatch` only, not every push,
+    correlated by nearest-run-before-this-commit, shown as optional), and
+    `deploy.yml` (Build & push image to ECR - one combined `docker buildx
+    build ... push=true` step, not two; Trigger App Runner deployment;
+    Wait for RUNNING; Deployment smoke test). No "build wheels" step
+    exists in this project (not a published package) - closest real
+    equivalent is `ci.yml`'s "Install dependencies" step, not invented.
+  - **Backend**: `github_actions_client.py` gets 3 new methods -
+    `get_latest_run_sha()` (full, untruncated SHA of the single most
+    recent run across any workflow - the default when no SHA is given),
+    `get_runs_for_sha(sha)` (every workflow run sharing one commit SHA,
+    via GitHub's own `?head_sha=` filter), `get_run_jobs(run_id)` (per-
+    job, per-step detail via `GET .../runs/{run_id}/jobs`) - same never-
+    raises, `{"...": [], "error": "..."}` convention as every method
+    already there. `list_workflow_runs` also gains `run_number` in its
+    per-run dict (GitHub's own build number, not currently captured -
+    this was a real gap the Decisions doc's CI-3 already flagged). New
+    models in `models/admin.py`: `PipelineStepDetail`, `PipelineJobDetail`,
+    `PipelineWorkflowRun`, `PipelineStatusResponse`. New route
+    `GET /v1/admin/ci-status/pipeline` (optional `?sha=`, defaults to the
+    latest run found) in `manage_admin.py`, `Role.ADMIN` only - resolves
+    the SHA, fetches every run for it, fetches each run's jobs, and
+    correlates the nearest eval-gate run from `eval_run_store.list_runs()`
+    by `run_at` (same explicit field-by-field construction pattern the
+    existing `/eval-runs` route already uses, not a dynamic/introspected
+    one - matches this project's plain-code convention).
+  - **Frontend**: new `PipelineStepper.tsx` component - stage pills
+    grouped by workflow file, green/red/gray/pulsing-blue for success/
+    failure/pending/running, each pill showing its own duration and a
+    direct link to that step's real GitHub Actions log (never a re-hosted
+    log). Wired into the existing "CI/Build Status" tab in
+    `AdminDashboardPage.tsx`, above the existing two raw-run tables (kept,
+    not replaced - the stepper is a summary view, the tables stay the
+    full-history fallback). New `getPipelineStatus()` in `api/client.ts`,
+    polled every 10s only while the deploy run's `status` is
+    `in_progress`, stopped once terminal (Decision CI-2) - never a
+    background poll when the tab isn't open.
+  - **Failure modes**: `GITHUB_TOKEN` unset or GitHub unreachable - same
+    "CI status unavailable" message the tab already shows today, no new
+    failure mode. No eval-gate run found for a commit - the eval-gate
+    stage shows "not run for this commit," not an error. A SHA with no
+    runs at all (e.g. a brand-new push mid-flight before `ci.yml` has
+    started) - empty `runs` list, not an error.
+  - **Out of scope** (see Decisions doc for the full reasoning): storing
+    or re-hosting GitHub Actions logs; a WebSocket/push channel; multi-
+    repo aggregation; wiring `eval-gate.yml` into every push; fixing
+    `eval-gate.yml`'s own ephemeral-Postgres gap (found while answering
+    the user's question about this phase, 2026-10-16 - real, pre-
+    existing, unrelated to this feature, flagged in BACKLOG.md instead).
+  - **Spec**: this bullet, plus the full doc set at
+    `docs/dev-reference/cicd-pipeline-visibility/`.
+  - **Built and live-verified, 2026-10-16.** `github_actions_client.py`'s
+    3 new methods confirmed against the real repo via a direct script
+    (real token from `gh auth token`, `.env` moved aside so
+    `override=True` couldn't mask it) - correctly stitched 3 real runs for
+    one commit (`ci.yml` #240, `deploy.yml` #58, and a 4th workflow,
+    `deploy-lambda.yml` #20, found generically - the method doesn't
+    hardcode which workflows to look for, so it picked up one this spec's
+    own "3 workflow files" framing hadn't accounted for) and fetched real
+    per-step job detail. New route `GET /v1/admin/ci-status/pipeline`:
+    5 new tests added to `test_manage_admin.py` (RBAC, default-SHA
+    stitching, no-eval-gate case, GitHub-error-as-data, explicit `?sha=`)
+    - full suite 686/686, bandit clean (0 Medium+). Frontend:
+    `PipelineStepper.tsx` wired into the existing CI/Build Status tab
+    above the raw run-history tables (kept, not replaced), self-
+    rescheduling 10s poll that stops once every run is terminal, new
+    `status-success`/`status-failure`/`status-in_progress` CSS (also
+    fixes the existing tab's tables, which had no color for GitHub's own
+    status vocabulary before this). `tsc --noEmit` and `npm run build`
+    both clean. **Not yet visually verified in a real browser** - same
+    gap as Phase 187, no browser-automation tool available this session.
+    Also found and flagged (not fixed) during this phase: `eval-gate.yml`
+    writes to its own disposable in-runner Postgres when actually run via
+    GitHub Actions, so a real trigger of it would silently lose its
+    result - see BACKLOG.md's CI/CD section.
+
+- [x] **Phase 189 - CI/CD Pipeline: single unified visual, a real separate
+  ECR-push stage, offline/historical review via persisted summaries.**
+  - **Context**: user-requested, 2026-10-16, direct follow-up to Phase 188
+    after seeing it live. Three real asks: (1) one continuous pipeline
+    visual instead of per-workflow cards, with a genuinely separate
+    "Push to ECR" stage, not just a relabeled "Build image"; (2) ability
+    to review a past build's stage breakdown later, not just the latest
+    one; (3) rename the tab "CI/Build Status" -> "CI/CD Pipeline". Two
+    real forks resolved directly with the user via AskUserQuestion before
+    this spec was written: split `deploy.yml`'s build+push step (yes) and
+    persist run summaries in Postgres for history beyond GitHub's own
+    retention window (yes, not just browse-GitHub's-90-days).
+  - **`deploy.yml` change - the safe way to split, not the obvious one**:
+    the current "Build image" step both builds and pushes in one
+    `docker buildx build ... --output type=image,...,push=true` command -
+    the exact flags (`--provenance=false --sbom=false`, `oci-mediatypes=
+    false`) are load-bearing, found the hard way across 3 real App Runner
+    `CREATE_FAILED` incidents (Phase 10, `AWS-DEVOPS-RUNBOOK.md`).
+    Splitting via `--load` + a separate plain `docker push` was
+    considered and rejected - `--load` uses a different output path
+    (Docker's local image store format) with no guarantee it preserves
+    `oci-mediatypes=false` once re-pushed, risking reintroducing the
+    exact bug those 3 incidents fixed. The safe split: run the *identical*
+    `docker buildx build` command twice in two separate steps - first
+    `push=false` ("Build image"), then `push=true` ("Push image to ECR") -
+    same flags both times, BuildKit's layer cache makes the second
+    invocation a near-instant cache-hit-and-push, not a real rebuild.
+    Verified locally (dry run, `push=false` only, no real ECR credentials
+    needed for that half) before this change goes anywhere near `master`.
+  - **New persistence**: `pipeline_run_store.py` (new `pipeline_runs`
+    table - `id`, `head_sha`, `head_commit_message`, `captured_at`,
+    `runs_json jsonb`, `eval_gate_json jsonb` nullable), following
+    `eval_run_store.py`'s own shape. Written on every successful real
+    fetch of `GET /v1/admin/ci-status/pipeline` (persist-on-read, upsert
+    by `head_sha`) - no new GitHub Actions step, no new auth surface.
+    Honest limitation, stated plainly: a deploy nobody views during or
+    shortly after it runs never gets captured - this is not a complete
+    audit trail, it's "what an admin actually looked at." Upgradable later
+    to a real `deploy.yml`-triggered write if that gap matters in
+    practice - not built now, not the simplest safe option.
+  - **New routes**: `GET /v1/admin/ci-status/pipeline/history` (list
+    persisted summaries, newest first), `GET /v1/admin/ci-status/pipeline/
+    history/{id}` (one stored snapshot, same `PipelineStatusResponse`
+    shape the live route already returns - the frontend's stepper
+    component renders either interchangeably). Both `Role.ADMIN` only.
+  - **Frontend**: `AdminDashboardPage.tsx`'s tab renamed "CI/CD Pipeline";
+    `PipelineStepper.tsx` restyled into one continuous horizontal flow
+    (connected stage groups, not separate cards per workflow file) with
+    "Push to ECR" as its own real stage; a run picker above it (fetches
+    `/history`, selecting an entry loads that stored snapshot) so a past
+    build's breakdown is reviewable without depending on GitHub's own
+    retention window.
+  - **Out of scope**: a `deploy.yml`-triggered write (CI-complete capture
+    vs. persist-on-read's "if someone looked" capture - a real gap,
+    flagged above, not closed this phase); multi-arch build output
+    changes (this project doesn't build multi-platform images, the split
+    doesn't touch that); re-hosting log text (`runs_json` stores stage
+    names/status/timing only, never log content - unchanged from Phase
+    188's own decision).
+  - **Spec**: this bullet.
+  - **Built, 2026-10-16 - partially verified, 2 honest gaps stated
+    plainly.** `deploy.yml`'s "Build image" step split into "Build image"
+    (`push=false`) + "Push image to ECR" (`push=true`, identical flags) -
+    YAML syntax validated, but **not dry-run tested** - no Docker daemon
+    running locally this session (Docker Desktop not started), so the
+    actual build/cache/push behavior is unverified until either a local
+    Docker Desktop run or the real next `master` deploy exercises it for
+    real. New `pipeline_run_store.py` (`pipeline_runs` table, upsert by
+    `head_sha`), wired into `GET /v1/admin/ci-status/pipeline` as persist-
+    on-read, 2 new routes (`/pipeline/history` list, `/pipeline/history/
+    {id}` detail) - 5 new tests (persist-then-list, RBAC, detail, 404),
+    full suite 690/690, bandit clean. Frontend: tab renamed "CI/CD
+    Pipeline", a run picker (Live vs. any persisted snapshot, pauses live
+    polling while viewing history), `PipelineStepper.tsx` restyled into
+    one connected flow (sorted into real pipeline order - `ci.yml` ->
+    `eval-gate.yml` -> `deploy.yml` - since GitHub's own API returns runs
+    for a commit in no guaranteed order) with arrow connectors between
+    stages. `tsc --noEmit` and `npm run build` both clean. **Not yet
+    visually verified in a real browser** - same gap as Phases 187/188,
+    no browser-automation tool available this session - and the split
+    `deploy.yml` step specifically needs a real deploy to confirm before
+    it's trusted, given this exact file's 3-strikes history
+    (`AWS-DEVOPS-RUNBOOK.md`).
+
+- [x] **Phase 190 - Role display-label rename (Engineering Admin -> DevOps,
+  Employee Admin -> Admin), DevOps dropdown grouped into category tabs.**
+  - **Context**: user-requested, 2026-10-16. Pure display-label rename -
+    the backend `Role` enum values (`admin`/`employee_admin`) and the
+    login form's `<select>` option `value`s are unchanged, only the text
+    shown changed, in `hrb_chatbot_ui` only (`LoginPage.tsx`'s role
+    options, `ChatPage.tsx`'s dropdown trigger label + a stale comment,
+    `AdminDashboardPage.tsx`'s role-gate message + a stale comment) -
+    confirmed via a repo-wide grep this covers every occurrence.
+  - **Dropdown reorganization**: the DevOps-exclusive section of the admin
+    dropdown (8 flat links) split into 2 category tabs - "Deployment"
+    (Golden dataset, Eval runs, CI/CD Pipeline, Live metrics) and
+    "Reference Docs" (Architecture docs, both Interview FAQs pages,
+    Interview Q&A DB) - plus an "HR Operations" section label above the
+    shared items both tiers see. New `adminMenuCategory` state in
+    `ChatPage.tsx`, new `.admin-menu-categories`/`.admin-menu-category-tab`/
+    `.admin-menu-divider`/`.admin-menu-section-label` CSS in `App.css`.
+    Admin (employee_admin)'s own dropdown is unchanged - short enough
+    (5 items) that it doesn't need the same grouping.
+  - **Also fixed while touching this area**: `.env` was missing
+    `GITHUB_TOKEN`/`GITHUB_REPO` entirely (not even blank placeholder
+    lines) - local dev's CI/CD Pipeline tab could never show real data.
+    Filled in using the already-authenticated `gh auth token` (local-only,
+    `.env` is gitignored, never committed).
+  - **Verified**: `tsc --noEmit` and `npm run build` both clean. **Not yet
+    visually verified in a real browser** - same gap as every UI phase
+    this session, no browser-automation tool available.
+
+- [x] **Phase 191 - Admin dashboard restructured into real category/sub-tab
+  navigation; pipeline step-box sizing bug fixed; 2 fully-migrated
+  interview files deleted.**
+  - **Context**: user-requested, 2026-10-16, direct correction of Phase
+    190 - the dropdown-with-tabs-inside approach misread the ask. What
+    was actually wanted: clicking into the admin area opens a page whose
+    own tab bar is 2 levels (parent category -> that category's sub-
+    tabs), not a dropdown that pre-filters links. 2 forks resolved
+    directly with the user before implementing: Architecture Docs filed
+    under the "Interview Q&A" category (not "Build & Deployment"),
+    Conversations/Feedback filed under "Admin"; and confirmed only the 2
+    DB-migrated interview files are safe to delete, `system.html` (69
+    un-migrated cards) stays.
+  - **`AdminDashboardPage.tsx`**: the 11 flat tabs regrouped into 4
+    categories - **Admin** (KB Documents, Upload Documents, Conversations,
+    Feedback), **HR Ops** (Leave Approvals), **Build & Deployment**
+    (Golden Dataset, Eval Runs, CI/CD Pipeline, Live Metrics),
+    **Interview Q&A** (Architecture Docs, Interview Q&A DB) - a parent
+    category button row, then that category's own sub-tab row below it.
+    `categoryForTab()` resolves `?tab=` deep-links to the right parent
+    category, not just the right sub-tab in isolation. Admin
+    (employee_admin) sees only Admin/HR Ops; a guard effect corrects a
+    bookmarked DevOps-only `?tab=` deep-link back to the Admin category
+    for that role (cosmetic only - the backend already 403s the actual
+    data regardless). A small note with a link to the legacy
+    `system.html` page now lives inside the Interview Q&A category's own
+    view, replacing its old dropdown link.
+  - **`ChatPage.tsx` dropdown simplified back down**: the DevOps-only
+    deep-links (8 of them) and Phase 190's dropdown-category-tabs removed
+    entirely - "Admin dashboard" is the only DevOps-specific entry left,
+    since the real navigation now lives inside the page itself. Dead CSS
+    (`.admin-menu-categories`/`.admin-menu-category-tab`/
+    `.admin-menu-divider`) removed from `App.css`; `.admin-menu-section-
+    label` ("HR Operations") kept.
+  - **Pipeline step-box sizing bug, found and fixed**: `.pipeline-step`'s
+    `flex: 1 1 130px` let any step left alone on a wrapped row's last
+    line stretch to fill the entire row width, while steps sharing a row
+    with others stayed narrow - "Complete job" spanning full width was
+    the visible symptom. Fixed to `flex: 0 0 150px` (fixed width, no
+    stretching, text wraps inside instead) - uniform boxes regardless of
+    row position.
+  - **Deleted**: `docs/dev-reference/interview-faqs/prototype-new-
+    format.html` and `agentic-research-systems.html` (both `git rm`,
+    38/38 cards confirmed in both local dev and production Postgres,
+    Phase 187/190) - `scripts/sync_admin_docs.py`'s `agentic-research-
+    systems` doc_type entry removed (`prototype-new-format` was never
+    registered there at all), `scripts/migrate_interview_qa_to_db.py`'s
+    docstring updated to say re-running it will now fail with
+    `FileNotFoundError` - expected, not a bug, kept only as a historical
+    record. Confirmed via a direct query: no orphaned `doc_metadata` row
+    for either deleted file (neither was ever actually synced to S3).
+  - **Verified**: full backend suite 690/690 (no backend code changed
+    this phase, re-run to confirm the `git rm`/script edits didn't break
+    anything), `tsc --noEmit` and `npm run build` both clean. **Not yet
+    visually verified in a real browser** - same standing gap.
+
+- [x] **Phase 192 - Friendly step names at the source (not a client-side
+  relabel table), per-job/per-run elapsed time in the Pipeline stepper.**
+  - **Context**: user-requested, 2026-10-16. Raw GitHub Actions step
+    names like "Run actions/checkout@v4" are GitHub's own auto-generated
+    label for a step with no explicit `name:` - fixed by adding real
+    `name:` fields to the workflow YAML itself (`ci.yml`/`deploy.yml`/
+    `eval-gate.yml`), not a lookup table in the frontend that could drift
+    from new steps. This also fixes GitHub's own UI, not just this app's.
+    `ci.yml`'s docker-build job's "Build image" step renamed to "Build
+    image (CI sanity check, not pushed)" to distinguish it from
+    `deploy.yml`'s real build+push step of the same old name.
+  - **Honest limitation stated plainly**: these renames only affect
+    *future* runs - the already-completed run currently shown in the
+    Pipeline tab ran under the old, unnamed YAML, so its steps still show
+    the old auto-generated names until the next real push/deploy.
+  - **Elapsed time added** in `PipelineStepper.tsx`: a wall-clock total
+    per job (first step's start to last step's end, not a naive sum -
+    robust to any gap between steps) and per run, shown next to each
+    job/run label - purely a client-side computation from the per-step
+    `started_at`/`completed_at` GitHub already returns, no backend change.
+  - **3 requests explained, not fabricated** (none of this exists in the
+    real pipeline today, so none of it was added to the UI):
+    - Golden-dataset eval-gate does **not** merge into a generic "Test"
+      stage - different workflow, `workflow_dispatch`-only (not every
+      push), costs real LLM-call money, measures answer quality not code
+      correctness. Stays its own distinct stage, as it already was.
+    - No staging environment exists (`BACKLOG.md`'s already-documented
+      "No staging deployment target" gap) - a "Deploy (Staging/
+      Production)" label would misrepresent what's real. Still just
+      "Deploy" against the one real App Runner service.
+    - No "Notify" / post-action step exists anywhere in this project's
+      real CI/CD (no Slack/email/webhook call) - not invented for the UI.
+      A real one would be a genuine new feature (e.g. a Slack webhook
+      step in `deploy.yml`), not a cosmetic addition.
+    - Deeper per-stage metrics beyond status/timing (test pass/fail
+      counts, coverage %, vulnerability counts) aren't captured as
+      structured data anywhere today - only golden-dataset's real
+      recall/groundedness/completeness scores are (already shown).
+      Getting pytest/bandit/pip-audit numbers would mean either parsing
+      raw log text (rejected - Phase 188's Decisions doc, CI-4) or a new
+      structured-output mechanism (e.g. `GITHUB_STEP_SUMMARY` or job
+      outputs) - a real future phase, not something to fake now.
+  - **Verified**: all 3 workflow YAML files re-validated with `yaml.safe_load`
+    after editing. `tsc --noEmit` and `npm run build` both clean. No
+    backend code touched this phase - full suite not re-run.
+
+- [x] **Phase 193 - Pipeline summary banner (branch/commit/elapsed/when/
+  author/trigger), aggregated status, GitHub fields confirmed live before
+  use.**
+  - **Context**: user-requested, 2026-10-16, referencing a real-world CI
+    dashboard screenshot. Confirmed live against the real GitHub API
+    before building anything (`head_branch`/`event`/`head_commit.author`/
+    `actor.login` all real, present fields) rather than guessing field
+    names existed.
+  - **Backend**: `github_actions_client.py`'s `get_runs_for_sha()` now
+    also captures `head_branch`/`event`/`actor_login` per run.
+    `PipelineStatusResponse` gained top-level `head_branch`/`event`/
+    `actor_login` fields (commit-level facts, taken from the first run
+    GitHub returns for that sha - consistent across workflows in the
+    common case). `pipeline_runs` table gained the same 3 columns, added
+    via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` (not just the
+    `CREATE TABLE`) since local dev already had this table from Phase
+    189's own testing before these columns existed - confirmed live
+    against the real local Postgres table, migration applied cleanly, no
+    manual intervention needed.
+  - **Frontend**: a banner at the top of `PipelineStepper.tsx` - Branch /
+    Commit / Elapsed (wall-clock span across every stitched run combined)
+    / relative "When" (own formatter, no new dependency) / "Changes by"
+    (GitHub login) / Trigger (push/pull_request/workflow_dispatch,
+    worded out). Background color aggregates every run's status
+    (failure outranks in-progress outranks success) using the same soft-
+    bg/strong-text token pairing as the rest of this app's status badges,
+    not a solid saturated banner - kept consistent with the established
+    palette rather than copying the reference image's exact visual
+    treatment.
+  - **Verified**: 9 pipeline tests updated for the new fields + pass, full
+    suite 690/690, bandit clean, live-verified against the real repo
+    (`head_branch: master`, `event: push`, `actor_login: rvsree`, schema
+    migration confirmed applied). `tsc --noEmit` and `npm run build` both
+    clean. **Not yet visually verified in a real browser** - same
+    standing gap.
+
+- [x] **Phase 194 - each job gets its own child card, nested inside the
+  parent run card.**
+  - **Context**: user-requested, 2026-10-16. `ci.yml`'s 3 jobs (Security
+    scan, Test suite, Docker image builds) were stacked as plain labeled
+    sections with no visual separation inside the one `ci.yml` run card -
+    each now gets its own bordered `.pipeline-job` child card, nested
+    inside the parent `.pipeline-run` card. Applies generically to every
+    workflow's jobs (deploy.yml/deploy-lambda.yml's own single job too),
+    not special-cased to ci.yml.
+  - New `.pipeline-job` class in `App.css` - `var(--bg)` background
+    (distinct from the parent card's `var(--surface)`) so the nesting
+    reads visually, no new color tokens invented.
+  - Pure frontend/CSS change, no backend touched. `tsc --noEmit` and
+    `npm run build` both clean. **Not yet visually verified in a real
+    browser** - same standing gap.
+
+- [x] **Phase 195 - "?" explainer buttons (deploy.yml vs. deploy-lambda.yml
+  vs. golden-dataset release gate), bolder/larger job labels.**
+  - **Context**: user-requested, 2026-10-16. Reused the existing
+    `.chunking-help-button`/`.chunking-help-popover` pattern already used
+    by the Live Metrics tab, rather than inventing a new one. Content
+    grounded directly in the real `deploy.yml`/`deploy-lambda.yml`/
+    `eval-gate.yml` YAML (read fresh before writing, not recalled from
+    memory) - e.g. deploy-lambda.yml's own real trigger (`paths:` scoped
+    to `src/hrb_chatbot/**`/`Dockerfile.lambda`/`requirements.txt`, not
+    every push) and the real documented bug it was added to prevent
+    (BACKLOG.md's "No CI/CD automation deploys the Lambda" entry).
+  - `.pipeline-job-label` bumped from 11px/600 to 13.5px/800, per the 5
+    labels named explicitly (Security scan, Test suite, Docker image
+    builds, Build/push/deploy, Build/push/update the Lambda) - all share
+    this one class, so one CSS change covered all 5.
+  - Pure frontend/CSS + content change, no backend touched. `tsc --noEmit`
+    and `npm run build` both clean. **Not yet visually verified in a real
+    browser** - same standing gap.
+
+- [x] **Phase 196 - real Security Scan/Static Analysis split, a real
+  Status Notification stage, and a condensed top summary bar.**
+  - **Context**: user-requested, 2026-10-16. 3 real forks resolved
+    directly with the user via AskUserQuestion before implementing: (1)
+    real `ci.yml` job split over a cosmetic frontend-only regroup - "need
+    a real CI run to confirm before fully trusting it" accepted; (2) the
+    new summary bar must honestly disclose that several of its stages
+    run in parallel, not sequentially, despite reading left-to-right; (3)
+    build a real Status Notification stage now, not omit it - using
+    GitHub's own built-in `GITHUB_STEP_SUMMARY` (zero new secrets/setup)
+    rather than blocking the whole turn on the user going to create a
+    Slack webhook first - a judgment call made and stated plainly, not
+    asked as a 4th question.
+  - **`ci.yml`**: the "security" job (2 steps: pip-audit + bandit) split
+    into 2 real, independent jobs - `dependency-scan` (name: "Security
+    Scan") and `static-analysis` (name: "Static Analysis") - each self-
+    contained (own checkout/setup-python/install), matching the existing
+    pattern every other job in this file already uses, not a new shared-
+    setup abstraction. No backend change needed for this to show up as 2
+    separate job cards - `get_run_jobs()` already returns whatever
+    GitHub reports generically, never a hardcoded job list.
+  - **`deploy.yml`**: new "Notify deployment status" step, `if: always()`
+    so it reports on both success and failure, writing to
+    `GITHUB_STEP_SUMMARY` - visible on GitHub's own run page, same
+    "never re-host content ourselves" rule as every other decision here.
+    The Pipeline UI shows this step's own pass/fail like any other step,
+    not the summary markdown itself (not fetchable via the Jobs API).
+  - **Frontend - new condensed summary bar** (above the existing detailed
+    per-job cards, not replacing them): 8 named stages in reading order -
+    Build (ci.yml's `docker-build` job) → Security Scan →
+    Static Analysis → Test Suite (ci.yml's `test` job) → Docker Image
+    (deploy.yml's real Build+Push steps, distinct from ci.yml's own CI-
+    time sanity build) → Deploy (Trigger+Wait steps) → Smoke Test →
+    Status Notification - with an explicit, visible note that Build/
+    Security Scan/Static Analysis/Test Suite run in parallel within
+    ci.yml (no `needs:` between them), and that `ci.yml`/`deploy.yml` are
+    separate, independently-triggered workflows - `deploy.yml` does not
+    wait for `ci.yml` to pass before deploying (a real, already-
+    documented gap - `BACKLOG.md`'s "no branch protection rules" entry).
+  - **"?" buttons added for the 4 ci.yml-level stages** too (Security
+    Scan, Static Analysis, Test Suite, Docker image builds), same
+    `.chunking-help-button` pattern as Phase 195's workflow-level ones.
+  - **Spec**: this bullet.
+  - **Built, 2026-10-16 - the YAML split/new step are NOT dry-run
+    tested**, same honest gap as Phase 189's deploy.yml split - no
+    Docker daemon running locally this session. Both `ci.yml` and
+    `deploy.yml` re-validated with `yaml.safe_load` (confirmed 4 real
+    jobs in `ci.yml`: `test`/`dependency-scan`/`static-analysis`/
+    `docker-build`), but the actual split/new step only gets real
+    confidence from either a local Docker Desktop run or the next real
+    push/deploy. No backend code touched - `get_run_jobs()` is already
+    fully generic, so the 2 new job cards and the new step require zero
+    backend changes to show up, confirmed by re-running the full suite
+    (690/690, unaffected) as a sanity check, not because anything there
+    changed. `tsc --noEmit` and `npm run build` both clean. **Not yet
+    visually verified in a real browser** - same standing gap as every
+    UI phase this session.
+
+- [x] **Phase 197 - spacing pass, gray-dot explanation, Golden Dataset
+  moved to Interview Q&A, CI/CD Pipeline made the default Build &
+  Deployment focus.**
+  - **Context**: user-requested, 2026-10-16, direct follow-up after
+    seeing Phase 196 live. The gray dots on Security Scan/Static
+    Analysis/Status Notification and the missing "?" on the old combined
+    job were investigated, not assumed - confirmed via `git log`/`git
+    diff --stat` that the commit shown (14-15 hours old) predates every
+    Phase 189-196 workflow change, all still local/uncommitted/unpushed.
+    Working exactly as designed (gray = no real data for this commit),
+    not a bug - explained plainly in the UI itself now, not just in
+    chat.
+  - **`AdminDashboardPage.tsx`**: `CATEGORY_TABS["build-deploy"]`
+    reordered to `["ci-status", "eval-runs", "live-metrics"]` - CI/CD
+    Pipeline first, which `handleSelectCategory`'s existing `[0]` pick
+    already makes the default focus on category click, no new logic
+    needed. `golden-dataset` moved out to `CATEGORY_TABS["interview-qa-
+    ref"]` (now `["docs", "golden-dataset", "interview-qa"]`) - reference
+    content (the 40 test case definitions), not pipeline execution
+    history; Eval Runs stays in Build & Deployment since that one
+    genuinely is CI/CD execution history.
+  - **Spacing**: category row/sub-tab row/section header/banner/run
+    cards/job cards all got real margin increases (8px→18px, 12px→20px,
+    10px→16px, etc.) - not a single token change, each cramped spot
+    found and bumped individually.
+  - **Gray-dot/missing-"?" explanation moved into the UI**: the phase
+    bar's own disclaimer paragraph now also states plainly what a gray
+    dot means; `JOB_HELP` gained a backward-compat entry for the pre-
+    split job name ("Security scan (dependencies + static analysis)") so
+    older, not-yet-re-run commits still get a working "?" instead of
+    silently showing none.
+  - Pure frontend/CSS + content change, no backend touched. `tsc --noEmit`
+    and `npm run build` both clean. **Not yet visually verified in a real
+    browser** - same standing gap.
+
+- [x] **Phase 198 - rewrote every "?" explainer for a non-technical
+  reader - plain-language analogies and concrete examples, not tool
+  names/flags.**
+  - **Context**: user-requested, 2026-10-16. All 7 `WORKFLOW_HELP`/
+    `JOB_HELP` entries (deploy.yml, deploy-lambda.yml, eval-gate, Security
+    Scan, Static Analysis, Test suite, Docker image builds) plus the
+    backward-compat pre-split entry rewritten from engineer-facing
+    descriptions (pip-audit/bandit/CVEs/App Runner/oci-mediatypes) into
+    plain language - an analogy plus a concrete HRB-chatbot example for
+    each, same underlying facts, no new claims. E.g. Security Scan is now
+    "checking whether an ingredient in your pantry has been recalled" for
+    borrowed code, Static Analysis is "a spell-checker for security
+    mistakes" in this project's own code, Test suite is a pilot's pre-
+    flight checklist, deploy-lambda.yml explains the real past bug (a fix
+    that silently never reached the document-processing helper) in plain
+    terms instead of naming Lambda/Dockerfile.lambda/ECR directly.
+  - Pure content change (2 `Record<string,string>` maps in
+    `PipelineStepper.tsx`), no structural/logic change. `tsc --noEmit`
+    and `npm run build` both clean. **Not yet visually verified in a real
+    browser** - same standing gap.
