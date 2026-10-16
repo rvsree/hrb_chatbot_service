@@ -46,6 +46,11 @@ KNOWN_PERSONAS = {
     # plaintext literal) into admin_credential_store.py's Postgres-backed,
     # salted-hash storage - see AdminCredentialStore.verify_secret_code().
     "ADM001": {"full_name": "Sree Rad", "role": "admin"},
+    # 2026-10-15 - Employee Admin tier (Role.EMPLOYEE_ADMIN): same
+    # not-a-real-employees-row exception as ADM001 above, for the same
+    # reason - admin operations never resolve through MCP the way a real
+    # employee's own data does.
+    "ADM002": {"full_name": "Erin Admin", "role": "employee_admin"},
 }
 
 

@@ -7,7 +7,14 @@ from fastapi.testclient import TestClient
 from src.hrb_chatbot.ai.pre_processing import conversation_memory as conversation_memory_module
 from src.hrb_chatbot.api.admin import manage_admin
 from src.hrb_chatbot.main import app
-from tests.conftest import FakeConversationStore, FakeDBGateway, FakeDocMetadataStore, FakeFeedbackStore
+from tests.conftest import (
+    FakeConversationStore,
+    FakeDBGateway,
+    FakeDocMetadataStore,
+    FakeFaqSubmissionStore,
+    FakeFeedbackStore,
+    FakeInterviewQaStore,
+)
 
 client = TestClient(app)
 
@@ -146,22 +153,36 @@ def test_non_admin_cannot_list_all_leave_requests(monkeypatch):
 
 
 def test_admin_lists_all_leave_requests_regardless_of_status(monkeypatch):
-    async def _fake_call_mcp_tool(tool_name, arguments):
+    async def _fake_call_mcp_tool_json(tool_name, arguments):
         assert tool_name == "list_hitl_requests"
         assert arguments == {"status": "all", "request_type": "UNPAID_LEAVE_REQUEST"}
         return {
-            "tool": tool_name,
-            "content": [
-                '{"total": 2, "requests": ['
-                '{"hitlRequestId": 1, "requestType": "UNPAID_LEAVE_REQUEST", "employeeId": "EMP052", '
-                '"query": "q1", "context": {}, "status": "COMPLETED", "assignedTo": "Daniel", "createdAt": "2026-10-01T00:00:00"}, '
-                '{"hitlRequestId": 2, "requestType": "UNPAID_LEAVE_REQUEST", "employeeId": "EMP001", '
-                '"query": "q2", "context": {}, "status": "PENDING", "assignedTo": null, "createdAt": "2026-10-02T00:00:00"}'
-                ']}'
+            "total": 2,
+            "requests": [
+                {
+                    "hitlRequestId": 1,
+                    "requestType": "UNPAID_LEAVE_REQUEST",
+                    "employeeId": "EMP052",
+                    "query": "q1",
+                    "context": {},
+                    "status": "COMPLETED",
+                    "assignedTo": "Daniel",
+                    "createdAt": "2026-10-01T00:00:00",
+                },
+                {
+                    "hitlRequestId": 2,
+                    "requestType": "UNPAID_LEAVE_REQUEST",
+                    "employeeId": "EMP001",
+                    "query": "q2",
+                    "context": {},
+                    "status": "PENDING",
+                    "assignedTo": None,
+                    "createdAt": "2026-10-02T00:00:00",
+                },
             ],
         }
 
-    monkeypatch.setattr(manage_admin, "_call_mcp_tool", _fake_call_mcp_tool)
+    monkeypatch.setattr(manage_admin, "_call_mcp_tool_json", _fake_call_mcp_tool_json)
 
     response = client.get("/v1/admin/leave-requests", params=ADMIN_PROFILE)
 
@@ -314,3 +335,199 @@ def test_get_doc_content_404_for_an_unknown_doc_id(monkeypatch):
 
     assert response.status_code == 404
     assert response.json()["code"] == "ADMIN_DOC_NOT_FOUND"
+
+
+def test_employee_cannot_list_faq_submissions(monkeypatch):
+    response = client.get("/v1/admin/faq-submissions", params=EMPLOYEE_PROFILE)
+    assert response.status_code == 403
+
+
+def test_hr_support_lists_faq_submissions(monkeypatch):
+    import asyncio
+
+    store = FakeFaqSubmissionStore()
+
+    async def _seed():
+        await store.create_submission("EMP052", "Does tuition cover certifications?", "Yes, based on the KB.")
+
+    asyncio.run(_seed())
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(faq_submission_store=store))
+
+    response = client.get("/v1/admin/faq-submissions", params=HR_PROFILE)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] == 1
+    assert body["submissions"][0]["query"] == "Does tuition cover certifications?"
+
+
+def test_restructure_calls_claude_and_stores_the_draft(monkeypatch):
+    import asyncio
+
+    store = FakeFaqSubmissionStore()
+
+    async def _seed():
+        return await store.create_submission("EMP052", "What's the 401k match?", "Raw first-pass answer.")
+
+    submission = asyncio.run(_seed())
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(faq_submission_store=store))
+
+    class _FakeAnthropicClient:
+        def ask(self, question, context=None, system_prompt=None, temperature=0.0, max_tokens=None):
+            return "Clean, restructured answer."
+
+    class _FakeClientGateway:
+        def anthropic_chat(self):
+            return _FakeAnthropicClient()
+
+    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _FakeClientGateway())
+
+    response = client.post(
+        f"/v1/admin/faq-submissions/{submission['id']}/restructure", json={"user_profile": ADMIN_PROFILE}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["final_answer"] == "Clean, restructured answer."
+    assert body["answer_restructuring_status"] == "claude_restructured"
+
+
+def test_restructure_404_for_an_unknown_submission(monkeypatch):
+    store = FakeFaqSubmissionStore()
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(faq_submission_store=store))
+
+    response = client.post("/v1/admin/faq-submissions/999/restructure", json={"user_profile": ADMIN_PROFILE})
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "ADMIN_FAQ_SUBMISSION_NOT_FOUND"
+
+
+def test_review_publishes_and_records_the_reviewer(monkeypatch):
+    import asyncio
+
+    store = FakeFaqSubmissionStore()
+
+    async def _seed():
+        return await store.create_submission("EMP052", "What's the dental plan?", "Raw answer.")
+
+    submission = asyncio.run(_seed())
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(faq_submission_store=store))
+
+    response = client.post(
+        f"/v1/admin/faq-submissions/{submission['id']}/review",
+        json={
+            "user_profile": ADMIN_PROFILE,
+            "internal_review_status": "approved",
+            "final_answer": "We offer two dental plans.",
+            "published": True,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["published"] is True
+    assert body["reviewed_by"] == "ADM001"
+    assert body["answer_restructuring_status"] == "human_edited"
+
+
+EMPLOYEE_ADMIN_PROFILE = {"employee_id": "ADM002", "full_name": "Erin Admin", "role": "employee_admin"}
+
+_INTERVIEW_QA_FIELDS = {
+    "topic": "Smoke Test",
+    "topic_order": 1,
+    "card_order": 1,
+    "question": "Does CRUD work end to end?",
+    "hint": "yes",
+    "concept": None,
+    "situation": None,
+    "task": None,
+    "action": None,
+    "result": None,
+    "project_link": None,
+    "leadership_angle": None,
+    "trade_offs": ["one"],
+    "keywords": [{"term": "CRUD", "definition": "Create/Read/Update/Delete"}],
+    "tech_stack": ["FastAPI"],
+    "feature_references": [{"label": "store", "file_path": "src/hrb_chatbot/common/clients/db_client/interview_qa_store.py"}],
+}
+
+
+def test_employee_admin_cannot_list_interview_qa_cards(monkeypatch):
+    """Interview Q&A is Engineering-Admin-only, unlike feedback/leave-
+    requests - employee_admin gets 403 just like a plain employee does."""
+    response = client.get("/v1/admin/interview-qa", params=EMPLOYEE_ADMIN_PROFILE)
+    assert response.status_code == 403
+
+
+def test_admin_lists_interview_qa_cards_filtered_by_topic(monkeypatch):
+    import asyncio
+
+    store = FakeInterviewQaStore()
+
+    async def _seed():
+        await store.create_card({**_INTERVIEW_QA_FIELDS, "topic": "Topic A"})
+        await store.create_card({**_INTERVIEW_QA_FIELDS, "topic": "Topic B"})
+
+    asyncio.run(_seed())
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(interview_qa_store=store))
+
+    response = client.get("/v1/admin/interview-qa", params=ADMIN_PROFILE)
+    assert response.status_code == 200
+    assert response.json()["count"] == 2
+
+    filtered = client.get("/v1/admin/interview-qa", params={**ADMIN_PROFILE, "topic": "Topic A"})
+    assert filtered.status_code == 200
+    body = filtered.json()
+    assert body["count"] == 1
+    assert body["cards"][0]["topic"] == "Topic A"
+
+
+def test_get_interview_qa_card_404_for_unknown_id(monkeypatch):
+    store = FakeInterviewQaStore()
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(interview_qa_store=store))
+
+    response = client.get("/v1/admin/interview-qa/999", params=ADMIN_PROFILE)
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "ADMIN_INTERVIEW_QA_NOT_FOUND"
+
+
+def test_create_update_and_delete_interview_qa_card(monkeypatch):
+    store = FakeInterviewQaStore()
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(interview_qa_store=store))
+
+    create_response = client.post(
+        "/v1/admin/interview-qa", json={"user_profile": ADMIN_PROFILE, "fields": _INTERVIEW_QA_FIELDS}
+    )
+    assert create_response.status_code == 200
+    card = create_response.json()
+    assert card["question"] == "Does CRUD work end to end?"
+    assert card["keywords"] == [{"term": "CRUD", "definition": "Create/Read/Update/Delete"}]
+
+    updated_fields = {**_INTERVIEW_QA_FIELDS, "question": "Does CRUD work end to end - updated?"}
+    update_response = client.put(
+        f"/v1/admin/interview-qa/{card['id']}", json={"user_profile": ADMIN_PROFILE, "fields": updated_fields}
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["question"] == "Does CRUD work end to end - updated?"
+
+    delete_response = client.request(
+        "DELETE", f"/v1/admin/interview-qa/{card['id']}", json={"user_profile": ADMIN_PROFILE}
+    )
+    assert delete_response.status_code == 200
+    assert delete_response.json() == {"id": card["id"], "deleted": True}
+
+    get_after_delete = client.get(f"/v1/admin/interview-qa/{card['id']}", params=ADMIN_PROFILE)
+    assert get_after_delete.status_code == 404
+
+
+def test_update_interview_qa_card_404_for_unknown_id(monkeypatch):
+    store = FakeInterviewQaStore()
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(interview_qa_store=store))
+
+    response = client.put(
+        "/v1/admin/interview-qa/999", json={"user_profile": ADMIN_PROFILE, "fields": _INTERVIEW_QA_FIELDS}
+    )
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "ADMIN_INTERVIEW_QA_NOT_FOUND"

@@ -9,6 +9,7 @@ from src.hrb_chatbot.api.gateway.rbac import require_role
 from src.hrb_chatbot.common import error_codes
 from src.hrb_chatbot.common.enums import Role
 from src.hrb_chatbot.common.logging.logger import get_logger
+from src.hrb_chatbot.common.observability.response_metrics import time_and_log
 from src.hrb_chatbot.common.rag_query_params import RagQueryParams
 from src.hrb_chatbot.common.rate_limiting.rate_limiter import enforce_rate_limit
 from src.hrb_chatbot.models.common import ToolCallInfo
@@ -54,7 +55,12 @@ def _params_from_request(payload: RagQueryRequest, employee_id: str | None = Non
 async def _answer_query(payload: RagQueryRequest, employee_id: str | None = None) -> RagQueryResponse | object:
     params = _params_from_request(payload, employee_id)
     try:
-        result = await pipeline.answer_query(params)
+        result = await time_and_log(
+            "/v1/genai-rag-retrieval/query",
+            "genai-rag",
+            lambda: pipeline.answer_query(params),
+            lambda r: (r.get("token_usage") or {}).get("total_tokens"),
+        )
     except NotImplementedError as error:
         return json_error(501, str(error), code=error_codes.NOT_IMPLEMENTED)
     except GuardrailBlockedError as error:

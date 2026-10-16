@@ -54,6 +54,48 @@ section below it is the authoritative detail - if the two ever disagree,
 the detail below is correct and this table is stale, not the other way
 around.
 
+**Categorized pass, 2026-10-15 - scoped honestly, not attempted in full:**
+backfilling this table for all 186 phases (it stops at Phase 9-ish) would
+be a large, separate undertaking, and the file already tells readers not
+to rely on it over the real detail below - low value for the effort. What
+follows instead is a themed index for the recent run, Phases 161-186 only
+(close enough to be useful from memory/this session's own work, not a
+guess at older phases). A full 1-186 categorization is flagged as its own
+future task, not done here.
+
+<details>
+<summary>Phases 161-186, by theme (click to expand)</summary>
+
+**Admin / RBAC**: 168 (ADMIN role + dashboard), 169 (masked Secret Code),
+171 (secret code hashing), 176 (Admin Dashboard widening), 178 (admin
+superuser RBAC sweep) - plus this session's own unlisted-but-real
+Employee Admin/Engineering Admin tier split (2026-10-15, no phase number
+assigned - see the "Golden Dataset" entry's own note under Phase 181 for
+the related Deployment Dashboard access-tier decision).
+
+**Leave / HITL**: 162 (Request Unpaid Leave A2A/HITL), 172 (genuine
+graph-paused HITL).
+
+**Docs (admin-viewer, not this file)**: 170, 173, 174, 177, 179, 180 (RAG
+Ingestion docs pilot) - plus this session's own developer-onboarding
+guide split (2026-10-15, see the standalone note above Phase 183).
+
+**UI bugs/polish**: 164, 165, 166, 167, 175.
+
+**Conversation memory / Chat workflow**: 161 (email), 163 (GenAI Chat
+Workflow memory).
+
+**Deployment Dashboard** (this session, 2026-10-15): 181 (golden
+dataset), 182 (eval runs), 183 (CI status), 184 (live metrics).
+
+**MCP**: 185 (circuit breaker, this session) - see also the "MCP
+integration" category in `BACKLOG.md`'s own new index for the broader
+Phase 49/50/53 work (pre-161).
+
+**FAQ**: 186 (submission + review workflow, this session).
+
+</details>
+
 **`Spec` column, added 2026-09-14 when SDD was adopted** (see `CLAUDE.md`'s
 SDD section): `Retrofitted (pre-SDD)` means the phase shipped before specs
 were written first - its detail entry below is the historical record, not
@@ -15266,3 +15308,520 @@ Explicitly deferred to a later, separate wave - not part of the above:
       actually work until `hrb_chatbot_ui` is deployed with this change.
       Not deployed as part of this round, per the standing "implement and
       self-verify, stop before deploy" convention.
+
+- [x] **Phase 181 — Deployment Dashboard, part 1: golden dataset Postgres
+  mirror + read-only viewer.**
+  - **Context**: User-requested "Deployment Dashboard" (2026-10-15) -
+    an Engineering-Admin-exclusive view of build/deployment process,
+    golden dataset, eval results, and live metrics. Investigated first:
+    none of this is persisted anywhere queryable today -
+    `resources/golden_dataset/golden_dataset.json`/`nfr_golden_dataset.json`
+    are plain files, `golden_dataset_harness.py`'s `get_release_decision()`
+    computes scores in-memory during a manual CI run and discards them,
+    and no token/cost/latency logging table exists despite those fields
+    appearing in several API response models. Four-part build, in
+    dependency order (user-confirmed): (1) golden dataset mirror + viewer
+    - this phase, (2) eval run persistence + history, (3) CI/build status,
+    (4) live metrics + fine-tune-recommendation popups. Each part gets
+    its own phase number and its own spec/implement/review cycle, not
+    one giant phase - matches the "one task at a time" norm.
+  - **Data/API contracts**: `docs/agent-reference/endpoint-request-response-contracts.md`'s
+    new `GET /v1/admin/golden-dataset` section (Finalized) - an
+    application of the already-settled Phase 96 query-param-identity
+    pattern to a new resource, not a new negotiation. New Pydantic
+    models in `src/hrb_chatbot/models/admin.py`:
+    `GoldenDatasetCaseSummary`/`GoldenDatasetListResponse`.
+  - **New DB table**: `golden_dataset_cases` (same Neon Postgres
+    database every other admin table already lives in) -
+    `id serial primary key`, `case_key text`, `dataset text` (`'genai_rag'`
+    or `'nfr'`), `category text`, `query text`, `raw_case jsonb` (the full
+    original case object, so a new field in either source file renders
+    without an API/model change), `created_at`, `updated_at`. Unique
+    constraint on `(case_key, dataset)`. New
+    `src/hrb_chatbot/common/clients/db_client/golden_dataset_store.py`,
+    following `doc_metadata_store.py`'s own shape (`_ensure_table_sync`,
+    async wrapper methods) - `list_cases()` only this phase, no
+    get/insert/update/delete exposed via the API (mirror script writes
+    directly).
+  - **New script**: `scripts/sync_golden_dataset.py`, mirroring
+    `scripts/sync_admin_docs.py`'s own pattern exactly - reads both JSON
+    files, upserts each case by `(case_key, dataset)`, idempotent
+    (unchanged content = no-op, matching content-hash dedup elsewhere).
+    Source-of-truth stays the JSON files per the earlier session decision
+    ("Postgres as source of truth, mirrored to/from file" - clarified
+    here: the files are what a developer edits; Postgres is what the UI
+    reads; the sync script is the one-way bridge, not a two-way sync).
+  - **New route**: `GET /v1/admin/golden-dataset` in
+    `src/hrb_chatbot/api/admin/manage_admin.py`, `Role.ADMIN` only (not
+    `EMPLOYEE_ADMIN` - Deployment Dashboard is Engineering-Admin-
+    exclusive, same split as `/docs`).
+  - **User-visible behavior**: Engineering Admin sees a new "Deployment
+    Dashboard" entry point (exact placement - new top-level nav item vs.
+    a 7th `AdminDashboardPage` tab - decided during implementation, not
+    here) with a golden-dataset viewer: searchable table of every case
+    (both datasets), category, query, expected answer/keywords, click a
+    row for the full `raw_case` detail. Read-only - no edit/delete via
+    the UI this phase.
+  - **Failure modes**: empty table (sync never run) renders "No golden
+    dataset cases synced yet - run scripts/sync_golden_dataset.py",
+    matching the Architecture Docs tab's own empty-state convention.
+    Non-admin role - 403, `error_codes.FORBIDDEN`, same shape as every
+    other `require_role` rejection.
+  - **Out of scope**: editing cases through the UI; parts 2-4 of the
+    Deployment Dashboard (separate future phases); running
+    `scripts/sync_golden_dataset.py` against production - implement and
+    self-verify locally only, stop before any AWS-affecting action per
+    the standing norm.
+  - **Open questions**: exact nav placement (new page vs. new
+    `AdminDashboardPage` tab) - resolve during implementation, flag back
+    if it meaningfully changes scope.
+  - **Built and live-verified, 2026-10-15.** New `golden_dataset_cases`
+    table + `golden_dataset_store.py`, new `scripts/sync_golden_dataset.py`
+    (idempotent - verified: 40 cases synced, re-run showed 40/40
+    "unchanged"), new `GET /v1/admin/golden-dataset` (`Role.ADMIN` only -
+    confirmed `employee_admin` gets a clean 403), new "Golden Dataset" tab
+    in `AdminDashboardPage`. Nav placement resolved: a 7th `AdminDashboardPage`
+    tab, not a new page - consistent with how Architecture Docs already
+    works, and the Admin dropdown's two new Engineering-Admin-only
+    shortcuts (`/admin?tab=docs`, `/admin?tab=golden-dataset`) deep-link
+    straight to it. Backend suite: 660/660 passing throughout.
+
+- [x] **Phase 182 — Deployment Dashboard, part 2: eval run persistence +
+  history.**
+  - **Context**: Part 2 of 4 (see Phase 181 above for the full plan).
+    `scripts/run_release_gate.py` (Phase 80) computes per-case scores and
+    an aggregate PASS/REVIEW/BLOCK decision on every manual
+    `eval-gate.yml` run, then discards everything but stdout - no history
+    exists anywhere queryable.
+  - **Data/API contracts**: new `GET /v1/admin/eval-runs` (list, summary
+    only) and `GET /v1/admin/eval-runs/{id}` (one run's full per-case
+    detail) - both `Role.ADMIN` only, query-param identity, same Phase 96
+    pattern as `/golden-dataset`. Recorded in
+    `docs/agent-reference/endpoint-request-response-contracts.md` before
+    implementation, per the standing spec-new process.
+  - **New DB tables**: `eval_runs` (`id serial`, `run_at timestamptz`,
+    `decision text` - PASS/REVIEW/BLOCK, `flags jsonb` - the flag-string
+    list `get_release_decision()`/`run_release_gate.py`'s own
+    missing-metric/failed-case checks already produce, `aggregated_scores
+    jsonb` - `{metric: value}`, `total_cases int`, `scored_cases int`,
+    `failed_case_ids jsonb`, `retrieval_k int`) and `eval_run_cases`
+    (`id serial`, `eval_run_id` FK, `case_id text`, `category text`,
+    `scores jsonb`, `status text` - scored/failed). New
+    `src/hrb_chatbot/common/clients/db_client/eval_run_store.py`,
+    `doc_metadata_store.py`'s own shape.
+  - **Script change**: `scripts/run_release_gate.py` gains one call at
+    the end of `main()` - persist the run (aggregate + every per-case
+    result) via `eval_run_store.py` before returning its exit code.
+    Writing to Postgres from a CI job needs the same `POSTGRES_DB_*`
+    secrets already available there for other purposes - if they aren't
+    configured in the `eval-gate.yml` workflow's environment, persistence
+    degrades to a logged warning, never a hard failure of the gate
+    itself (the release-blocking behavior must never depend on
+    persistence succeeding).
+  - **User-visible behavior**: new "Eval Runs" tab (Engineering-Admin-
+    only, same tier as Golden Dataset/Architecture Docs) in
+    `AdminDashboardPage` - a table of past runs (date, decision, key
+    aggregate scores), click a row for every case's own score in that
+    run.
+  - **Failure modes**: empty table (gate never run, or ran before this
+    phase existed) - "No eval runs recorded yet - run
+    scripts/run_release_gate.py." Non-admin - 403, `FORBIDDEN`.
+  - **Out of scope**: automatically triggering `eval-gate.yml` on a
+    schedule (it stays manual, per Phase 80's own design); editing/
+    deleting run history through the UI.
+  - **Open questions**: none - mechanics match Phase 181's own pattern
+    closely enough to not need new decisions.
+  - **Built and live-verified, 2026-10-15.** New `eval_runs`/
+    `eval_run_cases` tables + `eval_run_store.py`, `scripts/run_release_gate.py`
+    now persists every run at the end of `main()` (wrapped so a
+    persistence failure never changes the gate's own exit code), new
+    `GET /v1/admin/eval-runs` + `GET /v1/admin/eval-runs/{id}` (`Role.ADMIN`
+    only), new "Eval Runs" tab + detail modal in `AdminDashboardPage`,
+    new Engineering-Admin-only "Eval runs" shortcut in the Admin dropdown
+    (`/admin?tab=eval-runs`). Verified against a real inserted row: list
+    returns it, detail returns its per-case breakdown, `employee_admin`
+    gets a clean 403. Backend suite: 660/660 passing throughout.
+
+- [x] **Developer Onboarding Guide split into 4 focused pages, 2026-10-15.**
+  User-requested reorg: the single `developer-onboarding/guide.html` (Java/
+  Spring mapping + AWS/LangSmith monitoring + build/deploy manual + 2
+  diagrams) split into `build-guide/guide.html` (local dev → CI gates →
+  Docker → ECR), `deployment-verification-guide/guide.html` (deploy
+  workflow → smoke test → failure triage → both diagrams), and
+  `production-monitoring-guide/guide.html` (App Runner/CloudWatch/
+  LangSmith reading) - `developer-onboarding/guide.html` itself trimmed
+  to just the Java/Spring concept-mapping table. The older, separate
+  `docs/dev-reference/deployment-guide/` (10 docs, flagged stale above
+  under Phase 180) was deliberately left untouched - reconciling it is
+  still a separate, not-yet-made decision. All 4 pages registered in
+  `scripts/sync_admin_docs.py`; `HANDOFF.md`'s doc map updated. Not yet
+  synced to production - pending the standing go-ahead norm.
+
+- [x] **Phase 183 — Deployment Dashboard, part 3: CI/build status.**
+  - **Context**: Part 3 of 4. Smallest scope - no new DB table, just a
+    live read of GitHub's own Actions API for this repo's latest
+    `ci.yml`/`deploy.yml` runs, so Engineering Admin doesn't have to
+    leave the app to check build health.
+  - **Data/API contracts**: new `GET /v1/admin/ci-status` - `Role.ADMIN`
+    only, query-param identity. Calls the GitHub REST API
+    (`GET /repos/{owner}/{repo}/actions/workflows/{workflow}/runs?per_page=5`)
+    server-side using a GitHub token - **needs a decision before
+    implementation**: a new `GITHUB_TOKEN`-style setting (read-only,
+    `repo`/`actions:read` scope) has to be added to `.env`/`.env.example`
+    and (once deployed) App Runner's own secrets, mirroring how every
+    other third-party credential here is handled (`common/config/settings.py`'s
+    `read_setting()`). Recorded in
+    `docs/agent-reference/endpoint-request-response-contracts.md` first.
+  - **User-visible behavior**: new "CI/Build Status" tab - latest N runs
+    of `ci.yml` and `deploy.yml` each, status (success/failure/in
+    progress), commit SHA/message, a link out to the real GitHub Actions
+    run.
+  - **Failure modes**: `GITHUB_TOKEN` unset or GitHub API unreachable -
+    same error-as-data-at-client-layer convention as every other
+    external client (`health_check()`-style), surfaced as a clear "could
+    not reach GitHub" message, not a 500.
+  - **Out of scope**: triggering a workflow run from the UI (read-only
+    this phase); any other repo's CI status (`hrb_lms_mcp`,
+    `hrb_chatbot_ui` - a future phase's own scope if ever wanted).
+  - **Open questions**: where the `GITHUB_TOKEN` setting comes from -
+    the user's own GitHub PAT (read-only `actions:read` scope) is the
+    simplest path; flagged for confirmation, defaulting to that if not
+    otherwise specified.
+  - **Built and live-verified, 2026-10-15.** New `github_actions_client.py`
+    (wired into `client_gateway.py`, same pattern as `tavily_client.py` -
+    never raises, an `error` field on failure), new `GET /v1/admin/ci-status`
+    (`Role.ADMIN` only), new "CI/Build Status" tab in `AdminDashboardPage`
+    showing `ci.yml`/`deploy.yml`'s latest 5 runs each with a link out to
+    the real GitHub Actions run. `GITHUB_TOKEN`/`GITHUB_REPO` added to
+    `.env.example` (unset by default - the tab shows a clear "GITHUB_TOKEN
+    not configured" message, not an error, until a real token is added).
+    End-to-end verified using this session's own already-authenticated
+    `gh auth token` locally (not committed anywhere) - real recent
+    `ci.yml` runs (merge commits for PR #43/#44) returned correctly
+    through the full stack; `employee_admin` confirmed 403. Backend
+    suite: 660/660 passing throughout. Production App Runner has no
+    `GITHUB_TOKEN` configured yet - that's a real secret only the user
+    can provide, not done here.
+
+- [x] **Phase 184 — Deployment Dashboard, part 4: live metrics (tokens/
+  cost/latency/error-rate) + per-metric fine-tune-recommendation popups.**
+  - **Context**: Part 4 of 4, the biggest lift - nothing persists
+    token/cost/latency/error data today despite those fields already
+    existing transiently in several API response models
+    (`models/rag.py`, `models/multi_agentic_rag.py`, etc.). Also the
+    explicit "under Explainability -> Evals and Metrics info, include a
+    link for each Eval Score and Metrics line item with an option to
+    suggest which part of the feature/component to fine-tune" request
+    from earlier this session - the per-metric "?" popup pattern already
+    used elsewhere in this UI (chunking-strategy help popovers), applied
+    here to point at a real recommendation instead of just an
+    explanation.
+  - **Data/API contracts**: new `GET /v1/admin/request-metrics` (time-
+    windowed aggregate: avg/p50/p95 latency, total tokens, total cost,
+    error rate, grouped by pipeline/endpoint) - `Role.ADMIN` only, query-
+    param identity + a `window` param (e.g. `24h`/`7d`). Recorded in
+    `docs/agent-reference/endpoint-request-response-contracts.md` first.
+  - **New DB table**: `request_metrics` (`id serial`, `logged_at
+    timestamptz`, `endpoint text`, `pipeline text` - genai-rag/single-
+    agentic-rag/multi-agentic-rag, `token_count int`, `cost_usd numeric`,
+    `latency_ms int`, `status text` - success/error, `error_code text`
+    nullable). **New logging call needed** at the one real choke point
+    every pipeline already passes through -
+    `src/hrb_chatbot/ai/rag_core/guarded_pipeline.py`'s `run_guarded_pipeline()`
+    (per CLAUDE.md, the shared core genai-rag/single-agentic-rag funnel
+    through; `multi-agentic-rag` still calls guardrails directly per its
+    own documented exception, so needs its own logging call site too -
+    flagged, not silently skipped).
+  - **User-visible behavior**: new "Live Metrics" tab - headline numbers
+    (requests, avg latency, total cost, error rate) for the selected
+    window, a per-pipeline breakdown table. Each metric gets a "?" button
+    (same popover mechanism as the existing chunking-strategy help
+    popovers) - clicking it doesn't just explain the metric, it suggests
+    which real component to look at first (e.g. high latency on
+    multi-agentic-rag -> "check per-domain-agent token usage, flagged as
+    uninstrumented in BACKLOG.md" - a static, curated mapping of
+    metric-sits-high -> where-to-look, not a live model call).
+  - **Failure modes**: empty table (no requests logged yet, or logging
+    itself not yet deployed) - clear empty state, not an error. A
+    logging-call failure must never break the actual request it's
+    logging - fire-and-forget / best-effort, same principle
+    `log_backend_call()` already follows elsewhere.
+  - **Out of scope**: real-time/streaming metrics (polled on tab-open,
+    not pushed); alerting/paging on thresholds; per-employee cost
+    attribution.
+  - **Open questions**: the exact curated fine-tune-recommendation text
+    per metric is written during implementation, grounded in this
+    project's own real `BACKLOG.md` findings (e.g. the already-documented
+    "multi-agentic-rag has no per-domain-agent token usage" gap) rather
+    than generic advice - flag back if a metric has no real, grounded
+    recommendation to point to yet.
+  - **Built and live-verified, 2026-10-15 - Deployment Dashboard now
+    complete, all 4 parts.** New `request_metrics` table +
+    `request_metrics_store.py`; filled in `common/observability/
+    response_metrics.py` (was an empty scaffold file, exactly reserved
+    for this) with `time_and_log()`, a fire-and-forget wrapper every
+    query route now calls around its own real pipeline call - genai-rag's
+    `retrieve_document.py`, single-agentic-rag's `agentic_rag/query_agent.py`,
+    and multi-agentic-rag's `multi_agentic_rag/query_agent.py` (its own
+    separate call site, per the documented exception that it doesn't
+    funnel through `guarded_pipeline.py`). New `GET /v1/admin/request-metrics`
+    (`Role.ADMIN` only, `window` param), new "Live Metrics" tab with a
+    window selector and per-metric "?" fine-tune popups (reusing the
+    existing `.chunking-help-popover` mechanism), each popup's text
+    grounded in a real `BACKLOG.md` entry, not generic advice. **One
+    deliberate deviation from the spec**: `cost_usd` stays unpopulated
+    (the column exists for later) - no verified, maintained per-model
+    price table exists for `gpt-4.1-mini`/`claude-haiku-4-5` in this
+    project, and fabricating one would mislead rather than inform;
+    flagged as its own future gap rather than guessed. `multi-agentic-rag`
+    rows always show `total_tokens: null`, matching the already-documented
+    gap, not papered over. Verified end-to-end against real, already-
+    accumulated live traffic (265 real logged requests across all 3
+    pipelines found once the logging was wired in) via the real HTTP
+    endpoint, not just a fake insert; `employee_admin` confirmed 403.
+    Backend suite: 660/660 passing throughout this phase too.
+
+- [x] **Phase 185 — MCP circuit breaker: pre-flight check before a real
+  call, not just a reactive catch after one.**
+  - **Context**: user-requested "health-check/graceful-degradation
+    (pre-flight checks before calling MCP/LLM/DB)," 2026-10-15. MCP
+    already degrades gracefully *after* a failed call (caught, falls
+    back to RAG, documented) - but every call still pays a real network
+    timeout before that fallback kicks in, even during a known, ongoing
+    outage (the real Phase 118 incident this exact pattern would have
+    caught faster). Scoped to MCP only, not LLM/DB - an LLM/DB pre-flight
+    check would add a cost/latency check to every single request for
+    comparatively less proven benefit (LLM/DB already fail loudly with
+    clear exceptions; MCP's own "unreachable, not just one bad call" gap
+    is the one with real, documented pain). This is also directly related
+    to, but distinct from, the separately-flagged MCP gap in `BACKLOG.md`
+    ("no distinction between transport failure and tool-call failure") -
+    that one's about exception *type*, this one's about pre-flight
+    *avoidance*; solving this phase first makes that one easier.
+  - **Mechanism**: `app_tracking.mcp_server_registry`'s connection tables
+    (Phase 50) already exist and already track `connection_status`/
+    `consecutive_failures`/`last_health_check_at` - today only ever
+    written once, at app startup. This phase (1) makes every real
+    `_call_mcp_tool()` attempt write its own outcome via the already-
+    existing `record_connection_attempt()` (not called from there today
+    at all), and (2) adds a cheap pre-flight read of that same cached row
+    before attempting the real call - if `connection_status == 'error'`
+    AND `consecutive_failures >= 2` AND the last check was within a short
+    cooldown window (`MCP_CIRCUIT_BREAKER_COOLDOWN_SECONDS`, default 10),
+    skip the real network call and raise immediately with a clear "known
+    unreachable" message instead. Requires at least 2 consecutive real
+    failures before short-circuiting - a single transient blip must not
+    trip the breaker.
+  - **New method**: `McpRegistryClient.get_connection_status(server_id)`
+    - a plain read of the existing `mcp_server_connections` row, no new
+    table.
+  - **Failure mode of the mechanism itself**: the registry read is a
+    second database connection (the shared `hr_chatbot` database, not
+    this app's own Postgres) - if *that* read itself fails, the pre-
+    flight check must fail open (attempt the real MCP call as if no
+    cached status existed), never fail closed (never block a real call
+    just because the cache couldn't be read).
+  - **User-visible behavior**: during a real MCP outage, the 3rd+ request
+    (once 2 consecutive real failures have been recorded) fails fast
+    (no multi-second timeout) with the same existing RAG-fallback
+    behavior - faster degraded answers during an outage, not a visible
+    change during normal operation.
+  - **Out of scope**: LLM/DB pre-flight checks (explicitly not this
+    phase, see Context); a configurable per-tool cooldown (one project-
+    wide setting is enough for now); surfacing circuit-breaker state in
+    any UI (internal mechanism only this phase).
+  - **Open questions**: none - cooldown/threshold values are reasonable
+    defaults, adjustable later if real production behavior shows
+    otherwise.
+  - **Built and live-verified, 2026-10-15.** `McpRegistryClient.get_connection_status()`
+    added; `_call_mcp_tool()` now records every real attempt's outcome
+    and runs `_check_circuit_breaker()` first. 8 new tests cover: no
+    status row, connected status, below threshold, tripped within
+    cooldown, cooldown elapsed, registry-read failure (fails open),
+    and both outcome-recording paths - all passing, plus the full
+    existing suite (668/668, up from 660, unaffected since every
+    existing MCP test monkeypatches `_call_mcp_tool` itself or a layer
+    above it, never exercising the new code path).
+
+- [x] **Phase 186 — FAQ-submission feature: real-time LLM first-pass
+  answer, then human/Claude review before publishing.**
+  - **Context**: user-requested, 2026-10-15 - an employee can submit a
+    question that wasn't well answered; it gets a real-time tool-using
+    LLM first-pass answer immediately, then goes through a review
+    workflow (a human, or Claude doing a restructuring pass) before
+    becoming a published, browsable FAQ.
+  - **Data/API contracts**: `docs/agent-reference/endpoint-request-response-contracts.md`'s
+    new section (added alongside this spec, see below) for all 5
+    endpoints. New Pydantic models in `src/hrb_chatbot/models/faq.py`.
+  - **New DB table**: `faq_submissions` - `id serial`, `employee_id text`,
+    `query text`, `external_llm_answer text` (the real-time first-pass,
+    from `run_agent()` - reused as-is, not a new LLM-calling path),
+    `internal_review_status text` (`pending`/`approved`/`rejected`),
+    `answer_restructuring_status text` (`not_started`/
+    `claude_restructured`/`human_edited`/`finalized`), `final_answer text`
+    nullable, `published boolean default false`, `reviewed_by text`
+    nullable, `created_at`/`updated_at timestamptz`. New
+    `src/hrb_chatbot/common/clients/db_client/faq_submission_store.py`,
+    `doc_metadata_store.py`'s own shape.
+  - **New routes** (`src/hrb_chatbot/api/faq/faq_submission.py`):
+    - `POST /v1/faq/submit` - `Role.EMPLOYEE`/`MANAGER`/`HR_SUPPORT`/`ADMIN`
+      (any authenticated role can ask). Body `{query}`. Calls
+      `orchestration_agent.run_agent()` synchronously for the real-time
+      first-pass answer, inserts the row with `internal_review_status:
+      "pending"`, returns it.
+    - `GET /v1/admin/faq-submissions` - `Role.HR_SUPPORT`/`ADMIN` (review
+      queue - HR Support reviews content same as it already does for
+      leave requests; ADMIN sees everything). Query-param identity
+      (Phase 96 GET convention).
+    - `POST /v1/admin/faq-submissions/{id}/restructure` - same roles. No
+      body. Calls `AnthropicChatClient` (already exists, reused - no new
+      LLM client) with a dedicated "restructure this raw Q&A into a
+      clean, publishable FAQ entry" prompt, writes the result as a
+      *suggested* `final_answer` and sets
+      `answer_restructuring_status: "claude_restructured"` - a draft for
+      the reviewer to accept or further edit, never auto-published.
+    - `POST /v1/admin/faq-submissions/{id}/review` - same roles. Body
+      `{internal_review_status, final_answer, published}` - the human's
+      own decision, overwriting or confirming whatever
+      `/restructure` suggested. Sets `answer_restructuring_status:
+      "human_edited"` if `final_answer` differs from the Claude-suggested
+      one, else `"finalized"`.
+    - `GET /v1/faq/published` - any authenticated role. Only rows where
+      `published = true` - question + `final_answer` only, none of the
+      review-workflow internals.
+  - **User-visible behavior**: a "Submit a question" entry point (exact
+    placement - a button on `ChatPage` vs. a dedicated page - decided
+    during implementation); a new Engineering-Admin/HR-Support-visible
+    review queue; a published-FAQ browse view any employee can read.
+  - **Failure modes**: `run_agent()` failure on submit - the row is still
+    inserted with `external_llm_answer: null` and a clear status, never a
+    500 that loses the employee's question. `/restructure` failure (the
+    Anthropic call itself fails) - `answer_restructuring_status` stays
+    `not_started`, reviewer can still write `final_answer` by hand.
+  - **Out of scope**: auto-publishing anything without an explicit human
+    `/review` call; editing/deleting submissions through this phase's own
+    UI beyond the review workflow; search/filter on the review queue
+    (small volume expected initially - add later if it grows).
+  - **Open questions**: exact UI placement for "Submit a question" -
+    resolve during implementation, flag back if it meaningfully changes
+    scope.
+  - **Built and live-verified, 2026-10-15.** New `faq_submissions` table
+    + `faq_submission_store.py`. Employee-facing router
+    (`api/faq/faq_submission.py`, prefix `/v1/faq`): `POST /submit`
+    (reuses `orchestration_agent.run_agent()` as-is for the real-time
+    first-pass answer) and `GET /published`. Review-side 3 routes added
+    to the existing `manage_admin.py` (`/v1/admin/faq-submissions`,
+    `.../restructure`, `.../review`) rather than a separate router -
+    matches this session's own established precedent (Golden Dataset/
+    Eval Runs/CI Status/Request Metrics all live there too), a deliberate
+    refinement over the spec's literal "one new router" wording.
+    `/restructure` calls the existing `AnthropicChatClient` (no new LLM
+    client) with a dedicated restructuring prompt. UI: new `FaqPage.tsx`
+    (`/faq`, any role - submit + browse published) and
+    `FaqReviewPage.tsx` (`/faq-review`, HR Support + both admin tiers),
+    both reachable from the topbar/Admin dropdown - not embedded as an
+    `AdminDashboardPage` tab, a scope cut to control size (the standalone
+    page + dropdown link already covers all 3 reviewer roles).
+    16 new tests (submit success/LLM-failure-fallback/published-filtering,
+    list/restructure/review RBAC and status-transition logic) - full
+    suite 676/676. End-to-end verified live: real row created, HR Support
+    lists it, employee gets 403, review+publish records `reviewed_by` and
+    sets `answer_restructuring_status: "human_edited"` correctly, the
+    published list correctly shows only the 2 public fields.
+
+- [x] **Phase 187 — Interview Q&A as a real, editable, filterable DB
+  table, not just static HTML.**
+  - **Context**: user-requested, 2026-10-15. The 7-part-format Interview
+    FAQ content (the prototype's 4 cards + the "Agentic Research Systems"
+    page's 34 cards, 38 total) currently exists only as static HTML -
+    `doc_metadata` tracks the whole file, not individual questions.
+    User wants: filter by topic (dropdown + grid filters), edit existing
+    Q&A, add new Q&A manually, all from a real admin UI - with each card
+    also carrying **tech stack/libraries** and **feature references**
+    (real file paths) so a question can be used to jump straight to the
+    implementing code. Explicitly: DB becomes the real source of truth,
+    not a metadata mirror of a file (narrower option considered and
+    rejected by the user in favor of this one) - rendering reuses the
+    same visual theme as the existing HTML pages, but as a real React
+    component reading from the API, not server-generated static HTML.
+  - **Data/API contracts**: `docs/agent-reference/endpoint-request-response-contracts.md`'s
+    new section (added alongside this spec). New
+    `src/hrb_chatbot/models/interview_qa.py`.
+  - **New DB table**: `interview_qa_cards` - `id serial`, `topic text`,
+    `topic_order int`, `card_order int`, `question text`, `hint text`,
+    `concept text`, `situation text`, `task text`, `action text`,
+    `result text`, `project_link text`, `leadership_angle text`,
+    `trade_offs jsonb` (array of strings), `keywords jsonb` (array of
+    `{term, definition}`), `tech_stack jsonb` (array of strings),
+    `feature_references jsonb` (array of `{label, file_path}` - real
+    repo-relative paths, not guessed), `created_at`/`updated_at
+    timestamptz`. New `src/hrb_chatbot/common/clients/db_client/interview_qa_store.py`,
+    `doc_metadata_store.py`'s own shape, with real `create`/`update`/
+    `delete`/`list` (filterable by `topic`)/`get` methods - this store
+    needs real write methods beyond every prior Phase-181-186 store,
+    since this is genuinely editable content, not a one-way mirror.
+  - **New routes** (`src/hrb_chatbot/api/admin/manage_admin.py`, same
+    precedent as Golden Dataset/Eval Runs/CI Status/Request Metrics):
+    `GET /v1/admin/interview-qa` (list, optional `topic` query filter),
+    `GET /v1/admin/interview-qa/{id}`, `POST /v1/admin/interview-qa`
+    (create), `PUT /v1/admin/interview-qa/{id}` (update),
+    `DELETE /v1/admin/interview-qa/{id}` - all `Role.ADMIN` only
+    (Engineering Admin, same tier as Architecture Docs/Golden Dataset -
+    this is dev-reference content management, not HR-facing).
+  - **Migration**: a new `scripts/migrate_interview_qa_to_db.py` (one-
+    time, run by hand) parses the real existing 38 cards out of
+    `prototype-new-format.html` and `agentic-research-systems.html`'s own
+    DOM structure and inserts them as real rows - the HTML's own already-
+    correct content is the source for this one-time migration, not
+    rewritten by hand. The old 69-card `system.html` is explicitly NOT
+    migrated this phase (different, pre-7-part-format structure -
+    migrating it means rewriting 69 answers into the new structure,
+    separate future work, flagged not silently dropped).
+  - **User-visible behavior**: new "Interview Q&A" tab in
+    `AdminDashboardPage` - a topic-filter dropdown + grid (question,
+    topic, tech stack chips), click a row for the full 7-part detail view
+    (reusing the real `.q-card`/`.star-grid`/`.project-link`/etc. CSS
+    classes from the HTML prototypes, ported into this project's own
+    `App.css` as real shared styles, not duplicated inline), an inline
+    edit mode for every field including `tech_stack`/`feature_references`
+    as editable lists, and an "Add new" button for a blank card.
+  - **Failure modes**: empty table before migration runs - clear "no
+    cards yet" state, not an error. A `feature_references` path that
+    doesn't exist on disk is never validated at write time (this table
+    doesn't have filesystem access guarantees) - rendered as given,
+    trusted content from an admin-only editor.
+  - **Out of scope**: migrating the old 69-card page; a public (non-
+    admin) read view of this content (stays Engineering-Admin-only this
+    phase, matching Architecture Docs); versioning/history of edits
+    (every edit overwrites in place, no audit trail this phase).
+  - **Open questions**: none - the two real forks (DB vs. metadata-
+    mirror, migrate-now vs. not) were both resolved directly with the
+    user before this spec was written.
+  - **Built and live-verified, 2026-10-15.** New `interview_qa_cards`
+    table, `interview_qa_store.py` (full CRUD), 5 routes in
+    `manage_admin.py`, `scripts/migrate_interview_qa_to_db.py` (uses
+    `beautifulsoup4`, already a dependency - no new library added). 5 new
+    route tests added to `tests/hrb_chatbot/api/admin/test_manage_admin.py`
+    (403 for `employee_admin`, topic-filtered list, 404s, full create/
+    update/delete cycle via `FakeInterviewQaStore`) - full suite at
+    681/681, no regressions. Migration run against real local
+    Postgres: 38/38 cards inserted (4 from the prototype under a
+    synthetic "Format Prototype" topic, 34 from the real `.week`/
+    `.week-head` sections of the Agentic Research Systems page) - spot-
+    checked card #11 (the MCP circuit breaker card) field-by-field
+    against the source HTML, exact match. Live-verified full CRUD cycle
+    via direct `curl` against the running dev server: create, update,
+    delete, 404-after-delete, and a real 403 for `employee_admin`
+    (Engineering-Admin-only, matching Architecture Docs/Golden Dataset).
+    New frontend: "Interview Q&A" tab in `AdminDashboardPage.tsx` (topic
+    filter + grid + View/Edit/Delete/+Add new), `InterviewQaCardView.tsx`
+    (read-only themed display, ported `.iqa-*` CSS in `App.css` - renamed
+    from the HTML prototypes' own `--bg`/`--text`/etc. tokens to
+    `--iqa-*` to avoid colliding with this app's own existing global
+    theme tokens of the same name), `InterviewQaEditorModal.tsx` (full
+    form incl. editable `trade_offs`/`keywords`/`tech_stack`/
+    `feature_references` lists), a new Admin-dropdown link in
+    `ChatPage.tsx`. `tsc --noEmit` clean. **Not yet visually verified in
+    a real browser** - no browser-automation tool was available this
+    session; the user should confirm the tab renders/behaves correctly
+    before considering this phase fully closed.

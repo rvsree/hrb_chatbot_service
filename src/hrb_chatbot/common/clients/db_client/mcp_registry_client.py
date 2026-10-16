@@ -94,6 +94,29 @@ class McpRegistryClient:
     async def record_connection_attempt(self, server_id: str, success: bool, result: dict, error_message: str | None = None) -> None:
         await asyncio.to_thread(self._record_connection_attempt_sync, server_id, success, result, error_message)
 
+    @staticmethod
+    def _dict_row_factory(cursor):
+        columns = [desc.name for desc in cursor.description]
+        return lambda values: dict(zip(columns, values, strict=True))
+
+    def _get_connection_status_sync(self, server_id: str) -> dict | None:
+        with self._connect() as conn:
+            with conn.cursor(row_factory=self._dict_row_factory) as cur:
+                cur.execute(
+                    "SELECT connection_status, consecutive_failures, last_health_check_at "
+                    "FROM app_tracking.mcp_server_connections WHERE server_id = %s",
+                    (server_id,),
+                )
+                row = cur.fetchone()
+        return row
+
+    async def get_connection_status(self, server_id: str) -> dict | None:
+        """Phase 185 - the circuit breaker's pre-flight read. Returns None
+        if no row exists yet (e.g. startup registration hasn't run) -
+        callers must treat that the same as "unknown, attempt the real
+        call," never as "known down."""
+        return await asyncio.to_thread(self._get_connection_status_sync, server_id)
+
     def health_check(self) -> dict:
         result = {"provider": "mcp_registry", "host": self.host, "db_name": self.db_name}
         try:

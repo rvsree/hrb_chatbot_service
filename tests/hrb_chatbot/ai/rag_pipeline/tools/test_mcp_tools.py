@@ -3,7 +3,28 @@ mcp_tools/__init__.py). get_leave_balance/get_leave_history are faked here -
 no real network call to hrb_lms_mcp, matching every other client test in
 this project."""
 
+from datetime import UTC, datetime, timedelta
+
+import pytest
+
 from src.hrb_chatbot.ai.rag_pipeline.tools import mcp_tools
+
+
+class FakeMcpRegistryClient:
+    """Stands in for McpRegistryClient (Phase 185's circuit breaker) - no
+    real database connection, same async interface."""
+
+    def __init__(self, status: dict | None = None):
+        self.status = status
+        self.recorded_calls: list[dict] = []
+
+    async def get_connection_status(self, server_id):
+        if self.status is None:
+            return None
+        return self.status
+
+    async def record_connection_attempt(self, server_id, success, result, error_message=None):
+        self.recorded_calls.append({"server_id": server_id, "success": success, "error_message": error_message})
 
 
 def test_leave_balance_keywords_match():
@@ -50,3 +71,77 @@ async def test_mcp_failure_falls_through_to_none_not_raise(monkeypatch):
     result = await mcp_tools.try_route_to_mcp("What's my PTO balance?", "EMP052")
 
     assert result is None
+
+
+async def test_circuit_breaker_allows_a_call_when_no_status_row_exists(monkeypatch):
+    fake_registry = FakeMcpRegistryClient(status=None)
+    monkeypatch.setattr(mcp_tools, "_get_mcp_registry_client", lambda: fake_registry)
+
+    await mcp_tools._check_circuit_breaker()  # must not raise
+
+
+async def test_circuit_breaker_allows_a_call_when_status_is_connected(monkeypatch):
+    fake_registry = FakeMcpRegistryClient(
+        status={"connection_status": "connected", "consecutive_failures": 0, "last_health_check_at": datetime.now(UTC)}
+    )
+    monkeypatch.setattr(mcp_tools, "_get_mcp_registry_client", lambda: fake_registry)
+
+    await mcp_tools._check_circuit_breaker()  # must not raise
+
+
+async def test_circuit_breaker_allows_a_call_below_the_failure_threshold(monkeypatch):
+    fake_registry = FakeMcpRegistryClient(
+        status={"connection_status": "error", "consecutive_failures": 1, "last_health_check_at": datetime.now(UTC)}
+    )
+    monkeypatch.setattr(mcp_tools, "_get_mcp_registry_client", lambda: fake_registry)
+
+    await mcp_tools._check_circuit_breaker()  # 1 failure < threshold of 2, must not raise
+
+
+async def test_circuit_breaker_trips_within_the_cooldown_window(monkeypatch):
+    fake_registry = FakeMcpRegistryClient(
+        status={"connection_status": "error", "consecutive_failures": 3, "last_health_check_at": datetime.now(UTC)}
+    )
+    monkeypatch.setattr(mcp_tools, "_get_mcp_registry_client", lambda: fake_registry)
+
+    with pytest.raises(RuntimeError, match="known unreachable"):
+        await mcp_tools._check_circuit_breaker()
+
+
+async def test_circuit_breaker_allows_a_call_once_the_cooldown_elapses(monkeypatch):
+    stale_check = datetime.now(UTC) - timedelta(seconds=mcp_tools.MCP_CIRCUIT_BREAKER_COOLDOWN_SECONDS + 5)
+    fake_registry = FakeMcpRegistryClient(
+        status={"connection_status": "error", "consecutive_failures": 5, "last_health_check_at": stale_check}
+    )
+    monkeypatch.setattr(mcp_tools, "_get_mcp_registry_client", lambda: fake_registry)
+
+    await mcp_tools._check_circuit_breaker()  # cooldown elapsed, must not raise
+
+
+async def test_circuit_breaker_fails_open_when_the_registry_read_itself_fails(monkeypatch):
+    class _RaisingRegistryClient:
+        async def get_connection_status(self, server_id):
+            raise ConnectionError("hr_chatbot database unreachable")
+
+    monkeypatch.setattr(mcp_tools, "_get_mcp_registry_client", lambda: _RaisingRegistryClient())
+
+    await mcp_tools._check_circuit_breaker()  # must not raise - fails open, never blocks a real call
+
+
+async def test_record_mcp_outcome_records_success(monkeypatch):
+    fake_registry = FakeMcpRegistryClient()
+    monkeypatch.setattr(mcp_tools, "_get_mcp_registry_client", lambda: fake_registry)
+
+    await mcp_tools._record_mcp_outcome(True, None)
+
+    assert fake_registry.recorded_calls == [{"server_id": "hrb_lms_mcp", "success": True, "error_message": None}]
+
+
+async def test_record_mcp_outcome_never_raises_when_recording_itself_fails(monkeypatch):
+    class _RaisingRegistryClient:
+        async def record_connection_attempt(self, server_id, success, result, error_message=None):
+            raise ConnectionError("hr_chatbot database unreachable")
+
+    monkeypatch.setattr(mcp_tools, "_get_mcp_registry_client", lambda: _RaisingRegistryClient())
+
+    await mcp_tools._record_mcp_outcome(False, "some error")  # must not raise

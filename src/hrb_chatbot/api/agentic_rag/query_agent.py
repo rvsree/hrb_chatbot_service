@@ -9,6 +9,7 @@ from src.hrb_chatbot.api.gateway.rbac import require_role
 from src.hrb_chatbot.common import error_codes
 from src.hrb_chatbot.common.enums import Role
 from src.hrb_chatbot.common.logging.logger import get_logger
+from src.hrb_chatbot.common.observability.response_metrics import time_and_log
 from src.hrb_chatbot.common.rate_limiting.rate_limiter import enforce_rate_limit
 from src.hrb_chatbot.models.agentic_rag import AgenticRagRequest, AgenticRagResponse
 from src.hrb_chatbot.models.common import ToolCallInfo
@@ -25,12 +26,17 @@ async def query(payload: AgenticRagRequest, request: Request):
     await enforce_rate_limit(request)
 
     try:
-        result = await run_agent(
-            payload.query,
-            userProfile.employee_id,
-            payload.max_iterations,
-            enable_conversation_memory=payload.enable_conversation_memory,
-            conversation_id=payload.conversation_id,
+        result = await time_and_log(
+            "/v1/single-agentic-rag-retrieval/query",
+            "single-agentic-rag",
+            lambda: run_agent(
+                payload.query,
+                userProfile.employee_id,
+                payload.max_iterations,
+                enable_conversation_memory=payload.enable_conversation_memory,
+                conversation_id=payload.conversation_id,
+            ),
+            lambda r: (r.get("token_usage") or {}).get("total_tokens"),
         )
     except GuardrailBlockedError as error:
         return json_error(422, str(error), code=error_codes.INPUT_GUARDRAIL_BLOCKED)

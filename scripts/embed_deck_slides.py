@@ -23,6 +23,11 @@ EMBEDS = {
     "docs/dev-reference/database/db-model-overview.html": "db-model-overview-slide.png",
     "docs/dev-reference/IK-FDE/course-topic-coverage-review.html": "course-topic-coverage-review-slide.png",
     "docs/dev-reference/genai-rag-chat/architecture.html": "architecture-slide.png",
+    # 2 images in one doc (high-level + low-level deployment diagrams) -
+    # a list value, unlike every single-image entry above.
+    "docs/dev-reference/developer-onboarding/guide.html": [
+        "deployment-view-slide.png", "deploy-pipelines-slide.png",
+    ],
 }
 
 
@@ -56,7 +61,12 @@ def embed_one(html_path, png_filename):
 
 def main():
     for html_path, png_filename in EMBEDS.items():
-        embed_one(html_path, png_filename)
+        # a list means several images in one doc - embed each one in turn.
+        if isinstance(png_filename, list):
+            for one_filename in png_filename:
+                embed_one(html_path, one_filename)
+        else:
+            embed_one(html_path, png_filename)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ accepting anything typed into the login form. Still not real
 authentication - role stays self-asserted on every request after this,
 unchanged from this project's documented RBAC-is-a-formality design."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from src.hrb_chatbot.api.dependencies import json_error
 from src.hrb_chatbot.api.gateway.rbac import require_role
@@ -13,6 +13,7 @@ from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 from src.hrb_chatbot.common.config.settings import read_setting
 from src.hrb_chatbot.common.enums import Role
 from src.hrb_chatbot.common.known_personas import is_known_persona
+from src.hrb_chatbot.common.rate_limiting.rate_limiter import enforce_rate_limit
 from src.hrb_chatbot.models.auth import LoginRequest, LoginResponse, ResetSecretCodeRequest, ResetSecretCodeResponse
 from src.hrb_chatbot.models.common import UserProfile
 
@@ -29,9 +30,17 @@ router_login = APIRouter(tags=["auth"])
 # so a real admin always replaces it before this value matters again.
 ADMIN_ONE_TIME_SEED_SECRET_CODE = read_setting(None, "ADMIN_SEED_SECRET_CODE", "change-me-on-first-login")
 
+# Milestone 3 - the recovery path out of a lockout, same "env var holding
+# a known-safe temporary code" shape as the seed code above, never a
+# plaintext literal in source. None (unset) disables recovery entirely -
+# a locked admin then just waits out LOCKOUT_DURATION_MINUTES instead.
+ADMIN_UNLOCK_CODE = read_setting(None, "ADMIN_UNLOCK_CODE", None)
+
 
 @router_login.post("/login", response_model=LoginResponse)
-async def login(payload: LoginRequest):
+async def login(payload: LoginRequest, request: Request):
+    await enforce_rate_limit(request)
+
     if not is_known_persona(payload.employee_id, payload.full_name, payload.role):
         return json_error(
             401,
@@ -40,16 +49,44 @@ async def login(payload: LoginRequest):
         )
 
     must_reset_secret_code = False
-    if payload.role == "admin":
+    if payload.role in ("admin", "employee_admin"):
         credential_store = get_db_gateway().admin_credential_store()
         credential = await credential_store.get_or_seed(payload.employee_id, ADMIN_ONE_TIME_SEED_SECRET_CODE)
-        if not await credential_store.verify_secret_code(payload.employee_id, payload.secret_code):
+
+        if credential["is_locked"]:
+            if ADMIN_UNLOCK_CODE and payload.secret_code == ADMIN_UNLOCK_CODE:
+                await credential_store.force_unlock_and_require_reset(payload.employee_id, ADMIN_UNLOCK_CODE)
+                must_reset_secret_code = True
+            else:
+                return json_error(
+                    423,
+                    f"Too many wrong secret codes - locked until {credential['locked_until'].isoformat()}.",
+                    code=error_codes.ADMIN_ACCOUNT_LOCKED,
+                )
+        elif not await credential_store.verify_secret_code(payload.employee_id, payload.secret_code):
+            if payload.count_as_attempt:
+                await credential_store.record_failed_attempt(payload.employee_id)
+                # Re-fetch rather than compute locally - the exact attempt
+                # that crosses the threshold must report the lock
+                # immediately, not leave the admin finding out only on
+                # their next (also-rejected) try. The DB's own count/clock
+                # stay the single source of truth, not a value guessed here.
+                refreshed = await credential_store.get_credential(payload.employee_id)
+                if refreshed["is_locked"]:
+                    return json_error(
+                        423,
+                        f"Too many wrong secret codes - locked until {refreshed['locked_until'].isoformat()}.",
+                        code=error_codes.ADMIN_ACCOUNT_LOCKED,
+                    )
             return json_error(
                 401,
                 "Incorrect secret code for the admin role.",
                 code=error_codes.INVALID_ADMIN_SECRET_CODE,
             )
-        must_reset_secret_code = credential["must_reset"]
+        else:
+            if payload.count_as_attempt:
+                await credential_store.reset_failed_attempts(payload.employee_id)
+            must_reset_secret_code = credential["must_reset"]
 
     return LoginResponse(
         user_profile=UserProfile(employee_id=payload.employee_id, full_name=payload.full_name, role=payload.role),
@@ -63,7 +100,7 @@ async def reset_admin_secret_code(payload: ResetSecretCodeRequest):
     caller must assert role=admin, same RBAC mechanism every other route
     uses), and must also prove they know the CURRENT code - a stolen
     session token alone can't silently change it."""
-    require_role(payload.user_profile, Role.ADMIN)
+    require_role(payload.user_profile, Role.ADMIN, Role.EMPLOYEE_ADMIN)
 
     credential_store = get_db_gateway().admin_credential_store()
     if not await credential_store.verify_secret_code(payload.user_profile.employee_id, payload.current_secret_code):

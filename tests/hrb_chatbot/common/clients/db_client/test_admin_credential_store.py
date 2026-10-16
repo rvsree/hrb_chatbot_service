@@ -1,15 +1,17 @@
 """Phase 171: AdminCredentialStore - salted-hash storage/verification, no
 real Postgres (_connect() faked with a tiny in-memory table, matching this
 project's zero-network-call test guarantee, same seam feedback_store's own
-tests use)."""
+tests use). Milestone 3 adds the lockout columns/queries to this same fake."""
 
-from src.hrb_chatbot.common.clients.db_client.admin_credential_store import AdminCredentialStore
+from datetime import UTC, datetime
+
+from src.hrb_chatbot.common.clients.db_client.admin_credential_store import AdminCredentialStore, MAX_FAILED_ATTEMPTS
 
 
 class _FakeConnection:
     """A tiny in-memory stand-in for the one `admin_credentials` row this
-    store ever touches per employee_id - routes by sniffing the SQL verb,
-    same shape the real queries use."""
+    store ever touches per employee_id - routes by sniffing the SQL verb
+    and a few distinguishing substrings, same shape the real queries use."""
 
     def __init__(self, table: dict):
         self._table = table
@@ -25,21 +27,54 @@ class _FakeConnection:
         if sql.startswith("SELECT"):
             (employee_id,) = params
             row = self._table.get(employee_id)
-            self._last_select_result = (row["secret_code_hash"], row["secret_code_salt"], row["must_reset"]) if row else None
+            if row is None:
+                self._last_select_result = None
+            else:
+                locked_until = row["locked_until"]
+                is_locked = locked_until is not None and locked_until > datetime.now(UTC)
+                self._last_select_result = (
+                    row["secret_code_hash"],
+                    row["secret_code_salt"],
+                    row["must_reset"],
+                    row["failed_attempts"],
+                    locked_until,
+                    is_locked,
+                )
         elif sql.startswith("INSERT"):
             employee_id, secret_code_hash, secret_code_salt = params
             self._table[employee_id] = {
                 "secret_code_hash": secret_code_hash,
                 "secret_code_salt": secret_code_salt,
                 "must_reset": True,
+                "failed_attempts": 0,
+                "locked_until": None,
             }
-        elif sql.startswith("UPDATE"):
+        elif sql.startswith("UPDATE") and "failed_attempts = failed_attempts + 1" in sql:
+            _max_attempts, candidate_locked_until, employee_id = params
+            row = self._table[employee_id]
+            row["failed_attempts"] += 1
+            if row["failed_attempts"] >= MAX_FAILED_ATTEMPTS:
+                row["locked_until"] = candidate_locked_until
+        elif sql.startswith("UPDATE") and "must_reset = TRUE" in sql:
             secret_code_hash, secret_code_salt, employee_id = params
             self._table[employee_id] = {
                 "secret_code_hash": secret_code_hash,
                 "secret_code_salt": secret_code_salt,
-                "must_reset": False,
+                "must_reset": True,
+                "failed_attempts": 0,
+                "locked_until": None,
             }
+        elif sql.startswith("UPDATE") and "failed_attempts = 0, locked_until = NULL" in sql:
+            (employee_id,) = params
+            row = self._table[employee_id]
+            row["failed_attempts"] = 0
+            row["locked_until"] = None
+        elif sql.startswith("UPDATE"):
+            secret_code_hash, secret_code_salt, employee_id = params
+            row = self._table[employee_id]
+            row["secret_code_hash"] = secret_code_hash
+            row["secret_code_salt"] = secret_code_salt
+            row["must_reset"] = False
         return self
 
     def fetchone(self):
@@ -51,7 +86,7 @@ class _FakeConnection:
 
 def _store_with_fake_table(monkeypatch, table=None):
     store = AdminCredentialStore(host="fake-host", port="5432", db_name="fake_db", user="fake_user", password="fake_pw")
-    store._table_ready = True  # skip _ensure_table()'s own CREATE TABLE call
+    store._table_ready = True  # skip _ensure_table()'s own CREATE TABLE/ALTER TABLE calls
     table = table if table is not None else {}
     monkeypatch.setattr(store, "_connect", lambda: _FakeConnection(table))
     return store, table
@@ -137,3 +172,73 @@ async def test_two_employees_with_the_same_code_get_different_hashes(monkeypatch
 
     assert table["ADM001"]["secret_code_hash"] != table["ADM002"]["secret_code_hash"]
     assert table["ADM001"]["secret_code_salt"] != table["ADM002"]["secret_code_salt"]
+
+
+# --- Milestone 3: lockout, recovery, auto-expiry ---------------------------
+
+
+async def test_new_credential_starts_unlocked_with_zero_failed_attempts(monkeypatch):
+    store, _table = _store_with_fake_table(monkeypatch)
+
+    credential = await store.get_or_seed("ADM001", "$reeRad")
+
+    assert credential["failed_attempts"] == 0
+    assert credential["locked_until"] is None
+    assert credential["is_locked"] is False
+
+
+async def test_failed_attempts_below_threshold_does_not_lock(monkeypatch):
+    store, _table = _store_with_fake_table(monkeypatch)
+    await store.get_or_seed("ADM001", "$reeRad")
+
+    for _ in range(MAX_FAILED_ATTEMPTS - 1):
+        await store.record_failed_attempt("ADM001")
+
+    credential = await store.get_credential("ADM001")
+    assert credential["failed_attempts"] == MAX_FAILED_ATTEMPTS - 1
+    assert credential["is_locked"] is False
+
+
+async def test_reaching_max_failed_attempts_locks_the_account(monkeypatch):
+    store, _table = _store_with_fake_table(monkeypatch)
+    await store.get_or_seed("ADM001", "$reeRad")
+
+    for _ in range(MAX_FAILED_ATTEMPTS):
+        await store.record_failed_attempt("ADM001")
+
+    credential = await store.get_credential("ADM001")
+    assert credential["failed_attempts"] == MAX_FAILED_ATTEMPTS
+    assert credential["is_locked"] is True
+    assert credential["locked_until"] is not None
+
+
+async def test_reset_failed_attempts_clears_the_lock(monkeypatch):
+    store, _table = _store_with_fake_table(monkeypatch)
+    await store.get_or_seed("ADM001", "$reeRad")
+    for _ in range(MAX_FAILED_ATTEMPTS):
+        await store.record_failed_attempt("ADM001")
+
+    await store.reset_failed_attempts("ADM001")
+
+    credential = await store.get_credential("ADM001")
+    assert credential["failed_attempts"] == 0
+    assert credential["locked_until"] is None
+    assert credential["is_locked"] is False
+
+
+async def test_force_unlock_and_require_reset_replaces_code_and_clears_lock(monkeypatch):
+    store, _table = _store_with_fake_table(monkeypatch)
+    await store.get_or_seed("ADM001", "$reeRad")
+    for _ in range(MAX_FAILED_ATTEMPTS):
+        await store.record_failed_attempt("ADM001")
+    assert (await store.get_credential("ADM001"))["is_locked"] is True
+
+    await store.force_unlock_and_require_reset("ADM001", "recovery-code")
+
+    credential = await store.get_credential("ADM001")
+    assert credential["is_locked"] is False
+    assert credential["failed_attempts"] == 0
+    assert credential["must_reset"] is True
+    assert await store.verify_secret_code("ADM001", "recovery-code") is True
+    # The old (possibly forgotten) code no longer works - it was replaced, not just unlocked.
+    assert await store.verify_secret_code("ADM001", "$reeRad") is False

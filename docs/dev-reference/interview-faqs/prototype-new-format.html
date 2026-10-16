@@ -1,0 +1,278 @@
+<title>Interview FAQ Format Prototype</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #f1f1f6; --surface: #ffffff; --surface-alt: #f5f5fa; --border: #dcdce6;
+    --text: #181a24; --text-muted: #565c70; --text-faint: #888da0;
+    --accent: #3d3ca0; --accent-bg: #ebebf8; --accent-border: #cfcdee;
+    --star: #146b3f; --star-bg: #e3f6ea; --star-border: #b7e4c8;
+    --lead: #9a5a0c; --lead-bg: #fbf1dd; --lead-border: #edd6a2;
+    --warn: #a4321f; --warn-bg: #fbe9e5; --warn-border: #f0c3b8;
+    --shadow: 0 2px 4px rgba(15,20,30,0.06), 0 10px 22px rgba(15,20,30,0.07);
+    --band: #23264a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d0e16; --surface: #15161f; --surface-alt: #171924; --border: #292b3d;
+      --text: #e8e9f0; --text-muted: #a6abbf; --text-faint: #6c7288;
+      --accent: #9c9bf0; --accent-bg: #201f3a; --accent-border: #38366a;
+      --star: #4fc989; --star-bg: #132a1e; --star-border: #204a32;
+      --lead: #e0ac48; --lead-bg: #2c2311; --lead-border: #4a3a17;
+      --warn: #e2795f; --warn-bg: #2c1712; --warn-border: #4a271e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 12px 26px rgba(0,0,0,0.4);
+      --band: #1a1c38;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d0e16; --surface: #15161f; --surface-alt: #171924; --border: #292b3d;
+    --text: #e8e9f0; --text-muted: #a6abbf; --text-faint: #6c7288;
+    --accent: #9c9bf0; --accent-bg: #201f3a; --accent-border: #38366a;
+    --star: #4fc989; --star-bg: #132a1e; --star-border: #204a32;
+    --lead: #e0ac48; --lead-bg: #2c2311; --lead-border: #4a3a17;
+    --warn: #e2795f; --warn-bg: #2c1712; --warn-border: #4a271e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 12px 26px rgba(0,0,0,0.4);
+    --band: #1a1c38;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, sans-serif; padding-inline: 16px; padding-block: 28px 56px; }
+  .display { font-family: 'Archivo', sans-serif; } .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 3.8vw, 32px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 13.5px; max-width: 82ch; line-height: 1.6; }
+  .callout { font-size: 12.5px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; line-height: 1.6; }
+  .callout strong { color: var(--text); }
+
+  .q-card { border: 1px solid var(--border); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+  .q-head { background: var(--band); color: #fff; padding: 14px 20px; }
+  .q-head .q-text { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 16px; }
+  .q-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 16px; }
+
+  .part { display: flex; flex-direction: column; gap: 6px; }
+  .part-label { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); font-weight: 600; }
+
+  .hint { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 8px; padding: 8px 12px; display: inline-block; width: fit-content; }
+  .concept p { margin: 0; font-size: 13px; line-height: 1.65; color: var(--text); }
+  .concept .analogy { color: var(--text-muted); font-style: italic; }
+
+  .star-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+  .star-box { border: 1px solid var(--star-border); background: var(--star-bg); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+  .star-box .s-label { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 11px; color: var(--star); text-transform: uppercase; letter-spacing: 0.04em; }
+  .star-box p { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--text); }
+  pre.code-snip { margin: 0; background: var(--band); color: #d9efe6; border-radius: 8px; padding: 10px 12px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; overflow-x: auto; line-height: 1.5; }
+
+  .project-link { font-size: 13px; line-height: 1.6; color: var(--text); background: var(--surface-alt); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+  .project-link .proj-tag { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; text-transform: uppercase; background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); border-radius: 999px; padding: 2px 8px; margin-right: 8px; }
+
+  .leadership { font-size: 13px; line-height: 1.6; color: var(--lead); background: var(--lead-bg); border: 1px solid var(--lead-border); border-radius: 10px; padding: 10px 14px; }
+
+  .pitfalls { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--text); line-height: 1.6; }
+  .pitfalls li { margin-bottom: 4px; }
+
+  table.kw-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.kw-table th, table.kw-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  table.kw-table th { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 10.5px; text-transform: uppercase; color: var(--text-faint); }
+  table.kw-table tr:last-child td { border-bottom: none; }
+
+  .eng-tip { font-size: 12px; color: var(--text-faint); font-style: italic; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">format prototype - 4 cards, for approval before converting all 69</div>
+    <h1 class="display">Interview FAQ Format Prototype</h1>
+    <p class="subtitle">Same 4 questions as the existing system-level FAQ page, rewritten in the new 7-part structure (hint / concept / STAR / project link / leadership angle / trade-offs / keywords). Not yet wired into the real doc set or synced anywhere - review this page first.</p>
+    <div class="callout">
+      <strong>Project-link note:</strong> every card below is grounded in <span class="mono">hrb_chatbot_v2</span>/<span class="mono">hrb_chatbot_ui</span>, the only project this session has real working knowledge of. CoCo and DARCE aren't referenced - no fabricated details about either.
+    </div>
+  </header>
+
+  <div class="q-card">
+    <div class="q-head"><span class="q-text">How does tool calling actually work - does the model run the tool itself?</span></div>
+    <div class="q-body">
+      <div class="part"><span class="part-label">Hint</span><span class="hint">Model picks → backend executes → result goes back to model</span></div>
+      <div class="part concept">
+        <span class="part-label">Concept</span>
+        <p>The model never executes anything. It reads a list of tool <strong>names, descriptions, and parameter schemas</strong> and replies with a JSON object saying which tool to call and with what arguments - plain text, not code. Your own backend parses that JSON, makes the real call, and feeds the result back to the model for a second pass that writes the final answer. <span class="analogy">Think of it like a manager (the model) writing a work order for a specific engineer (your code) - the manager never touches the server.</span></p>
+      </div>
+      <div class="part">
+        <span class="part-label">Answer - STAR</span>
+        <div class="star-grid">
+          <div class="star-box"><span class="s-label">Situation</span><p>An HR chatbot needs to answer "How many PTO days do I have left?" - that number lives in a separate leave-management system, not in any document the RAG pipeline has indexed.</p></div>
+          <div class="star-box"><span class="s-label">Task</span><p>Let the model decide, per query, whether to answer from retrieved documents or fetch a live number from that system - without hardcoding keyword rules for every possible phrasing.</p></div>
+          <div class="star-box"><span class="s-label">Action</span><p>Register a <code>GetLeaveBalance</code> tool with a typed schema (<code>employee_id</code>). The model emits a tool-call JSON block; the backend calls the real MCP server over an authenticated HTTP request, gets back a number, and passes it to the model as new context for the final reply.</p></div>
+          <div class="star-box"><span class="s-label">Result</span><p>The model answers with a real, current PTO balance instead of a hallucinated or stale one - and the same mechanism extends to any new tool without retraining anything.</p></div>
+        </div>
+        <pre class="code-snip">tool_call = model.decide(query, available_tools)  # model: "call GetLeaveBalance(employee_id=...)"
+result = backend.execute(tool_call)                # backend runs the real HTTP call, not the model
+final_answer = model.generate(query, tool_result=result)</pre>
+      </div>
+      <div class="part">
+        <span class="part-label">Project link</span>
+        <div class="project-link"><span class="proj-tag">HRB v2</span><code class="mono">ai/rag_pipeline/tools/mcp_tools/__init__.py</code>'s <code class="mono">_call_mcp_tool()</code> is exactly this - the LLM selects a tool (e.g. <code class="mono">get_leave_balance</code>), this function makes the real authenticated call to the separate <code class="mono">hrb_lms_mcp</code> service, and the result flows back into the model's own context.</div>
+      </div>
+      <div class="part leadership">
+        <span class="part-label" style="color:inherit;">Leadership angle</span>
+        Every tool you expose to a model is a new surface the model can trigger in production - a Director will ask "what's the blast radius if the model calls this wrong?" before "does it work." Scope tools narrowly and log every call.
+      </div>
+      <div class="part">
+        <span class="part-label">Trade-offs and pitfalls</span>
+        <ul class="pitfalls">
+          <li>Too many tools (20+) degrades selection accuracy - the model starts picking the wrong one more often.</li>
+          <li>A tool with a vague description gets called at the wrong time; the description is part of your prompt, not documentation.</li>
+          <li>Never let a tool call execute something irreversible (delete, pay, send) without a confirmation step outside the model's control.</li>
+        </ul>
+      </div>
+      <div class="part">
+        <span class="part-label">Keywords</span>
+        <table class="kw-table">
+          <tr><th>Term</th><th>Plain English</th></tr>
+          <tr><td>Tool calling</td><td>The model names a function and its arguments in its reply; your code runs it.</td></tr>
+          <tr><td>MCP</td><td>Model Context Protocol - a standard shape for exposing tools/data to a model over HTTP, so different models/apps can reuse the same tool server.</td></tr>
+          <tr><td>Parameter schema</td><td>The typed list of inputs a tool accepts, shown to the model so it knows what to fill in.</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-head"><span class="q-text">A tool call arrives with invalid arguments - what should happen?</span></div>
+    <div class="q-body">
+      <div class="part"><span class="part-label">Hint</span><span class="hint">Validate → never trust the model's own output → fail safely, don't crash</span></div>
+      <div class="part concept">
+        <span class="part-label">Concept</span>
+        <p>A model's tool-call output is still just generated text that happens to look like JSON - it can be malformed, miss a required field, or pass a string where a number belongs. <strong>Validate it exactly like you'd validate untrusted user input</strong>, because that's what it is. <span class="analogy">Same discipline as never trusting a form submission from a browser, even your own frontend's.</span></p>
+      </div>
+      <div class="part">
+        <span class="part-label">Answer - STAR</span>
+        <div class="star-grid">
+          <div class="star-box"><span class="s-label">Situation</span><p>A tool-calling agent occasionally emits a call missing a required argument, or the external tool server itself is briefly unreachable.</p></div>
+          <div class="star-box"><span class="s-label">Task</span><p>Keep one bad or failed tool call from crashing the whole response - the user should still get an answer, degraded if necessary.</p></div>
+          <div class="star-box"><span class="s-label">Action</span><p>Wrap every tool execution in a try/except. On failure, catch it, log the real error server-side, and fall back to the next-best behavior (e.g. retrieval-based answer instead of a live number) instead of surfacing a raw exception.</p></div>
+          <div class="star-box"><span class="s-label">Result</span><p>A down or misbehaving tool degrades the answer quality for one query - it never returns a 500 or an unhandled crash to the user.</p></div>
+        </div>
+      </div>
+      <div class="part">
+        <span class="part-label">Project link</span>
+        <div class="project-link"><span class="proj-tag">HRB v2</span>Documented directly in this project's own MCP integration notes: "Any MCP failure (network, auth, tool error) is caught and falls back to normal RAG, not a 500 - the pipeline never assumes MCP is available." Same principle the client layer's error-handling convention applies everywhere else in this codebase.</div>
+      </div>
+      <div class="part leadership">
+        <span class="part-label" style="color:inherit;">Leadership angle</span>
+        This is a reliability/SLA conversation, not just an engineering nicety - a Director cares that one flaky downstream dependency can't take the whole chat experience down with it.
+      </div>
+      <div class="part">
+        <span class="part-label">Trade-offs and pitfalls</span>
+        <ul class="pitfalls">
+          <li>Silently swallowing every error hides real outages - always log server-side even when you degrade gracefully for the user.</li>
+          <li>A fallback that's indistinguishable from a real answer can mislead the user - say when you're degraded, don't pretend.</li>
+        </ul>
+      </div>
+      <div class="part">
+        <span class="part-label">Keywords</span>
+        <table class="kw-table">
+          <tr><th>Term</th><th>Plain English</th></tr>
+          <tr><td>Graceful degradation</td><td>Keep serving a reduced-quality response instead of failing outright when a dependency breaks.</td></tr>
+          <tr><td>Fallback</td><td>The next-best behavior used when the preferred path isn't available.</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-head"><span class="q-text">What is a multi-agent system, and when is it the wrong choice?</span></div>
+    <div class="q-body">
+      <div class="part"><span class="part-label">Hint</span><span class="hint">Split → specialize → merge - but only if one agent genuinely can't do it alone</span></div>
+      <div class="part concept">
+        <span class="part-label">Concept</span>
+        <p>A multi-agent system splits one task across several specialized agents (a planner, domain workers, a reviewer) instead of one agent doing everything. It adds real latency and cost - more LLM calls - so it's only worth it when a single agent's context or focus genuinely can't cover the task. <span class="analogy">Like splitting a project across a team instead of one generalist - only worth the coordination overhead for genuinely cross-functional work.</span></p>
+      </div>
+      <div class="part">
+        <span class="part-label">Answer - STAR</span>
+        <div class="star-grid">
+          <div class="star-box"><span class="s-label">Situation</span><p>An HR chatbot gets a compound question spanning two unrelated domains at once - e.g. policy knowledge plus a live leave balance - in a single sentence.</p></div>
+          <div class="star-box"><span class="s-label">Task</span><p>Answer both halves accurately without one domain's retrieval noise degrading the other's.</p></div>
+          <div class="star-box"><span class="s-label">Action</span><p>A Planner agent splits the query into sub-tasks, dispatches each to its own domain agent in parallel, and a Reviewer agent merges the two partial answers into one coherent reply - not critiquing and sending work back, just synthesizing.</p></div>
+          <div class="star-box"><span class="s-label">Result</span><p>Each domain agent stays focused and accurate; the merged answer covers both halves of the question in one response.</p></div>
+        </div>
+      </div>
+      <div class="part">
+        <span class="part-label">Project link</span>
+        <div class="project-link"><span class="proj-tag">HRB v2</span>The multi-agentic-rag pipeline (<code class="mono">ai/agents/workflow_agents/multi_agent_pipeline.py</code>, a real LangGraph graph) is exactly Planner → parallel domain agents → Reviewer. One documented, deliberate decision worth knowing cold: the Reviewer node is a <strong>merge/synthesis step, not a Critic</strong> - it doesn't send work back for revision, it combines what came back. For most single-domain HR questions, this project's own simpler genai-rag or single-agentic-rag pipeline is the right choice instead - multi-agent is reserved for genuinely cross-domain compound queries.</div>
+      </div>
+      <div class="part leadership">
+        <span class="part-label" style="color:inherit;">Leadership angle</span>
+        Multi-agent is a build-vs-buy-style cost decision as much as an architecture one - each added agent is more LLM spend and more latency per request. A Director wants to know you reach for it only when a simpler pipeline measurably can't do the job, not by default.
+      </div>
+      <div class="part">
+        <span class="part-label">Trade-offs and pitfalls</span>
+        <ul class="pitfalls">
+          <li>Multi-agent for a simple, single-domain question is pure overhead - more cost and latency for no quality gain.</li>
+          <li>A Planner that always splits into the same fixed sub-tasks, regardless of the real question, is worse than no planner at all.</li>
+          <li>Parallel domain agents need a real merge step - concatenating their raw outputs isn't synthesis.</li>
+        </ul>
+      </div>
+      <div class="part">
+        <span class="part-label">Keywords</span>
+        <table class="kw-table">
+          <tr><th>Term</th><th>Plain English</th></tr>
+          <tr><td>Planner agent</td><td>Breaks one request into sub-tasks for other agents to handle.</td></tr>
+          <tr><td>Domain agent</td><td>A specialized agent focused on one topic area only.</td></tr>
+          <tr><td>LangGraph</td><td>A library for wiring agents together as a graph of steps, with explicit control over the flow between them.</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="q-card">
+    <div class="q-head"><span class="q-text">What should you log on every agent run?</span></div>
+    <div class="q-body">
+      <div class="part"><span class="part-label">Hint</span><span class="hint">Inputs, decision, outcome, timing - enough to replay the run later without guessing</span></div>
+      <div class="part concept">
+        <span class="part-label">Concept</span>
+        <p>Log enough that you could explain, after the fact, exactly why the agent did what it did - not just that it succeeded or failed. <strong>The query, which tool (if any) it picked, the tool's result, and how long each step took.</strong> <span class="analogy">Think of it like an audit trail for a loan-approval decision - "approved" alone isn't enough, you need the inputs that led there.</span></p>
+      </div>
+      <div class="part">
+        <span class="part-label">Answer - STAR</span>
+        <div class="star-grid">
+          <div class="star-box"><span class="s-label">Situation</span><p>A user reports a wrong or strange chatbot answer days after the fact, with no way to reproduce it live.</p></div>
+          <div class="star-box"><span class="s-label">Task</span><p>Diagnose what the agent actually did on that run without re-running anything against the (possibly now-different) live data.</p></div>
+          <div class="star-box"><span class="s-label">Action</span><p>Log the query, every tool call with its arguments and result, token usage, per-step latency, and the exact context sent to the model for its final answer - structured, not free text, so it's queryable later.</p></div>
+          <div class="star-box"><span class="s-label">Result</span><p>The original run can be reconstructed and explained from logs alone, without needing to reproduce it live.</p></div>
+        </div>
+      </div>
+      <div class="part">
+        <span class="part-label">Project link</span>
+        <div class="project-link"><span class="proj-tag">HRB v2</span>Every external call goes through <code class="mono">log_backend_call()</code> (backend name, operation, kwargs, timing, success/failure), and the API's own Explainability response includes an <code class="mono">llm_context</code> field - the literal context sent to the model - specifically so a reported bad answer can be explained from the stored record alone.</div>
+      </div>
+      <div class="part leadership">
+        <span class="part-label" style="color:inherit;">Leadership angle</span>
+        This is the difference between "we think it's fine" and "we can prove what happened" when a bad answer reaches a real employee - governance and audit requirements in regulated industries (banking included) often require exactly this level of traceability.
+      </div>
+      <div class="part">
+        <span class="part-label">Trade-offs and pitfalls</span>
+        <ul class="pitfalls">
+          <li>Logging the full prompt/context can capture PII - redact or scope access before it becomes a compliance problem.</li>
+          <li>Unstructured log lines ("agent ran ok") are nearly useless for later debugging - log structured fields you can actually query.</li>
+        </ul>
+      </div>
+      <div class="part">
+        <span class="part-label">Keywords</span>
+        <table class="kw-table">
+          <tr><th>Term</th><th>Plain English</th></tr>
+          <tr><td>Structured logging</td><td>Log entries as named fields (not free text), so they can be searched/filtered later.</td></tr>
+          <tr><td>Explainability</td><td>Exposing enough detail about how an answer was produced that it can be audited or debugged.</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    4 of 69 total system-level questions, as a format prototype. If this structure is approved, converting the rest is real, grounded work (per-question research against actual code, same discipline as these 4) - not a bulk find/replace. English tip: none needed this round - no grammar issues in your own message.
+  </footer>
+
+</div>

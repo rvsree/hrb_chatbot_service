@@ -1,0 +1,199 @@
+<title>Developer Onboarding Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef4f2; --surface: #ffffff; --surface-alt: #f3f7f5; --border: #d8e4e0;
+    --text: #131c1a; --text-muted: #4f5f5a; --text-faint: #839290;
+    --live: #14713f; --live-bg: #e3f6eb; --live-border: #b6e4c8;
+    --planned: #9a5a0c; --planned-bg: #fbf1dd; --planned-border: #edd6a2;
+    --proto: #106b78; --proto-bg: #e1f3f6; --proto-border: #b7e2e9;
+    --gap: #a4321f; --gap-bg: #fbe9e5; --gap-border: #f0c3b8;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0e2e26; --band-mid: #16453a;
+    --lib-chip-bg: #eaf2ef; --lib-chip-text: #435750;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0a1310; --surface: #141f1a; --surface-alt: #16221c; --border: #253630;
+      --text: #e6efec; --text-muted: #9fb5ae; --text-faint: #647873;
+      --live: #4fc989; --live-bg: #132a1e; --live-border: #204a32;
+      --planned: #e0ac48; --planned-bg: #2c2311; --planned-border: #4a3a17;
+      --proto: #4fc7d6; --proto-bg: #0f2a2e; --proto-border: #1c454c;
+      --gap: #e2795f; --gap-bg: #2c1712; --gap-border: #4a271e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0a1f19; --band-mid: #123128;
+      --lib-chip-bg: #1c2823; --lib-chip-text: #a4bab3;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0a1310; --surface: #141f1a; --surface-alt: #16221c; --border: #253630;
+    --text: #e6efec; --text-muted: #9fb5ae; --text-faint: #647873;
+    --live: #4fc989; --live-bg: #132a1e; --live-border: #204a32;
+    --planned: #e0ac48; --planned-bg: #2c2311; --planned-border: #4a3a17;
+    --proto: #4fc7d6; --proto-bg: #0f2a2e; --proto-border: #1c454c;
+    --gap: #e2795f; --gap-bg: #2c1712; --gap-border: #4a271e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0a1f19; --band-mid: #123128;
+    --lib-chip-bg: #1c2823; --lib-chip-text: #a4bab3;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; } .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1140px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--proto); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(26px, 4.2vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 80ch; line-height: 1.55; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); padding: 5px 10px 5px 8px; border-radius: 999px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot.live { background: var(--live); } .dot.planned { background: var(--planned); } .dot.gap { background: var(--gap); }
+
+  .group-head { display: flex; align-items: baseline; gap: 12px; margin-top: 6px; padding-bottom: 6px; border-bottom: 2px solid var(--band-dark); }
+  .group-num { font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 13px; color: #fff; background: var(--band-dark); border-radius: 8px; padding: 3px 9px; flex: none; }
+  .group-title { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 20px; }
+  .group-sub { font-size: 12.5px; color: var(--text-faint); }
+
+  section.panel { display: flex; flex-direction: column; gap: 16px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .panel-num { width: 32px; height: 32px; border-radius: 9px; background: var(--band-dark); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 13px; }
+  .panel-title { display: flex; flex-direction: column; }
+  .panel-title .name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17.5px; }
+  .panel-title .sub { font-size: 12px; color: var(--text-faint); }
+  .panel-badge { margin-left: auto; font-size: 11px; font-weight: 700; padding: 4px 11px; border-radius: 999px; text-transform: uppercase; }
+  .panel-badge.live { color: var(--live); background: var(--live-bg); border: 1px solid var(--live-border); }
+  .panel-badge.planned { color: var(--planned); background: var(--planned-bg); border: 1px solid var(--planned-border); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .card { border: 1px solid var(--border); border-radius: 12px; padding: 13px 15px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 6px; }
+  .card-label { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13px; }
+  .card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+  .chip { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; padding: 2px 6px; border-radius: 5px; background: var(--lib-chip-bg); color: var(--lib-chip-text); }
+
+  .callout { display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; border-radius: 10px; padding: 11px 14px; line-height: 1.55; }
+  .callout svg { flex: none; width: 16px; height: 16px; margin-top: 1px; }
+  .callout.planned { background: var(--planned-bg); border: 1px solid var(--planned-border); color: var(--planned); }
+  .callout.live { background: var(--live-bg); border: 1px solid var(--live-border); color: var(--live); }
+  .callout.gap { background: var(--gap-bg); border: 1px solid var(--gap-border); color: var(--gap); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table caption { text-align: left; font-size: 11px; color: var(--text-faint); margin-bottom: 6px; }
+  th, td { text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.5; }
+  th { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-faint); background: var(--surface-alt); }
+  tr:last-child td { border-bottom: none; }
+  td .mono, th .mono { font-size: 11.5px; }
+  .table-wrap { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .table-wrap table { margin: 0; }
+  .badge-yes { color: var(--live); font-weight: 700; }
+  .badge-no { color: var(--gap); font-weight: 700; }
+
+  .steps { display: flex; flex-direction: column; gap: 10px; }
+  .step { display: flex; gap: 12px; border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface-alt); }
+  .step-num { font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 13px; color: #fff; background: var(--band-mid); border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; flex: none; }
+  .step-body { display: flex; flex-direction: column; gap: 6px; }
+  .step-title { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13.5px; }
+  .step-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.55; }
+  pre.cmd { margin: 0; background: var(--band-dark); color: #d9efe6; border-radius: 8px; padding: 10px 12px; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; overflow-x: auto; line-height: 1.5; }
+
+  .diagram-wrap { background: var(--surface-alt); border: 1px solid var(--border); border-radius: 10px; padding: 10px; overflow-x: auto; }
+  .diagram-wrap img { display: block; width: 100%; height: auto; border-radius: 6px; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">for a java/spring boot engineer picking up hrb_chatbot_v2 cold</div>
+    <h1 class="display">Developer Onboarding Guide</h1>
+    <p class="subtitle">A Java/Spring Boot &rarr; this stack concept-mapping table, grounded in this project's actual code, not a generic FastAPI tutorial: every row cites a real file in this repo, and the "where it diverges" column calls out exactly what would surprise a Spring dev. Reading this project's real AWS/LangSmith dashboards now lives in <span class="mono">docs/dev-reference/production-monitoring-guide/</span>, and the build-and-deploy pipeline lives in <span class="mono">docs/dev-reference/build-guide/</span> and <span class="mono">docs/dev-reference/deployment-verification-guide/</span> (split out 2026-10-15).</p>
+    <div class="legend">
+      <span class="legend-item"><span class="dot live"></span>Confirmed in real code/docs</span>
+      <span class="legend-item"><span class="dot planned"></span>Design only / not yet live</span>
+      <span class="legend-item"><span class="dot gap"></span>Unconfirmed - flagged, not guessed</span>
+    </div>
+  </header>
+
+  <!-- ============================================================ -->
+  <div class="group-head">
+    <span class="group-num">1</span>
+    <div><div class="group-title display">Java/Spring Boot &rarr; This Stack's Equivalents</div><div class="group-sub">a concept map, not a tutorial - every row cites a real file in this repo</div></div>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">01</div>
+      <div class="panel-title"><span class="name display">The core mapping table</span><span class="sub">read the "where it surprises a Spring dev" column first</span></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:22%">Spring Boot / Java</th><th style="width:28%">This project's real equivalent</th><th>Where it diverges - the part that would surprise you</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="mono">@SpringBootApplication</span> + embedded Tomcat, <span class="mono">main()</span> starts the server</td>
+            <td><span class="mono">src/hrb_chatbot/main.py</span> builds a module-level <span class="mono">app = FastAPI(...)</span> object</td>
+            <td><span class="mono">main.py</span> never starts anything. There's no embedded server and no <span class="mono">main()</span> entry point at all - <span class="mono">uvicorn src.hrb_chatbot.main:app --reload --port 8093</span> is a separate process that imports the module and serves whatever object it finds named <span class="mono">app</span>. Running <span class="mono">python main.py</span> directly does nothing useful.</td>
+          </tr>
+          <tr>
+            <td><span class="mono">pom.xml</span> + Maven's dependency-resolution graph</td>
+            <td><span class="mono">requirements.txt</span>, flat pinned versions, installed with <span class="mono">pip</span></td>
+            <td>Maven resolves transitive conflicts and shows you the tree. <span class="mono">pip</span> mostly just refuses to install if two pins are incompatible, with no equivalent of <span class="mono">mvn dependency:tree</span> baked in - this file's own comments are the resolution history by hand (e.g. the <span class="mono">pinecone==7.3.0</span> comment walks through two prior versions pip's resolver rejected, and <span class="mono">langchain-chroma==0.2.6</span>/<span class="mono">langchain-pinecone==0.2.13</span> are pinned below 1.0 specifically to stay on the same <span class="mono">langchain-core</span> line as <span class="mono">langchain==0.3.20</span>). Nothing stops two packages from silently fighting over a shared dependency until someone notices at runtime.</td>
+          </tr>
+          <tr>
+            <td><span class="mono">@RestController</span> / <span class="mono">@GetMapping</span>, classpath component scanning finds controllers automatically</td>
+            <td>one router file per resource under <span class="mono">api/</span> (e.g. <span class="mono">api/rag/retrieve_document.py</span>), each an <span class="mono">APIRouter</span>, mounted explicitly in <span class="mono">main.py</span></td>
+            <td>There is no scanning. <span class="mono">main.py</span> has ten separate <span class="mono">app.include_router(..., prefix=...)</span> calls, one per router - write a new router file and forget that line, and the routes inside it simply never exist, with no startup error telling you so. The URL prefix also lives at the <span class="mono">include_router</span> call, not on the router's own file, so the route's full path isn't visible from the router file alone.</td>
+          </tr>
+          <tr>
+            <td><span class="mono">@Autowired</span> / <span class="mono">@Service</span> / <span class="mono">@Component</span>, a DI container builds the object graph for you</td>
+            <td><span class="mono">common/clients/llm_client/client_gateway.py</span>'s <span class="mono">ClientGateway</span> / <span class="mono">common/clients/db_client/db_gateway.py</span>'s <span class="mono">DBGateway</span> - hand-written lazy singletons</td>
+            <td>There is no container, no annotations, no autowiring at all. <span class="mono">get_client_gateway()</span>/<span class="mono">get_db_gateway()</span> are plain functions holding a module-level global (<span class="mono">_shared_gateway</span>) that gets built once on first call and reused - the comment in <span class="mono">client_gateway.py</span> calls this out directly: "Module-level singleton, not a DI container... same effect as a Spring singleton bean." Swapping a real client for a test double isn't a <span class="mono">@MockBean</span> - it's <span class="mono">tests/conftest.py</span>'s <span class="mono">FakeClientGateway</span>/<span class="mono">FakeDBGateway</span> classes, constructed by hand and passed in wherever a test needs one.</td>
+          </tr>
+          <tr>
+            <td>JPA/Hibernate <span class="mono">@Entity</span>, a session manages dirty-checking and lazy loading</td>
+            <td><span class="mono">common/clients/db_client/admin_credential_store.py</span> (and every other store in that folder) - raw <span class="mono">psycopg</span>, hand-written SQL strings</td>
+            <td>Confirmed by reading the file, not assumed: this project uses no ORM anywhere. <span class="mono">admin_credential_store.py</span> builds its own connection with <span class="mono">psycopg.connect(...)</span> and runs literal SQL (<span class="mono">CREATE TABLE IF NOT EXISTS</span>, hand-written <span class="mono">UPDATE ... SET failed_attempts = failed_attempts + 1</span>) wrapped in <span class="mono">asyncio.to_thread()</span> since <span class="mono">psycopg</span>'s sync driver is used from async route handlers. There's no entity graph, no cascade, no N+1 problem to worry about - and no schema migration tool either: <span class="mono">ADD_LOCKOUT_COLUMNS</span>'s two <span class="mono">ALTER TABLE ... ADD COLUMN IF NOT EXISTS</span> statements run at every call, standing in for what Flyway/Liquibase would do as a tracked migration.</td>
+          </tr>
+          <tr>
+            <td><span class="mono">application.yml</span> + Spring profiles (<span class="mono">dev</span>/<span class="mono">test</span>/<span class="mono">prod</span>)</td>
+            <td><span class="mono">.env</span> + <span class="mono">common/config/settings.py</span>'s <span class="mono">read_setting()</span></td>
+            <td>No profile concept exists in the framework at all. <span class="mono">read_setting(passed_in_value, env_variable_name, default_value)</span> is a plain three-way fallback (explicit argument, then <span class="mono">.env</span>/OS environment, then a hardcoded default) - and <span class="mono">.env</span> is loaded with <span class="mono">override=True</span> specifically so a stale value already sitting in your shell/Windows environment loses to whatever's in the checked-out <span class="mono">.env</span> file, the opposite of <span class="mono">python-dotenv</span>'s own default. "Which environment am I in" is just a plain string, <span class="mono">get_app_environment()</span> reading <span class="mono">APP_ENVIRONMENT</span> (<span class="mono">"production"</span> in AWS, <span class="mono">"development"</span> otherwise) - checked by hand-written <span class="mono">if</span> statements in <span class="mono">db_gateway.py</span> (blocking the local-disk ChromaDB/SQLite stores in production), not a Spring-style profile-activated bean graph.</td>
+          </tr>
+          <tr>
+            <td><span class="mono">@ExceptionHandler</span>, scoped per <span class="mono">@ControllerAdvice</span> or controller class</td>
+            <td><span class="mono">main.py</span>'s three <span class="mono">@app.exception_handler(...)</span> registrations (<span class="mono">RequestValidationError</span>, <span class="mono">HTTPException</span>, bare <span class="mono">Exception</span>)</td>
+            <td>These are global for the whole app by exception type, not attachable per-controller the way <span class="mono">@ControllerAdvice</span> can be scoped. The catch-all <span class="mono">Exception</span> handler is the only thing standing between an unhandled bug and a raw, unformatted 500 reaching the caller - it logs the real exception server-side (<span class="mono">exc_info=exc</span>) and always returns the same generic <span class="mono">{"error": "An internal error occurred...", "code": "INTERNAL_ERROR"}</span> shape via <span class="mono">json_error()</span>, never leaking a stack trace into the response body.</td>
+          </tr>
+          <tr>
+            <td>JUnit + Mockito, <span class="mono">@Mock</span>/<span class="mono">@InjectMocks</span>, a mocking framework generates the double</td>
+            <td><span class="mono">pytest</span> + hand-written fake classes in <span class="mono">tests/conftest.py</span> (<span class="mono">FakeChatClient</span>, <span class="mono">FakeVectorStore</span>, <span class="mono">FakeMetadataStore</span>, ...)</td>
+            <td>No framework generates these - each fake is a real Python class someone wrote, matching the real client's method signatures by hand (the file's own docstring: "these fakes match every real client's method signatures exactly"). <span class="mono">monkeypatch</span> (a built-in pytest fixture) swaps a name for the duration of one test and restores it after - comparable to Mockito in effect, but there's no annotation doing it; you call <span class="mono">monkeypatch.setattr(...)</span> explicitly. <span class="mono">pytest.ini</span>'s <span class="mono">asyncio_mode = auto</span> also means an <span class="mono">async def test_...</span> needs no <span class="mono">@pytest.mark.asyncio</span> decorator - closer to JUnit 5's reactive support than JUnit 4.</td>
+          </tr>
+          <tr>
+            <td>Spring Boot Actuator's <span class="mono">/actuator/health</span>, one endpoint with pluggable indicators</td>
+            <td>two separate endpoints: <span class="mono">GET /ping</span> and <span class="mono">GET /health</span> (<span class="mono">api/admin/routes_health.py</span>)</td>
+            <td>Deliberately not Actuator's "one endpoint, many indicators" shape. <span class="mono">/ping</span> never touches a network call - it's what Docker's <span class="mono">HEALTHCHECK</span> and App Runner's own health check point at, so a probe firing every 30 seconds can never cost money or fail because a vendor API is down. <span class="mono">/health</span> always makes one real, free call per backend (<span class="mono">GET /models</span>, <span class="mono">list_collections()</span>, never a paid completion). A single endpoint toggled by a <span class="mono">?deep=true</span> query param existed once and was removed - see <span class="mono">docs/agent-reference/CODING-STANDARDS.md</span>'s "Health checks" section.</td>
+          </tr>
+          <tr>
+            <td>Checked exceptions (<span class="mono">throws IOException</span>), the compiler forces you to declare or catch them</td>
+            <td>Python has no checked/unchecked distinction at all - every exception is effectively a <span class="mono">RuntimeException</span></td>
+            <td>Nothing enforces error handling at compile time, so this project replaces the compiler's guarantee with a written convention: client code (<span class="mono">common/clients/**</span>) returns errors as data from <span class="mono">health_check()</span> and never raises; service/business logic raises; route handlers (<span class="mono">api/**</span>) catch and translate into <span class="mono">json_error()</span>'s consistent <span class="mono">{"error", "code"}</span> shape, with <span class="mono">code</span> always one of the named constants in <span class="mono">common/error_codes.py</span> (e.g. <span class="mono">UNAUTHENTICATED</span>, <span class="mono">RATE_LIMITED</span>), never a free-text guess. This is discipline enforced by code review and <span class="mono">docs/agent-reference/CODING-STANDARDS.md</span>, not the language - nothing stops a new file from skipping it.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout live">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      <span>The RBAC layer is its own trap for a Spring background: <span class="mono">api/gateway/rbac.py</span>'s <span class="mono">require_role(user_profile, *roles)</span> looks exactly like a Spring Security filter chain decision, but it reads an unsigned <span class="mono">user_profile</span> object the caller typed into the request body or query params itself - there's no token verification behind it at all today. It's a documented, deliberate placeholder (Phase 45), not a bug to "fix" on sight.</span>
+    </div>
+  </section>
+
+  <footer>
+    Grounded in: <code class="mono">src/hrb_chatbot/main.py</code>, <code class="mono">requirements.txt</code>, <code class="mono">api/gateway/rbac.py</code>, <code class="mono">common/clients/llm_client/client_gateway.py</code>, <code class="mono">common/clients/db_client/db_gateway.py</code>, <code class="mono">common/clients/db_client/admin_credential_store.py</code>, <code class="mono">common/config/settings.py</code>, <code class="mono">api/admin/routes_health.py</code>, <code class="mono">common/error_codes.py</code>, <code class="mono">tests/conftest.py</code>, <code class="mono">pytest.ini</code>, <code class="mono">docs/agent-reference/CODING-STANDARDS.md</code>. Snapshot: 2026-10-15. Trimmed to Section 1 only on 2026-10-15; the AWS/LangSmith dashboards and the build/deploy pipeline moved to <code class="mono">docs/dev-reference/production-monitoring-guide/</code>, <code class="mono">docs/dev-reference/build-guide/</code>, and <code class="mono">docs/dev-reference/deployment-verification-guide/</code>.
+  </footer>
+
+</div>
