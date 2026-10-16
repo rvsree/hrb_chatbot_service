@@ -5,6 +5,77 @@ real gaps but explicitly **not blocking** current work. Move an item out of
 this file into `docs/agent-reference/RAG-ROADMAP.md`'s phase list when it's actually picked
 up, rather than marking it done in place here.
 
+## Index by category (2026-10-15)
+
+This file itself stays chronological, append-only, resolved items struck
+through in place - that's deliberate (it's the real record of when
+something was found, not a tidied-up taxonomy). This index is purely
+additive navigation on top of that, grouped by theme so a topic can be
+found without reading linearly. A `~~ ~~` prefix below means already
+resolved; `❖` marks something still genuinely open.
+
+**AWS / Deployment / CI-CD**
+- [AWS deployment (Phase 10, in progress)](#aws-deployment-phase-10-in-progress) ❖
+- [CI/CD & branch strategy](#cicd--branch-strategy-2026-09-08---see-docsagent-referencecicd-branching-strategymd) ❖
+- [Phase 88 follow-ups: Lambda reserved concurrency skipped; AWS CLI default region is wrong](#phase-88-follow-ups-lambda-reserved-concurrency-skipped-aws-cli-default-region-is-wrong-2026-10-06) ❖
+- [Phase 88 follow-ups round 2: no input validation; cold-start init-timeout](#phase-88-follow-ups-round-2-no-input-validation-on-the-async-path-cold-start-init-timeout-is-recurring-not-a-fluke-2026-10-06) ❖
+- [CI (not Deploy) has been failing since at least Phase 86](#ci-not-deploy-has-been-failing-since-at-least-phase-86-undetected-until-2026-10-06) ❖
+- [~~No CI/CD automation deploys the Lambda~~](#no-cicd-automation-deploys-the-lambda---resolved-2026-10-06-githubworkflowsdeploy-lambdayml)
+- [`GET /health` with no query params silently checks the wrong backends](#get-health-with-no-query-params-silently-checks-the-wrong-backends-on-aws-found-phase-92-2026-10-06-pre-existing) ❖
+- [Re-verified against live AWS/CI, 2026-10-07](#re-verified-against-live-awsci-2026-10-07---all-still-open-none-regressed) ❖
+- [~~`HRB_LMS_MCP_URL` never configured on AWS~~](#hrb_lms_mcp_url-never-configured-on-aws---resolved-2026-10-07-phase-118)
+
+**Access control / Security**
+- [Access control](#access-control-phase-23-2026-09-15-identity-mechanism-replaced-phase-45-2026-09-20) ❖
+- [API hardening](#api-hardening-same-shape-as-the-sibling-projects-nfr-backlog) ❖
+- [Orphan config - flagged, not removed](#orphan-config---flagged-not-removed-touches-env-your-call) ❖
+
+**MCP integration**
+- [MCP integration & cross-project schema standardization](#mcp-integration--cross-project-schema-standardization-2026-09-22) ❖
+- [MCP gaps found by reviewing a cohort-mate's M1 MCP submission](#mcp-gaps-found-by-reviewing-a-cohort-mates-m1-mcp-submission-2026-10-15) - 2 of 3 resolved 2026-10-15, 1 deliberately deferred
+
+**Retrieval / Indexing / Data**
+- [Data handling](#data-handling) ❖
+- [Retrieval quality](#retrieval-quality-phase-20-found-2026-09-14-during-live-verification) ❖
+- [Pinecone relevance threshold is a data-backed stop-gap](#pinecone-relevance-threshold-is-a-data-backed-stop-gap-not-a-final-calibration-phase-83-follow-up-2026-10-05) ❖
+- [~~Chunk metadata's `filename` field reads `"unknown"` in Pinecone~~](#chunk-metadatas-filename-field-reads-unknown-in-pinecone---resolved-incidentally-phase-87-2026-10-06)
+- [`chunking_strategy` is never persisted, only `chunk_size`/`chunk_overlap`](#chunking_strategy-is-never-persisted-only-chunk_sizechunk_overlap) ❖
+- [Indexing failures are silent to the API caller](#indexing-failures-are-silent-to-the-api-caller-confirmed-phase-83-2026-10-05) ❖
+
+**Multi-agentic-rag**
+- [Multi-agentic-rag follow-ups](#multi-agentic-rag-follow-ups-confirmed-gaps-after-phase-64-2026-10-04) ❖
+- [multi-agentic-rag has no per-domain-agent token usage, and no caching](#multi-agentic-rag-has-no-per-domain-agent-token-usage-and-no-caching) ❖ - referenced directly by Phase 184's Live Metrics fine-tune popover
+
+**Caching / Performance**
+- [Caching follow-ups](#caching-follow-ups-confirmed-gaps-after-phase-7778-2026-10-05) ❖
+
+**Observability / Evaluation**
+- [Observability](#observability) ❖
+- [Guardrails / Evaluation / Observability follow-up](#guardrails--evaluation--observability-follow-up-phases-7-8-2026-09-22) ❖
+- [Observability gap: genai-rag's own generation calls are invisible](#observability-gap-genai-rags-own-generation-calls-are-invisible-confirmed-phase-79-2026-10-05) ❖
+- [Release gate follow-up](#release-gate-follow-up-confirmed-scope-after-phase-80-2026-10-05) ❖
+- [Output guardrail false positive: "Roth" masked as a name](#output-guardrail-false-positive-roth-masked-as-a-name-found-2026-10-06) ❖ - referenced directly by Phase 184's Live Metrics fine-tune popover
+- [Token cost (in dollars), not just token counts, in Explainability](#token-cost-in-dollars-not-just-token-counts-in-explainability) ❖ - same, re: cost_usd's deliberate gap
+
+**LLM providers**
+- [LLM providers](#llm-providers) ❖
+
+**Schema / Conversation / Process**
+- [Schema/data work completed](#schemadata-work-completed-2026-09-22-phases-50-51--oauth2-redesign) ❖
+- [Conversation memory](#conversation-memory-phase-58-2026-09-25) ❖
+- [Process](#process) ❖
+
+**Cleanup / dead code**
+- [Dead code](#dead-code-phase-22-found-2026-09-15-during-comment-cleanup) ❖
+- [Cleanup done 2026-09-21](#cleanup-done-2026-09-21) ❖
+- [Cleanup done 2026-09-07](#cleanup-done-2026-09-07) ❖
+- [Codebase cleanup findings](#codebase-cleanup-findings-phase-93-2026-10-06) ❖
+- [UI backend-gap findings](#ui-backend-gap-findings-phase-95-2026-10-06) ❖
+
+**Candidate future work (proposed, not decided)**
+- [unpaid-leave benefits-lapse notification](#candidate-future-use-case-unpaid-leave-benefits-lapse-notification-proposed-2026-10-02-not-decided)
+- [Analytics domain agent needs historical data](#candidate-future-requirement-analytics-domain-agent-needs-historical-data-proposed-2026-10-03-sequencing-confirmed-2026-10-05)
+
 ## Observability
 
 - ~~**No logging around individual backend calls.**~~ Fixed 2026-09-08.
@@ -1364,3 +1435,52 @@ protection that rejected every real (non-localhost) hostname with 421,
 masked by generic `ExceptionGroup` logging here until `exc_info=True`
 was added to surface it. Live-verified: the exact question that used to
 return the connection-issue fallback now returns a real PTO balance.
+
+## MCP gaps found by reviewing a cohort-mate's M1 MCP submission (2026-10-15)
+
+Compared `hrb_chatbot_v2`'s MCP client (`ai/rag_pipeline/tools/mcp_tools/
+__init__.py`) and `hrb_lms_mcp`'s MCP server against the FDE cohort's M1
+MCP module as submitted by a cohort-mate (`jeev1992/real-estate-
+negotiation-simulator`, `m1_mcp/` - two `FastMCP` servers, a stdio client,
+an SSE client). Full table (transport, tool registration, auth, Resources/
+Prompts primitives, multi-server orchestration, structured outputs,
+logging, retries, concurrency, testing) in this session's own record, not
+reproduced here - most rows are a wash or we're already ahead (real OAuth2
+vs. none, real structured logging vs. none, real test coverage vs. none).
+Three real, worth-tracking items:
+
+- ~~**`_call_mcp_tool()` callers each hand-roll `json.loads(result["content"]
+  [0])`**~~ - resolved 2026-10-15. Collapsed into one shared
+  `_call_mcp_tool_json()` helper in `mcp_tools/__init__.py`, used by all 9
+  in-file wrapper functions plus the 2 external call sites
+  (`manage_admin.py`, `unpaid_leave.py`) that called `_call_mcp_tool()`
+  directly - 11 duplicated unwraps down to 1. No behavior change; full
+  suite (676/676) confirmed passing after.
+- ~~**No distinction between "MCP server unreachable" (transport failure)
+  and "tool call failed"**~~ - substantially addressed 2026-10-15 by
+  Phase 185's circuit breaker (see `RAG-ROADMAP.md`): every real
+  `_call_mcp_tool()` attempt now records its own outcome, and a pre-
+  flight check raises a distinct "known unreachable" message before even
+  attempting a call once 2+ consecutive failures are on record - the
+  exact pattern-visibility gap this entry described. Not done: a
+  dedicated exception *class* (today it's still a `RuntimeError` either
+  way, distinguishable by message text, not type) - left as a smaller,
+  optional follow-up if a caller ever needs to branch on it
+  programmatically, not just log it.
+- **Multi-server tool-catalog merging has no precedent here** -
+  `orchestration_agent.py`'s `TOOL_FUNCTIONS` dict already mixes one
+  MCP-backed tool with non-MCP tools in a single loop, but there's only
+  ever been one real MCP server. m1_mcp's `sse_agent_client.py --both`
+  demonstrates discovering + merging two independent servers' tool
+  catalogs into one LLM-visible list. Not urgent - Phase 52 (a second,
+  analytics MCP server) is parking-lot-only today - but worth designing
+  for up front whenever that phase's spec gets written, rather than
+  hand-rolling a second one-off `_call_mcp_tool`-style module next to the
+  first. Flagged per CLAUDE.md's "flag, don't fix," not acted on here.
+
+Deliberately not pursued: Resources/Prompts primitives (m1_mcp uses both;
+every MCP interaction in this project is per-employee parameterized data,
+which is inherently tool-shaped - no static document exists to attach as
+a Resource) and concurrent tool-call execution (m1_mcp doesn't do this
+either; this project's tool-calls-per-turn count is 1-2, not worth the
+complexity yet).

@@ -103,33 +103,26 @@ def test_hr_support_role_required_to_list_pending_requests(monkeypatch):
 
 
 def test_list_pending_requests_returns_the_mcp_result(monkeypatch):
-    async def _fake_call_mcp_tool(tool_name, arguments):
+    async def _fake_call_mcp_tool_json(tool_name, arguments):
         assert tool_name == "list_hitl_requests"
         assert arguments == {"status": "PENDING", "request_type": "UNPAID_LEAVE_REQUEST"}
         return {
-            "tool": tool_name,
-            "content": [
-                json.dumps(
-                    {
-                        "total": 1,
-                        "requests": [
-                            {
-                                "hitlRequestId": 7,
-                                "requestType": "UNPAID_LEAVE_REQUEST",
-                                "employeeId": "EMP052",
-                                "query": "Employee Eddy requests 3 days of unpaid leave.",
-                                "context": {"is_repeat_within_12_months": False},
-                                "status": "PENDING",
-                                "assignedTo": "hr-team@company.com",
-                                "createdAt": "2026-10-11T00:00:00",
-                            }
-                        ],
-                    }
-                )
+            "total": 1,
+            "requests": [
+                {
+                    "hitlRequestId": 7,
+                    "requestType": "UNPAID_LEAVE_REQUEST",
+                    "employeeId": "EMP052",
+                    "query": "Employee Eddy requests 3 days of unpaid leave.",
+                    "context": {"is_repeat_within_12_months": False},
+                    "status": "PENDING",
+                    "assignedTo": "hr-team@company.com",
+                    "createdAt": "2026-10-11T00:00:00",
+                }
             ],
         }
 
-    monkeypatch.setattr(unpaid_leave, "_call_mcp_tool", _fake_call_mcp_tool)
+    monkeypatch.setattr(unpaid_leave, "_call_mcp_tool_json", _fake_call_mcp_tool_json)
 
     response = client.get("/v1/unpaid-leave/pending", params={"user_profile": json.dumps(HR_PROFILE)})
 

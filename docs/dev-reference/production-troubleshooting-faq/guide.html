@@ -1,0 +1,158 @@
+<title>Production Troubleshooting FAQ</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #f1f1f6; --surface: #ffffff; --surface-alt: #f5f5fa; --border: #dcdce6;
+    --text: #181a24; --text-muted: #565c70; --text-faint: #888da0;
+    --accent: #3d3ca0; --accent-bg: #ebebf8; --accent-border: #cfcdee;
+    --cause: #a4321f; --cause-bg: #fbe9e5; --cause-border: #f0c3b8;
+    --fix: #146b3f; --fix-bg: #e3f6ea; --fix-border: #b7e4c8;
+    --shadow: 0 2px 4px rgba(15,20,30,0.06), 0 10px 22px rgba(15,20,30,0.07);
+    --band: #23264a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d0e16; --surface: #15161f; --surface-alt: #171924; --border: #292b3d;
+      --text: #e8e9f0; --text-muted: #a6abbf; --text-faint: #6c7288;
+      --accent: #9c9bf0; --accent-bg: #201f3a; --accent-border: #38366a;
+      --cause: #e2795f; --cause-bg: #2c1712; --cause-border: #4a271e;
+      --fix: #4fc989; --fix-bg: #132a1e; --fix-border: #204a32;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 12px 26px rgba(0,0,0,0.4);
+      --band: #1a1c38;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d0e16; --surface: #15161f; --surface-alt: #171924; --border: #292b3d;
+    --text: #e8e9f0; --text-muted: #a6abbf; --text-faint: #6c7288;
+    --accent: #9c9bf0; --accent-bg: #201f3a; --accent-border: #38366a;
+    --cause: #e2795f; --cause-bg: #2c1712; --cause-border: #4a271e;
+    --fix: #4fc989; --fix-bg: #132a1e; --fix-border: #204a32;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 12px 26px rgba(0,0,0,0.4);
+    --band: #1a1c38;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, sans-serif; padding-inline: 16px; padding-block: 28px 56px; }
+  .display { font-family: 'Archivo', sans-serif; } .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 3.8vw, 32px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 13.5px; max-width: 82ch; line-height: 1.6; }
+
+  section.cat { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+  .cat-head { background: var(--band); color: #fff; padding: 12px 18px; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 14px; }
+  .cat-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+
+  .bug-card { border: 1px solid var(--border); border-radius: 10px; padding: 13px 15px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 8px; }
+  .bug-symptom { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13.5px; }
+  .bug-row { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; line-height: 1.55; }
+  .bug-tag { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 700; text-transform: uppercase; padding: 2px 7px; border-radius: 5px; flex: none; margin-top: 1px; }
+  .bug-tag.cause { color: var(--cause); background: var(--cause-bg); border: 1px solid var(--cause-border); }
+  .bug-tag.fix { color: var(--fix); background: var(--fix-bg); border: 1px solid var(--fix-border); }
+  .bug-tag.avoid { color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); }
+  .bug-row p { margin: 0; color: var(--text); }
+  .bug-src { font-size: 11px; color: var(--text-faint); }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">real bugs, found live in this project - not hypothetical scenarios</div>
+    <h1 class="display">Production Troubleshooting FAQ</h1>
+    <p class="subtitle">Every entry below is a real incident from this project's own history, documented in <span class="mono">RAG-ROADMAP.md</span>/<span class="mono">BACKLOG.md</span>/<span class="mono">AWS-DEVOPS-RUNBOOK.md</span> - symptom, root cause, the actual fix, and how to catch it faster next time. Used as worked examples, not a generic ops checklist.</p>
+  </header>
+
+  <section class="cat">
+    <div class="cat-head">Docker image builds but App Runner won't run it</div>
+    <div class="cat-body">
+      <div class="bug-card">
+        <div class="bug-symptom">CREATE_FAILED, image "pulled successfully," zero application logs anywhere</div>
+        <div class="bug-row"><span class="bug-tag cause">cause</span><p>BuildKit's default <span class="mono">docker build</span> wraps the real image in an OCI image index plus a provenance/SBOM attestation manifest - App Runner pulls it "successfully" and then never actually runs the real layer underneath.</p></div>
+        <div class="bug-row"><span class="bug-tag fix">fix</span><p>Build with <span class="mono">docker buildx build --provenance=false --sbom=false --output type=image,...,oci-mediatypes=false,push=true</span> - never a bare <span class="mono">docker build -t ... .</span>.</p></div>
+        <div class="bug-row"><span class="bug-tag avoid">avoid next time</span><p>Before pushing, run <span class="mono">docker manifest inspect &lt;image&gt;</span> and confirm <span class="mono">mediaType: "application/vnd.docker.distribution.manifest.v2+json"</span> - catches this before App Runner ever sees it.</p></div>
+        <div class="bug-src">AWS-DEVOPS-RUNBOOK.md - "Three real bugs found the hard way"</div>
+      </div>
+      <div class="bug-card">
+        <div class="bug-symptom">Same CREATE_FAILED symptom, different real cause - a hand-typed secret ARN</div>
+        <div class="bug-row"><span class="bug-tag cause">cause</span><p>AWS Secrets Manager appends a random suffix to every secret's ARN (e.g. <span class="mono">hrb-chatbot/OPENAI_API_KEY-LdC1Q6</span>) - a hand-typed ARN without that suffix looks plausible but is wrong.</p></div>
+        <div class="bug-row"><span class="bug-tag fix">fix</span><p>Always resolve the real ARN via <span class="mono">aws secretsmanager list-secrets</span> at deploy time, never type one from memory.</p></div>
+        <div class="bug-row"><span class="bug-tag avoid">avoid next time</span><p>The exact same generic symptom (image pulled, zero app logs) had two unrelated root causes - don't assume the first fix found is the only one; check both independently.</p></div>
+        <div class="bug-src">AWS-DEVOPS-RUNBOOK.md - "Three real bugs found the hard way"</div>
+      </div>
+      <div class="bug-card">
+        <div class="bug-symptom">Container never starts at all, and CloudWatch has no app-level log group to even check</div>
+        <div class="bug-row"><span class="bug-tag cause">cause</span><p>When the container fails before the app's own logging ever initializes, only the generic App Runner <span class="mono">/service</span> log group exists - no separate application log group is ever created.</p></div>
+        <div class="bug-row"><span class="bug-tag fix">fix</span><p>Treat "zero app-level logs + generic pull/deploy failure message" as a signal to check the image itself (manifest format, architecture) before debugging application code that never even ran.</p></div>
+        <div class="bug-row"><span class="bug-tag avoid">avoid next time</span><p>Confirmed the hard way this session while building the developer-onboarding guide - worth remembering as a pattern, not just a one-off.</p></div>
+        <div class="bug-src">docs/dev-reference/deployment-verification-guide/guide.html</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cat">
+    <div class="cat-head">A sibling MCP service that looks down but isn't</div>
+    <div class="cat-body">
+      <div class="bug-card">
+        <div class="bug-symptom">Leave-balance questions silently fall back to a generic "connection issue" answer</div>
+        <div class="bug-row"><span class="bug-tag cause">cause</span><p>Two independent causes found in sequence: first, <span class="mono">HRB_LMS_MCP_URL</span> was simply never configured in production App Runner, so the container tried to reach <span class="mono">127.0.0.1:8190</span> on itself. After fixing that, a second bug surfaced - <span class="mono">hrb_lms_mcp</span>'s own server defaulted to DNS-rebinding Host-header protection, rejecting every real (non-localhost) hostname with a 421.</p></div>
+        <div class="bug-row"><span class="bug-tag fix">fix</span><p>Deploy <span class="mono">hrb_lms_mcp</span> to its own real App Runner service with the real URL/OAuth2 credentials wired in; add <span class="mono">exc_info=True</span> to the generic exception logging that had been masking the 421 as an unhelpful <span class="mono">ExceptionGroup</span>.</p></div>
+        <div class="bug-row"><span class="bug-tag avoid">avoid next time</span><p>A graceful "MCP unreachable" fallback (correct behavior) can also hide a config bug that should be loud, not quiet - log the specific failure type even when the user-facing fallback stays smooth.</p></div>
+        <div class="bug-src">RAG-ROADMAP.md Phase 118</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cat">
+    <div class="cat-head">"It works on my machine" - config pointing at the wrong place</div>
+    <div class="cat-body">
+      <div class="bug-card">
+        <div class="bug-symptom">Admin docs sync reports "updated" every run, but the live site never shows the new content</div>
+        <div class="bug-row"><span class="bug-tag cause">cause</span><p><span class="mono">POSTGRES_DB_HOST=localhost</span> in <span class="mono">.env</span> pointed at a genuinely separate local Postgres process, not a tunnel to the shared production database - every sync run wrote to the wrong database entirely.</p></div>
+        <div class="bug-row"><span class="bug-tag fix">fix</span><p>Confirmed via <span class="mono">netstat</span>/<span class="mono">tasklist</span> that local Postgres was a real, separate process; temporarily pointed <span class="mono">.env</span> at the real Neon connection string, ran the sync, reverted <span class="mono">.env</span> byte-for-byte afterward.</p></div>
+        <div class="bug-row"><span class="bug-tag avoid">avoid next time</span><p>A script reporting success tells you it ran, not that it ran against the right target - verify the actual destination, not just the exit code.</p></div>
+        <div class="bug-src">This session, 2026-10-14/15</div>
+      </div>
+      <div class="bug-card">
+        <div class="bug-symptom">Frontend calls fail with connection errors even though the backend is clearly running</div>
+        <div class="bug-row"><span class="bug-tag cause">cause</span><p><span class="mono">hrb_chatbot_ui/.env</span>'s <span class="mono">VITE_API_BASE_URL</span> pointed at port 8299; the real backend was running on 8093.</p></div>
+        <div class="bug-row"><span class="bug-tag fix">fix</span><p>Matched the port in <span class="mono">.env</span> to the real running <span class="mono">uvicorn</span> process.</p></div>
+        <div class="bug-row"><span class="bug-tag avoid">avoid next time</span><p>When a frontend/backend pair reports a generic connection failure, check the configured port against the actually-running process's port before assuming the server itself is broken.</p></div>
+        <div class="bug-src">This session, 2026-10-14</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cat">
+    <div class="cat-head">Frontend state bugs that look like backend bugs</div>
+    <div class="cat-body">
+      <div class="bug-card">
+        <div class="bug-symptom">Admin dashboard shows (0) on every single tab, even ones with real data</div>
+        <div class="bug-row"><span class="bug-tag cause">cause</span><p><span class="mono">Promise.all([...5 fetches...])</span> fails fast - one rejected promise (e.g. leave requests when the MCP server is down) discards the results of every other already-successful fetch too, not just the failing one.</p></div>
+        <div class="bug-row"><span class="bug-tag fix">fix</span><p>Switched to <span class="mono">Promise.allSettled</span>, applying <span class="mono">setState()</span> only for each individually-fulfilled result, with a per-fetch failure message instead of one blanket error.</p></div>
+        <div class="bug-row"><span class="bug-tag avoid">avoid next time</span><p>Any dashboard combining multiple independent data sources in one <span class="mono">Promise.all</span> has this exact failure mode waiting - prefer <span class="mono">allSettled</span> by default whenever the sources are allowed to fail independently.</p></div>
+        <div class="bug-src">This session - AdminDashboardPage.tsx</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cat">
+    <div class="cat-head">Local tooling getting in its own way</div>
+    <div class="cat-body">
+      <div class="bug-card">
+        <div class="bug-symptom">A deck-building script silently writes to a "_wip" copy instead of the real file</div>
+        <div class="bug-row"><span class="bug-tag cause">cause</span><p>The canonical <span class="mono">.pptx</span> was open in PowerPoint at the time - <span class="mono">python-pptx</span> can't write to a file locked by another process, so the save script's own fallback kicked in.</p></div>
+        <div class="bug-row"><span class="bug-tag fix">fix</span><p>Close the file in PowerPoint, then simply re-run the same build script - it adds the new slides cleanly since the canonical file was never actually touched.</p></div>
+        <div class="bug-row"><span class="bug-tag avoid">avoid next time</span><p>A script that silently falls back to a different output path on a lock conflict is doing the right defensive thing - but always check for a stale lock file (<span class="mono">~$filename</span> on Windows) before assuming a build script failed outright.</p></div>
+        <div class="bug-src">This session, 2026-10-15</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    New entries get added here as real incidents happen - this page is never backfilled with hypothetical scenarios. See <span class="mono">docs/agent-reference/RAG-ROADMAP.md</span>/<span class="mono">BACKLOG.md</span> for the full, ongoing record these are pulled from.
+  </footer>
+
+</div>

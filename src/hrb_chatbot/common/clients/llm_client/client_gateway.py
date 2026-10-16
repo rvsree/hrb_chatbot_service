@@ -1,6 +1,7 @@
 """One place that hands out every client the project uses - built lazily,
 cached, so nothing re-reads the same settings twice."""
 
+from src.hrb_chatbot.common.clients.ci_client.github_actions_client import GitHubActionsClient
 from src.hrb_chatbot.common.clients.llm_client.anthropic_client import AnthropicChatClient
 from src.hrb_chatbot.common.clients.llm_client.bedrock_client import BedrockChatClient
 from src.hrb_chatbot.common.clients.llm_client.open_router_client import OpenRouterChatClient
@@ -23,6 +24,7 @@ class ClientGateway:
         self.openrouter_chat_client = None
         self.bedrock_chat_client = None
         self.tavily_search_client = None
+        self.github_actions_client = None
 
     def openai_chat(self) -> OpenAIChatClient:
         """Return the shared OpenAI chat client, building it on first use."""
@@ -59,6 +61,12 @@ class ClientGateway:
         if self.tavily_search_client is None:
             self.tavily_search_client = TavilyClient()
         return self.tavily_search_client
+
+    def github_actions(self) -> GitHubActionsClient:
+        """Return the shared GitHub Actions client, building it on first use (Phase 183)."""
+        if self.github_actions_client is None:
+            self.github_actions_client = GitHubActionsClient()
+        return self.github_actions_client
 
 
 # Module-level singleton, not a DI container - `global` below reuses this

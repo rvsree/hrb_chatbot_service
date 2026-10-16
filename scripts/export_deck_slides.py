@@ -26,6 +26,8 @@ SLIDE_EXPORTS = {
     "docs/dev-reference/database/db-model-overview-slide.png": 26,
     "docs/dev-reference/IK-FDE/course-topic-coverage-review-slide.png": 27,
     "docs/dev-reference/genai-rag-chat/architecture-slide.png": 28,
+    "docs/dev-reference/developer-onboarding/deployment-view-slide.png": 29,
+    "docs/dev-reference/developer-onboarding/deploy-pipelines-slide.png": 30,
 }
 
 

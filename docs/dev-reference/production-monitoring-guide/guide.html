@@ -1,0 +1,227 @@
+<title>Production Monitoring Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef4f2; --surface: #ffffff; --surface-alt: #f3f7f5; --border: #d8e4e0;
+    --text: #131c1a; --text-muted: #4f5f5a; --text-faint: #839290;
+    --live: #14713f; --live-bg: #e3f6eb; --live-border: #b6e4c8;
+    --planned: #9a5a0c; --planned-bg: #fbf1dd; --planned-border: #edd6a2;
+    --proto: #106b78; --proto-bg: #e1f3f6; --proto-border: #b7e2e9;
+    --gap: #a4321f; --gap-bg: #fbe9e5; --gap-border: #f0c3b8;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0e2e26; --band-mid: #16453a;
+    --lib-chip-bg: #eaf2ef; --lib-chip-text: #435750;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0a1310; --surface: #141f1a; --surface-alt: #16221c; --border: #253630;
+      --text: #e6efec; --text-muted: #9fb5ae; --text-faint: #647873;
+      --live: #4fc989; --live-bg: #132a1e; --live-border: #204a32;
+      --planned: #e0ac48; --planned-bg: #2c2311; --planned-border: #4a3a17;
+      --proto: #4fc7d6; --proto-bg: #0f2a2e; --proto-border: #1c454c;
+      --gap: #e2795f; --gap-bg: #2c1712; --gap-border: #4a271e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0a1f19; --band-mid: #123128;
+      --lib-chip-bg: #1c2823; --lib-chip-text: #a4bab3;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0a1310; --surface: #141f1a; --surface-alt: #16221c; --border: #253630;
+    --text: #e6efec; --text-muted: #9fb5ae; --text-faint: #647873;
+    --live: #4fc989; --live-bg: #132a1e; --live-border: #204a32;
+    --planned: #e0ac48; --planned-bg: #2c2311; --planned-border: #4a3a17;
+    --proto: #4fc7d6; --proto-bg: #0f2a2e; --proto-border: #1c454c;
+    --gap: #e2795f; --gap-bg: #2c1712; --gap-border: #4a271e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0a1f19; --band-mid: #123128;
+    --lib-chip-bg: #1c2823; --lib-chip-text: #a4bab3;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; } .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1140px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--proto); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(26px, 4.2vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 80ch; line-height: 1.55; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); padding: 5px 10px 5px 8px; border-radius: 999px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot.live { background: var(--live); } .dot.planned { background: var(--planned); } .dot.gap { background: var(--gap); }
+
+  .group-head { display: flex; align-items: baseline; gap: 12px; margin-top: 6px; padding-bottom: 6px; border-bottom: 2px solid var(--band-dark); }
+  .group-num { font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 13px; color: #fff; background: var(--band-dark); border-radius: 8px; padding: 3px 9px; flex: none; }
+  .group-title { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 20px; }
+  .group-sub { font-size: 12.5px; color: var(--text-faint); }
+
+  section.panel { display: flex; flex-direction: column; gap: 16px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .panel-num { width: 32px; height: 32px; border-radius: 9px; background: var(--band-dark); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 13px; }
+  .panel-title { display: flex; flex-direction: column; }
+  .panel-title .name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17.5px; }
+  .panel-title .sub { font-size: 12px; color: var(--text-faint); }
+  .panel-badge { margin-left: auto; font-size: 11px; font-weight: 700; padding: 4px 11px; border-radius: 999px; text-transform: uppercase; }
+  .panel-badge.live { color: var(--live); background: var(--live-bg); border: 1px solid var(--live-border); }
+  .panel-badge.planned { color: var(--planned); background: var(--planned-bg); border: 1px solid var(--planned-border); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .card { border: 1px solid var(--border); border-radius: 12px; padding: 13px 15px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 6px; }
+  .card-label { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13px; }
+  .card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+  .chip { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; padding: 2px 6px; border-radius: 5px; background: var(--lib-chip-bg); color: var(--lib-chip-text); }
+
+  .callout { display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; border-radius: 10px; padding: 11px 14px; line-height: 1.55; }
+  .callout svg { flex: none; width: 16px; height: 16px; margin-top: 1px; }
+  .callout.planned { background: var(--planned-bg); border: 1px solid var(--planned-border); color: var(--planned); }
+  .callout.live { background: var(--live-bg); border: 1px solid var(--live-border); color: var(--live); }
+  .callout.gap { background: var(--gap-bg); border: 1px solid var(--gap-border); color: var(--gap); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table caption { text-align: left; font-size: 11px; color: var(--text-faint); margin-bottom: 6px; }
+  th, td { text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.5; }
+  th { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-faint); background: var(--surface-alt); }
+  tr:last-child td { border-bottom: none; }
+  td .mono, th .mono { font-size: 11.5px; }
+  .table-wrap { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .table-wrap table { margin: 0; }
+  .badge-yes { color: var(--live); font-weight: 700; }
+  .badge-no { color: var(--gap); font-weight: 700; }
+
+  .steps { display: flex; flex-direction: column; gap: 10px; }
+  .step { display: flex; gap: 12px; border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface-alt); }
+  .step-num { font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 13px; color: #fff; background: var(--band-mid); border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; flex: none; }
+  .step-body { display: flex; flex-direction: column; gap: 6px; }
+  .step-title { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13.5px; }
+  .step-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.55; }
+  pre.cmd { margin: 0; background: var(--band-dark); color: #d9efe6; border-radius: 8px; padding: 10px 12px; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; overflow-x: auto; line-height: 1.5; }
+
+  .diagram-wrap { background: var(--surface-alt); border: 1px solid var(--border); border-radius: 10px; padding: 10px; overflow-x: auto; }
+  .diagram-wrap img { display: block; width: 100%; height: auto; border-radius: 6px; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">for anyone operating hrb_chatbot_v2's deployed service day to day</div>
+    <h1 class="display">Production Monitoring Guide</h1>
+    <p class="subtitle">How to read this project's real App Runner dashboard, tail its CloudWatch logs, read a LangSmith trace, and tell a real secret apart from a plain env var - grounded in the actual code and runbooks, not a generic AWS tutorial. Every file path, command, and threshold below was read out of the real source or the real runbooks - where something couldn't be confirmed, that's said outright instead of guessed. Split out of <span class="mono">docs/dev-reference/developer-onboarding/</span> on 2026-10-15; the Spring-mapping table stayed there, and the build/deploy pipeline itself now lives in <span class="mono">docs/dev-reference/build-guide/</span> and <span class="mono">docs/dev-reference/deployment-verification-guide/</span>.</p>
+    <div class="legend">
+      <span class="legend-item"><span class="dot live"></span>Confirmed in real code/docs</span>
+      <span class="legend-item"><span class="dot planned"></span>Design only / not yet live</span>
+      <span class="legend-item"><span class="dot gap"></span>Unconfirmed - flagged, not guessed</span>
+    </div>
+  </header>
+
+  <!-- ============================================================ -->
+  <div class="group-head">
+    <span class="group-num">1</span>
+    <div><div class="group-title display">Reading AWS and LangSmith - This Project's Own Dashboards</div><div class="group-sub">what the real monitoring surfaces actually show for this specific service</div></div>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">01</div>
+      <div class="panel-title"><span class="name display">App Runner's service dashboard</span><span class="sub">what RUNNING / OPERATION_IN_PROGRESS actually mean</span></div>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <div class="card-label">Where it is</div>
+        <div class="card-desc">Service ARN <span class="mono">arn:aws:apprunner:us-east-1:418884736369:service/hrb-chatbot/f957548202f343aa8ca91f341d71d85a</span>, live URL <span class="mono">https://mrgysvt6ye.us-east-1.awsapprunner.com</span> - both only derivable from AWS itself, not from any file in this repo (<span class="mono">docs/agent-reference/AWS-DEVOPS-RUNBOOK.md</span>'s "Resource identifiers" table).</div>
+        <div class="chip-row"><span class="chip">aws apprunner describe-service --service-arn &lt;ARN&gt;</span></div>
+      </div>
+      <div class="card">
+        <div class="card-label">Reading <span class="mono">Service.Status</span></div>
+        <div class="card-desc"><span class="mono">RUNNING</span> is the only healthy terminal state. <span class="mono">OPERATION_IN_PROGRESS</span> is the expected value <em>while</em> a deployment is rolling out - not a failure, it's what you poll through. <span class="mono">CREATE_FAILED</span>/<span class="mono">UPDATE_FAILED</span> are real failures, documented three separate times during this project's own first deployment (see the Build Guide's "3 real bugs" panel, the Docker build one).</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Auto-deploy is deliberately off</div>
+        <div class="card-desc"><span class="mono">AutoDeploymentsEnabled</span> is <span class="mono">false</span> on this service - pushing a new <span class="mono">:latest</span> image to ECR does <strong>not</strong> redeploy it by itself. A real deploy needs an explicit <span class="mono">aws apprunner start-deployment</span> call (what <span class="mono">deploy.yml</span> does).</div>
+      </div>
+      <div class="card">
+        <div class="card-label">What to check alongside status</div>
+        <div class="card-desc"><span class="mono">SourceConfiguration.ImageRepository.ImageConfiguration.RuntimeEnvironmentVariables</span> - specifically <span class="mono">RAG_VECTOR_DB</span> and <span class="mono">RAG_METADATA_STORE</span>, easy to forget which is actually live (today: Pinecone is live, Postgres metadata is <strong>not</strong> - the deployed service still runs <span class="mono">RAG_METADATA_STORE=sqlite</span> because a hosted Postgres hasn't been provisioned).</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">02</div>
+      <div class="panel-title"><span class="name display">Tailing CloudWatch logs for this service</span><span class="sub">and the one real limitation that cost real debugging time</span></div>
+    </div>
+    <pre class="cmd">aws logs describe-log-groups --log-group-name-prefix "/aws/apprunner/hrb-chatbot"
+aws logs describe-log-streams --log-group-name "/aws/apprunner/hrb-chatbot/&lt;service-id&gt;/service" --order-by LastEventTime --descending
+aws logs get-log-events --log-group-name "/aws/apprunner/hrb-chatbot/&lt;service-id&gt;/service" --log-stream-name "&lt;stream&gt;"</pre>
+    <div class="callout gap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+      <span><strong>Confirmed the hard way, not just documented:</strong> when the container itself never starts (as opposed to starting and then crashing), there is <strong>no separate application log group</strong> with this project's own <span class="mono">logging</span> output - only the generic <span class="mono">/service</span> group exists, and its two messages ("Successfully pulled your application image... Failed to deploy your application image") don't say why. Seeing that exact pattern with zero app-level logs means check the <strong>image itself</strong> (manifest format, architecture) before spending time on Python code that never even ran - see the Build Guide's Docker build panel.</span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">03</div>
+      <div class="panel-title"><span class="name display">Reading a LangSmith trace</span><span class="sub">local-vs-prod project split, and what's confirmed vs. unconfirmed about span content</span></div>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <div class="card-label">How tracing turns on</div>
+        <div class="card-desc"><span class="mono">common/observability/langsmith_tracing.py</span>'s <span class="mono">enable_tracing_if_configured()</span> is called once, at import time, from <span class="mono">main.py</span> (before <span class="mono">app = FastAPI(...)</span> is even built). If <span class="mono">LANGSMITH_ENABLED</span> is true and an API key is set, it sets three env vars LangChain's own chains already check - <span class="mono">LANGCHAIN_TRACING_V2</span>, <span class="mono">LANGCHAIN_API_KEY</span>, <span class="mono">LANGCHAIN_PROJECT</span>. There's no explicit "start a trace" call anywhere else in this codebase - it's opt-in instrumentation LangChain does for you.</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Local vs. prod project split</div>
+        <div class="card-desc"><span class="mono">_resolve_project_name()</span> appends <span class="mono">_local</span> or <span class="mono">_prod</span> to the base <span class="mono">hrb_chatbot_v2</span> project name, read from <span class="mono">HRB_CHATBOT_LOCAL</span>/<span class="mono">HRB_CHATBOT_PROD</span> flags - every checked-out <span class="mono">.env</span> defaults to <span class="mono">LOCAL=true</span>/<span class="mono">PROD=false</span>, production's own App Runner env vars set the opposite. If both are somehow true, <span class="mono">_prod</span> wins - a misconfigured prod deploy still gets labeled correctly rather than silently polluting the local project's traces.</div>
+        <div class="chip-row"><span class="chip">hrb_chatbot_v2_local</span><span class="chip">hrb_chatbot_v2_prod</span></div>
+      </div>
+      <div class="card">
+        <div class="card-label">What a trace shows for one query</div>
+        <div class="card-desc">Not independently confirmed by reading this file alone (it only turns tracing on - it doesn't define spans). What's documented elsewhere in this project: the three retrieval modes (<span class="mono">genai-rag</span>, <span class="mono">single-agentic-rag</span>, <span class="mono">multi-agentic-rag</span>) are genuinely different pipelines - a fixed retrieve-then-generate call, a tool-calling loop, and a LangGraph multi-agent graph respectively - so a trace's shape differs by which endpoint was hit; a LangGraph run in particular would show each graph node as its own nested span. Treat the exact span layout as something to confirm by opening a real trace in the LangSmith UI, not something this doc can assert from source alone.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-num">04</div>
+      <div class="panel-title"><span class="name display">Where real secrets live vs. plain env vars</span><span class="sub">Secrets Manager for provider keys, App Runner config vars for everything else</span></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>What</th><th>Where it lives</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="mono">OPENAI_API_KEY</span>, <span class="mono">ANTHROPIC_API_KEY</span>, <span class="mono">OPENROUTER_API_KEY</span>, <span class="mono">TAVILY_API_KEY</span>, <span class="mono">PINECONE_API_KEY</span></td>
+            <td>AWS Secrets Manager, <span class="mono">hrb-chatbot/*</span> prefix - 5 real secrets, injected into the running container via App Runner's <span class="mono">RuntimeEnvironmentSecrets</span></td>
+            <td>Real credentials to paid third-party APIs. Secrets Manager appends a random suffix to every ARN (<span class="mono">hrb-chatbot/OPENAI_API_KEY-LdC1Q6</span>) - resolved at deploy time via <span class="mono">secretsmanager list-secrets</span>, never hand-typed (this exact mistake caused a real <span class="mono">CREATE_FAILED</span> once).</td>
+          </tr>
+          <tr>
+            <td><span class="mono">RAG_VECTOR_DB</span>, <span class="mono">RAG_METADATA_STORE</span>, <span class="mono">APP_ENVIRONMENT</span>, <span class="mono">HRB_CHATBOT_LOCAL</span>/<span class="mono">_PROD</span>, <span class="mono">LANGSMITH_ENABLED</span></td>
+            <td>plain App Runner <span class="mono">RuntimeEnvironmentVariables</span> - ordinary, visible config, not secrets</td>
+            <td>None of these are sensitive - they're which-backend-to-use switches read by <span class="mono">read_setting()</span>. Putting them in Secrets Manager would just add an API call for no confidentiality benefit.</td>
+          </tr>
+          <tr>
+            <td>Postgres credentials (<span class="mono">POSTGRES_DB_HOST</span>/<span class="mono">_PORT</span>/<span class="mono">_NAME</span>/<span class="mono">_USER</span>/<span class="mono">_PASSWORD</span>)</td>
+            <td>design only - <span class="mono">docs/agent-reference/AWS-DEVOPS-RUNBOOK.md</span> documents the exact 5 secrets to create "once provisioned," same <span class="mono">hrb-chatbot/*</span> prefix</td>
+            <td>Not live. A hosted Postgres (Neon) hasn't been provisioned yet - this is a real, acknowledged gap, not an oversight to silently work around.</td>
+          </tr>
+          <tr>
+            <td><span class="mono">HRB_LMS_MCP_OAUTH_CLIENT_ID</span>/<span class="mono">_SECRET</span> (Phase 53, app-to-app OAuth2 to <span class="mono">hrb_lms_mcp</span>)</td>
+            <td><span class="mono">docs/dev-reference/auth/oauth2-auth-architecture.html</span> says only ".env: ... plaintext secret, handed over once, never committed"</td>
+            <td><span class="mono">&#9888;</span> Unconfirmed whether the deployed App Runner service holds this as a Secrets Manager entry or a plain env var - that doc describes the local <span class="mono">.env</span> convention, not the production injection mechanism. Don't assume either without checking the real App Runner service config.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    Grounded in: <code class="mono">docs/agent-reference/AWS-DEVOPS-RUNBOOK.md</code>, <code class="mono">common/observability/langsmith_tracing.py</code>, <code class="mono">common/config/settings.py</code>, <code class="mono">docs/dev-reference/auth/oauth2-auth-architecture.html</code>. Snapshot: 2026-10-15. Split out of <code class="mono">docs/dev-reference/developer-onboarding/guide.html</code>'s original Section 2.
+  </footer>
+
+</div>

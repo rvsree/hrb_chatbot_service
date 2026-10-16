@@ -431,6 +431,78 @@ DOCS_TO_SYNC = {
             "docs/dev-reference/interview-faqs/system.html",
             "text/html",
         ),
+        # 2026-10-15 - new 7-part answer format (hint/concept/STAR/project
+        # link/leadership/trade-offs/keywords), per the user's own template.
+        # A separate doc_type under the same feature, not a replacement for
+        # "system" above - that decision (replace vs. keep both) is still
+        # open, left as-is until confirmed.
+        "agentic-research-systems": (
+            "Interview FAQs - Agentic Research Systems",
+            "docs/dev-reference/interview-faqs/agentic-research-systems.html",
+            "text/html",
+        ),
+    },
+    # 2026-10-15 - Java/Spring Boot -> this stack concept map only now;
+    # the AWS/LangSmith dashboard-reading guide and the build/deploy manual
+    # that used to live on this same page were split out into their own
+    # entries below on the same date. Not tied to a RAG feature, so its own
+    # top-level entry rather than nested under an existing feature_name.
+    "developer-onboarding": {
+        "overview": (
+            "Developer Onboarding Guide",
+            "docs/dev-reference/developer-onboarding/guide.html",
+            "text/html",
+        ),
+    },
+    # 2026-10-15 - split out of developer-onboarding's old Section 3: the
+    # local dev loop, branch strategy, CI gates, Docker build flags, and
+    # ECR push - stops before the actual App Runner deploy.
+    "build-guide": {
+        "overview": (
+            "Build Guide",
+            "docs/dev-reference/build-guide/guide.html",
+            "text/html",
+        ),
+    },
+    # 2026-10-15 - split out of developer-onboarding's old Section 3: the
+    # App Runner deploy workflow (trigger/poll/smoke-test), GitHub Secrets,
+    # the honest no-rollback state, and the two system diagrams.
+    "deployment-verification-guide": {
+        "overview": (
+            "Deployment Verification Guide",
+            "docs/dev-reference/deployment-verification-guide/guide.html",
+            "text/html",
+        ),
+    },
+    # 2026-10-15 - split out of developer-onboarding's old Section 2: reading
+    # the App Runner dashboard, tailing CloudWatch logs, reading a LangSmith
+    # trace, and the secrets-vs-plain-env-vars table.
+    "production-monitoring-guide": {
+        "overview": (
+            "Production Monitoring Guide",
+            "docs/dev-reference/production-monitoring-guide/guide.html",
+            "text/html",
+        ),
+    },
+    # 2026-10-15 - real bugs from this project's own history (symptom/cause/
+    # fix/how-to-avoid), not hypothetical scenarios. Grows as real incidents
+    # happen - never backfilled.
+    "production-troubleshooting-faq": {
+        "overview": (
+            "Production Troubleshooting FAQ",
+            "docs/dev-reference/production-troubleshooting-faq/guide.html",
+            "text/html",
+        ),
+    },
+    # 2026-10-15 - chunking strategy, chunk size/overlap, re-indexing
+    # triggers, Pinecone vs ChromaDB - grounded in text_chunker.py/
+    # vector_indexer.py's own real code.
+    "vector-db-optimization": {
+        "overview": (
+            "Vector DB Indexing & Re-indexing Guide",
+            "docs/dev-reference/vector-db-optimization/guide.html",
+            "text/html",
+        ),
     },
 }
 

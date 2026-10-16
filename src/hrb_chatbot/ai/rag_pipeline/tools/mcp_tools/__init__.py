@@ -2,11 +2,13 @@
 
 import json
 import time
+from datetime import UTC, datetime
 
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
 from src.hrb_chatbot.common.clients.auth_client.oauth_client import get_access_token
+from src.hrb_chatbot.common.clients.db_client.mcp_registry_client import McpRegistryClient
 from src.hrb_chatbot.common.config.settings import read_setting
 from src.hrb_chatbot.common.logging.logger import get_logger
 
@@ -14,6 +16,65 @@ logger = get_logger("rag_pipeline.tools.mcp_tools")
 
 LEAVE_BALANCE_KEYWORDS = ("leave balance", "pto balance", "how many days off", "sick balance")
 LEAVE_HISTORY_KEYWORDS = ("leave history", "past leave", "leave requests")
+
+# Phase 185 - a circuit breaker, not just the existing reactive fallback
+# (any MCP failure already falls back to RAG, documented elsewhere). This
+# adds a pre-flight check so a *known*, ongoing outage fails fast on the
+# 3rd+ request instead of every single request paying a real network
+# timeout first. Module-level singleton, not a DI container - same
+# pattern as every other lazily-built client in this project.
+MCP_SERVER_ID = "hrb_lms_mcp"
+MCP_CIRCUIT_BREAKER_COOLDOWN_SECONDS = int(read_setting(None, "MCP_CIRCUIT_BREAKER_COOLDOWN_SECONDS", 10))
+MCP_CIRCUIT_BREAKER_FAILURE_THRESHOLD = 2
+
+_mcp_registry_client: McpRegistryClient | None = None
+
+
+def _get_mcp_registry_client() -> McpRegistryClient:
+    global _mcp_registry_client
+    if _mcp_registry_client is None:
+        _mcp_registry_client = McpRegistryClient()
+    return _mcp_registry_client
+
+
+async def _check_circuit_breaker() -> None:
+    """Fails open on any problem reading the cached status (unknown
+    registry client, DB unreachable, no row yet) - a pre-flight check that
+    can itself fail must never block a real call, only skip one it's
+    confident is pointless."""
+    try:
+        status = await _get_mcp_registry_client().get_connection_status(MCP_SERVER_ID)
+    except Exception as error:
+        logger.warning("MCP circuit breaker: could not read cached status, attempting the real call: %s", error)
+        return
+
+    if status is None or status["connection_status"] != "error":
+        return
+    if status["consecutive_failures"] < MCP_CIRCUIT_BREAKER_FAILURE_THRESHOLD:
+        return
+
+    last_check = status["last_health_check_at"]
+    if last_check is None:
+        return
+    age_seconds = (datetime.now(UTC) - last_check).total_seconds()
+    if age_seconds > MCP_CIRCUIT_BREAKER_COOLDOWN_SECONDS:
+        return
+
+    raise RuntimeError(
+        f"hrb_lms_mcp known unreachable ({status['consecutive_failures']} consecutive failures, "
+        f"last checked {int(age_seconds)}s ago) - skipping a live call until the {MCP_CIRCUIT_BREAKER_COOLDOWN_SECONDS}s cooldown elapses."
+    )
+
+
+async def _record_mcp_outcome(success: bool, error_message: str | None) -> None:
+    """Best-effort - a recording failure must never surface to the real
+    caller, same fire-and-forget principle as response_metrics.py."""
+    try:
+        await _get_mcp_registry_client().record_connection_attempt(
+            MCP_SERVER_ID, success=success, result={}, error_message=error_message
+        )
+    except Exception as error:
+        logger.warning("MCP circuit breaker: could not record this call's outcome: %s", error)
 
 
 def is_leave_balance_query(query: str) -> bool:
@@ -27,20 +88,42 @@ def is_leave_history_query(query: str) -> bool:
 
 
 async def _call_mcp_tool(tool_name: str, arguments: dict) -> dict:
-    """Opens one MCP session, calls one tool, closes it - raises on any failure."""
+    """Opens one MCP session, calls one tool, closes it - raises on any
+    failure. Phase 185: a pre-flight circuit-breaker check runs first, and
+    every real attempt's outcome (success or failure) is recorded for the
+    *next* call's own pre-flight check to use."""
+    await _check_circuit_breaker()
+
     mcp_url = read_setting(None, "HRB_LMS_MCP_URL", "http://127.0.0.1:8190/mcp")
     # Phase 53: real OAuth2 Bearer token, not the dead X-API-Key header -
     # hrb_lms_mcp's server actually enforces this one.
     access_token = await get_access_token()
     headers = {"Authorization": f"Bearer {access_token}"}
 
-    async with streamablehttp_client(mcp_url, headers=headers) as (read_stream, write_stream, _):
-        async with ClientSession(read_stream, write_stream) as session:
-            await session.initialize()
-            result = await session.call_tool(tool_name, arguments)
-            if result.isError:
-                raise RuntimeError(f"MCP tool {tool_name!r} returned an error: {result.content}")
-            return {"tool": tool_name, "content": [block.text for block in result.content if block.type == "text"]}
+    try:
+        async with streamablehttp_client(mcp_url, headers=headers) as (read_stream, write_stream, _):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+                result = await session.call_tool(tool_name, arguments)
+                if result.isError:
+                    raise RuntimeError(f"MCP tool {tool_name!r} returned an error: {result.content}")
+                parsed = {"tool": tool_name, "content": [block.text for block in result.content if block.type == "text"]}
+    except Exception as error:
+        await _record_mcp_outcome(False, str(error))
+        raise
+
+    await _record_mcp_outcome(True, None)
+    return parsed
+
+
+async def _call_mcp_tool_json(tool_name: str, arguments: dict) -> dict:
+    """MCP cohort-review gap #1 (BACKLOG.md, 2026-10-15) - every wrapper
+    below used to hand-roll json.loads(result["content"][0]) itself,
+    each one independently knowing FastMCP's own "one pretty-printed JSON
+    text block per call" convention (Phase 162). One shared unwrap, no
+    behavior change."""
+    result = await _call_mcp_tool(tool_name, arguments)
+    return json.loads(result["content"][0])
 
 
 async def get_leave_balance(employee_id: str) -> dict:
@@ -56,8 +139,7 @@ async def get_leave_history_parsed(employee_id: str, limit: int = 50) -> dict:
     dict (requests/total/...), not display text. Confirmed live that FastMCP
     returns exactly one pretty-printed JSON text block per call - every new
     Phase 162 wrapper that needs structured data parses it the same way."""
-    result = await _call_mcp_tool("get_leave_history", {"employee_id": employee_id, "limit": limit})
-    return json.loads(result["content"][0])
+    return await _call_mcp_tool_json("get_leave_history", {"employee_id": employee_id, "limit": limit})
 
 
 async def submit_unpaid_leave_request(
@@ -74,7 +156,7 @@ async def submit_unpaid_leave_request(
     exception path doesn't apply. Phase 165 added leave_type_code - this
     wrapper's own name predates that, kept for backward compatibility
     (same MCP tool name hrb_lms_mcp already exposes)."""
-    result = await _call_mcp_tool(
+    return await _call_mcp_tool_json(
         "submit_unpaid_leave_request",
         {
             "employee_id": employee_id,
@@ -86,7 +168,6 @@ async def submit_unpaid_leave_request(
             "document_reference": document_reference,
         },
     )
-    return json.loads(result["content"][0])
 
 
 async def resolve_hitl_request(
@@ -106,7 +187,7 @@ async def resolve_hitl_request(
     resolution together) - the wire-level key below stays hitl_request_id,
     matching hrb_lms_mcp's own unrenamed MCP tool argument/column, a
     separate repo's schema not touched by this rename."""
-    result = await _call_mcp_tool(
+    return await _call_mcp_tool_json(
         "resolve_hitl_request",
         {
             "hitl_request_id": hitl_request_context_id,
@@ -116,7 +197,6 @@ async def resolve_hitl_request(
             "resolved_by_employee_id": resolved_by_employee_id,
         },
     )
-    return json.loads(result["content"][0])
 
 
 async def register_leave_document(
@@ -126,7 +206,7 @@ async def register_leave_document(
     before the leave request it belongs to exists yet - closes the orphan-
     upload gap (a failed submit after a successful S3 upload used to leave
     nothing in any database pointing at the uploaded file)."""
-    result = await _call_mcp_tool(
+    return await _call_mcp_tool_json(
         "register_leave_document",
         {
             "employee_id": employee_id,
@@ -135,47 +215,41 @@ async def register_leave_document(
             "content_type": content_type,
         },
     )
-    return json.loads(result["content"][0])
 
 
 async def list_leave_documents(leave_request_id: int) -> dict:
     """Phase 165 - the manifest rows for one leave request's uploaded
     document(s), used for both the HR review queue's and the employee's
     own "My Requests" view's document-download links."""
-    result = await _call_mcp_tool("list_leave_documents", {"leave_request_id": leave_request_id})
-    return json.loads(result["content"][0])
+    return await _call_mcp_tool_json("list_leave_documents", {"leave_request_id": leave_request_id})
 
 
 async def list_my_leave_requests(employee_id: str) -> dict:
     """Phase 165 - the employee's own "My Requests" view."""
-    result = await _call_mcp_tool("list_my_leave_requests", {"employee_id": employee_id})
-    return json.loads(result["content"][0])
+    return await _call_mcp_tool_json("list_my_leave_requests", {"employee_id": employee_id})
 
 
 async def list_all_leave_requests(status: str | None = None) -> dict:
     """Phase 168 (round 2) - the HR specialist grid: every leave request
     across every employee, with full status/decision/comments/timestamps -
     unlike /pending, not limited to PENDING only."""
-    result = await _call_mcp_tool("list_all_leave_requests", {"status": status})
-    return json.loads(result["content"][0])
+    return await _call_mcp_tool_json("list_all_leave_requests", {"status": status})
 
 
 async def admin_delete_hitl_request(hitl_request_context_id: int) -> dict:
     """Phase 168 - admin-only hard delete of a HITL request and everything
     that hangs off it. Returns any S3 keys the caller still needs to
     delete the real objects for - hrb_lms_mcp has no AWS client of its own."""
-    result = await _call_mcp_tool("admin_delete_hitl_request", {"hitl_request_id": hitl_request_context_id})
-    return json.loads(result["content"][0])
+    return await _call_mcp_tool_json("admin_delete_hitl_request", {"hitl_request_id": hitl_request_context_id})
 
 
 async def set_review_brief(hitl_request_context_id: int, review_brief: str) -> dict:
     """Phase 172 - stores the review-brief agent's generated summary onto
     hrb_lms_mcp's review row, before the graph pauses waiting on the
     specialist."""
-    result = await _call_mcp_tool(
+    return await _call_mcp_tool_json(
         "set_review_brief", {"hitl_request_id": hitl_request_context_id, "review_brief": review_brief}
     )
-    return json.loads(result["content"][0])
 
 
 async def record_produced_artifact(hitl_request_context_id: int, artifact: dict) -> dict:
@@ -183,10 +257,9 @@ async def record_produced_artifact(hitl_request_context_id: int, artifact: dict)
     decision email) the finalize step produced, after it actually happened -
     hrb_lms_mcp has no email client of its own, so it can't record this at
     resolve time."""
-    result = await _call_mcp_tool(
+    return await _call_mcp_tool_json(
         "record_produced_artifact", {"hitl_request_id": hitl_request_context_id, "artifact": artifact}
     )
-    return json.loads(result["content"][0])
 
 
 async def try_route_to_mcp(query: str, employee_id: str | None) -> dict | None:
