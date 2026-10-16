@@ -43,7 +43,12 @@ from src.hrb_chatbot.models.admin import (
     EvalRunSummary,
     GoldenDatasetCaseSummary,
     GoldenDatasetListResponse,
+    PipelineJobDetail,
     PipelineMetricsRow,
+    PipelineSnapshotListResponse,
+    PipelineSnapshotSummary,
+    PipelineStatusResponse,
+    PipelineWorkflowRun,
     RequestMetricsResponse,
     WorkflowRunSummary,
     WorkflowStatus,
@@ -336,6 +341,174 @@ async def get_ci_status(user_profile: UserProfile | None = Depends(identity_from
     deploy_result = github.list_workflow_runs("deploy.yml")
 
     return CiStatusResponse(ci=_to_workflow_status(ci_result), deploy=_to_workflow_status(deploy_result))
+
+
+@router_manage_admin.get("/ci-status/pipeline", response_model=PipelineStatusResponse)
+async def get_ci_pipeline_status(sha: str | None = None, user_profile: UserProfile | None = Depends(identity_from_query_params)):
+    """Phase 188 - one commit's full logical pipeline, stitched together
+    from however many separate GitHub Actions workflow files actually ran
+    for it (ci.yml always; deploy.yml only on master), plus its nearest
+    eval-gate release-gate result if one exists. Defaults to the most
+    recently run commit when no `sha` is given. ADMIN only."""
+    require_role(user_profile, Role.ADMIN)
+
+    github = get_client_gateway().github_actions()
+
+    target_sha = sha
+    if not target_sha:
+        latest = github.get_latest_run_sha()
+        if latest["error"] or not latest["sha"]:
+            return PipelineStatusResponse(
+                head_sha="",
+                head_commit_message="",
+                head_branch="",
+                event="",
+                actor_login="",
+                runs=[],
+                eval_gate=None,
+                error=latest["error"] or "No workflow runs found",
+            )
+        target_sha = latest["sha"]
+
+    runs_result = github.get_runs_for_sha(target_sha)
+    if runs_result["error"]:
+        return PipelineStatusResponse(
+            head_sha=target_sha,
+            head_commit_message="",
+            head_branch="",
+            event="",
+            actor_login="",
+            runs=[],
+            eval_gate=None,
+            error=runs_result["error"],
+        )
+
+    pipeline_runs = []
+    head_commit_message = ""
+    head_branch = ""
+    event = ""
+    actor_login = ""
+    latest_run_created_at = None
+    for run in runs_result["runs"]:
+        head_commit_message = run["head_commit_message"] or head_commit_message
+        # Branch/event/actor are commit-level facts, consistent across
+        # whichever workflows ran for this sha in the common case - taken
+        # from the first run GitHub returns, not re-derived per workflow.
+        head_branch = head_branch or run["head_branch"]
+        event = event or run["event"]
+        actor_login = actor_login or run["actor_login"]
+        jobs_result = github.get_run_jobs(run["id"])
+        pipeline_runs.append(
+            PipelineWorkflowRun(
+                workflow_file=run["workflow_file"],
+                id=run["id"],
+                run_number=run["run_number"],
+                status=run["status"],
+                conclusion=run["conclusion"],
+                html_url=run["html_url"],
+                created_at=run["created_at"],
+                jobs=[PipelineJobDetail(**job) for job in jobs_result["jobs"]],
+            )
+        )
+        if run["workflow_file"] == "deploy.yml":
+            latest_run_created_at = run["created_at"]
+
+    # Nearest eval-gate run at or before this pipeline's own timestamp -
+    # eval-gate.yml is workflow_dispatch-only, so most commits have none,
+    # and that's shown as "not run for this commit," never an error.
+    eval_gate_summary = None
+    reference_time = latest_run_created_at or (pipeline_runs[0].created_at if pipeline_runs else None)
+    if reference_time:
+        all_eval_runs = await get_db_gateway().eval_run_store().list_runs()
+        candidates = [run for run in all_eval_runs if run["run_at"] <= reference_time]
+        if candidates:
+            nearest = max(candidates, key=lambda run: run["run_at"])
+            eval_gate_summary = EvalRunSummary(
+                id=nearest["id"],
+                run_at=nearest["run_at"],
+                decision=nearest["decision"],
+                flags=nearest["flags"],
+                aggregated_scores=nearest["aggregated_scores"],
+                total_cases=nearest["total_cases"],
+                scored_cases=nearest["scored_cases"],
+                failed_case_ids=nearest["failed_case_ids"],
+                retrieval_k=nearest["retrieval_k"],
+            )
+
+    # Persist-on-read (Phase 189) - upserted by head_sha so this works
+    # for offline/historical review past GitHub's own log retention
+    # window, without a new GitHub Actions step. Never allowed to break
+    # the live response if it fails - logged, not raised.
+    try:
+        await get_db_gateway().pipeline_run_store().upsert_snapshot(
+            head_sha=target_sha,
+            head_commit_message=head_commit_message,
+            head_branch=head_branch,
+            event=event,
+            actor_login=actor_login,
+            runs=[run.model_dump() for run in pipeline_runs],
+            eval_gate=eval_gate_summary.model_dump() if eval_gate_summary else None,
+        )
+    except Exception as error:
+        logger.warning("Could not persist pipeline snapshot for %s: %s", target_sha, error)
+
+    return PipelineStatusResponse(
+        head_sha=target_sha,
+        head_commit_message=head_commit_message,
+        head_branch=head_branch,
+        event=event,
+        actor_login=actor_login,
+        runs=pipeline_runs,
+        eval_gate=eval_gate_summary,
+        error=None,
+    )
+
+
+@router_manage_admin.get("/ci-status/pipeline/history", response_model=PipelineSnapshotListResponse)
+async def list_pipeline_snapshots(user_profile: UserProfile | None = Depends(identity_from_query_params)):
+    """Phase 189 - the run picker's own list, newest first. Each entry is
+    deliberately thin (no stage detail) - get_pipeline_snapshot below
+    returns one entry's full detail on demand."""
+    require_role(user_profile, Role.ADMIN)
+
+    snapshots = await get_db_gateway().pipeline_run_store().list_snapshots()
+    return PipelineSnapshotListResponse(
+        count=len(snapshots),
+        snapshots=[
+            PipelineSnapshotSummary(
+                id=snapshot["id"],
+                head_sha=snapshot["head_sha"],
+                head_commit_message=snapshot["head_commit_message"],
+                captured_at=snapshot["captured_at"],
+            )
+            for snapshot in snapshots
+        ],
+    )
+
+
+@router_manage_admin.get("/ci-status/pipeline/history/{snapshot_id}", response_model=PipelineStatusResponse)
+async def get_pipeline_snapshot(snapshot_id: int, user_profile: UserProfile | None = Depends(identity_from_query_params)):
+    """Phase 189 - one persisted snapshot, exactly as captured - works
+    even after GitHub's own log retention window has passed, since this
+    never depended on a live GitHub call."""
+    require_role(user_profile, Role.ADMIN)
+
+    snapshot = await get_db_gateway().pipeline_run_store().get_snapshot(snapshot_id)
+    if snapshot is None:
+        return json_error(
+            404, f"No pipeline snapshot found with id {snapshot_id}.", code=error_codes.ADMIN_PIPELINE_SNAPSHOT_NOT_FOUND
+        )
+
+    return PipelineStatusResponse(
+        head_sha=snapshot["head_sha"],
+        head_commit_message=snapshot["head_commit_message"],
+        head_branch=snapshot["head_branch"],
+        event=snapshot["event"],
+        actor_login=snapshot["actor_login"],
+        runs=[PipelineWorkflowRun(**run) for run in snapshot["runs_json"]],
+        eval_gate=EvalRunSummary(**snapshot["eval_gate_json"]) if snapshot["eval_gate_json"] else None,
+        error=None,
+    )
 
 
 @router_manage_admin.get("/request-metrics", response_model=RequestMetricsResponse)

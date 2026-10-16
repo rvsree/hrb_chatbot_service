@@ -830,6 +830,49 @@ class FakeEvalRunStore:
         return {"provider": "postgres", "status": "healthy"}
 
 
+class FakePipelineRunStore:
+    """Stands in for PipelineRunStore (Phase 189) - plain in-memory dict
+    keyed by head_sha, same async interface as the real Postgres-backed
+    one, never touches a real database."""
+
+    def __init__(self):
+        self._by_sha: dict[str, dict] = {}
+        self._next_id = 1
+
+    async def upsert_snapshot(self, head_sha, head_commit_message, head_branch, event, actor_login, runs, eval_gate):
+        existing = self._by_sha.get(head_sha)
+        row = {
+            "id": existing["id"] if existing else self._next_id,
+            "head_sha": head_sha,
+            "head_commit_message": head_commit_message,
+            "head_branch": head_branch,
+            "event": event,
+            "actor_login": actor_login,
+            "captured_at": "2026-10-16T00:00:00Z",
+            "runs_json": runs,
+            "eval_gate_json": eval_gate,
+        }
+        if not existing:
+            self._next_id += 1
+        self._by_sha[head_sha] = row
+        return dict(row)
+
+    async def list_snapshots(self):
+        return [
+            {"id": row["id"], "head_sha": row["head_sha"], "head_commit_message": row["head_commit_message"], "captured_at": row["captured_at"]}
+            for row in self._by_sha.values()
+        ]
+
+    async def get_snapshot(self, snapshot_id):
+        for row in self._by_sha.values():
+            if row["id"] == snapshot_id:
+                return dict(row)
+        return None
+
+    def health_check(self):
+        return {"provider": "postgres", "status": "healthy"}
+
+
 class FakeRequestMetricsStore:
     """Stands in for RequestMetricsStore (Phase 184) - plain in-memory list,
     same async interface as the real Postgres-backed one, never touches a
@@ -1010,6 +1053,7 @@ class FakeDBGateway:
         request_metrics_store: "FakeRequestMetricsStore | None" = None,
         faq_submission_store: "FakeFaqSubmissionStore | None" = None,
         interview_qa_store: "FakeInterviewQaStore | None" = None,
+        pipeline_run_store: "FakePipelineRunStore | None" = None,
     ):
         self._vector_store = vector_store or FakeVectorStore()
         self._metadata_store = metadata_store or FakeMetadataStore()
@@ -1026,6 +1070,7 @@ class FakeDBGateway:
         self._request_metrics_store = request_metrics_store or FakeRequestMetricsStore()
         self._faq_submission_store = faq_submission_store or FakeFaqSubmissionStore()
         self._interview_qa_store = interview_qa_store or FakeInterviewQaStore()
+        self._pipeline_run_store = pipeline_run_store or FakePipelineRunStore()
 
     def vector_store(self, provider=None):
         return self._vector_store
@@ -1071,3 +1116,6 @@ class FakeDBGateway:
 
     def interview_qa_store(self):
         return self._interview_qa_store
+
+    def pipeline_run_store(self):
+        return self._pipeline_run_store
