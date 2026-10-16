@@ -4,7 +4,14 @@ prototype-new-format.html and agentic-research-systems.html's own DOM
 (both already in the 7-part format) and inserts them as real
 interview_qa_cards rows. The HTML's own already-written content is the
 source - nothing here is rewritten by hand. Run as:
-python -m scripts.migrate_interview_qa_to_db"""
+python -m scripts.migrate_interview_qa_to_db
+
+Already run successfully against both local dev and production Postgres
+(38/38 cards each, Phase 187/Phase 190) - kept only as a historical
+record of how the DB got seeded. Both source HTML files were deleted
+2026-10-16 now that the DB is the real source of truth, so re-running
+this script will fail with FileNotFoundError - that's expected, not a
+bug to fix."""
 
 import asyncio
 import re

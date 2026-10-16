@@ -1,0 +1,193 @@
+<title>CI/CD Pipeline Visibility - Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --live: #147a4a; --live-bg: #e3f5eb; --live-border: #b5e3c8;
+    --design: #9a5a0c; --design-bg: #fbf1dd; --design-border: #edd6a2;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --cost: #a4321f; --cost-bg: #fbe9e5; --cost-border: #f0c3b8;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+      --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+    --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0b2b25;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  section.panel { display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .panel-num { width: 30px; height: 30px; border-radius: 9px; background: var(--band-dark); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13px; }
+  .panel-title .name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; }
+  .panel p { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+  .status-pill { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.03em; }
+  .status-pill.live { color: var(--live); background: var(--live-bg); border: 1px solid var(--live-border); }
+  .status-pill.design { color: var(--design); background: var(--design-bg); border: 1px solid var(--design-border); }
+
+  /* Lane diagram */
+  .diagram { display: flex; flex-direction: column; gap: 4px; }
+  .lane { display: grid; grid-template-columns: 150px 1fr; gap: 14px; align-items: stretch; border-top: 1px dashed var(--border); padding-top: 16px; margin-top: 12px; }
+  .lane:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+  .lane-label { display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+  .lane-label .name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 12.5px; }
+  .lane-label .sub { font-size: 10.5px; color: var(--text-faint); line-height: 1.4; }
+  .lane-nodes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .node { border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 4px; min-width: 150px; }
+  .node.live { border-color: var(--live-border); background: var(--live-bg); }
+  .node.design { border-color: var(--design-border); background: var(--design-bg); }
+  .node-name { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 12px; }
+  .node-desc { font-size: 10.5px; color: var(--text-muted); line-height: 1.4; }
+  .arrow { color: var(--text-faint); font-size: 16px; flex: none; }
+  @media (max-width: 760px) { .lane { grid-template-columns: 1fr; } .arrow { transform: rotate(90deg); } }
+
+  .grid.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  .card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 15px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 7px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .card-label { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13.5px; }
+  .card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">architecture - system layers and data flow</div>
+    <h1 class="display">CI/CD Pipeline Visibility</h1>
+    <p class="subtitle">GitHub Actions stays the single source of truth for both run state and logs - this feature reads it, correlates it with the eval-gate results already in Postgres, and renders one live view. Nothing here stores or re-hosts a log.</p>
+    <div class="doc-nav">
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=cicd-pipeline-visibility&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <span class="doc-nav-item current">Architecture</span>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=cicd-pipeline-visibility&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=cicd-pipeline-visibility&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">1</div><div class="panel-title"><span class="name display">Four lanes, one request path</span></div></div>
+    <div class="diagram">
+
+      <div class="lane">
+        <div class="lane-label"><span class="name">GitHub (external)</span><span class="sub">source of truth - state + logs</span></div>
+        <div class="lane-nodes">
+          <div class="node live"><span class="node-name mono">ci.yml</span><span class="node-desc">every push, every branch</span></div>
+          <span class="arrow">&rarr;</span>
+          <div class="node live"><span class="node-name mono">deploy.yml</span><span class="node-desc">push to master only</span></div>
+          <span class="arrow">&rarr;</span>
+          <div class="node design"><span class="node-name mono">eval-gate.yml</span><span class="node-desc">workflow_dispatch only - not every push</span></div>
+        </div>
+      </div>
+
+      <div class="lane">
+        <div class="lane-label"><span class="name">Backend</span><span class="sub">src/hrb_chatbot/common/clients</span></div>
+        <div class="lane-nodes">
+          <div class="node live"><span class="node-name mono">github_actions_client.py</span><span class="node-desc">live - last 5 runs/workflow, never raises</span></div>
+          <span class="arrow">&rarr;</span>
+          <div class="node design"><span class="node-name mono">+ get_run_jobs(run_id)</span><span class="node-desc">new - per-job/per-step detail, new REST call</span></div>
+          <span class="arrow">&rarr;</span>
+          <div class="node live"><span class="node-name mono">eval_run_store</span><span class="node-desc">live - every real release-gate run, by commit</span></div>
+        </div>
+      </div>
+
+      <div class="lane">
+        <div class="lane-label"><span class="name">API</span><span class="sub">api/admin/manage_admin.py</span></div>
+        <div class="lane-nodes">
+          <div class="node live"><span class="node-name mono">GET /v1/admin/ci-status</span><span class="node-desc">live - last 5 runs, final state only</span></div>
+          <span class="arrow">&rarr;</span>
+          <div class="node design"><span class="node-name mono">GET /v1/admin/ci-status/{id}/jobs</span><span class="node-desc">new - per-step detail + nearest eval-gate match</span></div>
+        </div>
+      </div>
+
+      <div class="lane">
+        <div class="lane-label"><span class="name">Frontend</span><span class="sub">AdminDashboardPage.tsx</span></div>
+        <div class="lane-nodes">
+          <div class="node live"><span class="node-name mono">CI/Build Status tab</span><span class="node-desc">live - static table, manual refresh</span></div>
+          <span class="arrow">&rarr;</span>
+          <div class="node design"><span class="node-name mono">Pipeline stepper</span><span class="node-desc">new - stage pills, auto-poll while in_progress</span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">2</div><div class="panel-title"><span class="name display">What's genuinely new vs. reused</span></div></div>
+    <div class="grid two">
+      <div class="card">
+        <div class="card-head"><span class="card-label">Reused as-is</span><span class="status-pill live">no change</span></div>
+        <p class="card-desc">GitHub as the system of record; <span class="mono">github_actions_client.py</span>'s existing auth/never-raises pattern; <span class="mono">eval_run_store</span>'s schema; the Admin Dashboard's existing RBAC gating (Engineering Admin only).</p>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-label">New surface area</span><span class="status-pill design">to build</span></div>
+        <p class="card-desc">One new client method (jobs-for-a-run), one new route, one new frontend component (stepper) with a polling hook. No new table - job/step detail is fetched live each time, never persisted (GitHub already persists it).</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    See <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=cicd-pipeline-visibility&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=cicd-pipeline-visibility&type=design" target="_blank" rel="noopener noreferrer">Design</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=cicd-pipeline-visibility&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>.
+  </footer>
+</div>
+<script>
+(function () {
+  if (location.protocol !== "file:") return;
+  var LOCAL_DOCS = {
+    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/cicd-pipeline-visibility/spec.html",
+    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/cicd-pipeline-visibility/architecture.html",
+    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/cicd-pipeline-visibility/design.html",
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/cicd-pipeline-visibility/decisions.html"
+  };
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    var match = a.href.match(/[?&]type=([^&]+)/);
+    if (!match) return;
+    var localPath = LOCAL_DOCS[match[1]];
+    if (localPath) { a.href = localPath; a.removeAttribute("target"); }
+  });
+})();
+</script>
+<script>
+(function () {
+  if (location.protocol === "file:") return;
+  var hashMatch = location.hash.match(/app_base=([^&]+)/);
+  if (!hashMatch) return;
+  var appBase = decodeURIComponent(hashMatch[1]).replace(/\/$/, "");
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      a.href = appBase + url.pathname + url.search + "#app_base=" + encodeURIComponent(appBase);
+    } catch (e) {}
+  });
+})();
+</script>

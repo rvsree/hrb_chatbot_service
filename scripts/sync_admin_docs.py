@@ -151,6 +151,32 @@ DOCS_TO_SYNC = {
             "text/html",
         ),
     },
+    # 2026-10-16 - design-only doc set, no RAG-ROADMAP phase/code yet.
+    # Registered here so a future sync is a one-line no-op away, not because
+    # it's being synced now (same "add the entry, don't run the sync"
+    # pattern as the interview-faqs doc set earlier this session).
+    "cicd-pipeline-visibility": {
+        "spec": (
+            "CI/CD Pipeline Visibility - Spec",
+            "docs/dev-reference/cicd-pipeline-visibility/spec.html",
+            "text/html",
+        ),
+        "architecture": (
+            "CI/CD Pipeline Visibility - Architecture",
+            "docs/dev-reference/cicd-pipeline-visibility/architecture.html",
+            "text/html",
+        ),
+        "design": (
+            "CI/CD Pipeline Visibility - Design",
+            "docs/dev-reference/cicd-pipeline-visibility/design.html",
+            "text/html",
+        ),
+        "decisions": (
+            "CI/CD Pipeline Visibility - Decisions",
+            "docs/dev-reference/cicd-pipeline-visibility/decisions.html",
+            "text/html",
+        ),
+    },
     # Phase 175 - "Retrieval:" dropdown - architecture doc shared by all 4
     # search strategy options (similarity/mmr/keyword/hybrid); no per-method
     # doc exists yet, this is the closest real content (retrieval strategy
@@ -426,19 +452,18 @@ DOCS_TO_SYNC = {
     # weeks) land per-feature, next milestone, each under its own existing
     # feature's doc_type rather than here.
     "interview-faqs": {
+        # 2026-10-16 - the 7-part-format pages (prototype-new-format.html,
+        # agentic-research-systems.html, 38 cards total) were deleted -
+        # Phase 187 fully migrated them into the real, editable
+        # interview_qa_cards DB table, verified 38/38 in both local dev
+        # and production; keeping the static HTML would've just been a
+        # second, driftable copy of the same content. "system" stays -
+        # its 69 cards were never migrated (a different, pre-7-part-format
+        # structure, explicitly out of scope for Phase 187) and deleting
+        # it would lose that content with no DB backup anywhere.
         "system": (
             "Interview FAQs - System Level",
             "docs/dev-reference/interview-faqs/system.html",
-            "text/html",
-        ),
-        # 2026-10-15 - new 7-part answer format (hint/concept/STAR/project
-        # link/leadership/trade-offs/keywords), per the user's own template.
-        # A separate doc_type under the same feature, not a replacement for
-        # "system" above - that decision (replace vs. keep both) is still
-        # open, left as-is until confirmed.
-        "agentic-research-systems": (
-            "Interview FAQs - Agentic Research Systems",
-            "docs/dev-reference/interview-faqs/agentic-research-systems.html",
             "text/html",
         ),
     },

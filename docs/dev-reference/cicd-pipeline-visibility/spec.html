@@ -1,0 +1,206 @@
+<title>CI/CD Pipeline Visibility - Spec</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --live: #147a4a; --live-bg: #e3f5eb; --live-border: #b5e3c8;
+    --design: #9a5a0c; --design-bg: #fbf1dd; --design-border: #edd6a2;
+    --accent: #0f7d6b; --accent-bg: #e2f4f0; --accent-border: #b9e5db;
+    --cost: #a4321f; --cost-bg: #fbe9e5; --cost-border: #f0c3b8;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+      --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+      --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+      --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+    --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+    --accent: #3fc2a8; --accent-bg: #102822; --accent-border: #1c473c;
+    --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0b2b25;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  section.panel { display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .panel-num { width: 30px; height: 30px; border-radius: 9px; background: var(--band-dark); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13px; }
+  .panel-title { display: flex; flex-direction: column; }
+  .panel-title .name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; }
+  .panel-title .sub { font-size: 12px; color: var(--text-faint); }
+  .panel p { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+  .panel ul { margin: 0; padding-left: 20px; font-size: 13px; color: var(--text-muted); line-height: 1.7; }
+  .panel li { margin-bottom: 4px; }
+
+  .grid.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  .card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 15px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 7px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .card-label { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13.5px; }
+  .status-pill { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.03em; }
+  .status-pill.live { color: var(--live); background: var(--live-bg); border: 1px solid var(--live-border); }
+  .status-pill.design { color: var(--design); background: var(--design-bg); border: 1px solid var(--design-border); }
+  .status-pill.gap { color: var(--cost); background: var(--cost-bg); border: 1px solid var(--cost-border); }
+  .card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+  .ref-list { display: flex; flex-direction: column; gap: 10px; }
+  .ref-item { display: grid; grid-template-columns: 170px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .ref-item:last-child { border-bottom: none; }
+  @media (max-width: 620px) { .ref-item { grid-template-columns: 1fr; gap: 4px; } }
+  .ref-name { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13px; }
+  .ref-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.55; }
+
+  .callout { display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; border-radius: 10px; padding: 11px 14px; line-height: 1.55; }
+  .callout svg { flex: none; width: 16px; height: 16px; margin-top: 1px; }
+  .callout.cost { background: var(--cost-bg); border: 1px solid var(--cost-border); color: var(--cost); }
+  .callout.live { background: var(--live-bg); border: 1px solid var(--live-border); color: var(--live); }
+  .callout.design { background: var(--design-bg); border: 1px solid var(--design-border); color: var(--design); }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">spec - intent, scope, personas, acceptance criteria</div>
+    <h1 class="display">CI/CD Pipeline Visibility</h1>
+    <p class="subtitle">A real-time, stage-by-stage view of this repo's own GitHub Actions pipeline inside the Admin Dashboard - not a replacement for GitHub Actions, a thin correlated window onto it.</p>
+    <div class="doc-nav">
+      <span class="doc-nav-item current">Spec</span>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=cicd-pipeline-visibility&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=cicd-pipeline-visibility&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=cicd-pipeline-visibility&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">1</div><div class="panel-title"><span class="name display">Problem</span></div></div>
+    <p>User-requested, 2026-10-15/16, from direct experience during today's real deploy: while PR #45/#46's CI and <span class="mono">deploy.yml</span> ran, the only way to know what stage it was in, what had passed/failed, or how long it would take was to ask Claude Code to poll <span class="mono">gh pr checks</span>/<span class="mono">gh run view</span> and narrate it back in chat. That's a real blind spot - no visual status, no direct log link, no build number, no sense of elapsed vs. typical duration, and no inline view of the golden-dataset eval-gate result that matters most for a release decision.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">2</div><div class="panel-title"><span class="name display">Scope</span></div></div>
+    <div class="grid two">
+      <div class="card">
+        <div class="card-head"><span class="card-label">Already live (Phases 181-184)</span><span class="status-pill live">built</span></div>
+        <ul>
+          <li><span class="mono">github_actions_client.py</span> - real GitHub REST API client, never raises, already reads <span class="mono">ci.yml</span>/<span class="mono">deploy.yml</span>'s latest 5 runs each</li>
+          <li><span class="mono">eval_run_store</span> - every real <span class="mono">scripts/run_release_gate.py</span> run persisted (decision, scores, flags, per-case detail)</li>
+          <li>Admin Dashboard's CI/Build Status and Eval Runs tabs - read-only tables, manual refresh only</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-label">New in this feature</span><span class="status-pill design">to build</span></div>
+        <ul>
+          <li>Per-job, per-step breakdown of one specific run (not just its final conclusion)</li>
+          <li>Auto-refresh while a run is <span class="mono">in_progress</span>, stopping once terminal</li>
+          <li>GitHub's real build number (<span class="mono">run_number</span>) shown, not just an internal id</li>
+          <li>A run's nearest-preceding eval-gate result surfaced inline, when one exists</li>
+          <li>Direct "view logs" links per job (GitHub's own job URL, not a log re-host)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">3</div><div class="panel-title"><span class="name display">Personas</span></div></div>
+    <div class="ref-list">
+      <div class="ref-item"><span class="ref-name">admin (Engineering Admin)</span><span class="ref-desc">Only role that can see this - same tier as Architecture Docs/Golden Dataset/CI Status today. This is dev-reference tooling, not HR-facing.</span></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">4</div><div class="panel-title"><span class="name display">Functional requirements</span></div></div>
+    <ul>
+      <li>A horizontal stage stepper for the latest <span class="mono">deploy.yml</span> run: Build image &rarr; Trigger App Runner &rarr; Wait for RUNNING &rarr; Smoke test, each stage showing a status icon (queued/running/success/failed), its own duration, and a link to that step's real GitHub Actions log</li>
+      <li>The run's build number (<span class="mono">run_number</span>), triggering commit SHA + message, and start timestamp shown together, matching what GitHub's own UI shows</li>
+      <li>While any tracked run is <span class="mono">in_progress</span>, the tab polls and updates without a manual refresh; polling stops once the run reaches a terminal state</li>
+      <li>If an eval-gate run exists for the same or a nearby commit, its PASS/REVIEW/BLOCK decision and headline scores show as an optional extra stage, not a blocking one (<span class="mono">eval-gate.yml</span> stays <span class="mono">workflow_dispatch</span>-only, not on every push)</li>
+      <li>A link out to the full run on github.com is always present as a fallback - this page is a summary, never a replacement for GitHub's own log viewer</li>
+    </ul>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">5</div><div class="panel-title"><span class="name display">Non-functional requirements</span></div></div>
+    <ul>
+      <li>Polling must respect GitHub's REST API rate limit (5,000 req/hr authenticated) - a single admin's browser tab polling every 10-15s is well within budget; no shared polling across sessions needed at this scale</li>
+      <li>Graceful degradation: if the GitHub API is unreachable or <span class="mono">GITHUB_TOKEN</span> is unset, the tab shows a clear message, never a blank screen or stack trace - matches <span class="mono">github_actions_client.py</span>'s existing never-raises contract</li>
+      <li>No new infrastructure - no WebSocket server, no message queue, no log storage; GitHub Actions stays the single source of truth for both state and logs</li>
+    </ul>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">6</div><div class="panel-title"><span class="name display">Acceptance criteria</span></div></div>
+    <div class="grid two">
+      <div class="card"><div class="card-head"><span class="card-label">Live progress, no manual refresh</span><span class="status-pill design">planned</span></div><p class="card-desc">Watching a real deploy, the stepper updates stage-by-stage without the admin clicking refresh.</p></div>
+      <div class="card"><div class="card-head"><span class="card-label">Build # and timestamp match GitHub</span><span class="status-pill design">planned</span></div><p class="card-desc">The number shown is the exact <span class="mono">run_number</span> GitHub's own UI shows for that run.</p></div>
+      <div class="card"><div class="card-head"><span class="card-label">One click to real logs</span><span class="status-pill design">planned</span></div><p class="card-desc">Every stage links directly to its own GitHub Actions job log, not a generic run page.</p></div>
+      <div class="card"><div class="card-head"><span class="card-label">Eval-gate result visible when present</span><span class="status-pill design">planned</span></div><p class="card-desc">A release's golden-dataset decision is visible without switching to the separate Eval Runs tab.</p></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">7</div><div class="panel-title"><span class="name display">Out of scope</span></div></div>
+    <div class="callout design">Re-hosting or storing GitHub Actions logs ourselves; a real-time push/WebSocket channel (polling is enough for one admin's own browser tab); multi-repo aggregation (this project has 2 repos with different deploy mechanisms - <span class="mono">hrb_chatbot_v2</span>'s GitHub Actions and <span class="mono">hrb_chatbot_ui</span>'s manual S3 sync - only the former has a pipeline to visualize); wiring <span class="mono">eval-gate.yml</span> into every push (a separate, already-known, deliberately-deferred decision - see BACKLOG.md).</div>
+  </section>
+
+  <footer>
+    See <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=cicd-pipeline-visibility&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=cicd-pipeline-visibility&type=design" target="_blank" rel="noopener noreferrer">Design</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=cicd-pipeline-visibility&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>.
+    <p style="margin-top:8px; font-size:11.5px;">Built and live-verified, 2026-10-16 - see RAG-ROADMAP.md's Phase 188 entry for the full verification detail (686/686 tests, bandit clean, real-repo smoke test). Not yet visually verified in a real browser. Keep this in sync: any further scope change must be reflected in this doc set, and re-synced (<code>python -m scripts.sync_admin_docs</code>) once published.</p>
+  </footer>
+</div>
+<script>
+(function () {
+  if (location.protocol !== "file:") return;
+  var LOCAL_DOCS = {
+    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/cicd-pipeline-visibility/spec.html",
+    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/cicd-pipeline-visibility/architecture.html",
+    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/cicd-pipeline-visibility/design.html",
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/cicd-pipeline-visibility/decisions.html"
+  };
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    var match = a.href.match(/[?&]type=([^&]+)/);
+    if (!match) return;
+    var localPath = LOCAL_DOCS[match[1]];
+    if (localPath) { a.href = localPath; a.removeAttribute("target"); }
+  });
+})();
+</script>
+<script>
+(function () {
+  if (location.protocol === "file:") return;
+  var hashMatch = location.hash.match(/app_base=([^&]+)/);
+  if (!hashMatch) return;
+  var appBase = decodeURIComponent(hashMatch[1]).replace(/\/$/, "");
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      a.href = appBase + url.pathname + url.search + "#app_base=" + encodeURIComponent(appBase);
+    } catch (e) {}
+  });
+})();
+</script>

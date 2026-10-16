@@ -25,9 +25,11 @@ jobs:
     name: Test suite
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
@@ -60,13 +62,23 @@ jobs:
         # to accommodate a drop in coverage.
         run: python -m pytest -v --cov=src/hrb_chatbot --cov-report=term-missing --cov-fail-under=45
 
-  security:
-    name: Security scan (dependencies + static analysis)
+  # Phase 196 - split from one "security" job into 2 real, independent
+  # jobs (not a frontend-only relabel) - matches how Test suite and
+  # Docker image builds were already separate jobs, and the Pipeline UI
+  # now shows these as 2 genuinely separately-timed/colored boxes, not 2
+  # steps buried inside one shared job. dependency-scan and static-
+  # analysis duplicate "Check out"/"Set up Python"/"Install dependencies"
+  # rather than sharing a setup job - same self-contained-job pattern
+  # every other job in this file already uses, no new abstraction.
+  dependency-scan:
+    name: Security Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
@@ -90,6 +102,21 @@ jobs:
         run: pip-audit -r requirements.txt
         continue-on-error: true
 
+  static-analysis:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
       - name: bandit - static security analysis of src/
         # -ll: only fail on MEDIUM severity and above. LOW-severity bandit
         # findings are frequently stylistic (e.g. flagging any use of
@@ -103,9 +130,13 @@ jobs:
     name: Docker image builds
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the repository
+        uses: actions/checkout@v4
 
-      - name: Build image
+      # Named to distinguish from deploy.yml's own "Build image" step -
+      # this one is a sanity check only (tag :ci, never pushed anywhere),
+      # not the real deploy artifact.
+      - name: Build image (CI sanity check, not pushed)
         # --provenance=false --sbom=false: BuildKit's default attestation
         # manifests are what broke the very first App Runner deployment of
         # this image (CREATE_FAILED, image pulled fine, container never
