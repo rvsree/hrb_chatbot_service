@@ -27,12 +27,17 @@ def _fake_cache_and_eval_judges(monkeypatch):
     monkeypatch.setattr(
         multi_agent_pipeline,
         "evaluate_groundedness",
-        lambda answer, context_texts: {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake"},
+        lambda answer, context_texts: {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake", "prompt": "fake"},
     )
     monkeypatch.setattr(
         multi_agent_pipeline,
         "evaluate_completeness",
-        lambda query, answer, reference_answer=None: {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake"},
+        lambda query, answer, reference_answer=None: {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake"},
+    )
+    monkeypatch.setattr(
+        multi_agent_pipeline,
+        "evaluate_retrieval_relevance",
+        lambda query, chunk_texts: {"precision": 1.0, "relevant_chunk_indices": [1], "explanation": "fake", "prompt": "fake"},
     )
 
 
@@ -60,7 +65,7 @@ def _patch_guardrails(monkeypatch):
 async def test_one_domain_agent_failing_does_not_crash_the_graph_or_drop_the_others(monkeypatch):
     _patch_guardrails(monkeypatch)
 
-    async def _fake_plan(query):
+    async def _fake_plan(query, request_id=None):
         return [
             {"agent": "vector_kb_agent", "focus": "parental leave policy"},
             {"agent": "lms_ops_agent", "focus": "my leave balance"},
@@ -75,7 +80,7 @@ async def test_one_domain_agent_failing_does_not_crash_the_graph_or_drop_the_oth
 
     captured_agent_results = {}
 
-    async def _capturing_review(query, agent_results):
+    async def _capturing_review(query, agent_results, request_id=None):
         captured_agent_results["value"] = agent_results
         return "Parental leave is 8 weeks paid. Your leave balance lookup failed.", {"label": "reviewer"}
 
@@ -101,7 +106,7 @@ async def test_a_domain_agent_node_raising_outright_propagates_rather_than_silen
     and return a half-wrong answer as if nothing happened."""
     _patch_guardrails(monkeypatch)
 
-    async def _fake_plan(query):
+    async def _fake_plan(query, request_id=None):
         return [{"agent": "vector_kb_agent", "focus": "parental leave policy"}], {"label": "planner"}
 
     async def _raising_vector_kb_run(focus):

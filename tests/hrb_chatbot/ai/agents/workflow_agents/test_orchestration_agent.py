@@ -31,12 +31,17 @@ def _fake_cache_and_eval_judges(monkeypatch):
     monkeypatch.setattr(
         orchestration_agent,
         "evaluate_groundedness",
-        lambda answer, context_texts: {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake"},
+        lambda answer, context_texts: {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake", "prompt": "fake"},
     )
     monkeypatch.setattr(
         orchestration_agent,
         "evaluate_completeness",
-        lambda query, answer, reference_answer=None: {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake"},
+        lambda query, answer, reference_answer=None: {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake"},
+    )
+    monkeypatch.setattr(
+        orchestration_agent,
+        "evaluate_retrieval_relevance",
+        lambda query, chunk_texts: {"precision": 1.0, "relevant_chunk_indices": [1], "explanation": "fake", "prompt": "fake"},
     )
 
 
@@ -82,7 +87,7 @@ class FakeBoundLlm:
     def __init__(self, responses):
         self._responses = list(responses)
 
-    async def ainvoke(self, messages):
+    async def ainvoke(self, messages, config=None):
         return self._responses.pop(0)
 
 
@@ -135,6 +140,7 @@ async def test_one_tool_call_then_final_answer(monkeypatch):
     call = result["tools_used"][0]
     assert call["tool_name"] == "SearchKnowledgeBase"
     assert call["tool_input"] == "401k match?"
+    assert call["iteration"] == 1
     assert call["tool_type"] == "vector_db"  # Phase 126
     assert call["success"] is True
     assert call["latency_ms"] is not None
@@ -144,6 +150,48 @@ async def test_one_tool_call_then_final_answer(monkeypatch):
     assert [turn["label"] for turn in llm_context["turns"]] == ["iteration 1", "iteration 2"]
     assert llm_context["turns"][0]["human_message"] == "What's the 401k match?"
     assert llm_context["turns"][1]["response"] == "The match is 100% up to 5%."
+
+
+async def test_tool_calls_across_separate_iterations_each_report_their_own_iteration(monkeypatch):
+    """Phase 206 - the real, distinguishing case: 2 tool calls made in 2
+    different ReAct iterations must report 2 different iteration numbers,
+    not just a static value - this is what lets the frontend correlate a
+    tool call back to the exact LLM turn that made it, instead of guessing
+    from array order."""
+    _patch_guardrails(monkeypatch)
+
+    async def _fake_search(args):
+        return "fake KB result", []
+
+    async def _fake_leave_balance(employee_id):
+        return "10 days available", []
+
+    monkeypatch.setattr(
+        orchestration_agent,
+        "TOOL_FUNCTIONS",
+        {
+            "SearchKnowledgeBase": lambda args, employee_id: _fake_search(args),
+            "GetLeaveBalance": lambda args, employee_id: _fake_leave_balance(employee_id),
+        },
+    )
+    _patch_llm(
+        monkeypatch,
+        [
+            FakeResponse(tool_calls=[{"name": "SearchKnowledgeBase", "args": {"input": "parental leave policy"}, "id": "call_1"}]),
+            FakeResponse(tool_calls=[{"name": "GetLeaveBalance", "args": {}, "id": "call_2"}]),
+            FakeResponse(content="8 weeks paid. Your balance is 10 days."),
+        ],
+    )
+
+    result = await orchestration_agent.run_agent(
+        "What is the parental leave policy and what's my balance?", employee_id="EMP052"
+    )
+
+    assert len(result["tools_used"]) == 2
+    assert result["tools_used"][0]["tool_name"] == "SearchKnowledgeBase"
+    assert result["tools_used"][0]["iteration"] == 1
+    assert result["tools_used"][1]["tool_name"] == "GetLeaveBalance"
+    assert result["tools_used"][1]["iteration"] == 2
 
 
 async def test_search_strategy_arg_is_forwarded_to_the_real_tool_function(monkeypatch):
@@ -233,7 +281,7 @@ async def test_an_existing_conversation_id_seeds_prior_history_into_the_messages
             bound = super().bind(tools)
             original_ainvoke = bound.ainvoke
 
-            async def ainvoke(messages):
+            async def ainvoke(messages, config=None):
                 captured_messages["messages"] = list(messages)
                 return await original_ainvoke(messages)
 
@@ -359,8 +407,16 @@ async def test_token_usage_accumulates_across_multiple_llm_calls(monkeypatch):
     assert result["eval_scores"] == {
         "groundedness": 0.9,
         "groundedness_verdict": "GROUNDED",
+        "groundedness_explanation": "fake",
+        "groundedness_prompt": "fake",
         "completeness": 0.9,
         "completeness_verdict": "COMPLETE",
+        "completeness_explanation": "fake",
+        "completeness_prompt": "fake",
+        "retrieval_precision": 1.0,
+        "retrieval_relevant_chunk_indices": [1],
+        "retrieval_precision_explanation": "fake",
+        "retrieval_precision_prompt": "fake",
     }
 
 
@@ -372,7 +428,7 @@ async def test_a_repeat_with_only_search_knowledge_base_is_cache_served(monkeypa
     call_count = {"ainvoke": 0}
 
     class CountingBoundLlm(FakeBoundLlm):
-        async def ainvoke(self, messages):
+        async def ainvoke(self, messages, config=None):
             call_count["ainvoke"] += 1
             return await super().ainvoke(messages)
 
@@ -413,7 +469,7 @@ async def test_a_leave_balance_tool_call_is_never_cached(monkeypatch):
     call_count = {"ainvoke": 0}
 
     class CountingBoundLlm(FakeBoundLlm):
-        async def ainvoke(self, messages):
+        async def ainvoke(self, messages, config=None):
             call_count["ainvoke"] += 1
             return await super().ainvoke(messages)
 
@@ -453,7 +509,7 @@ async def test_a_leave_balance_question_answered_without_the_tool_is_still_never
     call_count = {"ainvoke": 0}
 
     class CountingBoundLlm(FakeBoundLlm):
-        async def ainvoke(self, messages):
+        async def ainvoke(self, messages, config=None):
             call_count["ainvoke"] += 1
             return await super().ainvoke(messages)
 
@@ -531,7 +587,7 @@ class _CapturingBoundLlm:
         self._responses = list(responses)
         self._captured_calls = captured_calls
 
-    async def ainvoke(self, messages):
+    async def ainvoke(self, messages, config=None):
         self._captured_calls.append(messages)
         return self._responses.pop(0)
 

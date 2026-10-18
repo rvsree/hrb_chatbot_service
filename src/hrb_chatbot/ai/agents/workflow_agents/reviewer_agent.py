@@ -2,6 +2,7 @@
 IK FDE Travel Planner reference notebook's own synthesizer_node() pattern."""
 
 import asyncio
+import time
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
@@ -20,7 +21,7 @@ def _build_llm() -> ChatOpenAI:
     return build_agent_llm()
 
 
-async def review(query: str, agent_results: list[dict]) -> tuple[str, dict | None]:
+async def review(query: str, agent_results: list[dict], request_id: str | None = None) -> tuple[str, dict | None]:
     """Merges every domain agent's result into one final answer. Always goes
     through the LLM, even for exactly one result (Phase 150) - a domain
     agent's raw output (e.g. vector_kb_agent's "Found relevant knowledge
@@ -48,8 +49,11 @@ async def review(query: str, agent_results: list[dict]) -> tuple[str, dict | Non
         HumanMessage(content=human_message),
     ]
 
-    with log_backend_call(logger, "reviewer_agent", "review"):
-        response = await asyncio.wait_for(llm.ainvoke(messages), timeout=AGENT_LLM_TIMEOUT_SECONDS)
+    config = {"metadata": {"request_id": request_id}} if request_id else None
+    started_at = time.perf_counter()
+    with log_backend_call(logger, "reviewer_agent", "review", request_id=request_id):
+        response = await asyncio.wait_for(llm.ainvoke(messages, config=config), timeout=AGENT_LLM_TIMEOUT_SECONDS)
+    latency_ms = round((time.perf_counter() - started_at) * 1000, 1)
 
     if response.usage_metadata:
         logger.info(
@@ -60,6 +64,7 @@ async def review(query: str, agent_results: list[dict]) -> tuple[str, dict | Non
 
     turn = {
         "label": "reviewer",
+        "latency_ms": latency_ms,
         "system_prompt": system_prompt,
         "human_message": human_message,
         "chat_history": [],

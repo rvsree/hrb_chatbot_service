@@ -58,7 +58,7 @@ async def _answer_query(payload: RagQueryRequest, employee_id: str | None = None
         result = await time_and_log(
             "/v1/genai-rag-retrieval/query",
             "genai-rag",
-            lambda: pipeline.answer_query(params),
+            lambda request_id: pipeline.answer_query(params, request_id=request_id),
             lambda r: (r.get("token_usage") or {}).get("total_tokens"),
         )
     except NotImplementedError as error:
@@ -85,6 +85,7 @@ async def _answer_query(payload: RagQueryRequest, employee_id: str | None = None
             sources=result["sources"],
         ),
         explainability_info=ExplainabilityInfo(
+            request_id=result["request_id"],
             served_from_cache=result["served_from_cache"],
             llm_call_count=result["llm_call_count"],
             latency_ms=LatencyInfo(**result["latency_ms"]),

@@ -17,7 +17,7 @@ class FakeStructuredLlm:
     def __init__(self, parsed):
         self._parsed = parsed
 
-    async def ainvoke(self, messages):
+    async def ainvoke(self, messages, config=None):
         return {"raw": FakeRawResponse(), "parsed": self._parsed, "parsing_error": None}
 
 
@@ -36,12 +36,14 @@ def _patch_llm(monkeypatch, parsed):
 async def test_single_task_routes_to_one_agent(monkeypatch):
     _patch_llm(
         monkeypatch,
-        PlannerOutput(tasks=[PlannerTask(agent="vector_kb_agent", focus="parental leave policy")]),
+        PlannerOutput(
+            tasks=[PlannerTask(agent="vector_kb_agent", focus="parental leave policy", reasoning="Policy question.")]
+        ),
     )
 
     tasks, turn = await planner_agent.plan("what is the parental leave policy?")
 
-    assert tasks == [{"agent": "vector_kb_agent", "focus": "parental leave policy"}]
+    assert tasks == [{"agent": "vector_kb_agent", "focus": "parental leave policy", "reasoning": "Policy question."}]
     assert turn["label"] == "planner"
 
 
@@ -50,8 +52,8 @@ async def test_multi_part_question_routes_to_multiple_agents(monkeypatch):
         monkeypatch,
         PlannerOutput(
             tasks=[
-                PlannerTask(agent="vector_kb_agent", focus="parental leave policy"),
-                PlannerTask(agent="lms_ops_agent", focus="my leave balance"),
+                PlannerTask(agent="vector_kb_agent", focus="parental leave policy", reasoning="Policy question."),
+                PlannerTask(agent="lms_ops_agent", focus="my leave balance", reasoning="Live personal data."),
             ]
         ),
     )
@@ -59,8 +61,8 @@ async def test_multi_part_question_routes_to_multiple_agents(monkeypatch):
     tasks, turn = await planner_agent.plan("what is the parental leave policy and what's my leave balance?")
 
     assert tasks == [
-        {"agent": "vector_kb_agent", "focus": "parental leave policy"},
-        {"agent": "lms_ops_agent", "focus": "my leave balance"},
+        {"agent": "vector_kb_agent", "focus": "parental leave policy", "reasoning": "Policy question."},
+        {"agent": "lms_ops_agent", "focus": "my leave balance", "reasoning": "Live personal data."},
     ]
 
 
@@ -69,7 +71,10 @@ async def test_empty_tasks_falls_back_to_vector_kb_agent(monkeypatch):
 
     tasks, turn = await planner_agent.plan("hello")
 
-    assert tasks == [{"agent": "vector_kb_agent", "focus": "hello"}]
+    assert len(tasks) == 1
+    assert tasks[0]["agent"] == "vector_kb_agent"
+    assert tasks[0]["focus"] == "hello"
+    assert "Fallback" in tasks[0]["reasoning"]
 
 
 async def test_parsing_failure_falls_back_to_vector_kb_agent_instead_of_crashing(monkeypatch):
@@ -77,4 +82,7 @@ async def test_parsing_failure_falls_back_to_vector_kb_agent_instead_of_crashing
 
     tasks, turn = await planner_agent.plan("hello")
 
-    assert tasks == [{"agent": "vector_kb_agent", "focus": "hello"}]
+    assert len(tasks) == 1
+    assert tasks[0]["agent"] == "vector_kb_agent"
+    assert tasks[0]["focus"] == "hello"
+    assert "Fallback" in tasks[0]["reasoning"]

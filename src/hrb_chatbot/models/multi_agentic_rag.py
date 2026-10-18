@@ -24,6 +24,7 @@ class MultiAgenticRagRequest(BaseModel):
 class AgentTaskInfo(BaseModel):
     agent: str = Field(..., description="Which sub-agent handled this task.")
     focus: str = Field(..., description="What the router asked this sub-agent to do.")
+    reasoning: str = Field(..., description="Phase 209 - the Planner's own stated reason for routing this part of the question to this agent.")
 
 
 class MultiAgenticRagResponse(BaseModel):
@@ -42,7 +43,12 @@ class MultiAgenticRagResponse(BaseModel):
     sources: list[RetrievedChunk] = Field(
         default_factory=list, description="Phase 115 - real chunks from vector_kb_agent dispatches, if any."
     )
-    iterations: int = Field(..., description="Total reasoning rounds across every sub-agent.")
+    iterations: int = Field(
+        ...,
+        description="How many domain agents the Planner dispatched to for this query - a one-shot "
+        "fan-out, not a reasoning-round count (multi-agentic-rag has no retry loop, unlike "
+        "single-agentic-rag's own iterations field).",
+    )
     explainability_info: ExplainabilityInfo = Field(
         ...,
         description="Phase 110/115 - total latency + llm_call_count + eval scores + real caching "
