@@ -17,12 +17,12 @@ def _body(query: str = "What's my PTO balance and the parental leave policy?", u
     return {"user_profile": EMPLOYEE_USER_PROFILE if user_profile is None else user_profile, "query": query}
 
 
-async def _fake_run_multi_agent(query, employee_id, enable_conversation_memory=False, conversation_id=None):
+async def _fake_run_multi_agent(query, employee_id, enable_conversation_memory=False, conversation_id=None, request_id=None):
     return {
         "answer": "Parental leave is 8 weeks paid. Your balance is 10 days.",
         "tasks": [
-            {"agent": "vector_kb_agent", "focus": "parental leave policy"},
-            {"agent": "lms_ops_agent", "focus": "my PTO balance"},
+            {"agent": "vector_kb_agent", "focus": "parental leave policy", "reasoning": "Policy question."},
+            {"agent": "lms_ops_agent", "focus": "my PTO balance", "reasoning": "Live personal data."},
         ],
         "follow_up_questions": ["How do I enroll in parental leave?", "What's my PTO accrual rate?"],
         "tools_used": [
@@ -53,8 +53,8 @@ def test_well_formed_query_returns_answer_tasks_and_tools_used(monkeypatch):
     body = response.json()
     assert body["answer"] == "Parental leave is 8 weeks paid. Your balance is 10 days."
     assert body["tasks"] == [
-        {"agent": "vector_kb_agent", "focus": "parental leave policy"},
-        {"agent": "lms_ops_agent", "focus": "my PTO balance"},
+        {"agent": "vector_kb_agent", "focus": "parental leave policy", "reasoning": "Policy question."},
+        {"agent": "lms_ops_agent", "focus": "my PTO balance", "reasoning": "Live personal data."},
     ]
     assert body["suggested_follow_up_questions"] == [
         "How do I enroll in parental leave?",
@@ -64,7 +64,7 @@ def test_well_formed_query_returns_answer_tasks_and_tools_used(monkeypatch):
 
 
 def test_guardrail_blocked_input_is_422(monkeypatch):
-    async def _blocked(query, employee_id, enable_conversation_memory=False, conversation_id=None):
+    async def _blocked(query, employee_id, enable_conversation_memory=False, conversation_id=None, request_id=None):
         raise GuardrailBlockedError("This request was blocked by a safety check.")
 
     monkeypatch.setattr(query_agent.multi_agent_pipeline, "run_multi_agent", _blocked)

@@ -1,5 +1,7 @@
 """Generates a grounded answer from retrieved chunks - a real LCEL chain, not a hand-rolled ask() call."""
 
+import time
+
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnableLambda
@@ -126,8 +128,14 @@ def generate_answer(
     temperature: float = 0.0,
     max_tokens: int | None = None,
     chat_history: list[BaseMessage] | None = None,
+    request_id: str | None = None,
 ) -> dict:
-    """Returns {"answer": str, "model_used": str} - chat_history is empty/omitted when memory isn't enabled."""
+    """Returns {"answer": str, "model_used": str} - chat_history is empty/omitted when memory isn't enabled.
+
+    Phase 201: request_id, when given, is passed to LangChain as this
+    call's own run metadata, so its LangSmith trace (when tracing is on)
+    is filterable by the same id the caller got back in the response."""
+    config = {"metadata": {"request_id": request_id}} if request_id else None
     if not chunks:
         if chat_history:
             # Phase 87: retrieval found nothing, but there's real prior
@@ -147,9 +155,12 @@ def generate_answer(
             )
             chain = CONVERSATIONAL_FALLBACK_PROMPT | llm | RunnableLambda(_to_result)
             fallback_inputs = {"question": query, "chat_history": chat_history}
-            result = chain.invoke(fallback_inputs)
+            started_at = time.perf_counter()
+            result = chain.invoke(fallback_inputs, config=config)
+            latency_ms = round((time.perf_counter() - started_at) * 1000, 1)
             logger.info("Generated a %d-character answer from conversation history only (0 chunks)", len(result["answer"]))
             llm_context_turn = _render_llm_context_turn("answer", CONVERSATIONAL_FALLBACK_PROMPT, fallback_inputs)
+            llm_context_turn["latency_ms"] = latency_ms
             llm_context_turn["response"] = result["answer"]
             result["llm_context_turn"] = llm_context_turn
             return result
@@ -173,10 +184,13 @@ def generate_answer(
     context = build_context_from_chunks(chunks)
     tabular_instruction = TABULAR_FORMAT_INSTRUCTION if should_use_tabular_format(query) else ""
     rag_inputs = {"context": context, "question": query, "chat_history": chat_history or [], "tabular_instruction": tabular_instruction}
-    result = chain.invoke(rag_inputs)
+    started_at = time.perf_counter()
+    result = chain.invoke(rag_inputs, config=config)
+    latency_ms = round((time.perf_counter() - started_at) * 1000, 1)
 
     logger.info("Generated a %d-character answer from %d chunk(s)", len(result["answer"]), len(chunks))
     llm_context_turn = _render_llm_context_turn("answer", RAG_PROMPT, rag_inputs)
+    llm_context_turn["latency_ms"] = latency_ms
     llm_context_turn["response"] = result["answer"]
     result["llm_context_turn"] = llm_context_turn
     return result

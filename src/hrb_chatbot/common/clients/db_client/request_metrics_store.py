@@ -29,6 +29,11 @@ CREATE TABLE IF NOT EXISTS request_metrics (
 )
 """
 
+# Phase 201 - request_id didn't exist when this table was first created
+# (Phase 184), so existing rows get NULL, same migration pattern
+# pipeline_runs already used for its own later columns.
+ADD_REQUEST_METRICS_REQUEST_ID_COLUMN = "ALTER TABLE request_metrics ADD COLUMN IF NOT EXISTS request_id TEXT"
+
 CREATE_REQUEST_METRICS_LOGGED_AT_INDEX = "CREATE INDEX IF NOT EXISTS idx_request_metrics_logged_at ON request_metrics(logged_at)"
 
 
@@ -65,6 +70,7 @@ class RequestMetricsStore:
     def _ensure_table_sync(self) -> None:
         with self._connect() as conn:
             conn.execute(CREATE_REQUEST_METRICS_TABLE)
+            conn.execute(ADD_REQUEST_METRICS_REQUEST_ID_COLUMN)
             conn.execute(CREATE_REQUEST_METRICS_LOGGED_AT_INDEX)
             conn.commit()
 
@@ -82,12 +88,13 @@ class RequestMetricsStore:
         latency_ms: int,
         status: str,
         error_code: str | None,
+        request_id: str | None,
     ) -> None:
         with self._connect() as conn:
             conn.execute(
-                "INSERT INTO request_metrics (endpoint, pipeline, token_count, latency_ms, status, error_code) "
-                "VALUES (%s, %s, %s, %s, %s, %s)",
-                (endpoint, pipeline, token_count, latency_ms, status, error_code),
+                "INSERT INTO request_metrics (endpoint, pipeline, token_count, latency_ms, status, error_code, request_id) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (endpoint, pipeline, token_count, latency_ms, status, error_code, request_id),
             )
             conn.commit()
 
@@ -99,12 +106,15 @@ class RequestMetricsStore:
         latency_ms: int,
         status: str,
         error_code: str | None = None,
+        request_id: str | None = None,
     ) -> None:
         """Fire-and-forget by design - callers wrap this in try/except and
         never let a logging failure affect the real response being logged."""
         await self._ensure_table()
-        with log_backend_call(logger, "postgres", "request_metrics.log", endpoint=endpoint, pipeline=pipeline):
-            await asyncio.to_thread(self._log_request_sync, endpoint, pipeline, token_count, latency_ms, status, error_code)
+        with log_backend_call(logger, "postgres", "request_metrics.log", endpoint=endpoint, pipeline=pipeline, request_id=request_id):
+            await asyncio.to_thread(
+                self._log_request_sync, endpoint, pipeline, token_count, latency_ms, status, error_code, request_id
+            )
 
     @staticmethod
     def _dict_row_factory(cursor):

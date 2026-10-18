@@ -77,9 +77,9 @@ Reasoning: <explanation>"""
         output = get_client_gateway().openai_chat().ask(prompt, temperature=0.0)
         score = _parse_judge_score(output)
         verdict = "GROUNDED" if score >= 0.7 else "PARTIAL" if score >= 0.4 else "HALLUCINATED"
-        return {"score": score, "verdict": verdict, "explanation": output}
+        return {"score": score, "verdict": verdict, "explanation": output, "prompt": prompt}
     except Exception as error:
-        return {"score": 0.5, "verdict": "ERROR", "explanation": str(error)}
+        return {"score": 0.5, "verdict": "ERROR", "explanation": str(error), "prompt": prompt}
 
 
 def evaluate_completeness(question: str, answer: str, reference_answer: str | None = None) -> dict:
@@ -129,9 +129,61 @@ Reasoning: <explanation>"""
         output = get_client_gateway().openai_chat().ask(prompt, temperature=0.0)
         score = _parse_judge_score(output)
         verdict = "COMPLETE" if score >= 0.7 else "PARTIAL" if score >= 0.4 else "INCOMPLETE"
-        return {"score": score, "verdict": verdict, "explanation": output}
+        return {"score": score, "verdict": verdict, "explanation": output, "prompt": prompt}
     except Exception as error:
-        return {"score": 0.5, "verdict": "ERROR", "explanation": str(error)}
+        return {"score": 0.5, "verdict": "ERROR", "explanation": str(error), "prompt": prompt}
+
+
+def evaluate_retrieval_relevance(query: str, chunk_texts: list[str]) -> dict:
+    """Live (per-query) retrieval precision - the piece calculate_retrieval_metrics()
+    can't do for a live question, which has no pre-known "correct" document to
+    exact-match against. One LLM call judges every retrieved chunk at once (not one
+    call per chunk - real cost, kept to a single call), asked which chunks actually
+    help answer the question. precision = (chunks judged relevant) / (chunks retrieved).
+
+    Deliberately does NOT return a live recall or F1 - recall needs the total count
+    of relevant documents that exist, which is unknowable for an arbitrary live
+    question outside the golden dataset. Returning a fabricated recall number here
+    would be worse than not showing one."""
+    if not chunk_texts:
+        return {"precision": None, "relevant_chunk_indices": [], "explanation": None, "prompt": None}
+
+    numbered_chunks = "\n\n".join(f"[{index + 1}] {text}" for index, text in enumerate(chunk_texts))
+    prompt = f"""Below are chunks retrieved for a question. Identify which chunks are actually
+relevant to answering it - a chunk is relevant if it contains information that helps
+answer the question, even partially. A chunk about an unrelated topic is not relevant.
+
+QUESTION:
+{query}
+
+CHUNKS:
+{numbered_chunks}
+
+Provide:
+1. Relevant chunk numbers, comma-separated (or "none" if none are relevant)
+2. Reasoning (one sentence)
+
+Format:
+Relevant: 1, 3
+Reasoning: <explanation>"""
+
+    try:
+        output = get_client_gateway().openai_chat().ask(prompt, temperature=0.0)
+        relevant_line = next((line for line in output.split("\n") if line.startswith("Relevant:")), "Relevant: none")
+        numbers_text = relevant_line.split(":", 1)[1].strip()
+        raw_indices = (
+            [] if numbers_text.lower() == "none" else [int(n.strip()) for n in numbers_text.split(",") if n.strip().isdigit()]
+        )
+        # The judge is a free-text LLM response, not a constrained one - it can
+        # hallucinate a duplicate or out-of-range chunk number (confirmed live:
+        # "Relevant: 1, 3, 2, 5" against only 2 real chunks produced precision
+        # 2.0, mathematically impossible). Clamp to the real chunk range and
+        # dedupe before computing precision.
+        relevant_indices = sorted({index for index in raw_indices if 1 <= index <= len(chunk_texts)})
+        precision = len(relevant_indices) / len(chunk_texts)
+        return {"precision": precision, "relevant_chunk_indices": relevant_indices, "explanation": output, "prompt": prompt}
+    except Exception as error:
+        return {"precision": None, "relevant_chunk_indices": [], "explanation": str(error), "prompt": prompt}
 
 
 async def score_case(case: dict, ask) -> dict:

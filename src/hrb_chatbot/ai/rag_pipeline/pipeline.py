@@ -10,7 +10,11 @@ from src.hrb_chatbot.ai.pre_processing.query_decompose import decompose
 from src.hrb_chatbot.ai.pre_processing.query_normalize import normalize_query
 from src.hrb_chatbot.ai.rag_core.guarded_pipeline import run_guarded_pipeline
 from src.hrb_chatbot.ai.rag_core.tool_classification import classify_tool
-from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import evaluate_completeness, evaluate_groundedness
+from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import (
+    evaluate_completeness,
+    evaluate_groundedness,
+    evaluate_retrieval_relevance,
+)
 from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.retriever import retrieve_chunks
 from src.hrb_chatbot.ai.rag_pipeline.response_generation.response_generator import generate_answer
 from src.hrb_chatbot.ai.rag_pipeline.tools.mcp_tools import try_route_to_mcp
@@ -50,15 +54,24 @@ async def _score_live_answer(query: str, answer: str, sources: list[dict]) -> tu
 
     eval_started_at = time.perf_counter()
     context_texts = [chunk["text"] for chunk in sources]
-    groundedness, completeness = await asyncio.gather(
+    groundedness, completeness, retrieval = await asyncio.gather(
         asyncio.to_thread(evaluate_groundedness, answer, context_texts),
         asyncio.to_thread(evaluate_completeness, query, answer),
+        asyncio.to_thread(evaluate_retrieval_relevance, query, context_texts),
     )
     eval_scores = {
         "groundedness": groundedness["score"],
         "groundedness_verdict": groundedness["verdict"],
+        "groundedness_explanation": groundedness["explanation"],
+        "groundedness_prompt": groundedness["prompt"],
         "completeness": completeness["score"],
         "completeness_verdict": completeness["verdict"],
+        "completeness_explanation": completeness["explanation"],
+        "completeness_prompt": completeness["prompt"],
+        "retrieval_precision": retrieval["precision"],
+        "retrieval_relevant_chunk_indices": retrieval["relevant_chunk_indices"],
+        "retrieval_precision_explanation": retrieval["explanation"],
+        "retrieval_precision_prompt": retrieval["prompt"],
     }
     return eval_scores, _elapsed_ms(eval_started_at)
 
@@ -77,6 +90,7 @@ async def _answer_sub_question(
     use_self_query: bool,
     chat_history: list,
     lambda_mult: float | None = None,
+    request_id: str | None = None,
 ) -> dict:
     """Phase 130: one sub-question's own MCP-check-then-retrieve-or-generate -
     the same two-path logic answer_query() always had, just run once per
@@ -123,7 +137,7 @@ async def _answer_sub_question(
     generation_started_at = time.perf_counter()
     generation = generate_answer(
         sub_question, chunks, model_name=model_name, temperature=resolved_temperature,
-        max_tokens=max_tokens, chat_history=chat_history,
+        max_tokens=max_tokens, chat_history=chat_history, request_id=request_id,
     )
     generation_ms = _elapsed_ms(generation_started_at)
 
@@ -142,7 +156,7 @@ async def _answer_sub_question(
     }
 
 
-async def answer_query(params: RagQueryParams) -> dict:
+async def answer_query(params: RagQueryParams, request_id: str | None = None) -> dict:
     """Run the full pipeline: guardrail/decompose/(MCP-route-or-retrieve+
     generate per sub-question)/merge/guardrail/save via the Phase 98
     shared core - GuardrailBlockedError becomes a 422 upstream.
@@ -267,6 +281,7 @@ async def answer_query(params: RagQueryParams) -> dict:
                     params.use_self_query,
                     chat_history,
                     lambda_mult=params.lambda_mult,
+                    request_id=request_id,
                 )
             )
         retrieval_ms = sum(sub_result["retrieval_ms"] for sub_result in sub_results)
@@ -302,7 +317,7 @@ async def answer_query(params: RagQueryParams) -> dict:
                 {"agent": "genai-rag", "focus": sub_question, "result": sub_result["answer"]}
                 for sub_question, sub_result in zip(sub_questions, sub_results, strict=True)
             ]
-            answer, merge_turn = await reviewer_agent.review(generate_query, agent_results)
+            answer, merge_turn = await reviewer_agent.review(generate_query, agent_results, request_id=request_id)
             llm_call_count += 1  # the merge call
             # Phase 140: relabeled to something a user can understand on its
             # own - the old label ("reviewer merge (prompt capture not yet

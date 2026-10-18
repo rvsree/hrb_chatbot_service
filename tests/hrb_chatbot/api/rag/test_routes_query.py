@@ -29,7 +29,7 @@ def _body(query: str = "test", user_profile=None, search_options=None, generatio
     return body
 
 
-async def _fake_answer_query(params):
+async def _fake_answer_query(params, request_id=None):
     return {
         "query": params.query,
         "answer": "This is a fake grounded answer.",
@@ -70,7 +70,7 @@ def test_well_formed_query_returns_a_grounded_answer(monkeypatch):
 
 
 def test_mcp_routed_answer_reports_routed_to_in_explainability(monkeypatch):
-    async def _fake_mcp_answer_query(params):
+    async def _fake_mcp_answer_query(params, request_id=None):
         return {
             "query": params.query,
             "answer": "You have 12 days of PTO remaining.",
@@ -184,7 +184,7 @@ def test_unknown_search_strategy_is_a_422_naming_the_valid_options():
 def test_use_multi_query_and_use_self_query_are_accepted_and_passed_through(monkeypatch):
     captured = {}
 
-    async def _capturing_fake(params):
+    async def _capturing_fake(params, request_id=None):
         captured["params"] = params
         return await _fake_answer_query(params)
 
@@ -208,7 +208,7 @@ def test_use_multi_query_and_use_self_query_are_accepted_and_passed_through(monk
 def test_use_multi_query_and_use_self_query_default_to_false(monkeypatch):
     captured = {}
 
-    async def _capturing_fake(params):
+    async def _capturing_fake(params, request_id=None):
         captured["params"] = params
         return await _fake_answer_query(params)
 
@@ -277,7 +277,7 @@ def test_unexpected_pipeline_failure_returns_a_clean_500(monkeypatch):
 
 
 def test_mcp_routed_answer_reports_tools_used(monkeypatch):
-    async def _fake_mcp_answer_query(params):
+    async def _fake_mcp_answer_query(params, request_id=None):
         return {
             "query": params.query,
             "answer": "You have 12 days of PTO remaining.",

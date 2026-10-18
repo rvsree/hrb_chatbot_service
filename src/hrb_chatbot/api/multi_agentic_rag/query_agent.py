@@ -35,11 +35,12 @@ async def query(payload: MultiAgenticRagRequest, request: Request):
         result = await time_and_log(
             "/v1/multi-agentic-rag-retrieval/query",
             "multi-agentic-rag",
-            lambda: multi_agent_pipeline.run_multi_agent(
+            lambda request_id: multi_agent_pipeline.run_multi_agent(
                 payload.query,
                 userProfile.employee_id,
                 enable_conversation_memory=payload.enable_conversation_memory,
                 conversation_id=payload.conversation_id,
+                request_id=request_id,
             ),
             lambda r: None,
         )
@@ -57,6 +58,7 @@ async def query(payload: MultiAgenticRagRequest, request: Request):
         sources=result.get("sources") or [],
         iterations=result["iterations"],
         explainability_info=ExplainabilityInfo(
+            request_id=result["request_id"],
             served_from_cache=result["served_from_cache"],
             llm_call_count=result["llm_call_count"],
             latency_ms=LatencyInfo(**result["latency_ms"]),

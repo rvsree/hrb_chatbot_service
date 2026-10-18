@@ -29,12 +29,13 @@ async def query(payload: AgenticRagRequest, request: Request):
         result = await time_and_log(
             "/v1/single-agentic-rag-retrieval/query",
             "single-agentic-rag",
-            lambda: run_agent(
+            lambda request_id: run_agent(
                 payload.query,
                 userProfile.employee_id,
                 payload.max_iterations,
                 enable_conversation_memory=payload.enable_conversation_memory,
                 conversation_id=payload.conversation_id,
+                request_id=request_id,
             ),
             lambda r: (r.get("token_usage") or {}).get("total_tokens"),
         )
@@ -51,6 +52,7 @@ async def query(payload: AgenticRagRequest, request: Request):
         sources=result.get("sources") or [],
         iterations=result["iterations"],
         explainability_info=ExplainabilityInfo(
+            request_id=result["request_id"],
             served_from_cache=result["served_from_cache"],
             llm_call_count=result["llm_call_count"],
             latency_ms=LatencyInfo(**result["latency_ms"]),

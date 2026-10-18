@@ -13,7 +13,11 @@ from src.hrb_chatbot.ai.prompts.agent_prompts import ORCHESTRATION_SYSTEM_PROMPT
 from src.hrb_chatbot.ai.rag_core.guarded_pipeline import run_guarded_pipeline
 from src.hrb_chatbot.ai.rag_core.response_format import TABULAR_FORMAT_INSTRUCTION, should_use_tabular_format
 from src.hrb_chatbot.ai.rag_core.tool_classification import classify_tool
-from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import evaluate_completeness, evaluate_groundedness
+from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import (
+    evaluate_completeness,
+    evaluate_groundedness,
+    evaluate_retrieval_relevance,
+)
 from src.hrb_chatbot.ai.rag_pipeline.tools.agentic_tools import (
     AGENTIC_TOOL_DEFINITIONS,
     get_leave_balance_tool,
@@ -46,7 +50,7 @@ def _message_role(message) -> str:
     return {"HumanMessage": "human", "AIMessage": "ai", "ToolMessage": "tool"}.get(kind, kind.lower())
 
 
-def _render_turn(label: str, messages: list, response_text: str) -> dict:
+def _render_turn(label: str, messages: list, response_text: str, latency_ms: float | None = None) -> dict:
     """Phase 160 - one ReAct iteration's real, exact prompt: messages[0] is
     always the SystemMessage; the last of the rest is "what's new this
     turn" (the original query on iteration 1, a tool result after that),
@@ -59,6 +63,7 @@ def _render_turn(label: str, messages: list, response_text: str) -> dict:
     chat_history = [{"role": _message_role(message), "content": message.content} for message in rest[:-1]]
     return {
         "label": label,
+        "latency_ms": latency_ms,
         "system_prompt": system_prompt,
         "human_message": human_message,
         "chat_history": chat_history,
@@ -74,15 +79,24 @@ async def _score_live_answer(query: str, answer: str, context_texts: list[str]) 
         return None, None
 
     eval_started_at = time.perf_counter()
-    groundedness, completeness = await asyncio.gather(
+    groundedness, completeness, retrieval = await asyncio.gather(
         asyncio.to_thread(evaluate_groundedness, answer, context_texts),
         asyncio.to_thread(evaluate_completeness, query, answer),
+        asyncio.to_thread(evaluate_retrieval_relevance, query, context_texts),
     )
     eval_scores = {
         "groundedness": groundedness["score"],
         "groundedness_verdict": groundedness["verdict"],
+        "groundedness_explanation": groundedness["explanation"],
+        "groundedness_prompt": groundedness["prompt"],
         "completeness": completeness["score"],
         "completeness_verdict": completeness["verdict"],
+        "completeness_explanation": completeness["explanation"],
+        "completeness_prompt": completeness["prompt"],
+        "retrieval_precision": retrieval["precision"],
+        "retrieval_relevant_chunk_indices": retrieval["relevant_chunk_indices"],
+        "retrieval_precision_explanation": retrieval["explanation"],
+        "retrieval_precision_prompt": retrieval["prompt"],
     }
     return eval_scores, _elapsed_ms(eval_started_at)
 
@@ -110,6 +124,7 @@ async def run_agent(
     max_iterations: int | None = None,
     enable_conversation_memory: bool = False,
     conversation_id: str | None = None,
+    request_id: str | None = None,
 ) -> dict:
     """Runs the tool-calling loop for one query - guardrailed and memory-
     tracked via the Phase 98 shared core (previously had neither: no
@@ -177,11 +192,14 @@ async def run_agent(
                 "total_tokens": total_prompt_tokens + total_completion_tokens,
             }
 
+        config = {"metadata": {"request_id": request_id}} if request_id else None
         for i in range(resolved_max_iterations):
-            with log_backend_call(logger, "orchestration_agent", "ainvoke", iteration=i + 1):
-                response = await asyncio.wait_for(llm.ainvoke(messages), timeout=AGENT_LLM_TIMEOUT_SECONDS)
+            iteration_started_at = time.perf_counter()
+            with log_backend_call(logger, "orchestration_agent", "ainvoke", iteration=i + 1, request_id=request_id):
+                response = await asyncio.wait_for(llm.ainvoke(messages, config=config), timeout=AGENT_LLM_TIMEOUT_SECONDS)
+            iteration_latency_ms = round((time.perf_counter() - iteration_started_at) * 1000, 1)
             llm_call_count += 1
-            turns.append(_render_turn(f"iteration {i + 1}", messages, response.content))
+            turns.append(_render_turn(f"iteration {i + 1}", messages, response.content, latency_ms=iteration_latency_ms))
 
             if response.usage_metadata:
                 total_prompt_tokens += response.usage_metadata["input_tokens"]
@@ -227,6 +245,7 @@ async def run_agent(
                         "tool_type": classify_tool(tool_name),
                         "latency_ms": tool_call_latency_ms,
                         "success": not tool_output.startswith("Error:"),
+                        "iteration": i + 1,
                     }
                 )
                 tool_outputs.append(tool_output)

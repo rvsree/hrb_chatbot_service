@@ -125,8 +125,22 @@ class EvalScores(BaseModel):
 
     groundedness: float = Field(..., description="Is the answer supported by the retrieved context? 0.0-1.0.")
     groundedness_verdict: str = Field(..., description="GROUNDED (>=0.7), PARTIAL (>=0.4), or HALLUCINATED.")
+    groundedness_explanation: str | None = Field(None, description="Phase 202 - the judge LLM's raw 'Score: X / Reasoning: ...' response, verbatim.")
+    groundedness_prompt: str | None = Field(None, description="Phase 212 - the exact prompt sent to the groundedness judge.")
     completeness: float = Field(..., description="Does the answer fully address the question? 0.0-1.0.")
     completeness_verdict: str = Field(..., description="COMPLETE (>=0.7), PARTIAL (>=0.4), or INCOMPLETE.")
+    completeness_explanation: str | None = Field(None, description="Phase 202 - the judge LLM's raw 'Score: X / Reasoning: ...' response, verbatim.")
+    completeness_prompt: str | None = Field(None, description="Phase 212 - the exact prompt sent to the completeness judge.")
+    retrieval_precision: float | None = Field(
+        None, description="Phase 208 - live, computed-this-call: (chunks an LLM judge found relevant) / (chunks retrieved). No live recall/F1 - see field below."
+    )
+    retrieval_relevant_chunk_indices: list[int] = Field(
+        default_factory=list, description="Phase 208 - 1-indexed positions (within this call's retrieved chunks) the judge marked relevant."
+    )
+    retrieval_precision_explanation: str | None = Field(
+        None, description="Phase 208 - the judge LLM's raw 'Relevant: ... / Reasoning: ...' response, verbatim."
+    )
+    retrieval_precision_prompt: str | None = Field(None, description="Phase 212 - the exact prompt sent to the retrieval-relevance judge.")
 
 
 class ChatHistoryMessage(BaseModel):
@@ -147,6 +161,7 @@ class LlmContextTurn(BaseModel):
     captured from the exact same inputs the real chain.invoke() call used."""
 
     label: str = Field(..., description="e.g. 'answer' (single question) or the sub-question text (decomposed).")
+    latency_ms: float | None = Field(None, description="Phase 205 - wall-clock time of this one real LLM call, not the whole request.")
     system_prompt: str | None = None
     human_message: str | None = None
     chat_history: list[ChatHistoryMessage] = Field(default_factory=list)
@@ -165,6 +180,7 @@ class ExplainabilityInfo(BaseModel):
     """Phase 107/109 - real latency/token/cache-vs-live/eval numbers,
     genai-rag only. Dollar cost is deliberately excluded (see BACKLOG.md)."""
 
+    request_id: str = Field(..., description="Phase 201 - a UUID4 identifying this HTTP request/response pair, present on every call including cache hits. Correlates this response with backend logs, the request_metrics table, and (when LangSmith tracing is on) that call's trace metadata.")
     served_from_cache: bool = Field(..., description="True if this answer came from the answer cache, not a live retrieval+generation call.")
     llm_call_count: int = Field(..., description="How many LLM calls this request made - 0 on a cache hit or MCP fast-path, 1 otherwise. Excludes eval-judge calls.")
     latency_ms: LatencyInfo

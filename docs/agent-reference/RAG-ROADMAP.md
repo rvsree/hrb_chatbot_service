@@ -16263,6 +16263,21 @@ Explicitly deferred to a later, separate wave - not part of the above:
     changed. `tsc --noEmit` and `npm run build` both clean. **Not yet
     visually verified in a real browser** - same standing gap as every
     UI phase this session.
+  - **Real deploy confirmed, 2026-10-16.** PR #47's own CI run was the
+    first real execution of the `ci.yml` split - `dependency-scan`
+    (Security Scan) and `static-analysis` (Static Analysis) both passed
+    independently, confirmed via `gh pr checks`, closing the "not dry-
+    run tested" gap for `ci.yml`. PR #48 (develop -> master) merged,
+    triggering a real `deploy.yml` run (id `38936586160`), watched step
+    by step: `Build image` (push=false) succeeded, `Push image to ECR`
+    (same command, push=true) succeeded with no manifest-format drift,
+    App Runner reached RUNNING, the smoke test passed, and the new
+    `Notify deployment status` step ran successfully - the first real
+    confirmation that `GITHUB_STEP_SUMMARY` works as the Status
+    Notification stage. Independently verified after, not just trusting
+    the workflow's own smoke test: `GET /ping` and `GET /v1/admin/
+    ci-status/pipeline` both returned 200 against the live production
+    backend.
 
 - [x] **Phase 197 - spacing pass, gray-dot explanation, Golden Dataset
   moved to Interview Q&A, CI/CD Pipeline made the default Build &
@@ -16319,3 +16334,654 @@ Explicitly deferred to a later, separate wave - not part of the above:
     `PipelineStepper.tsx`), no structural/logic change. `tsc --noEmit`
     and `npm run build` both clean. **Not yet visually verified in a real
     browser** - same standing gap.
+
+- [x] **Phase 199 - monotonic step-ordering fix for GitHub's own Jobs API
+  eventual-consistency during a live run.**
+  - **Context**: user-caught live, 2026-10-16, watching a real deploy in
+    the Pipeline tab - "Deploy" showed green while "Docker Image" (an
+    earlier real step in that same deploy.yml job) still showed blue
+    (in_progress) in the same single API response. Diagnosed, not
+    assumed: steps within one real GitHub Actions job always execute
+    strictly in order, so this is logically impossible as real state -
+    it had to be GitHub's own Jobs API returning a momentarily
+    inconsistent snapshot (step-completion events arriving
+    asynchronously, not always atomically consistent in one GET,
+    especially when steps finish close together in time, as the cache-
+    hit `Build image`/`Push image to ECR` pair often do).
+  - **Fix**: `findStepStatus()` now checks, within the *same job's own
+    step list only*, whether any step after the one being looked up has
+    already reached `completed` - if so, treats this earlier step as
+    completed too, regardless of what its own status field says at that
+    instant. Deliberately scoped to one job's own steps - never applied
+    across `ci.yml`'s 4 parallel jobs, which have no such ordering
+    guarantee between them (that would be a real bug, not a fix).
+  - **Verified the diagnosis, not just the fix**: re-fetched the actual
+    completed run's real job/step data directly - every step now shows
+    fully consistent `completed success`, confirming this was genuinely
+    transient (captured mid-run) and not a real contradiction in the
+    deploy itself.
+  - Pure frontend logic change, no backend touched. `tsc --noEmit` and
+    `npm run build` both clean. **Not yet visually re-verified live
+    against a real in-progress deploy** (the one that surfaced this has
+    already finished) - the fix is reasoned/tested against the real
+    completed data, but its effect during an actual live, still-running
+    deploy is unconfirmed until the next real one.
+
+- [x] **Phase 200 (EX-0) - Explainability overhaul, part 1: fix the
+  multi-agentic-rag `llm_call_count` bug, clarify the `iterations` field,
+  and make routing-accuracy checking data-driven instead of hardcoded.**
+  - **Built/verified 2026-10-17:** all changes below implemented exactly
+    as spec'd. Full test suite green (690 passed). Live-verified via a
+    fake-pipeline call through the real route (`TestClient`, same pattern
+    `test_routes_query.py` already uses): a 2-domain-agent multi-agentic-rag
+    response now reports `llm_call_count: 2`, not the old buggy `4`.
+  - **Spec:**
+    - **Context:** found during the Explainability-panel feasibility
+      investigation this conversation. `multi_agent_pipeline.py`'s
+      `run_multi_agent()` computes `"llm_call_count": len(agent_results) +
+      2` (line 314), counting every dispatched domain agent as an "LLM
+      call." That contradicts the function's own correct comment at lines
+      295-297 ("only planner/reviewer make a real LLM call; every domain
+      agent is LLM-free") - the comment directly above the bug, at lines
+      312-313, asserts the opposite framing ("Planner + each dispatched
+      domain agent + Reviewer") that produced it. A 2-domain-agent query
+      reports `llm_call_count: 4` today; it should report 2. Separately,
+      `models/multi_agentic_rag.py`'s `iterations` field description
+      ("Total reasoning rounds across every sub-agent") describes a
+      ReAct-style loop multi-agentic-rag doesn't have - the code
+      (`iterations = len(agent_results)`) counts domain agents dispatched
+      in one fan-out, not reasoning rounds. Both are reporting bugs only -
+      neither changes any real answer returned. Zero dependency on EX-1 or
+      any other EX phase - a standalone quick win, sequenced first because
+      it's cheap and because EX-7's later score drill-downs would
+      otherwise build on the same wrong number.
+    - **Data/API contracts:** no wire-shape change - `llm_call_count` and
+      `iterations` already exist on `MultiAgenticRagResponse`
+      (`models/multi_agentic_rag.py`); only their computed values and
+      `iterations`' `Field(description=...)` text change, not field names
+      or types. N/A for `endpoint-request-response-contracts.md` - nothing
+      to confirm there.
+    - **User-visible behavior:** the Explainability panel's "LLM calls"
+      number for multi-agentic-rag answers becomes accurate (2 for a
+      normal query: Planner + Reviewer) instead of inflated by however
+      many domain agents ran. The "iterations" number's value is
+      unchanged (still domain-agent count) but its description stops
+      implying a reasoning loop this mode doesn't have.
+    - **Changes:**
+      - `ai/agents/workflow_agents/multi_agent_pipeline.py`: line 314's
+        `llm_call_count` becomes `len(turns)`, reusing the `turns` list
+        already computed at line 298 for `llm_context` (exactly "planner_turn
+        and reviewer_turn, whichever actually ran") - correct even in the
+        edge case either turn is genuinely absent, not a hardcoded `2`.
+        Add a one-line comment at line 309's `iterations = len(agent_results)`
+        stating it counts dispatched domain agents, not reasoning rounds -
+        same discipline as the existing comment above the `llm_call_count`
+        line.
+      - `models/multi_agentic_rag.py` line 45: reword `iterations`'
+        `Field(description=...)` to state it counts domain agents the
+        Planner dispatched to - a one-shot fan-out, not a reasoning-round
+        count, unlike single-agentic-rag's own `iterations` field. Field
+        name/type unchanged - description-only, no contract renegotiation
+        needed.
+      - `resources/golden_dataset/golden_dataset.json`: add
+        `"expected_agents": ["vector_kb_agent"]` to case
+        `multi-agent-same-domain-01` and `"expected_agents":
+        ["vector_kb_agent", "lms_ops_agent"]` to case
+        `multi-agent-cross-domain-01` - the only 2 existing
+        multi-agentic-rag cases (Phase 67). New field, additive.
+      - `tests/hrb_chatbot/ai/agents/workflow_agents/test_multi_agent_pipeline_golden_cases.py`:
+        `test_cross_domain_question_routes_to_both_agents_and_covers_the_kb_half`
+        currently hardcodes `assert "vector_kb_agent" in agents_used` /
+        `assert "lms_ops_agent" in agents_used` inline - read
+        `case["expected_agents"]` instead. Add the equivalent assertion to
+        `test_same_domain_compound_question_covers_both_topics` (today it
+        only checks topic coverage in the answer text, not which agent(s)
+        ran): `assert set(case["expected_agents"]) <= {task["agent"] for
+        task in result["tasks"]}`. Makes routing correctness for these 2
+        cases data-driven - a future 3rd case needs only a JSON entry, not
+        a new hardcoded assertion.
+      - New fake-based unit test in `tests/hrb_chatbot/ai/agents/workflow_agents/test_multi_agent_pipeline.py`
+        (no real LLM call, matching this file's existing pattern) -
+        asserts `llm_call_count == 2` for a 2-domain-agent run, not 4.
+    - **Failure modes:** N/A - no new failure path, this phase only
+      corrects existing numbers/text.
+    - **Out of scope:** an aggregate "routing accuracy %" report across
+      more than today's 2 multi-agent golden cases - real scope needing a
+      reporting function and somewhere to show it, flagged for later (EX-7
+      or BACKLOG.md) rather than assumed into this quick win. Renaming the
+      `iterations` field itself (e.g. to `domain_agents_dispatched`) - a
+      real API contract change needing
+      `endpoint-request-response-contracts.md` confirmation first; this
+      phase deliberately makes the smaller, non-breaking fix instead.
+    - **Open questions:** none.
+
+- [x] **Phase 201 (EX-1) - Explainability overhaul, part 2: a real
+  `request_id` on every query response, in backend logs, and in LangSmith
+  trace metadata.**
+  - **Built/verified 2026-10-17, with one real implementation refinement
+    over the written Design:** `request_id` generation centralized in
+    `common/observability/response_metrics.py`'s `time_and_log()` (every
+    query route already funnels through it) rather than separately inside
+    `run_guarded_pipeline()`/`run_multi_agent()` - covers cache-hit and
+    live paths uniformly for free, and covers failed requests too (logged
+    to `request_metrics` with `status="error"` even though no result dict
+    exists yet to carry it). Threaded from there into: `planner_agent.plan()`,
+    `reviewer_agent.review()`, `response_generator.generate_answer()`
+    (2 call sites), `orchestration_agent.py`'s ReAct loop, and
+    `multi_agent_pipeline.py`'s `MultiAgentState`/`graph.ainvoke()` config -
+    each as LangSmith run metadata when tracing is on. Full test suite
+    green (690 passed, after updating ~15 test fakes across 7 files whose
+    signatures the new optional `request_id`/`config` parameters touched).
+    Contract snapshots regenerated (`RagQueryResponse`/`AgenticRagResponse`/
+    `MultiAgenticRagResponse` - the only diff in each is the new
+    `request_id` field). Live-verified end to end via a fake-pipeline
+    `TestClient` call through the real routes for both genai-rag and
+    multi-agentic-rag: a real UUID4 `request_id` came back in
+    `explainability_info` for both, and the real local `request_metrics`
+    table received both rows with that same id (confirming the
+    `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` migration ran clean against
+    a pre-existing local table). Single-id-not-two framing: implemented as
+    proposed, not separately re-confirmed in words - see
+    `endpoint-request-response-contracts.md`'s note on this.
+  - **Not done this phase, flagged rather than silently skipped:**
+    `reviewer_agent.generate_follow_ups()`'s own LLM call isn't tagged with
+    `request_id` (a nice-to-have follow-up-question generator, lower value,
+    kept the diff smaller). No LangSmith trace was actually inspected live
+    to confirm the metadata lands correctly in LangSmith's UI - the
+    plumbing is verified by code/test, not by looking at a real trace.
+  - **Spec:**
+    - **Context:** foundational for the rest of the Explainability
+      overhaul (EX-2 through EX-8) - the Tools & Routing tab's
+      click-through, the Engineering Trace tab, a "copy request_id"
+      button, and a Latency tab's step-log filter all assume a caller can
+      take one id from a response and find everything else about that
+      same call. Nothing today provides one - confirmed by a full read of
+      `common/logging/call_logger.py` (logs service/operation/duration
+      only, no per-request identifier) and
+      `common/observability/langsmith_tracing.py` (sets LangSmith's
+      tracing env vars once at process startup - no per-call metadata hook
+      exists to tag an individual trace). Investigated per this phase's
+      own research question - whether Phase 184's `request_metrics` table
+      could carry this instead of new infrastructure: yes. It's a plain
+      Postgres table with no caller-facing identifier column today
+      (`id SERIAL` is an internal surrogate key, never returned to a
+      caller); extending it via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS
+      request_id` (the same migration pattern the `pipeline_runs` table
+      already used for its own later columns, Phase 188) is sufficient -
+      no new table.
+    - **Data/API contracts:** see
+      `endpoint-request-response-contracts.md`'s new "Proposed: request_id
+      on every query response (EX-1)" section (added this phase, awaiting
+      confirmation) - one new `request_id: str` field on the shared
+      `ExplainabilityInfo` model (`models/rag.py`), which `RagQueryResponse`,
+      `AgenticRagResponse`, and `MultiAgenticRagResponse` already build
+      from, so it appears identically in all three with no per-pipeline
+      special-casing.
+    - **User-visible behavior:** every genai-rag/single-agentic-rag/
+      multi-agentic-rag query response carries a `request_id` (UUID4,
+      always present, never null - including a cache hit or MCP fast-path,
+      since it identifies the HTTP call itself, not the generation work
+      done to answer it). The same value appears in that request's own
+      backend log lines and, when LangSmith tracing is on, as that run's
+      metadata in LangSmith's UI - so a reported bad answer can be located
+      by one id across logs, trace, and (once `request_metrics` carries
+      it) the stored metrics row for that exact call.
+    - **Design:**
+      - One `request_id = str(uuid4())` generated per call, as early as
+        possible on each path: inside `ai/rag_core/guarded_pipeline.py`'s
+        `run_guarded_pipeline()` for genai-rag and single-agentic-rag (the
+        one seam both already share, Phase 98), and separately at the top
+        of `multi_agent_pipeline.py`'s `run_multi_agent()` for
+        multi-agentic-rag (documented as not yet migrated onto the shared
+        core - unchanged by this phase; the id is added independently to
+        both places, matching how guardrails already work today).
+      - Threaded into: the returned result dict (new `request_id` key,
+        read into `ExplainabilityInfo` by each route's existing
+        response-building code, same pattern `served_from_cache`/
+        `llm_call_count` already use); `call_logger.py`'s
+        `log_backend_call` call sites within that request (passed through
+        the existing `**context` - no signature change to
+        `log_backend_call` itself, just a new context key callers pass);
+        `request_metrics_store.py`'s `log_request()` (new optional
+        `request_id` parameter, new nullable column, additive - existing
+        rows keep `NULL`); and LangSmith, via `config={"metadata":
+        {"request_id": request_id}}` passed into the relevant
+        `.ainvoke()` call (`multi_agent_pipeline.py`'s `graph.ainvoke()`,
+        and genai-rag/single-agentic-rag's own chain calls where
+        applicable).
+      - Cache-hit path: `request_id` is freshly generated per call
+        (identifies this HTTP call) and never reused from whatever call
+        originally populated the cache entry - same discipline Phase 160
+        already applies to `llm_context` on a cache hit.
+    - **Failure modes:** N/A - id generation/threading can't itself fail
+      in a way that should affect the real response; if a logging or
+      `request_metrics` write carrying `request_id` fails, the existing
+      fire-and-forget/try-except discipline (`response_metrics.py`'s
+      `log_response_metrics`) already swallows it without affecting the
+      caller.
+    - **Out of scope:** a dedicated lookup endpoint (paste a `request_id`,
+      see everything about that call) - that's EX-8's Engineering Trace
+      tab, not this phase. A separate `response_id` alongside
+      `request_id` - see the contracts-doc section's reasoning for
+      proposing one id. Backfilling `request_id` onto historical
+      `request_metrics` rows logged before this phase - they keep `NULL`,
+      same as every other additive column this project has added to an
+      existing table.
+    - **Open questions:** confirm the single-id-not-two framing in
+      `endpoint-request-response-contracts.md` before implementation
+      starts.
+
+- [x] **Phase 202 (EX-1b) - surface the eval judge's raw explanation text
+  on `EvalScores`, for the Explainability panel's new Response Generation
+  Eval Score tab.**
+  - **Built/verified 2026-10-17:** all 3 pipelines updated, `EvalScores`
+    model updated, contract snapshots regenerated, 2 test assertions
+    updated to the real fake-judge `"explanation": "fake"` value. Full
+    suite green (690 passed).
+  - **Spec:**
+    - **Context:** `evaluate_groundedness()`/`evaluate_completeness()`
+      already return the judge LLM's full raw output as `explanation` -
+      all 3 pipelines' `eval_scores` dict construction already drops it,
+      keeping only `score`/`verdict`. The new tab needs to show *how* a
+      score was calculated, not just the number.
+    - **Data/API contracts:** see
+      `endpoint-request-response-contracts.md`'s "`groundedness_explanation`/
+      `completeness_explanation` on `EvalScores`" section (Finalized) -
+      two new optional `str | None` fields on the shared `EvalScores`
+      model, additive.
+    - **User-visible behavior:** the Response Generation Eval Score tab
+      can show the judge's actual reasoning text, not just a bare number.
+    - **Changes:** `models/rag.py`'s `EvalScores` gains
+      `groundedness_explanation`/`completeness_explanation`; the 3
+      `eval_scores = {...}` dict literals (`pipeline.py`,
+      `orchestration_agent.py`, `multi_agent_pipeline.py`) each add
+      `"groundedness_explanation": groundedness["explanation"]`/
+      `"completeness_explanation": completeness["explanation"]`.
+    - **Failure modes:** N/A - additive fields only.
+    - **Out of scope:** re-parsing the raw "Score: X\nReasoning: ..." text
+      into separate score/reasoning sub-fields - shown verbatim, simpler.
+    - **Open questions:** none.
+
+- [x] **Phase 203 (EX-2, partial) - Explainability panel: real multi-tab
+  layout, agent model made visible, Tech Stack tab. `hrb_chatbot_ui`
+  (sibling repo), `src/components/ExplainabilityModal.tsx`.**
+  - **Context:** user-directed, iterative - a first pass (tab shell +
+    agent registry as panels inside "Metrics") was visually reviewed live
+    and refined: Agent Flow and Eval Scores pulled out of "Metrics" into
+    their own top-level tabs (Eval Scores further split into Retrieval vs.
+    Response Generation), a new Tech Stack tab added, and the "?" icons'
+    native `title` tooltip (not visibly working) replaced with a real
+    CSS-only hover/focus popover.
+  - **Built:** 7 top-level tabs (Metrics, Agent Flow, Retrieval Eval
+    Score, Response Generation Eval Score, LLM Context, Citations, Tech
+    Stack), reusing the exact tab-button pattern `AdminDashboardPage.tsx`
+    already established (plain buttons, `className="secondary"` for the
+    inactive ones) rather than inventing a new UI pattern. Agent Flow tab
+    shows Planner -> Orchestrator -> dispatched domain agent(s) -> Reviewer
+    for multi-agentic-rag messages (Orchestrator made visible as its own
+    labeled stage for the first time - it has no backend entity of its
+    own, see Phase 201's investigation). "?" icons cover all 3 workflow
+    agents, all 5 domain agents (2 - `sql_db_agent`/`lms_analytics_agent` -
+    marked "not implemented yet" rather than hidden, since the code
+    confirms they're non-functional stubs today), and the Knowledge
+    Sources panel's tool-type labels (covers genai-rag/single-agentic-rag
+    too, not just multi-agentic-rag). Response Generation Eval Score tab
+    shows the judge's raw explanation text (Phase 202). Retrieval Eval
+    Score tab still shows the same honest placeholder - live computation
+    is still blocked on an undecided approach (sub-question-coverage
+    approximation vs. per-chunk LLM judging), flagged again, not decided
+    here. Tech Stack tab is static reference content, real versions read
+    directly from `requirements.txt`/`package.json` (not guessed),
+    grouped by architecture role.
+  - **Verified:** `tsc --noEmit`, `npm run build`, and `npm run lint` all
+    clean - zero new warnings/errors (one pre-existing `AdminDashboardPage.tsx`
+    lint error and a few pre-existing warnings elsewhere, unrelated to this
+    change). **Not live-verified in a running browser** - no browser/
+    screenshot tool was available this session; the user visually reviewed
+    the first pass live and confirmed it rendered correctly, but the
+    second (larger) restructure in this entry has only been type-checked/
+    built/linted, not clicked through.
+  - **Out of scope this phase:** Tools & Routing tab (still pending, data
+    mostly already exists via `tools_used`), the domain-agent
+    crash-safety fix (Phase 204 candidate), Engineering Trace tab, and the
+    Retrieval Eval Score live-computation decision.
+
+- [x] **Phase 205 (EX-2b) - per-turn latency on `LlmContextTurn`, so each
+  workflow agent's real elapsed time is visible, not just domain/tool
+  agents' (which already have it via `tools_used`).**
+  - **Built/verified 2026-10-17:** all 4 call sites updated. Full suite
+    green (691 passed), contract snapshots regenerated.
+  - **Spec:**
+    - **Context:** user feedback, direct - the Agent Flow tab's workflow-
+      agent descriptions read as generic/textbook, not real runtime data.
+      Domain agents already report real `latency_ms` per call (`tools_used`),
+      but Planner/Reviewer/genai-rag's own generation calls have no
+      per-call timing captured anywhere - `LlmContextTurn` has no latency
+      field at all, confirmed by reading `models/rag.py`.
+    - **Data/API contracts:** one new optional field,
+      `LlmContextTurn.latency_ms: float | None`, additive - no existing
+      field changes.
+    - **User-visible behavior:** every turn in the LLM Context tab, and
+      (once the frontend is updated) the Agent Flow tab, can show real
+      elapsed time for that one LLM call.
+    - **Changes:** `planner_agent.plan()`, `reviewer_agent.review()`,
+      `response_generator.generate_answer()` (both `chain.invoke()` call
+      sites), and `orchestration_agent.py`'s ReAct loop (`_render_turn()`)
+      each time their own real LLM call with `time.perf_counter()` and set
+      the new field on the turn dict they already build.
+    - **Failure modes:** N/A - additive, measurement-only.
+    - **Out of scope:** latency for domain-agent-internal LLM calls (none
+      exist today - domain agents are LLM-free per Phase 200's own
+      finding).
+    - **Open questions:** none.
+
+- [x] **Phase 206 (EX-2c) - fix the stale golden-dataset filename mapping
+  (real retrieval-metric bug, found by actually running the golden
+  dataset) and add `iteration` to `ToolCallInfo`, so single-agentic-rag's
+  real ReAct tool calls can be matched back to the exact iteration that
+  made them.**
+  - **Built/verified 2026-10-17 - real before/after evidence, not
+    assumed:** ran `scripts.run_release_gate` live, twice. Before the
+    fix: every one of 25 scorable cases reported `precision: 0.0,
+    recall: 0.0, f1: 0.0` (aggregate recall 0.000, verdict BLOCK).
+    After: `precision: 0.2, recall: 1.0, f1: 0.333` on every single case
+    - exactly matching the script's own documented "precision@k
+      structural ceiling" explanation (1 relevant doc, k=5 -> 1/5 = 0.2
+      max). Retrieval itself was never broken - only the stale filename
+    comparison was. **Real, separate finding surfaced now that the
+    metric works again**: aggregate completeness came back 0.600,
+    just under the 0.65 release gate minimum (several individual cases
+    scored 0.2-0.3) - verdict is still BLOCK, now for a legitimate
+    reason, not flagged further this phase (not asked, real but separate
+    investigation). `iteration` field: new focused test
+    (`test_tool_calls_across_separate_iterations_each_report_their_own_iteration`)
+    confirms 2 tool calls in 2 different ReAct iterations report 2
+    different iteration numbers, not a guess from array order. Full
+    suite green (691 passed), contract snapshots regenerated.
+  - **Spec:**
+    - **Context:** user feedback, direct - demanded real evidence, not a
+      placeholder claim, for the Retrieval Eval Score tab. Ran
+      `scripts.run_release_gate` live (real LLM calls): every one of 25
+      scorable cases reported `precision`/`recall`/`f1` == 0.0 (verdict
+      BLOCK), while groundedness/completeness scored normally and varied
+      (0.1-1.0) - a sign retrieval itself works but the metric comparison
+      doesn't. Root cause, confirmed by listing `resources/kb_docs/`:
+      every document was re-ingested under a renamed file (`JPMC ...` ->
+      `AmazingBank_...`) on 2026-10-14, old files moved to
+      `resources/kb_docs/archived/`, but `golden_dataset.json`'s own
+      `_meta.source_documents` mapping was never updated - a real
+      retrieved chunk's filename could never match the stale value this
+      mapping produced. Separately: building a real per-agent runtime view
+      (Agent Flow tab, this session) needs to show single-agentic-rag's
+      real ReAct tool calls in the exact iteration that made them -
+      `ToolCallInfo` has no iteration field, so the frontend would have to
+      guess the interleaving from array order alone, exactly the kind of
+      fabricated precision flagged as the problem.
+    - **Data/API contracts:** `ToolCallInfo` (`models/common.py`) gains
+      one new optional field, `iteration: int | None`, additive - only
+      `orchestration_agent.py` (single-agentic-rag) sets it; genai-rag's
+      and multi-agentic-rag's own `tools_used` entries leave it `null`
+      (no ReAct-style iteration concept for either).
+    - **User-visible behavior:** retrieval precision/recall/F1 reported by
+      `scripts.run_release_gate` (and the golden-dataset-only numbers
+      referenced in the Retrieval Eval Score tab) reflect real retrieval
+      quality again, not a stale-mapping artifact. The Agent Flow tab can
+      correctly show which tool call happened in which ReAct iteration.
+    - **Changes:** `resources/golden_dataset/golden_dataset.json`'s
+      `_meta.source_documents` updated to the real current filenames.
+      `orchestration_agent.py`'s `tools_used.append({...})` call gains
+      `"iteration": i + 1`.
+    - **Failure modes:** N/A.
+    - **Out of scope:** re-running `scripts.run_release_gate` as a
+      standing CI gate more often (still hand-triggered per its own
+      docstring) - this phase only fixes the mapping, doesn't change when
+      the gate runs.
+    - **Open questions:** none.
+
+- [x] **Phase 207 (EX-2d) - Agent Flow tab rebuilt with real per-agent
+  runtime data (multi-agentic-rag) and a new real ReAct Flow view
+  (single-agentic-rag, previously "not applicable"); Retrieval Eval Score
+  tab shows real golden-dataset evidence instead of a placeholder claim.
+  `hrb_chatbot_ui`.**
+  - **Context:** user feedback, direct and critical - the first Agent
+    Flow pass read as generic/textbook with no real runtime value; asked
+    specifically for per-agent LLM-call/tool-call/elapsed-time numbers and
+    real internals for the ReAct loop, not another description. Built on
+    Phase 205/206's new `latency_ms`/`iteration` fields, which exist
+    specifically to make this exact/non-guessed instead of inferred from
+    array order.
+  - **Built:** Agent Flow tab (multi-agentic-rag) is now a table -
+    Planner/Orchestrator/each dispatched domain agent/Reviewer, each row
+    showing real LLM-call count, tool-call count, elapsed time (Planner/
+    Reviewer from their own `LlmContextTurn.latency_ms`, domain agents
+    from their matching `tools_used` entry's `latency_ms`; Orchestrator
+    correctly shown as 0/0/n/a - it makes no real call). A new ReAct Flow
+    table (single-agentic-rag) renders every real iteration: elapsed time,
+    which tool(s) were called that iteration (matched via the new
+    `iteration` field, not array order), and the real response text -
+    including showing, not hiding, iterations where the model returned
+    empty text alongside a tool call (a real, common tool-calling model
+    behavior). Both views state plainly that chain-of-thought is not
+    explicitly prompted for today, verified by reading
+    `ai/prompts/agent_prompts.py` directly. Retrieval Eval Score tab
+    replaced its placeholder paragraph with the real Phase 206 before/
+    after numbers and the real bug that was found and fixed.
+  - **Verified:** `tsc --noEmit`, `npm run build`, `npm run lint` all
+    clean, zero new warnings in `ExplainabilityModal.tsx`. **Not
+    live-verified in a running browser** - still no browser/screenshot
+    tool available this session.
+  - **Not done this phase, flagged rather than silently skipped:** the
+    judge's raw *prompt* (only its raw *response* is captured, Phase 202)
+    isn't shown on the Response Generation Eval Score tab - would need
+    another backend capture change, not done here. Live Retrieval Eval
+    Score computation is still undecided (same open question as before).
+    Tools & Routing tab (separate from Agent Flow) remains pending.
+  - **Correction to an earlier flag:** the "domain-agent crash-safety fix"
+    named as a Phase 204 candidate (Phase 203's own "out of scope" note)
+    was investigated, not built - it isn't a real gap. Checked every real
+    domain agent's actual failure path, not assumed: `lms_ops_agent.run()`
+    delegates to `get_leave_balance_tool()`/`get_leave_history_tool()`
+    (`ai/rag_pipeline/tools/agentic_tools.py`), both already wrapped in
+    their own `try/except`; `web_search_agent.run()` delegates to
+    `tavily_client.py`'s `search()`, also already wrapped. The "never
+    raise" contract these domain agents claim is genuinely upheld at the
+    real client layer today, not just asserted. A test
+    (`test_a_domain_agent_node_raising_outright_propagates_rather_than_silently_dropping`)
+    already confirms, deliberately, that an agent breaking this contract
+    crashes loud rather than being silently swallowed - a settled,
+    already-tested design choice, not a gap to patch over. No code
+    changed here.
+
+- [x] **Phase 208 (EX-2e) - live retrieval precision via a batched
+  LLM-judge call, resolving the open "how should live Retrieval Eval
+  Score work" question by building the more rigorous of the 2 options
+  instead of deferring further.**
+  - **Built/verified 2026-10-17:** all 3 pipelines updated (one extra
+    judge call added to each existing asyncio.gather() alongside
+    groundedness/completeness, not sequential). 3 new direct unit tests
+    for evaluate_retrieval_relevance() (parses marked-relevant indices,
+    handles "none", returns null precision for zero chunks). All
+    pipeline-level test fixtures across 4 files updated to fake the new
+    judge call too (found and fixed a real gap: the first full-suite run
+    after this change silently made real, paid OpenAI calls from 2 test
+    files whose autouse fixtures didn't yet know about the new function -
+    caught by checking .env had a real key configured, not assumed safe).
+    Full suite green (694 passed), contract snapshots regenerated.
+  - **Spec:**
+    - **Context:** user directed autonomous progress with no further
+      waiting on open questions. This phase had 2 live options on the
+      table (sub-question-coverage approximation vs. per-chunk LLM
+      judging); picking the rigorous one (real judgment, not a heuristic)
+      and batching it into one call (not one call per chunk) to bound the
+      added cost - same tradeoff shape the project already accepted for
+      groundedness/completeness (Phase 109).
+    - **Data/API contracts:** see
+      endpoint-request-response-contracts.md's "Live retrieval_precision
+      on EvalScores" section (Finalized) - 3 new optional fields,
+      additive. Deliberately no live recall/F1 - see that section's own
+      reasoning (no way to know the total relevant-document count for an
+      arbitrary live question).
+    - **User-visible behavior:** the Retrieval Eval Score tab can show a
+      real, computed-this-call precision number for a live query, not
+      just the golden-dataset-only numbers.
+    - **Changes:** new evaluate_retrieval_relevance() in
+      golden_dataset_harness.py (one LLM call, all retrieved chunks at
+      once). Threaded into _score_live_answer() in pipeline.py,
+      orchestration_agent.py, and multi_agent_pipeline.py - a third
+      parallel judge call alongside the existing groundedness/completeness
+      ones (asyncio.gather, not sequential). EvalScores gains
+      retrieval_precision/retrieval_relevant_chunk_indices/
+      retrieval_precision_explanation.
+    - **Failure modes:** judge call failure returns precision: None, same
+      degrade-gracefully pattern evaluate_groundedness()'s own except
+      branch already uses - never raises up into the real response.
+    - **Out of scope:** live recall/F1 (see above). Caching this judge
+      call's result - the answer cache (Phase 78) already excludes any
+      live-data-dependent answer; a cacheable (KB-only) answer's retrieval
+      precision is deterministic per query+chunks, but wiring that into
+      the existing cache-eligibility logic is a separate, smaller
+      follow-up, not done here.
+    - **Open questions:** none - this phase's whole point was closing the
+      open question, not raising a new one.
+
+- [x] **Phase 209 (EX-2f) - reasoning on AgentTaskInfo, so the Planner
+  states why it routed to each agent, not just which agent.**
+  - **Built/verified 2026-10-17:** all 4 fallback/test call sites updated.
+    Full suite green (694 passed), contract snapshot regenerated.
+
+- [x] **Phase 210 (EX-2g) - frontend wiring for Phase 208/209: live
+  retrieval precision on the Retrieval Eval Score tab, Planner reasoning
+  on the Agent Flow tab. `hrb_chatbot_ui`.**
+  - **Built:** `EvalScores`/`AgentTaskInfo` frontend types updated to
+    match. Retrieval Eval Score tab's "Live (per-query) computation"
+    placeholder replaced with the real `retrieval_precision` value, which
+    chunk indices were judged relevant, and the judge's raw explanation
+    text, when present - falls back to an honest "not available" message
+    on a cache hit or no-sources answer, same pattern every other tab
+    already uses. Agent Flow tab's domain-agent rows now show the
+    Planner's real stated reasoning under each task's focus, not just the
+    focus text alone.
+  - **Verified:** `tsc --noEmit`, `npm run build`, `npm run lint` all
+    clean, zero new warnings. Not live-verified in a running browser (no
+    browser tool available this session).
+
+- [x] **Phase 211 (EX-5) - Engineering Trace tab: Prompt/Context/Loop/
+  Harness Engineering, per the user's own pasted spec item 5.
+  `hrb_chatbot_ui`.**
+  - **Built/verified 2026-10-17:** all 4 panels built as designed below.
+    `tsc --noEmit`, `npm run build`, `npm run lint` all clean. Not
+    live-verified in a running browser.
+  - **Context:** the one remaining fully-unbuilt tab from the original 7-
+    item spec. Deliberately a synthesis view, not a duplicate of the LLM
+    Context tab's raw prompt/response text - cross-references which named
+    prompt constant backed each call, how context was assembled, and
+    (honestly, not forced into a shape that doesn't fit) whether this
+    pipeline mode has a real loop at all.
+  - **Design:** 4 panels. Prompt Engineering - which real
+    `agent_prompts.py` constant backed each LLM call this turn (e.g.
+    `PLANNER_SYSTEM_PROMPT`, `REVIEWER_SYSTEM_PROMPT`, genai-rag's own
+    `RAG_PROMPT`), derived from each turn's label, not re-printing the
+    full prompt text already shown in LLM Context. Context Engineering -
+    how many chunks were retrieved, from how many distinct source
+    documents, and which real function assembled them
+    (`build_context_from_chunks`/`build_context_from_agent_results`).
+    Loop Engineering - single-agentic-rag's real iteration count (from
+    the ReAct Flow data); multi-agentic-rag and genai-rag state plainly
+    they have no loop (one-shot fan-out / single retrieve+generate call),
+    not forced into a loop-shaped answer that doesn't apply. Harness
+    Engineering - static, per-pipeline-mode text naming the real
+    orchestration mechanism (LangGraph `StateGraph`/7 nodes for
+    multi-agentic-rag, a plain Python `for` loop for single-agentic-rag,
+    a direct function call for genai-rag).
+  - **Out of scope:** per-call token counts in this tab (genai-rag/single-
+    agentic-rag already report aggregate `token_usage`; per-turn token
+    breakdown isn't captured anywhere today, a separate gap, not solved
+    here).
+
+- [x] **Phase 212 (EX-2h) - the judge's raw prompt, not just its response,
+  on EvalScores - closes the "not done this phase" gap flagged twice
+  already.**
+  - **Built/verified 2026-10-17:** `evaluate_groundedness()`/
+    `evaluate_completeness()`/`evaluate_retrieval_relevance()` each now
+    return their own already-built `prompt` local variable (additive key,
+    both the success and except branches - the prompt is built before the
+    real call, so it's available either way). `EvalScores` gains
+    `groundedness_prompt`/`completeness_prompt`/`retrieval_precision_prompt`,
+    all `str | None`, additive. Threaded through all 3 pipelines'
+    `_score_live_answer()`. Full suite green, contract snapshots
+    regenerated, eval-judge test fakes across 4 files updated to include
+    `"prompt": "fake"` (checked first this time, not found out the hard
+    way like Phase 208).
+
+- [x] **Phase 213 (EX-2i) - real bug: live retrieval precision could exceed
+  1.0. Caught by the user reading the live UI, not by any test.**
+  - **Context:** screenshot showed "Precision: 2.00 - chunk(s) 1, 3, 2, 5
+    judged relevant" against only 2 real retrieved chunks - mathematically
+    impossible (precision = relevant/retrieved can never exceed 1.0).
+    `evaluate_retrieval_relevance()` parsed the judge's free-text
+    "Relevant: ..." line into indices with no validation at all - the
+    judge (an LLM, not constrained/structured output) hallucinated chunk
+    numbers 3 and 5, which don't exist among only 2 real chunks, and the
+    code trusted them blindly.
+  - **Fix:** clamp every parsed index to `1 <= index <= len(chunk_texts)`
+    and dedupe via a set before computing precision -
+    `golden_dataset_harness.py`'s `evaluate_retrieval_relevance()`.
+  - **Verified:** 2 new direct unit tests (a hallucinated out-of-range
+    index gets dropped; a repeated index gets deduped, not double-counted)
+    plus the full suite. No frontend change needed - the bug was entirely
+    in the backend's own precision math.
+
+- [x] **Phase 214 (EX-2j) - Explainability panel design consolidation:
+  too many panel background colors, inconsistent table styling, modal
+  resized visibly between tabs, verbose text. `hrb_chatbot_ui`.**
+  - **Context:** direct user feedback after live review, screenshots
+    attached - the panel grew from 3 sections to 8 tabs across this
+    session without revisiting the visual system each new panel reused,
+    which multiplied into real visual noise (every panel-info/-success/
+    -warning use fills its WHOLE background with a tinted color - fine at
+    3 panels, noisy at the ~24 panel instances this modal now has).
+  - **Fix, scoped to this modal only** (`.panel-info`/`-success`/
+    `-warning` are shared with `AdminConversationModal`/
+    `LeaveReviewModal`/`UnpaidLeaveModal`/`MyLeaveRequestsPage` -
+    confirmed by grep before touching anything, not assumed safe to
+    change globally): added `.explainability-card`-scoped CSS overrides
+    so every panel in this modal shares one neutral background; color
+    (left border + eyebrow label) is reserved for an actual verdict
+    (groundedness/completeness pass-fail), not applied to purely
+    informational panels. New `.explainability-data-table` class for the
+    4 real multi-column tables (Agent Flow, ReAct Flow, Engineering
+    Trace's Prompt Engineering, Tech Stack) - these were reusing
+    `.kb-chunk-grid`, a fixed-140px 2-column label:value layout built for
+    Citations' chunk detail, never designed for a wide multi-column table.
+    `.explainability-tab-panel` gets `min-height: 420px`, same fix
+    Admin Dashboard already proved out (Phase 175) for the same "short
+    tab visibly shrinks the whole page" problem. Retrieval Eval Score tab
+    rewritten - led with the live number (what's actually relevant per
+    message) instead of 3 paragraphs of golden-dataset narrative first;
+    Response Generation Eval Score's "how calculated" section condensed
+    from 3 bullets to 2.
+  - **Verified:** `tsc --noEmit`, `npm run build`, `npm run lint` all
+    clean. Not live-verified in a running browser.
+  - **Spec:**
+    - **Context:** item 3 of the user's own pasted spec ("show which
+      tools the LLM selected and why") - PlannerTask only ever captured
+      {agent, focus}, confirmed by reading planner_agent.py directly; no
+      reasoning field existed anywhere in the model or prompt.
+    - **Data/API contracts:** see endpoint-request-response-contracts.md's
+      "reasoning on AgentTaskInfo" section (Finalized) - one new field,
+      reasoning: str.
+    - **User-visible behavior:** the Agent Flow tab can show the Planner's
+      actual stated reason for each dispatch, not just the agent name.
+    - **Changes:** PlannerTask (planner_agent.py) gains reasoning: str;
+      PLANNER_SYSTEM_PROMPT (agent_prompts.py) asks for it per task.
+      plan()'s fallback branch (parse failure) gets a fixed, honest
+      reasoning string identifying itself as a fallback, not a real
+      Planner decision. AgentTaskInfo (models/multi_agentic_rag.py) gains
+      the matching field.
+    - **Failure modes:** N/A - a model output field, not a new failure
+      path.
+    - **Out of scope:** backfilling reasoning onto the 2 existing golden-
+      dataset multi-agent cases' own expectations - expected_agents
+      (Phase 200) stays agent-only, no reasoning ground truth to check
+      against.
+    - **Open questions:** none.

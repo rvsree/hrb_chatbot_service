@@ -18,7 +18,9 @@ def _body(query: str = "What's the 401k match?", user_profile=None) -> dict:
     return {"user_profile": EMPLOYEE_USER_PROFILE if user_profile is None else user_profile, "query": query}
 
 
-async def _fake_run_agent(query, employee_id, max_iterations, enable_conversation_memory=False, conversation_id=None):
+async def _fake_run_agent(
+    query, employee_id, max_iterations, enable_conversation_memory=False, conversation_id=None, request_id=None
+):
     return {
         "answer": "The match is 100% up to 5%.",
         "tools_used": [
@@ -60,6 +62,7 @@ def test_well_formed_query_returns_answer_and_tools_used(monkeypatch):
             "tool_type": "vector_db",
             "latency_ms": 120.5,
             "success": True,
+            "iteration": None,
         }
     ]
     assert body["iterations"] == 2
@@ -68,7 +71,9 @@ def test_well_formed_query_returns_answer_and_tools_used(monkeypatch):
 def test_guardrail_blocked_input_is_422(monkeypatch):
     # Phase 98: previously impossible - run_agent() never raised this
     # because orchestration_agent.py never ran any guardrail.
-    async def _blocked(query, employee_id, max_iterations, enable_conversation_memory=False, conversation_id=None):
+    async def _blocked(
+        query, employee_id, max_iterations, enable_conversation_memory=False, conversation_id=None, request_id=None
+    ):
         raise GuardrailBlockedError("This request was blocked by a safety check.")
 
     monkeypatch.setattr(query_agent, "run_agent", _blocked)
