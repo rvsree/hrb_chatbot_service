@@ -36,12 +36,17 @@ def _fake_eval_judges(monkeypatch):
     monkeypatch.setattr(
         pipeline,
         "evaluate_groundedness",
-        lambda answer, context_texts: {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake"},
+        lambda answer, context_texts: {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake", "prompt": "fake"},
     )
     monkeypatch.setattr(
         pipeline,
         "evaluate_completeness",
-        lambda query, answer, reference_answer=None: {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake"},
+        lambda query, answer, reference_answer=None: {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake"},
+    )
+    monkeypatch.setattr(
+        pipeline,
+        "evaluate_retrieval_relevance",
+        lambda query, chunk_texts: {"precision": 1.0, "relevant_chunk_indices": [1], "explanation": "fake", "prompt": "fake"},
     )
 
 
@@ -88,7 +93,7 @@ def _fake_retrieve_chunks_capturing(captured, chunks=None):
 
 
 def _fake_generate_answer_capturing(captured):
-    def _fake(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None):
+    def _fake(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None, request_id=None):
         captured["temperature"] = temperature
         return {"answer": "fake answer", "model_used": "gpt-4.1-mini"}
 
@@ -303,7 +308,7 @@ async def test_an_existing_conversation_id_is_passed_to_generate_answer_as_chat_
         _fake_retrieve_chunks_capturing(captured, chunks=[{"filename": "x", "chunk_index": 0, "text": "y"}]),
     )
 
-    def _fake_generate_answer(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None):
+    def _fake_generate_answer(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None, request_id=None):
         captured["chat_history"] = chat_history
         return {"answer": "fake answer", "model_used": "gpt-4.1-mini"}
 
@@ -326,7 +331,7 @@ async def test_a_cache_hit_skips_retrieval_and_generation_entirely(monkeypatch):
         call_count["retrieve"] += 1
         return ([{"filename": "x", "chunk_index": 0, "text": "y"}], None)
 
-    def _counting_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None):
+    def _counting_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None, request_id=None):
         call_count["generate"] += 1
         return {"answer": "fake answer", "model_used": "gpt-4.1-mini"}
 
@@ -352,7 +357,7 @@ async def test_two_fresh_memory_enabled_conversations_can_share_a_cache_hit(monk
     async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
         return ([{"filename": "x", "chunk_index": 0, "text": "y"}], None)
 
-    def _counting_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None):
+    def _counting_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None, request_id=None):
         call_count["generate"] += 1
         return {"answer": f"answer #{call_count['generate']}", "model_used": "gpt-4.1-mini"}
 
@@ -385,7 +390,7 @@ async def test_a_repeated_question_mid_conversation_is_now_cache_served(monkeypa
     async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
         return ([{"filename": "x", "chunk_index": 0, "text": "y"}], None)
 
-    def _counting_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None):
+    def _counting_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None, request_id=None):
         call_count["generate"] += 1
         return {"answer": f"answer #{call_count['generate']}", "model_used": "gpt-4.1-mini"}
 
@@ -421,7 +426,7 @@ async def test_a_different_employee_in_a_different_conversation_shares_the_cache
     async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
         return ([{"filename": "x", "chunk_index": 0, "text": "y"}], None)
 
-    def _counting_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None):
+    def _counting_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None, request_id=None):
         call_count["generate"] += 1
         return {"answer": f"answer #{call_count['generate']}", "model_used": "gpt-4.1-mini"}
 
@@ -449,7 +454,7 @@ async def test_live_generation_reports_real_explainability_fields(monkeypatch):
     async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
         return ([{"filename": "x", "chunk_index": 0, "text": "y"}], None)
 
-    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None):
+    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None, request_id=None):
         return {
             "answer": "fake answer",
             "model_used": "gpt-4.1-mini",
@@ -479,7 +484,7 @@ async def test_cache_hit_reports_zero_llm_calls_and_null_token_usage(monkeypatch
     async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
         return ([{"filename": "x", "chunk_index": 0, "text": "y"}], None)
 
-    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None):
+    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None, request_id=None):
         return {
             "answer": "fake answer",
             "model_used": "gpt-4.1-mini",
@@ -508,7 +513,7 @@ async def test_live_generation_with_sources_includes_eval_scores(monkeypatch):
     async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
         return ([{"filename": "x", "chunk_index": 0, "text": "y"}], None)
 
-    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None):
+    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None, request_id=None):
         return {"answer": "fake answer", "model_used": "gpt-4.1-mini", "token_usage": None}
 
     monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve)
@@ -519,8 +524,16 @@ async def test_live_generation_with_sources_includes_eval_scores(monkeypatch):
     assert result["eval_scores"] == {
         "groundedness": 0.9,
         "groundedness_verdict": "GROUNDED",
+        "groundedness_explanation": "fake",
+        "groundedness_prompt": "fake",
         "completeness": 0.9,
         "completeness_verdict": "COMPLETE",
+        "completeness_explanation": "fake",
+        "completeness_prompt": "fake",
+        "retrieval_precision": 1.0,
+        "retrieval_relevant_chunk_indices": [1],
+        "retrieval_precision_explanation": "fake",
+        "retrieval_precision_prompt": "fake",
     }
     assert result["latency_ms"]["eval"] is not None
 
@@ -532,7 +545,7 @@ async def test_live_generation_with_no_sources_skips_eval_scoring(monkeypatch):
     async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
         return ([], None)
 
-    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None):
+    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None, request_id=None):
         return {"answer": "I don't know.", "model_used": "gpt-4.1-mini", "token_usage": None}
 
     monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve)
@@ -553,11 +566,11 @@ async def test_cache_hit_reuses_eval_scores_without_rejudging(monkeypatch):
 
     def _counting_groundedness(answer, context_texts):
         judge_call_count["groundedness"] += 1
-        return {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake"}
+        return {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake", "prompt": "fake"}
 
     def _counting_completeness(query, answer, reference_answer=None):
         judge_call_count["completeness"] += 1
-        return {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake"}
+        return {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake"}
 
     monkeypatch.setattr(pipeline, "evaluate_groundedness", _counting_groundedness)
     monkeypatch.setattr(pipeline, "evaluate_completeness", _counting_completeness)
@@ -565,7 +578,7 @@ async def test_cache_hit_reuses_eval_scores_without_rejudging(monkeypatch):
     async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
         return ([{"filename": "x", "chunk_index": 0, "text": "y"}], None)
 
-    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None):
+    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None, request_id=None):
         return {"answer": "fake answer", "model_used": "gpt-4.1-mini", "token_usage": None}
 
     monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve)
@@ -592,7 +605,7 @@ async def test_atomic_question_behaves_exactly_like_before_decomposition(monkeyp
         call_count["retrieve"] += 1
         return ([{"filename": "x", "chunk_index": 0, "text": "y"}], None)
 
-    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None):
+    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None, request_id=None):
         call_count["generate"] += 1
         return {"answer": "single answer", "model_used": "gpt-4.1-mini"}
 
@@ -617,12 +630,12 @@ async def test_compound_kb_question_merges_two_sub_answers(monkeypatch):
     async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
         return ([{"filename": "x", "chunk_index": 0, "text": f"chunk for {query}"}], None)
 
-    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None):
+    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None, request_id=None):
         if "dental" in query:
             return {"answer": "Dental is MetLife PPO.", "model_used": "gpt-4.1-mini"}
         return {"answer": "Vision is VSP.", "model_used": "gpt-4.1-mini"}
 
-    async def _fake_review(query, agent_results):
+    async def _fake_review(query, agent_results, request_id=None):
         assert len(agent_results) == 2
         assert agent_results[0]["result"] == "Dental is MetLife PPO."
         assert agent_results[1]["result"] == "Vision is VSP."
@@ -666,10 +679,10 @@ async def test_compound_kb_and_mcp_question_gets_both_halves_right(monkeypatch):
     async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
         return ([{"filename": "401k.pdf", "chunk_index": 0, "text": "100% immediately vested."}], None)
 
-    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None):
+    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None, request_id=None):
         return {"answer": "Employer match is 100% immediately vested.", "model_used": "gpt-4.1-mini"}
 
-    async def _fake_review(query, agent_results):
+    async def _fake_review(query, agent_results, request_id=None):
         assert {r["result"] for r in agent_results} == {
             "Employer match is 100% immediately vested.",
             "You have 12 PTO days left.",
@@ -719,11 +732,11 @@ async def test_a_compound_kb_and_mcp_answer_is_never_cached(monkeypatch):
     async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
         return ([{"filename": "401k.pdf", "chunk_index": 0, "text": "100% immediately vested."}], None)
 
-    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None):
+    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None, request_id=None):
         call_count["generate"] += 1
         return {"answer": "Employer match is 100% immediately vested.", "model_used": "gpt-4.1-mini"}
 
-    async def _fake_review(query, agent_results):
+    async def _fake_review(query, agent_results, request_id=None):
         return "Employer match is 100% immediately vested. You have 12 PTO days left.", {"label": "reviewer", "system_prompt": "fake reviewer system prompt", "human_message": "fake reviewer human message", "chat_history": [], "response": "fake"}
 
     monkeypatch.setattr(pipeline, "decompose", _fake_decompose_compound)

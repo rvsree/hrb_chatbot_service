@@ -30,6 +30,9 @@ async def test_same_domain_compound_question_covers_both_topics():
 
     result = await run_multi_agent(case["query"], employee_id=EVAL_EMPLOYEE_ID)
 
+    agents_used = {task["agent"] for task in result["tasks"]}
+    assert set(case["expected_agents"]) <= agents_used
+
     answer_lower = result["answer"].lower()
     assert "100%" in result["answer"] or "5%" in result["answer"]
     assert "$7,500" in result["answer"]
@@ -42,6 +45,5 @@ async def test_cross_domain_question_routes_to_both_agents_and_covers_the_kb_hal
     result = await run_multi_agent(case["query"], employee_id=EVAL_EMPLOYEE_ID)
 
     agents_used = {task["agent"] for task in result["tasks"]}
-    assert "vector_kb_agent" in agents_used
-    assert "lms_ops_agent" in agents_used
+    assert set(case["expected_agents"]) <= agents_used
     assert "16" in result["answer"] and "week" in result["answer"].lower()

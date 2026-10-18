@@ -425,6 +425,135 @@ Not rewritten here (stale example, not this phase's scope) - see
 `MultiAgenticRagResponse` in `models/multi_agentic_rag.py` for the real,
 current shape.
 
+## `request_id` on every query response (EX-1, Explainability overhaul) — Finalized
+
+Implemented as proposed below, including the single-id framing - raised as
+an open question, not separately re-confirmed in words before
+implementation, but no objection was raised either; flagging this
+explicitly rather than treating silence as confirmation. One new field on
+the shared `ExplainabilityInfo` model
+(`models/rag.py`) - `RagQueryResponse`, `AgenticRagResponse`, and
+`MultiAgenticRagResponse` all build their `explainability_info` from this
+one model already, so adding the field there puts it in all three query
+responses identically, with no per-pipeline special-casing:
+
+```json
+"explainability_info": {
+  "request_id": "a1b2c3d4-5e6f-7890-abcd-ef1234567890",
+  "served_from_cache": false,
+  "llm_call_count": 1,
+  "...": "...existing fields, unchanged"
+}
+```
+
+- **Type:** `str` (UUID4, generated server-side). Always present, never
+  null - including on a cache hit or an MCP fast-path answer. This is
+  deliberately different from `token_usage`/`llm_context`, which go to
+  `null`/`0` on those same paths - `request_id` identifies the HTTP
+  request/response pair itself, not the generation work done to answer it,
+  so it doesn't follow that pattern.
+- **One id, not two:** proposing a single `request_id`, reused as the
+  correlating value in that request's own backend log lines, in the
+  (new, nullable) `request_metrics.request_id` column, and as LangSmith
+  run metadata - not a separate `response_id`. A synchronous HTTP call has
+  exactly one request and one response; nothing a second, distinct value
+  would identify that this one doesn't already cover. Flagging this
+  explicitly rather than silently deciding it, since this phase's own
+  framing said "request_id/response_id" - confirm before implementation.
+- **Not added this phase:** a lookup endpoint (paste a `request_id`, see
+  everything about that call) - that's the later Engineering Trace tab
+  (EX-8), not this one.
+- **Where generated, in practice:** centralized in
+  `common/observability/response_metrics.py`'s `time_and_log()` - every
+  one of the 3 query routes already funnels through it (Phase 184), so
+  generating there once covers cache hits and live calls uniformly without
+  each pipeline's own early-return cache path needing special-casing. This
+  is a cleaner realization of the same intent than the Design section
+  below originally named (`run_guarded_pipeline()`/`run_multi_agent()`
+  each generating their own) - found during implementation, not a change
+  of goal.
+
+## `groundedness_explanation`/`completeness_explanation` on `EvalScores` (Phase 202, Explainability overhaul) — Finalized
+
+User asked for a "Response Generation Eval Score" tab showing *how* each
+score was calculated, not just the number. `evaluate_groundedness()`/
+`evaluate_completeness()` (`golden_dataset_harness.py`) already return the
+judge LLM's full raw output (`{"score", "verdict", "explanation"}`) - the
+`explanation` field is the complete "Score: X\nReasoning: ..." text the
+judge produced - but all 3 pipelines' own `eval_scores = {...}` dict
+construction (`pipeline.py`, `orchestration_agent.py`,
+`multi_agent_pipeline.py`) already drops it, keeping only `score`/`verdict`.
+Two new optional fields on the shared `EvalScores` model (`models/rag.py`),
+additive, same every-pipeline-shares-one-model pattern as
+`ExplainabilityInfo.request_id`:
+
+```json
+"eval_scores": {
+  "groundedness": 0.9,
+  "groundedness_verdict": "GROUNDED",
+  "groundedness_explanation": "Score: 9\nReasoning: The answer's figures match the retrieved context exactly.",
+  "completeness": 0.9,
+  "completeness_verdict": "COMPLETE",
+  "completeness_explanation": "Score: 9\nReasoning: Both parts of the question are addressed."
+}
+```
+
+`str | None` - null only on the pre-existing paths where `eval_scores`
+itself is already null (no retrieved context to judge against). Shown
+verbatim in the new tab, not re-parsed - it's already the judge's own
+"Score: X / Reasoning: ..." text.
+
+## Live `retrieval_precision` on `EvalScores` (Phase 208, Explainability overhaul) — Finalized
+
+Resolves the open design question raised repeatedly this session (sub-
+question-coverage approximation vs. per-chunk LLM judging) by building the
+more rigorous option: one new LLM judge call per live response (when
+`sources` is non-empty), batched into a single call across every retrieved
+chunk, asking which chunks actually help answer the question.
+`precision = (chunks judged relevant) / (chunks retrieved)` - real,
+computed live, not an estimate.
+
+```json
+"eval_scores": {
+  "...": "...existing groundedness/completeness fields, unchanged",
+  "retrieval_precision": 0.6,
+  "retrieval_relevant_chunk_indices": [1, 3],
+  "retrieval_precision_explanation": "Relevant: 1, 3\nReasoning: Chunks 1 and 3 cover the match percentage and vesting; chunk 2 is about an unrelated tuition benefit."
+}
+```
+
+- **Deliberately no live `recall`/`f1`:** recall needs the total count of
+  relevant documents that exist for the question, which is unknowable for
+  an arbitrary live question outside the golden dataset (only there is
+  the "1 relevant document" ground truth known in advance). Returning a
+  fabricated recall number would be worse than returning none - the
+  golden-dataset-only recall/F1 (`scripts/run_release_gate.py`) stays the
+  only source for those two.
+- **Type:** `retrieval_precision: float | None`,
+  `retrieval_relevant_chunk_indices: list[int]`,
+  `retrieval_precision_explanation: str | None`. Null/empty on the same
+  paths `groundedness`/`completeness` are already null on (no sources, a
+  cache hit, an MCP fast-path answer).
+
+## `reasoning` on `AgentTaskInfo` (Phase 209, Explainability overhaul) — Finalized
+
+User asked (item 3 of the pasted spec) to show "which tools the LLM
+selected and why" for each query. The Planner already decides *which*
+domain agent handles each part of a question (`PlannerTask.agent`/
+`.focus`) but was never asked to say *why* - one new field, additive:
+
+```json
+"tasks": [
+  { "agent": "vector_kb_agent", "focus": "401k match percentage", "reasoning": "This is a policy/benefits document question, which vector_kb_agent handles." }
+]
+```
+
+`reasoning: str` - always present once a task exists (the Planner's own
+prompt now asks for it on every task, including the single-task case).
+The one hardcoded fallback (`PlannerOutput` parse failure ->
+`vector_kb_agent` with the raw query as focus) gets a fixed, honest
+`reasoning` string noting it's a fallback, not a real Planner decision.
+
 ## GET /v1/genai-rag/ingest-document/documents, GET .../{id} — Finalized
 
 Identity: query params (`?employee_id=...&full_name=...&role=...`), not a

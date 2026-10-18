@@ -3,18 +3,19 @@
     "description": "Golden dataset for evaluating POST /v1/genai-rag-retrieval/query. Every expected_answer and expected_keywords entry was pulled directly from the real text of the PDFs in resources/kb_docs/ - none is invented. This is a one-time Claude-Code-built override of the hand-written Phase 8 boundary (evaluations/golden dataset), matching how Phase 4 (chunking/embedding/indexing) was overridden earlier - explicitly requested, not a new precedent.",
     "how_to_grade": "For each case: run POST /v1/genai-rag-retrieval/query with `query` (and a user_profile in the body, per Phase 45's identity-in-payload contract), then check (1) retrieval - does at least one of response.retrieval_info.sources[].document_id trace back to expected_source_document? (2) groundedness - does response.answer_info.answer contain or closely paraphrase the facts in expected_answer / expected_keywords? (3) for out_of_scope/unanswerable/adversarial cases, does the answer decline or hedge rather than fabricate a number?",
     "source_documents": {
-      "401k.pdf": "JPMC Empower 401(k) Savings Plan.pdf",
-      "healthcare.pdf": "JPMC Healthcare Benefits.pdf",
-      "tuition.pdf": "JPMC Guild Tuition Assistance.pdf",
-      "paid_leave.pdf": "JPMC Paid TimeOff.pdf",
-      "unpaid_leave.pdf": "JPMC Unpaid TimeOff.pdf",
-      "disability.pdf": "JPMC Sedgwick Unpaid Timeoff.pdf"
+      "401k.pdf": "AmazingBank_Empower_401k_Savings_Plan.pdf",
+      "healthcare.pdf": "AmazingBank_Healthcare_Benefits.pdf",
+      "tuition.pdf": "AmazingBank_Guild_Tuition_Assistance.pdf",
+      "paid_leave.pdf": "AmazingBank_Paid_TimeOff.pdf",
+      "unpaid_leave.pdf": "AmazingBank_Unpaid_TimeOff.pdf",
+      "disability.pdf": "AmazingBank_Sedgwick_Unpaid_Timeoff.pdf"
     },
     "generated": "2026-09-08",
     "case_count": 26,
     "_case_count_corrected_2026_09_21": "was 22, file actually has 23 cases - fixed, not just the number: category breakdown is 18 happy, 1 happy_multi_document, 2 unhappy_out_of_scope, 1 unhappy_unanswerable, 1 unhappy_adversarial",
     "_multi_agent_cases_added_2026_10_04": "Phase 67 - 2 new cases for multi-agentic-rag (not genai-rag): happy_multi_topic_single_domain (same-domain compound, tests Planner splitting within vector_kb_agent) and happy_multi_domain_agent (cross-domain, KB + live leave-balance data). Both also checked by a dedicated live multi-agent test, not just this file's own exact-match scoring - see each case's own notes field.",
-    "_call_type_added_2026_10_04": "Phase 73 - every case now carries call_type (\"agent_call\" or \"llm_call\"), reflecting whether genai-rag's own try_route_to_mcp() bypass (Phase 49) would fire for that query's text, verified programmatically against the real is_leave_balance_query()/is_leave_history_query() functions, not eyeballed. Checked by tests/hrb_chatbot/ai/rag_pipeline/evaluations/test_routing_type_golden_cases.py, which runs in the default suite (not -m eval) since confirming the bypass needs no LLM call."
+    "_call_type_added_2026_10_04": "Phase 73 - every case now carries call_type (\"agent_call\" or \"llm_call\"), reflecting whether genai-rag's own try_route_to_mcp() bypass (Phase 49) would fire for that query's text, verified programmatically against the real is_leave_balance_query()/is_leave_history_query() functions, not eyeballed. Checked by tests/hrb_chatbot/ai/rag_pipeline/evaluations/test_routing_type_golden_cases.py, which runs in the default suite (not -m eval) since confirming the bypass needs no LLM call.",
+    "_source_documents_fixed_2026_10_17": "Phase 206 - found by actually running scripts.run_release_gate live, not assumed: every one of 25 scorable cases reported precision/recall/f1 == 0.0 (BLOCK verdict), while groundedness/completeness scored normally varied (0.1-1.0) - retrieval itself was fine, only the metric comparison was broken. Root cause: resources/kb_docs/ was re-ingested under renamed files (JPMC ... -> AmazingBank_... ) on 2026-10-14 (old files moved to resources/kb_docs/archived/), but this mapping was never updated to match - every real retrieved chunk's filename could never equal the stale 'JPMC ...' value this mapping produced. Fixed here; re-run scripts.run_release_gate after this fix to confirm recall returns to ~1.0."
   },
   "cases": [
     {
@@ -333,7 +334,8 @@
         "$7,500"
       ],
       "notes": "Phase 67 (multi-agentic-rag) - one question spanning two different KB documents/topics (401k.pdf + tuition.pdf, both already covered individually by 401k-01/tuition-01). expected_source_document names only the first topic (401k.pdf) because score_case()'s retrieval metrics compare against a single id, not a list - this case's real purpose is testing whether the Planner splits a same-domain compound question into two focused vector_kb_agent tasks (or covers both well in one), which is checked directly by tests/hrb_chatbot/ai/agents/workflow_agents/test_multi_agent_pipeline_golden_cases.py, not by this file's own exact-match scoring.",
-      "call_type": "llm_call"
+      "call_type": "llm_call",
+      "expected_agents": ["vector_kb_agent"]
     },
     {
       "id": "multi-agent-cross-domain-01",
@@ -345,6 +347,7 @@
         "16 weeks",
         "paid"
       ],
+      "expected_agents": ["vector_kb_agent", "lms_ops_agent"],
       "notes": "Phase 67 (multi-agentic-rag) - one KB question (gradeable) + one live-data question (the caller's own leave balance, via lms_ops_agent/MCP - not stable/known ahead of time, so not reduced to a fixed expected value). expected_answer/expected_keywords cover only the KB half; this case is scored by this file's harness for that half only. The live-balance half is checked for routing/coherence (did the Planner dispatch both agents, did the Reviewer produce one answer covering both) by tests/hrb_chatbot/ai/agents/workflow_agents/test_multi_agent_pipeline_golden_cases.py, not by exact-match scoring here. Phase 73 finding, fixed by Phase 151: this query's text also matches genai-rag's own try_route_to_mcp() keyword bypass ('leave balance') - run through genai-rag's pipeline.answer_query() directly (not multi-agentic-rag), the whole compound question used to be hijacked to the MCP-only answer, losing the parental-leave-policy half entirely. call_type changed from 'agent_call' to 'mixed_call' here because that's what this case actually is - neither a pure MCP bypass nor a pure LLM call - the 'agent_call' label was encoding the bug (full MCP bypass) as the expected outcome, not describing genuinely correct behavior. Phase 151 removed genai-rag's top-level keyword shortcut entirely, so this case no longer bypasses the LLM - excluded from both test_agent_call_cases_bypass_the_llm_entirely (would wrongly expect full bypass) and test_llm_call_cases_do_not_accidentally_match_mcp_keywords (this query genuinely does match MCP keywords, just no longer exclusively) by using a call_type neither test's loop filters for.",
       "call_type": "mixed_call"
     },

@@ -27,3 +27,6 @@ class ToolCallInfo(BaseModel):
     )
     latency_ms: float | None = Field(None, description="Phase 126 - how long this one call took, if measured.")
     success: bool = Field(True, description="Phase 126 - false if this call returned an 'Error: ...' result.")
+    iteration: int | None = Field(
+        None, description="Phase 206 - which ReAct iteration (1-indexed) made this call. Single-agentic-rag only."
+    )

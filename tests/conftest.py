@@ -883,7 +883,7 @@ class FakeRequestMetricsStore:
     def __init__(self):
         self.logged_calls: list[dict] = []
 
-    async def log_request(self, endpoint, pipeline, token_count, latency_ms, status, error_code=None):
+    async def log_request(self, endpoint, pipeline, token_count, latency_ms, status, error_code=None, request_id=None):
         self.logged_calls.append(
             {
                 "endpoint": endpoint,
@@ -892,6 +892,7 @@ class FakeRequestMetricsStore:
                 "latency_ms": latency_ms,
                 "status": status,
                 "error_code": error_code,
+                "request_id": request_id,
             }
         )
 

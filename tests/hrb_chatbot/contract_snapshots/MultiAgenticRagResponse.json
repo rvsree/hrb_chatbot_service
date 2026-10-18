@@ -11,11 +11,17 @@
           "description": "What the router asked this sub-agent to do.",
           "title": "Focus",
           "type": "string"
+        },
+        "reasoning": {
+          "description": "Phase 209 - the Planner's own stated reason for routing this part of the question to this agent.",
+          "title": "Reasoning",
+          "type": "string"
         }
       },
       "required": [
         "agent",
-        "focus"
+        "focus",
+        "reasoning"
       ],
       "title": "AgentTaskInfo",
       "type": "object"
@@ -52,6 +58,32 @@
           "title": "Groundedness Verdict",
           "type": "string"
         },
+        "groundedness_explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 202 - the judge LLM's raw 'Score: X / Reasoning: ...' response, verbatim.",
+          "title": "Groundedness Explanation"
+        },
+        "groundedness_prompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 212 - the exact prompt sent to the groundedness judge.",
+          "title": "Groundedness Prompt"
+        },
         "completeness": {
           "description": "Does the answer fully address the question? 0.0-1.0.",
           "title": "Completeness",
@@ -61,6 +93,79 @@
           "description": "COMPLETE (>=0.7), PARTIAL (>=0.4), or INCOMPLETE.",
           "title": "Completeness Verdict",
           "type": "string"
+        },
+        "completeness_explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 202 - the judge LLM's raw 'Score: X / Reasoning: ...' response, verbatim.",
+          "title": "Completeness Explanation"
+        },
+        "completeness_prompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 212 - the exact prompt sent to the completeness judge.",
+          "title": "Completeness Prompt"
+        },
+        "retrieval_precision": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 208 - live, computed-this-call: (chunks an LLM judge found relevant) / (chunks retrieved). No live recall/F1 - see field below.",
+          "title": "Retrieval Precision"
+        },
+        "retrieval_relevant_chunk_indices": {
+          "description": "Phase 208 - 1-indexed positions (within this call's retrieved chunks) the judge marked relevant.",
+          "items": {
+            "type": "integer"
+          },
+          "title": "Retrieval Relevant Chunk Indices",
+          "type": "array"
+        },
+        "retrieval_precision_explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 208 - the judge LLM's raw 'Relevant: ... / Reasoning: ...' response, verbatim.",
+          "title": "Retrieval Precision Explanation"
+        },
+        "retrieval_precision_prompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 212 - the exact prompt sent to the retrieval-relevance judge.",
+          "title": "Retrieval Precision Prompt"
         }
       },
       "required": [
@@ -75,6 +180,11 @@
     "ExplainabilityInfo": {
       "description": "Phase 107/109 - real latency/token/cache-vs-live/eval numbers,\ngenai-rag only. Dollar cost is deliberately excluded (see BACKLOG.md).",
       "properties": {
+        "request_id": {
+          "description": "Phase 201 - a UUID4 identifying this HTTP request/response pair, present on every call including cache hits. Correlates this response with backend logs, the request_metrics table, and (when LangSmith tracing is on) that call's trace metadata.",
+          "title": "Request Id",
+          "type": "string"
+        },
         "served_from_cache": {
           "description": "True if this answer came from the answer cache, not a live retrieval+generation call.",
           "title": "Served From Cache",
@@ -152,6 +262,7 @@
         }
       },
       "required": [
+        "request_id",
         "served_from_cache",
         "llm_call_count",
         "latency_ms"
@@ -253,6 +364,19 @@
           "description": "e.g. 'answer' (single question) or the sub-question text (decomposed).",
           "title": "Label",
           "type": "string"
+        },
+        "latency_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 205 - wall-clock time of this one real LLM call, not the whole request.",
+          "title": "Latency Ms"
         },
         "system_prompt": {
           "anyOf": [
@@ -440,6 +564,19 @@
           "description": "Phase 126 - false if this call returned an 'Error: ...' result.",
           "title": "Success",
           "type": "boolean"
+        },
+        "iteration": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 206 - which ReAct iteration (1-indexed) made this call. Single-agentic-rag only.",
+          "title": "Iteration"
         }
       },
       "required": [
@@ -495,7 +632,7 @@
       "type": "array"
     },
     "iterations": {
-      "description": "Total reasoning rounds across every sub-agent.",
+      "description": "How many domain agents the Planner dispatched to for this query - a one-shot fan-out, not a reasoning-round count (multi-agentic-rag has no retry loop, unlike single-agentic-rag's own iterations field).",
       "title": "Iterations",
       "type": "integer"
     },

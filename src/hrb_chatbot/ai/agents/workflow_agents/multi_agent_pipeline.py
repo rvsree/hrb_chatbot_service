@@ -23,7 +23,11 @@ from src.hrb_chatbot.ai.pre_processing import conversation_memory
 from src.hrb_chatbot.ai.pre_processing.guardrails_input import check_input
 from src.hrb_chatbot.ai.pre_processing.query_normalize import normalize_query
 from src.hrb_chatbot.ai.rag_core.tool_classification import classify_tool
-from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import evaluate_completeness, evaluate_groundedness
+from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import (
+    evaluate_completeness,
+    evaluate_groundedness,
+    evaluate_retrieval_relevance,
+)
 from src.hrb_chatbot.ai.rag_pipeline.response_generation.guardrails_output import check_output
 from src.hrb_chatbot.common.clients.cache_client.answer_cache import build_cache_key
 from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
@@ -49,15 +53,24 @@ async def _score_live_answer(query: str, answer: str, context_texts: list[str]) 
         return None, None
 
     eval_started_at = time.perf_counter()
-    groundedness, completeness = await asyncio.gather(
+    groundedness, completeness, retrieval = await asyncio.gather(
         asyncio.to_thread(evaluate_groundedness, answer, context_texts),
         asyncio.to_thread(evaluate_completeness, query, answer),
+        asyncio.to_thread(evaluate_retrieval_relevance, query, context_texts),
     )
     eval_scores = {
         "groundedness": groundedness["score"],
         "groundedness_verdict": groundedness["verdict"],
+        "groundedness_explanation": groundedness["explanation"],
+        "groundedness_prompt": groundedness["prompt"],
         "completeness": completeness["score"],
         "completeness_verdict": completeness["verdict"],
+        "completeness_explanation": completeness["explanation"],
+        "completeness_prompt": completeness["prompt"],
+        "retrieval_precision": retrieval["precision"],
+        "retrieval_relevant_chunk_indices": retrieval["relevant_chunk_indices"],
+        "retrieval_precision_explanation": retrieval["explanation"],
+        "retrieval_precision_prompt": retrieval["prompt"],
     }
     return eval_scores, _elapsed_ms(eval_started_at)
 
@@ -73,6 +86,7 @@ DOMAIN_AGENT_NODES = [
 class MultiAgentState(TypedDict):
     query: str
     employee_id: str | None
+    request_id: str | None
     tasks: list[dict]
     agent_results: Annotated[list[dict], operator.add]
     answer: str
@@ -83,7 +97,7 @@ class MultiAgentState(TypedDict):
 
 
 async def planner_node(state: MultiAgentState) -> dict:
-    tasks, turn = await planner_agent.plan(state["query"])
+    tasks, turn = await planner_agent.plan(state["query"], request_id=state.get("request_id"))
     return {"tasks": tasks, "planner_turn": turn}
 
 
@@ -169,7 +183,7 @@ async def web_search_agent_node(state: dict) -> dict:
 
 
 async def reviewer_node(state: MultiAgentState) -> dict:
-    answer, turn = await reviewer_agent.review(state["query"], state["agent_results"])
+    answer, turn = await reviewer_agent.review(state["query"], state["agent_results"], request_id=state.get("request_id"))
     follow_up_questions = (
         await reviewer_agent.generate_follow_ups(state["query"], answer) if state["agent_results"] else []
     )
@@ -210,6 +224,7 @@ async def run_multi_agent(
     employee_id: str | None,
     enable_conversation_memory: bool = False,
     conversation_id: str | None = None,
+    request_id: str | None = None,
 ) -> dict:
     """Runs the Planner -> Orchestration -> domain agents -> Reviewer graph for one query.
     Guardrails run here, same layer as genai-rag's pipeline.answer_query() - the route
@@ -256,17 +271,23 @@ async def run_multi_agent(
         return result
 
     graph = get_graph()
+    # Phase 201: request_id in both the graph's own state (so planner_node/
+    # reviewer_node can thread it to their own LLM calls) and this config -
+    # tags the whole graph run's own LangSmith trace, if tracing is on.
+    graph_config = {"metadata": {"request_id": request_id}} if request_id else None
     final_state = await graph.ainvoke(
         {
             "query": checked_query,
             "employee_id": employee_id,
+            "request_id": request_id,
             "tasks": [],
             "agent_results": [],
             "answer": "",
             "follow_up_questions": [],
             "planner_turn": None,
             "reviewer_turn": None,
-        }
+        },
+        config=graph_config,
     )
 
     answer = await check_output(checked_query, final_state["answer"])
@@ -306,12 +327,14 @@ async def run_multi_agent(
         "tools_used": tools_used,
         "agent_result_texts": agent_result_texts,
         "sources": sources,
+        # Domain agents dispatched in this one-shot fan-out, not reasoning rounds -
+        # multi-agentic-rag has no retry loop.
         "iterations": len(agent_results),
         "conversation_id": resolved_conversation_id,
         "served_from_cache": False,
-        # Planner + each dispatched domain agent + Reviewer - a real count
-        # of this run's own LLM calls, not a guess.
-        "llm_call_count": len(agent_results) + 2,
+        # Only planner_turn/reviewer_turn are real LLM calls (see the comment
+        # above `turns`) - domain agents are LLM-free, so this must not count them.
+        "llm_call_count": len(turns),
         "token_usage": None,
         "llm_context": llm_context,
         "eval_scores": eval_scores,

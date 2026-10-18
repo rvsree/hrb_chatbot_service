@@ -101,7 +101,7 @@ def test_query_longer_than_the_max_length_is_rejected():
 
 
 def test_query_at_exactly_the_max_length_is_accepted_by_validation(monkeypatch):
-    async def _fake_answer_query(params):
+    async def _fake_answer_query(params, request_id=None):
         return {
             "query": params.query,
             "answer": "fake answer",

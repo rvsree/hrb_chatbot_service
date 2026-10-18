@@ -17,7 +17,7 @@ class FakeLlm:
     def __init__(self, response):
         self._response = response
 
-    async def ainvoke(self, messages):
+    async def ainvoke(self, messages, config=None):
         return self._response
 
 
@@ -73,7 +73,7 @@ class _CapturingLlm:
         self._response = response
         self._captured_calls = captured_calls
 
-    async def ainvoke(self, messages):
+    async def ainvoke(self, messages, config=None):
         self._captured_calls.append(messages)
         return self._response
 
@@ -124,7 +124,7 @@ async def test_generate_follow_ups_parses_one_question_per_line(monkeypatch):
 
 async def test_generate_follow_ups_returns_empty_list_on_llm_failure(monkeypatch):
     class _FailingLlm:
-        async def ainvoke(self, messages):
+        async def ainvoke(self, messages, config=None):
             raise RuntimeError("LLM is down")
 
     monkeypatch.setattr(reviewer_agent, "_build_llm", lambda: _FailingLlm())
