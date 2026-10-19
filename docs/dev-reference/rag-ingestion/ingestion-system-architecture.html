@@ -1,0 +1,292 @@
+<title>RAG Ingestion System Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #0a0b10; --surface: #151926; --zone-bg: #10131b; --border: #2a2f40;
+    --text: #ebedf4; --text-muted: #9aa1b6; --text-faint: #5e6579;
+    --banner: #0a0c1a; --banner-text: #eef0fb; --banner-muted: #8890c8;
+    --pipe: #6c7cf0; --store: #2fd99f; --ext: #f5a04a; --caller: #9aa2c0;
+    --pipe-soft: #1b1e3c; --store-soft: #0d231c; --ext-soft: #2c1d10; --caller-soft: #1a1d2a;
+    --line: #545c78; --line-ext: #d98a3d; --line-alt: #4a5068;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; }
+  .display { font-family: 'Archivo', 'IBM Plex Sans', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+
+  .banner { background: var(--banner); color: var(--banner-text); padding: 20px 20px 16px; }
+  .banner-inner { max-width: 1260px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
+  .banner h1 { margin: 0; font-weight: 900; font-size: clamp(20px, 3vw, 28px); letter-spacing: -0.01em; }
+  .steps { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--banner-muted); font-style: italic; }
+  .steps b { font-style: normal; color: var(--banner-text); }
+  .steps .num {
+    display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px;
+    border: 1px solid var(--banner-muted); border-radius: 50%; font-size: 10px; margin-right: 3px; font-style: normal;
+  }
+
+  .scroller { overflow-x: auto; padding: 18px 20px 28px; }
+  .canvas { position: relative; width: 1200px; height: 1010px; margin: 0 auto; }
+
+  /* real enclosing group containers - the thing the flat column headers were missing */
+  .group {
+    position: absolute; border: 1.5px dashed var(--group-c, var(--border)); border-radius: 14px;
+    background: color-mix(in srgb, var(--group-c, var(--border)) 5%, var(--zone-bg));
+  }
+  .group .group-label {
+    position: absolute; top: -11px; left: 16px; right: 16px; background: var(--bg); padding: 0 8px 0 0;
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.03em;
+    text-transform: uppercase; color: var(--group-c, var(--text-muted)); white-space: nowrap; overflow: hidden;
+  }
+  .group .group-label .group-caption {
+    font-weight: 400; font-style: italic; text-transform: none; color: var(--text-faint); letter-spacing: normal;
+  }
+
+  .box {
+    position: absolute; border-radius: 10px; border: 1px solid var(--border); background: var(--surface);
+    padding: 9px 11px; box-shadow: 0 3px 10px rgba(0,0,0,0.35); z-index: 2;
+  }
+  .box .badge {
+    position: absolute; top: -8px; right: -8px; width: 21px; height: 21px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center; color: #0b0c10;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+  }
+  .box .badge svg { width: 12px; height: 12px; }
+  .box .name { font-weight: 700; font-size: 12.5px; line-height: 1.25; }
+  .box .detail { font-size: 10.6px; color: var(--text-muted); line-height: 1.35; margin-top: 3px; }
+  .box .ref { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; color: var(--text-faint); margin-top: 4px; }
+
+  .pipe-box { background: var(--pipe-soft); border-color: #3a3f7a; } .pipe-box .badge { background: var(--pipe); }
+  .store-box { background: var(--store-soft); border-color: #1d5c45; } .store-box .badge { background: var(--store); }
+  .ext-box { background: var(--ext-soft); border-color: #7a4b1e; border-style: dashed; } .ext-box .badge { background: var(--ext); }
+  .caller-box { background: var(--caller-soft); border-color: #3a3f52; } .caller-box .badge { background: var(--caller); }
+
+  .group-caller { --group-c: var(--caller); }
+  .group-pipe { --group-c: var(--pipe); }
+  .group-store { --group-c: var(--store); }
+  .group-ext { --group-c: var(--ext); }
+
+  .pill {
+    position: absolute; border: 1px dashed var(--border); border-radius: 999px; background: var(--surface);
+    font-size: 10.5px; color: var(--text-muted); padding: 6px 13px; display: flex; align-items: center; gap: 7px;
+    z-index: 2;
+  }
+  .pill svg { width: 12px; height: 12px; flex: none; color: var(--text-faint); }
+  .pill b { color: var(--text); font-weight: 600; }
+
+  svg.wires { position: absolute; inset: 0; width: 1200px; height: 1010px; overflow: visible; z-index: 1; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 2px 0 0; max-width: 1260px; margin-inline: auto; padding: 0 20px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
+  .legend-dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+  .legend-line { width: 18px; height: 2px; flex: none; }
+
+  footer { max-width: 1260px; margin: 14px auto 0; padding: 0 20px 36px; }
+  footer .note { font-size: 11px; color: var(--text-faint); line-height: 1.55; max-width: 100ch; }
+  footer b { color: var(--text-muted); }
+</style>
+
+<div class="banner">
+  <div class="banner-inner">
+    <h1 class="display">RAG Ingestion &mdash; System Architecture</h1>
+    <div class="steps">
+      <span><span class="num">1</span>receive &amp; authorize &rarr;</span>
+      <span><span class="num">2</span>validate &amp; dedupe &rarr;</span>
+      <span><span class="num">3</span>store &amp; chunk &rarr;</span>
+      <span><span class="num">4</span>embed &amp; index &rarr;</span>
+      <span><span class="num">5</span>extract metadata <i>(first index only)</i></span>
+    </div>
+  </div>
+</div>
+
+<div class="scroller">
+  <div class="canvas">
+
+    <!-- real enclosing group containers -->
+    <div class="group group-caller" style="left:4px; top:40px; width:232px; height:948px;">
+      <span class="group-label">Caller <span class="group-caption">(equivalent entry points)</span></span>
+    </div>
+    <div class="group group-pipe" style="left:264px; top:40px; width:372px; height:948px;">
+      <span class="group-label">hrb_chatbot_v2 <span class="group-caption">(synchronous &middot; no queue between steps)</span></span>
+    </div>
+    <div class="group group-store" style="left:664px; top:152px; width:252px; height:654px;">
+      <span class="group-label">Stores <span class="group-caption">(local to our infra)</span></span>
+    </div>
+    <div class="group group-ext" style="left:944px; top:434px; width:252px; height:454px;">
+      <span class="group-label">External APIs <span class="group-caption">(leave the system)</span></span>
+    </div>
+
+    <svg class="wires">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/>
+        </marker>
+        <marker id="arrow-ext" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--line-ext)"/>
+        </marker>
+        <marker id="arrow-alt" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--line-alt)"/>
+        </marker>
+      </defs>
+
+      <!-- 1. hrb_chatbot_ui -> API Route -->
+      <path d="M220,106 L280,106" stroke="var(--line)" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <!-- 2. Postman -> Orchestrator (alt path, dashed) -->
+      <path d="M220,228 L280,228" stroke="var(--line-alt)" stroke-width="2" stroke-dasharray="5 4" fill="none" marker-end="url(#arrow-alt)"/>
+      <!-- 3. API Route -> Orchestrator -->
+      <path d="M450,142 L450,182" stroke="var(--line)" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <!-- 4. Orchestrator -> Metadata Store (dedupe) -->
+      <path d="M620,228 L680,228" stroke="var(--line)" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <!-- 5. Orchestrator -> Store & Chunk -->
+      <path d="M450,274 L450,352" stroke="var(--line)" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <!-- 6. Store & Chunk -> Local Disk -->
+      <path d="M620,388 L680,388" stroke="var(--line)" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <!-- 7. Store & Chunk -> Embed -->
+      <path d="M450,424 L450,464" stroke="var(--line)" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <!-- 8. Embed -> OpenAI Embeddings API (external, dashed) -->
+      <path d="M620,500 L960,500" stroke="var(--line-ext)" stroke-width="2.5" stroke-dasharray="7 5" fill="none" marker-end="url(#arrow-ext)"/>
+      <!-- 9. Embed -> Index -->
+      <path d="M450,536 L450,576" stroke="var(--line)" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <!-- 10. Index -> Vector Store -->
+      <path d="M620,612 L680,612" stroke="var(--line)" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <!-- 11. Index -> Extract Metadata -->
+      <path d="M450,648 L450,704" stroke="var(--line)" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <!-- 12. Extract -> Metadata Store (record) -->
+      <path d="M620,730 L680,730" stroke="var(--line)" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <!-- 13. Extract -> OpenAI Chat API (external, dashed, routed below the Metadata Store box) -->
+      <path d="M620,780 L655,780 L655,836 L960,836" stroke="var(--line-ext)" stroke-width="2.5" stroke-dasharray="7 5" fill="none" marker-end="url(#arrow-ext)"/>
+      <!-- 14. Extract -> Per-file result -->
+      <path d="M450,790 L450,900" stroke="var(--line)" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <!-- 15. Per-file result -> Caller receives response -->
+      <path d="M280,936 L220,936" stroke="var(--line)" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+    </svg>
+
+    <!-- CALLER column -->
+    <div class="box caller-box" style="left:20px; top:70px; width:200px; height:72px;">
+      <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+      <div class="name">hrb_chatbot_ui</div>
+      <div class="detail">Admin / HR document upload page</div>
+    </div>
+    <div class="box caller-box" style="left:20px; top:182px; width:200px; height:92px;">
+      <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16"/></svg></div>
+      <div class="name">Postman</div>
+      <div class="detail">manual / API testing, same contract (dashed = alternate entry)</div>
+    </div>
+    <div class="box caller-box" style="left:20px; top:900px; width:200px; height:72px;">
+      <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg></div>
+      <div class="name">Caller receives response</div>
+      <div class="detail">same request, nothing async</div>
+    </div>
+
+    <!-- PIPELINE column -->
+    <div class="box pipe-box" style="left:280px; top:70px; width:340px; height:72px;">
+      <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+      <div class="name">API Route &mdash; RBAC + rate limit</div>
+      <div class="detail">hr_support / admin / employee_admin only</div>
+      <div class="ref">ingest_document.py :: upload_documents()</div>
+    </div>
+    <div class="box pipe-box" style="left:280px; top:182px; width:340px; height:92px;">
+      <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></div>
+      <div class="name">Orchestrator &mdash; per file, sequential</div>
+      <div class="detail">validate type/size, content-hash lookup, supersede-target check</div>
+      <div class="ref">documents_service.py :: save_upload()</div>
+    </div>
+    <div class="box pipe-box" style="left:280px; top:352px; width:340px; height:72px;">
+      <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
+      <div class="name">Store &amp; Chunk</div>
+      <div class="detail">write bytes to disk, create row, split text (6 auto-picked strategies)</div>
+      <div class="ref">chunking/text_chunker.py</div>
+    </div>
+    <div class="box pipe-box" style="left:280px; top:464px; width:340px; height:72px;">
+      <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6M12 17v6M4.2 4.2l4.2 4.2M15.5 15.5l4.2 4.2M1 12h6M17 12h6M4.2 19.8l4.2-4.2M15.5 8.5l4.2-4.2"/></svg></div>
+      <div class="name">Embed</div>
+      <div class="detail">1 call per chunk &mdash; blocking, same request</div>
+      <div class="ref">embedding/embedding_generator.py</div>
+    </div>
+    <div class="box pipe-box" style="left:280px; top:576px; width:340px; height:72px;">
+      <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
+      <div class="name">Index</div>
+      <div class="detail">LangChain index() + SQLRecordManager &mdash; insert/update diffed by chunk_ids</div>
+      <div class="ref">vector_indexer.py :: write_chunks()</div>
+    </div>
+    <div class="box pipe-box" style="left:280px; top:704px; width:340px; height:86px;">
+      <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 2v10l7 4"/></svg></div>
+      <div class="name">Extract Metadata <span class="mono" style="font-size:9px;color:var(--text-faint)">(first index only)</span></div>
+      <div class="detail">12 fields &mdash; doc_category, restricted_roles, &hellip; caller overrides win</div>
+      <div class="ref">metadata_extraction/document_metadata_extractor.py</div>
+    </div>
+    <div class="box pipe-box" style="left:280px; top:900px; width:340px; height:72px;">
+      <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg></div>
+      <div class="name">Per-file result assembled</div>
+      <div class="detail">batch sums uploaded / duplicate / rejected</div>
+      <div class="ref">ingest_document.py :: upload_documents()</div>
+    </div>
+
+    <!-- STORES column -->
+    <div class="box store-box" style="left:680px; top:182px; width:220px; height:92px;">
+      <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>
+      <div class="name">Metadata Store</div>
+      <div class="detail">SQLite (dev) / Postgres (prod) &mdash; dedupe lookup by content_hash</div>
+    </div>
+    <div class="box store-box" style="left:680px; top:352px; width:220px; height:72px;">
+      <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
+      <div class="name">Local Disk</div>
+      <div class="detail"><code class="mono" style="font-size:9.5px">data/uploads/{id}/{file}</code></div>
+    </div>
+    <div class="box store-box" style="left:680px; top:576px; width:220px; height:72px;">
+      <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.66 3.58 3 8 3s8-1.34 8-3V6M4 12v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/></svg></div>
+      <div class="name">Vector Store</div>
+      <div class="detail">ChromaDB (dev) / Pinecone (prod)</div>
+    </div>
+    <div class="box store-box" style="left:680px; top:704px; width:220px; height:86px;">
+      <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>
+      <div class="name">Metadata Store</div>
+      <div class="detail">record_document_metadata() &mdash; same store as above</div>
+    </div>
+
+    <!-- EXTERNAL column -->
+    <div class="box ext-box" style="left:960px; top:464px; width:220px; height:72px;">
+      <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div>
+      <div class="name">OpenAI Embeddings API</div>
+      <div class="detail">leaves the system &mdash; real network call</div>
+    </div>
+    <div class="box ext-box" style="left:960px; top:800px; width:220px; height:72px;">
+      <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div>
+      <div class="name">OpenAI Chat API</div>
+      <div class="detail">leaves the system &mdash; real network call</div>
+    </div>
+
+    <!-- annotations -->
+    <div class="pill" style="left:460px; top:284px; width:420px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      content_hash match &rarr; <b>status "duplicate"</b>, returns here &mdash; skips everything below
+    </div>
+    <div class="pill" style="left:460px; top:658px; width:420px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4M7 23l-4-4 4-4M21 5H9a4 4 0 0 0-4 4v2M3 19h12a4 4 0 0 0 4-4v-2"/></svg>
+      Index also writes <b>chunk_ids + status=indexed</b> to Metadata Store above
+    </div>
+
+  </div>
+</div>
+
+<div class="legend">
+  <span class="legend-item"><span class="legend-dot" style="background:var(--caller)"></span>Caller</span>
+  <span class="legend-item"><span class="legend-dot" style="background:var(--pipe)"></span>In-process pipeline</span>
+  <span class="legend-item"><span class="legend-dot" style="background:var(--store)"></span>Store (inside our infra)</span>
+  <span class="legend-item"><span class="legend-dot" style="background:var(--ext)"></span>External API</span>
+  <span class="legend-item"><span class="legend-line" style="background:var(--line)"></span>Primary flow</span>
+  <span class="legend-item"><span class="legend-line" style="background:var(--line-ext)"></span>Leaves the system</span>
+  <span class="legend-item"><span class="legend-line" style="background:var(--line-alt)"></span>Alternate entry</span>
+</div>
+
+<footer>
+  <p class="note">
+    <b>No queues, no DLQ, no separate microservices</b> &mdash; unlike a typical async-ingestion target
+    state, every stage above runs inline, in the same request, in one FastAPI process. A real async
+    design (S3 presigned upload + Lambda, triggered after this request returns) exists as a <b>design
+    only</b>, not built - see <code>docs/agent-reference/S3-ASYNC-UPLOAD-DESIGN.md</code>. The only
+    queue-like behavior today is <code>save_uploads()</code> looping files one at a time within a
+    single batch request - not a real queue, no retry/backoff/poison handling.
+  </p>
+</footer>

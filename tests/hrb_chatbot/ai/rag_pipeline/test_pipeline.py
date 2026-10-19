@@ -11,7 +11,7 @@ from src.hrb_chatbot.ai.pre_processing import conversation_memory
 from src.hrb_chatbot.ai.rag_core import guarded_pipeline
 from src.hrb_chatbot.ai.rag_pipeline import pipeline
 from src.hrb_chatbot.common.rag_query_params import RagQueryParams
-from tests.conftest import FakeConversationStore, FakeDBGateway
+from tests.conftest import FakeConversationStore, FakeDBGateway, FakeMetadataStore
 
 
 @pytest.fixture(autouse=True)
@@ -36,18 +36,38 @@ def _fake_eval_judges(monkeypatch):
     monkeypatch.setattr(
         pipeline,
         "evaluate_groundedness",
-        lambda answer, context_texts: {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake", "prompt": "fake"},
+        lambda answer, context_texts, judge_model=None: {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"},
     )
     monkeypatch.setattr(
         pipeline,
         "evaluate_completeness",
-        lambda query, answer, reference_answer=None: {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake"},
+        lambda query, answer, reference_answer=None, judge_model=None: {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"},
     )
     monkeypatch.setattr(
         pipeline,
         "evaluate_retrieval_relevance",
-        lambda query, chunk_texts: {"precision": 1.0, "relevant_chunk_indices": [1], "explanation": "fake", "prompt": "fake"},
+        lambda query, chunk_texts, judge_model=None, wider_pool_texts=None: {
+            "precision": 1.0,
+            "relevant_chunk_indices": [1],
+            "explanation": "fake",
+            "prompt": "fake",
+            "model_used": judge_model or "fake-chat-model",
+            "recall_estimate": 1.0 if wider_pool_texts else None,
+            "f1_estimate": 1.0 if wider_pool_texts else None,
+            "pool_size": len(wider_pool_texts) if wider_pool_texts else None,
+            "relevant_pool_count": 1 if wider_pool_texts else None,
+        },
     )
+
+
+@pytest.fixture(autouse=True)
+def _fake_wider_pool_search(monkeypatch):
+    """Phase 219: _score_live_answer() now fetches a wider exact-KNN pool
+    (search_knn) before judging retrieval relevance, on every non-empty-
+    sources answer - fake it as "no extra candidates" for every test in
+    this file, same reasoning _fake_eval_judges gives for the judge calls
+    (a real call would hit Chroma/OpenAI and cost real time/money)."""
+    monkeypatch.setattr(pipeline, "search_knn", lambda query, top_k, vector_db: [])
 
 
 @pytest.fixture(autouse=True)
@@ -103,11 +123,11 @@ def _fake_generate_answer_capturing(captured):
 # Guardrails pass the query/answer through unchanged - these tests are about
 # top_k/temperature resolution, not guardrail behavior (see test_pipeline_guardrails.py).
 async def _fake_check_input(query):
-    return query
+    return query, {"status": "pass", "rail": None}
 
 
 async def _fake_check_output(query, answer):
-    return answer
+    return answer, {"status": "pass", "rail": None}
 
 
 def _patch_guardrails(monkeypatch):
@@ -534,6 +554,14 @@ async def test_live_generation_with_sources_includes_eval_scores(monkeypatch):
         "retrieval_relevant_chunk_indices": [1],
         "retrieval_precision_explanation": "fake",
         "retrieval_precision_prompt": "fake",
+        "retrieval_recall_estimate": 1.0,
+        "retrieval_f1_estimate": 1.0,
+        "retrieval_recall_pool_size": 1,
+        "retrieval_recall_relevant_count": 1,
+        "judge_model_used": "fake-chat-model",
+        "below_threshold": False,
+        "below_threshold_metrics": [],
+        "retrieval_retry_attempted": False,
     }
     assert result["latency_ms"]["eval"] is not None
 
@@ -564,13 +592,13 @@ async def test_cache_hit_reuses_eval_scores_without_rejudging(monkeypatch):
     _patch_guardrails(monkeypatch)
     judge_call_count = {"groundedness": 0, "completeness": 0}
 
-    def _counting_groundedness(answer, context_texts):
+    def _counting_groundedness(answer, context_texts, judge_model=None):
         judge_call_count["groundedness"] += 1
-        return {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake", "prompt": "fake"}
+        return {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"}
 
-    def _counting_completeness(query, answer, reference_answer=None):
+    def _counting_completeness(query, answer, reference_answer=None, judge_model=None):
         judge_call_count["completeness"] += 1
-        return {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake"}
+        return {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"}
 
     monkeypatch.setattr(pipeline, "evaluate_groundedness", _counting_groundedness)
     monkeypatch.setattr(pipeline, "evaluate_completeness", _counting_completeness)
@@ -590,6 +618,43 @@ async def test_cache_hit_reuses_eval_scores_without_rejudging(monkeypatch):
     assert judge_call_count == {"groundedness": 1, "completeness": 1}  # only the first call judged
     assert second["served_from_cache"] is True
     assert second["eval_scores"] == first["eval_scores"]
+
+
+async def test_cache_hit_recomputes_below_threshold_against_this_calls_own_threshold(monkeypatch):
+    """Phase 223 - a real bug: below_threshold/below_threshold_metrics used
+    to be frozen in the cached dict from whenever this exact (query,
+    config) was first asked - a caller who raises their eval_score_threshold
+    in Settings and re-asks the identical question (same cache key) must
+    see it re-flagged against their own threshold, not a stale one."""
+    _patch_guardrails(monkeypatch)
+
+    monkeypatch.setattr(
+        pipeline,
+        "evaluate_groundedness",
+        lambda answer, context_texts, judge_model=None: {"score": 0.5, "verdict": "PARTIAL", "explanation": "fake", "prompt": "fake", "model_used": "fake-chat-model"},
+    )
+
+    async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
+        return ([{"filename": "x", "chunk_index": 0, "text": "y"}], None)
+
+    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None, request_id=None):
+        return {"answer": "fake answer", "model_used": "gpt-4.1-mini", "token_usage": None}
+
+    monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve)
+    monkeypatch.setattr(pipeline, "generate_answer", _fake_generate)
+
+    # No threshold the first time - not flagged.
+    first = await pipeline.answer_query(RagQueryParams(query="threshold recompute check"))
+    assert first["eval_scores"]["below_threshold"] is False
+
+    # Same query/config (same cache key) but now with a threshold the
+    # 0.5 groundedness score should trip - must be cache-served (the judge
+    # never runs again) yet still correctly flagged this time.
+    second = await pipeline.answer_query(RagQueryParams(query="threshold recompute check", eval_score_threshold=0.8))
+    assert second["served_from_cache"] is True
+    assert second["eval_scores"]["groundedness"] == 0.5  # the score itself is still reused, not re-judged
+    assert second["eval_scores"]["below_threshold"] is True
+    assert "groundedness" in second["eval_scores"]["below_threshold_metrics"]
 
 
 # Phase 130 - query decomposition
@@ -751,3 +816,252 @@ async def test_a_compound_kb_and_mcp_answer_is_never_cached(monkeypatch):
 
     assert call_count == {"mcp": 2, "generate": 2}  # both calls did real work - never cache-served
     assert second["served_from_cache"] is False
+
+
+# Phase 219 - the wider candidate pool evaluate_retrieval_relevance() judges
+# alongside the originally-retrieved chunks, for the live recall/F1 estimate.
+
+
+async def test_wider_pool_puts_original_chunks_first_then_deduped_extras(monkeypatch):
+    original = [
+        {"document_id": "doc-1", "chunk_index": 0, "text": "original chunk 0"},
+        {"document_id": "doc-1", "chunk_index": 1, "text": "original chunk 1"},
+    ]
+
+    def _fake_search_knn(query, top_k, vector_db):
+        return [
+            # Same chunk as original[0] (by document_id/chunk_index) - must be excluded, not duplicated.
+            {"document_id": "doc-1", "chunk_index": 0, "text": "original chunk 0"},
+            {"document_id": "doc-2", "chunk_index": 0, "text": "extra chunk from exact-KNN"},
+        ]
+
+    monkeypatch.setattr(pipeline, "search_knn", _fake_search_knn)
+
+    texts = await pipeline._fetch_wider_pool_texts("a question", original, top_k=2, vector_db=None)
+
+    assert texts == ["original chunk 0", "original chunk 1", "extra chunk from exact-KNN"]
+
+
+async def test_wider_pool_size_is_capped_not_unbounded(monkeypatch):
+    captured = {}
+
+    def _fake_search_knn(query, top_k, vector_db):
+        captured["top_k"] = top_k
+        return []
+
+    monkeypatch.setattr(pipeline, "search_knn", _fake_search_knn)
+
+    await pipeline._fetch_wider_pool_texts("a question", [], top_k=50, vector_db=None)
+
+    # 50 * WIDER_POOL_MULTIPLIER (4) = 200, capped at WIDER_POOL_MAX (20).
+    assert captured["top_k"] == pipeline.WIDER_POOL_MAX
+
+
+# Phase 224 - pipeline.py's own top-level check_input() call (run for the
+# MCP-routing decision) must pass its real status through to the shared
+# core via pre_checked_input_status, not let it get silently dropped and
+# re-defaulted to "pass".
+
+
+async def test_a_modified_input_status_from_the_mcp_fast_path_reaches_result_guardrails(monkeypatch):
+    async def _masking_check_input(query):
+        return query.replace("123-45-6789", "<SSN>"), {"status": "modified", "rail": "pii detection"}
+
+    monkeypatch.setattr(pipeline, "check_input", _masking_check_input)
+    monkeypatch.setattr(guarded_pipeline, "check_output", _fake_check_output)
+    monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve_chunks_capturing({}))
+    monkeypatch.setattr(pipeline, "generate_answer", _fake_generate_answer_capturing({}))
+
+    result = await pipeline.answer_query(RagQueryParams(query="My SSN is 123-45-6789"))
+
+    assert result["guardrails"]["input"] == {"status": "modified", "rail": "pii detection"}
+
+
+# Phase 226 - a real, bounded (exactly one) corrective retry: when the
+# first retrieval's own live precision is below eval_score_threshold AND
+# enable_corrective_retry is on, retrieve_chunks() runs a second time with
+# a doubled top_k, BEFORE any answer is generated - never a post-hoc
+# regenerate (see endpoint-request-response-contracts.md's Phase 226 entry
+# for why: conversation memory already saves generate()'s own answer, so a
+# second, different answer must never silently replace it after the fact).
+
+
+def _fake_precision_check_low_then_high_on_wider_pool(query, chunk_texts, judge_model=None, wider_pool_texts=None):
+    """Distinguishes the two real call sites that both call
+    evaluate_retrieval_relevance(): the Phase 226 pre-generation precision
+    check (no wider_pool_texts - always None) gets a deliberately LOW
+    precision so the retry trigger fires; _score_live_answer's own post-
+    generation call (always passes a non-empty wider_pool_texts) keeps
+    normal high-precision behavior so the rest of the response still
+    scores cleanly."""
+    if not wider_pool_texts:
+        return {
+            "precision": 0.1,
+            "relevant_chunk_indices": [],
+            "explanation": "fake - low precision",
+            "prompt": "fake",
+            "model_used": judge_model or "fake-chat-model",
+            "recall_estimate": None,
+            "f1_estimate": None,
+            "pool_size": None,
+            "relevant_pool_count": None,
+        }
+    return {
+        "precision": 1.0,
+        "relevant_chunk_indices": [1],
+        "explanation": "fake",
+        "prompt": "fake",
+        "model_used": judge_model or "fake-chat-model",
+        "recall_estimate": 1.0,
+        "f1_estimate": 1.0,
+        "pool_size": len(wider_pool_texts),
+        "relevant_pool_count": 1,
+    }
+
+
+async def test_corrective_retry_fires_on_low_precision_and_doubles_top_k(monkeypatch):
+    _patch_guardrails(monkeypatch)
+    monkeypatch.setattr(pipeline, "evaluate_retrieval_relevance", _fake_precision_check_low_then_high_on_wider_pool)
+    retrieve_calls = []
+
+    async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
+        retrieve_calls.append(top_k)
+        return ([{"filename": "x", "chunk_index": 0, "text": "y"}], None)
+
+    monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve)
+    monkeypatch.setattr(pipeline, "generate_answer", _fake_generate_answer_capturing({}))
+
+    result = await pipeline.answer_query(
+        RagQueryParams(query="test", top_k=5, enable_corrective_retry=True, eval_score_threshold=0.5)
+    )
+
+    assert retrieve_calls == [5, 10]  # original top_k, then doubled
+    assert result["eval_scores"]["retrieval_retry_attempted"] is True
+
+
+async def test_corrective_retry_top_k_is_capped_at_wider_pool_max(monkeypatch):
+    _patch_guardrails(monkeypatch)
+    monkeypatch.setattr(pipeline, "evaluate_retrieval_relevance", _fake_precision_check_low_then_high_on_wider_pool)
+    retrieve_calls = []
+
+    async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
+        retrieve_calls.append(top_k)
+        return ([{"filename": "x", "chunk_index": 0, "text": "y"}], None)
+
+    monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve)
+    monkeypatch.setattr(pipeline, "generate_answer", _fake_generate_answer_capturing({}))
+
+    await pipeline.answer_query(
+        RagQueryParams(query="test", top_k=15, enable_corrective_retry=True, eval_score_threshold=0.5)
+    )
+
+    assert retrieve_calls == [15, pipeline.WIDER_POOL_MAX]  # 15*2=30, capped at 20
+
+
+async def test_corrective_retry_does_not_fire_when_disabled(monkeypatch):
+    """Default behavior (enable_corrective_retry=False) must stay exactly
+    today's single-retrieval-attempt behavior, even with a low precision
+    and a threshold set - this is an opt-in feature, not a silent change."""
+    _patch_guardrails(monkeypatch)
+    monkeypatch.setattr(pipeline, "evaluate_retrieval_relevance", _fake_precision_check_low_then_high_on_wider_pool)
+    retrieve_calls = []
+
+    async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
+        retrieve_calls.append(top_k)
+        return ([{"filename": "x", "chunk_index": 0, "text": "y"}], None)
+
+    monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve)
+    monkeypatch.setattr(pipeline, "generate_answer", _fake_generate_answer_capturing({}))
+
+    result = await pipeline.answer_query(RagQueryParams(query="test", top_k=5, eval_score_threshold=0.5))
+
+    assert retrieve_calls == [5]
+    assert result["eval_scores"]["retrieval_retry_attempted"] is False
+
+
+async def test_corrective_retry_does_not_fire_without_a_threshold(monkeypatch):
+    """enable_corrective_retry alone is a no-op - there's no "low" to
+    detect without eval_score_threshold set."""
+    _patch_guardrails(monkeypatch)
+    monkeypatch.setattr(pipeline, "evaluate_retrieval_relevance", _fake_precision_check_low_then_high_on_wider_pool)
+    retrieve_calls = []
+
+    async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
+        retrieve_calls.append(top_k)
+        return ([{"filename": "x", "chunk_index": 0, "text": "y"}], None)
+
+    monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve)
+    monkeypatch.setattr(pipeline, "generate_answer", _fake_generate_answer_capturing({}))
+
+    await pipeline.answer_query(RagQueryParams(query="test", top_k=5, enable_corrective_retry=True))
+
+    assert retrieve_calls == [5]
+
+
+async def test_corrective_retry_does_not_fire_when_precision_already_passes(monkeypatch):
+    _patch_guardrails(monkeypatch)
+    # Default _fake_eval_judges fixture already returns precision=1.0 unconditionally.
+    retrieve_calls = []
+
+    async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
+        retrieve_calls.append(top_k)
+        return ([{"filename": "x", "chunk_index": 0, "text": "y"}], None)
+
+    monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve)
+    monkeypatch.setattr(pipeline, "generate_answer", _fake_generate_answer_capturing({}))
+
+    result = await pipeline.answer_query(
+        RagQueryParams(query="test", top_k=5, enable_corrective_retry=True, eval_score_threshold=0.5)
+    )
+
+    assert retrieve_calls == [5]
+    assert result["eval_scores"]["retrieval_retry_attempted"] is False
+
+
+async def test_acl_denied_count_reflects_a_real_restricted_document(monkeypatch):
+    """Phase 232 - a document restricted away from this caller's role must
+    show up in the response's acl_denied_count, not silently stay 0."""
+    _patch_guardrails(monkeypatch)
+    metadata_store = FakeMetadataStore()
+    await metadata_store.create_document("doc-restricted", "exec.pdf", "data/uploads/doc-restricted/exec.pdf")
+    await metadata_store.record_document_metadata(
+        "doc-restricted", owner=None, department=None, doc_category="benefits",
+        purpose=None, doc_description=None, restricted_roles=["manager"],
+    )
+    monkeypatch.setattr(pipeline, "get_db_gateway", lambda: FakeDBGateway(metadata_store=metadata_store))
+    monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve_chunks_capturing({}))
+    monkeypatch.setattr(pipeline, "generate_answer", _fake_generate_answer_capturing({}))
+
+    result = await pipeline.answer_query(RagQueryParams(query="what is my compensation", role="employee"))
+
+    assert result["acl_denied_count"] == 1
+
+
+async def test_acl_denied_count_is_zero_for_an_hr_support_caller_even_with_a_restricted_document(monkeypatch):
+    """HR_SUPPORT bypasses the ACL gate entirely (Phase 231) - the count
+    must reflect that, not just "some document somewhere is restricted"."""
+    _patch_guardrails(monkeypatch)
+    metadata_store = FakeMetadataStore()
+    await metadata_store.create_document("doc-restricted", "exec.pdf", "data/uploads/doc-restricted/exec.pdf")
+    await metadata_store.record_document_metadata(
+        "doc-restricted", owner=None, department=None, doc_category="benefits",
+        purpose=None, doc_description=None, restricted_roles=["manager"],
+    )
+    monkeypatch.setattr(pipeline, "get_db_gateway", lambda: FakeDBGateway(metadata_store=metadata_store))
+    monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve_chunks_capturing({}))
+    monkeypatch.setattr(pipeline, "generate_answer", _fake_generate_answer_capturing({}))
+
+    result = await pipeline.answer_query(RagQueryParams(query="what is my compensation", role="hr_support"))
+
+    assert result["acl_denied_count"] == 0
+
+
+async def test_acl_denied_count_is_zero_when_nothing_is_restricted(monkeypatch):
+    _patch_guardrails(monkeypatch)
+    # Default _fake_answer_cache fixture already gives an empty metadata store.
+    monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve_chunks_capturing({}))
+    monkeypatch.setattr(pipeline, "generate_answer", _fake_generate_answer_capturing({}))
+
+    result = await pipeline.answer_query(RagQueryParams(query="what is my compensation", role="employee"))
+
+    assert result["acl_denied_count"] == 0

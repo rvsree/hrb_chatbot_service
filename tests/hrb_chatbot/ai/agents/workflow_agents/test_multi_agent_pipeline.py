@@ -37,23 +37,38 @@ def _fake_cache_and_eval_judges(monkeypatch):
 
     monkeypatch.setattr(multi_agent_pipeline.reviewer_agent, "review", _default_review)
 
-    def _fake_evaluate_groundedness(answer, context_texts):
+    def _fake_evaluate_groundedness(answer, context_texts, judge_model=None):
         # Phase 120 regression guard - a tuple here means some domain agent's
         # "result" wasn't unpacked before joining into agent_result_texts.
         assert all(isinstance(t, str) for t in context_texts)
-        return {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake", "prompt": "fake"}
+        return {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"}
 
     monkeypatch.setattr(multi_agent_pipeline, "evaluate_groundedness", _fake_evaluate_groundedness)
     monkeypatch.setattr(
         multi_agent_pipeline,
         "evaluate_completeness",
-        lambda query, answer, reference_answer=None: {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake"},
+        lambda query, answer, reference_answer=None, judge_model=None: {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"},
     )
     monkeypatch.setattr(
         multi_agent_pipeline,
         "evaluate_retrieval_relevance",
-        lambda query, chunk_texts: {"precision": 1.0, "relevant_chunk_indices": [1], "explanation": "fake", "prompt": "fake"},
+        lambda query, chunk_texts, judge_model=None, wider_pool_texts=None: {
+            "precision": 1.0 if chunk_texts else None,
+            "relevant_chunk_indices": [1] if chunk_texts else [],
+            "explanation": "fake",
+            "prompt": "fake",
+            "model_used": judge_model or "fake-chat-model",
+            "recall_estimate": 1.0 if wider_pool_texts else None,
+            "f1_estimate": 1.0 if wider_pool_texts else None,
+            "pool_size": len(wider_pool_texts) if wider_pool_texts else None,
+            "relevant_pool_count": 1 if wider_pool_texts else None,
+        },
     )
+    # Phase 220 - _score_live_answer() now fetches a wider exact-KNN pool
+    # (search_knn) when sources is non-empty - fake it as "no extra
+    # candidates" for every test in this file, same reasoning
+    # test_pipeline.py's own fixture gives.
+    monkeypatch.setattr(multi_agent_pipeline, "search_knn", lambda query, top_k, vector_db: [])
 
 
 @pytest.fixture(autouse=True)
@@ -72,10 +87,10 @@ def _fake_normalize_query(monkeypatch):
 
 def _patch_guardrails(monkeypatch):
     async def _passthrough_check_input(query):
-        return query
+        return query, {"status": "pass", "rail": None}
 
     async def _passthrough_check_output(query, answer):
-        return answer
+        return answer, {"status": "pass", "rail": None}
 
     monkeypatch.setattr(multi_agent_pipeline, "check_input", _passthrough_check_input)
     monkeypatch.setattr(multi_agent_pipeline, "check_output", _passthrough_check_output)
@@ -95,7 +110,7 @@ async def test_single_task_query_runs_one_domain_agent_and_still_goes_through_re
     async def _fake_plan(query, request_id=None):
         return [{"agent": "vector_kb_agent", "focus": query}], {"label": "planner"}
 
-    async def _fake_vector_kb_run(focus):
+    async def _fake_vector_kb_run(focus, search_strategy=None, role=None, department=None):
         return "8 weeks paid parental leave.", []
 
     monkeypatch.setattr(multi_agent_pipeline.planner_agent, "plan", _fake_plan)
@@ -130,7 +145,7 @@ async def test_multi_task_query_dispatches_to_both_agents_in_parallel_and_merges
             {"agent": "lms_ops_agent", "focus": "my leave balance"},
         ], {"label": "planner"}
 
-    async def _fake_vector_kb_run(focus):
+    async def _fake_vector_kb_run(focus, search_strategy=None, role=None, department=None):
         return "8 weeks paid.", []
 
     async def _fake_lms_ops_run(focus, employee_id):
@@ -184,7 +199,7 @@ async def test_enabling_memory_without_an_id_generates_one_and_saves_the_turn(mo
     async def _fake_plan(query, request_id=None):
         return [{"agent": "vector_kb_agent", "focus": query}], {"label": "planner"}
 
-    async def _fake_vector_kb_run(focus):
+    async def _fake_vector_kb_run(focus, search_strategy=None, role=None, department=None):
         return "8 weeks paid.", []
 
     monkeypatch.setattr(multi_agent_pipeline.planner_agent, "plan", _fake_plan)
@@ -225,7 +240,7 @@ async def test_sources_come_from_vector_kb_agent_only(monkeypatch):
     async def _fake_plan(query, request_id=None):
         return [{"agent": "vector_kb_agent", "focus": query}], {"label": "planner"}
 
-    async def _fake_vector_kb_run(focus):
+    async def _fake_vector_kb_run(focus, search_strategy=None, role=None, department=None):
         return "8 weeks paid.", [real_chunk]
 
     monkeypatch.setattr(multi_agent_pipeline.planner_agent, "plan", _fake_plan)
@@ -234,6 +249,56 @@ async def test_sources_come_from_vector_kb_agent_only(monkeypatch):
     result = await multi_agent_pipeline.run_multi_agent("parental leave policy?", employee_id="EMP052")
 
     assert result["sources"] == [real_chunk]
+
+
+async def test_retrieval_judge_scopes_to_vector_kb_sources_not_the_mixed_agent_result_text(monkeypatch):
+    """Phase 220 - retrieval_precision/recall/f1 now judge the real KB
+    chunk (sources), not agent_result_texts (which mixes it with
+    web_search_agent's own unrelated result text when both agents ran)."""
+    _patch_guardrails(monkeypatch)
+    captured = {}
+
+    def _capturing_evaluate_retrieval_relevance(query, chunk_texts, judge_model=None, wider_pool_texts=None):
+        captured["chunk_texts"] = chunk_texts
+        captured["wider_pool_texts"] = wider_pool_texts
+        return {
+            "precision": 1.0, "relevant_chunk_indices": [1], "explanation": "fake", "prompt": "fake",
+            "model_used": "fake-chat-model", "recall_estimate": 0.5, "f1_estimate": 0.67, "pool_size": 2,
+            "relevant_pool_count": 2,
+        }
+
+    def _fake_search_knn(query, top_k, vector_db):
+        captured["wider_pool_top_k"] = top_k
+        return [{"document_id": "doc-2", "chunk_index": 0, "text": "extra chunk from exact-KNN"}]
+
+    monkeypatch.setattr(multi_agent_pipeline, "evaluate_retrieval_relevance", _capturing_evaluate_retrieval_relevance)
+    monkeypatch.setattr(multi_agent_pipeline, "search_knn", _fake_search_knn)
+
+    async def _fake_plan(query, request_id=None):
+        return [
+            {"agent": "vector_kb_agent", "focus": "parental leave policy"},
+            {"agent": "web_search_agent", "focus": "general IRS rules"},
+        ], {"label": "planner"}
+
+    async def _fake_vector_kb_run(focus, search_strategy=None, role=None, department=None):
+        return "KB chunk text", [{"document_id": "doc-1", "chunk_index": 0, "text": "KB chunk text", "filename": "plan.pdf", "score": 0.9}]
+
+    async def _fake_web_search_run(focus):
+        return "unrelated web text"
+
+    monkeypatch.setattr(multi_agent_pipeline.planner_agent, "plan", _fake_plan)
+    monkeypatch.setattr(multi_agent_pipeline.vector_kb_agent, "run", _fake_vector_kb_run)
+    monkeypatch.setattr(multi_agent_pipeline.web_search_agent, "run", _fake_web_search_run)
+
+    result = await multi_agent_pipeline.run_multi_agent("parental leave policy and general IRS rules?", employee_id="EMP052")
+
+    # Scoped to the real KB chunk only - web_search_agent's own text never reaches this judge call.
+    assert captured["chunk_texts"] == ["KB chunk text"]
+    assert captured["wider_pool_texts"] == ["KB chunk text", "extra chunk from exact-KNN"]
+    assert captured["wider_pool_top_k"] == multi_agent_pipeline.VECTOR_KB_AGENT_TOP_K * multi_agent_pipeline.WIDER_POOL_MULTIPLIER
+    assert result["eval_scores"]["retrieval_recall_estimate"] == 0.5
+    assert result["eval_scores"]["retrieval_f1_estimate"] == 0.67
+    assert result["eval_scores"]["retrieval_recall_pool_size"] == 2
 
 
 async def test_a_vector_kb_only_repeat_is_cache_served(monkeypatch):
@@ -246,7 +311,7 @@ async def test_a_vector_kb_only_repeat_is_cache_served(monkeypatch):
         call_count["plan"] += 1
         return [{"agent": "vector_kb_agent", "focus": query}], {"label": "planner"}
 
-    async def _fake_vector_kb_run(focus):
+    async def _fake_vector_kb_run(focus, search_strategy=None, role=None, department=None):
         return "8 weeks paid.", []
 
     monkeypatch.setattr(multi_agent_pipeline.planner_agent, "plan", _fake_plan)
@@ -311,7 +376,7 @@ async def test_follow_ups_are_generated_when_a_domain_agent_ran(monkeypatch):
     async def _fake_plan(query, request_id=None):
         return [{"agent": "vector_kb_agent", "focus": query}], {"label": "planner"}
 
-    async def _fake_vector_kb_run(focus):
+    async def _fake_vector_kb_run(focus, search_strategy=None, role=None, department=None):
         return "8 weeks paid parental leave.", []
 
     async def _fake_generate_follow_ups(query, answer):
@@ -343,3 +408,62 @@ async def test_tool_call_metrics_mark_success_false_on_an_error_result(monkeypat
     call = result["tools_used"][0]
     assert call["success"] is False
     assert call["tool_type"] == "mcp"
+
+
+async def test_real_guardrail_status_reaches_the_result_on_this_direct_non_shared_core_path(monkeypatch):
+    """Phase 224 - multi_agent_pipeline.py calls check_input/check_output
+    directly (it doesn't run through rag_core.guarded_pipeline like genai-rag/
+    single-agentic-rag do), so this path needs its own confirmation that the
+    real status reaches result["guardrails"], not just a hardcoded "pass"."""
+
+    async def _masking_check_input(query):
+        return query.replace("123-45-6789", "<SSN>"), {"status": "modified", "rail": "pii detection"}
+
+    async def _masking_check_output(query, answer):
+        return answer.replace("Roth", "<PERSON>"), {"status": "modified", "rail": "self check output"}
+
+    monkeypatch.setattr(multi_agent_pipeline, "check_input", _masking_check_input)
+    monkeypatch.setattr(multi_agent_pipeline, "check_output", _masking_check_output)
+
+    async def _fake_plan(query, request_id=None):
+        return [{"agent": "vector_kb_agent", "focus": query}], {"label": "planner"}
+
+    async def _fake_vector_kb_run(focus, search_strategy=None, role=None, department=None):
+        return "You can make Roth contributions.", []
+
+    monkeypatch.setattr(multi_agent_pipeline.planner_agent, "plan", _fake_plan)
+    monkeypatch.setattr(multi_agent_pipeline.vector_kb_agent, "run", _fake_vector_kb_run)
+
+    result = await multi_agent_pipeline.run_multi_agent("My SSN is 123-45-6789", employee_id="EMP052")
+
+    assert result["answer"] == "You can make <PERSON> contributions."
+    assert result["guardrails"] == {
+        "input": {"status": "modified", "rail": "pii detection"},
+        "output": {"status": "modified", "rail": "self check output"},
+    }
+
+
+async def test_search_strategy_reaches_vector_kb_agent_end_to_end(monkeypatch):
+    """Phase 228 - unlike single-agentic-rag (an agent-level per-call
+    choice this just defaults), multi-agentic-rag's vector_kb_agent never
+    exposed a choice at all before this - run_multi_agent()'s own param is
+    the only lever, so this confirms it actually reaches the agent, not
+    just that the parameter exists."""
+    _patch_guardrails(monkeypatch)
+    captured = {}
+
+    async def _fake_plan(query, request_id=None):
+        return [{"agent": "vector_kb_agent", "focus": query}], {"label": "planner"}
+
+    async def _fake_vector_kb_run(focus, search_strategy=None, role=None, department=None):
+        captured["search_strategy"] = search_strategy
+        return "8 weeks paid.", []
+
+    monkeypatch.setattr(multi_agent_pipeline.planner_agent, "plan", _fake_plan)
+    monkeypatch.setattr(multi_agent_pipeline.vector_kb_agent, "run", _fake_vector_kb_run)
+
+    await multi_agent_pipeline.run_multi_agent(
+        "parental leave policy?", employee_id="EMP052", search_strategy="mmr"
+    )
+
+    assert captured["search_strategy"] == "mmr"

@@ -36,6 +36,11 @@ async def query(payload: AgenticRagRequest, request: Request):
                 enable_conversation_memory=payload.enable_conversation_memory,
                 conversation_id=payload.conversation_id,
                 request_id=request_id,
+                judge_model=payload.eval_options.judge_model if payload.eval_options else None,
+                eval_score_threshold=payload.eval_options.eval_score_threshold if payload.eval_options else None,
+                search_strategy=payload.search_strategy,
+                role=userProfile.role,
+                department=userProfile.department,
             ),
             lambda r: (r.get("token_usage") or {}).get("total_tokens"),
         )
@@ -60,6 +65,7 @@ async def query(payload: AgenticRagRequest, request: Request):
             llm_context=LlmContextInfo(**llm_context) if llm_context else None,
             routed_to=None,
             eval_scores=EvalScores(**eval_scores) if eval_scores else None,
+            guardrails=result["guardrails"],
         ),
         conversation_id=result.get("conversation_id"),
     )

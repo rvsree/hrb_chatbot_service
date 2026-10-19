@@ -11,15 +11,23 @@ from src.hrb_chatbot.common.logging.logger import get_logger
 logger = get_logger("rag_pipeline.tools.agentic_tools")
 
 
-async def search_knowledge_base(query: str, search_strategy: str | None = None) -> tuple[str, list[dict]]:
-    """The RAG tool - primary for "how do I"/policy questions; search_strategy lets the agent pick "mmr"."""
+async def search_knowledge_base(
+    query: str, search_strategy: str | None = None, role: str | None = None, department: str | None = None
+) -> tuple[str, list[dict]]:
+    """The RAG tool - primary for "how do I"/policy questions; search_strategy
+    lets the agent pick "mmr". role/department (Phase 231, Document ACL) are
+    the caller's own enforced identity - never exposed in
+    AGENTIC_TOOL_DEFINITIONS's tool schema, so the agent's own LLM can
+    never choose or override them, unlike search_strategy."""
     if not query or not query.strip():
         return "Error: please provide a question to search for.", []
 
     resolved_strategy = search_strategy if search_strategy in ("similarity", "mmr") else "similarity"
 
     try:
-        chunks, _ = await retrieve_chunks(query, top_k=3, search_strategy=resolved_strategy)
+        chunks, _ = await retrieve_chunks(
+            query, top_k=3, search_strategy=resolved_strategy, role=role, department=department
+        )
     except Exception as error:
         logger.warning("search_knowledge_base failed for %r: %s", query, error)
         return f"Error: knowledge base search failed ({error}).", []

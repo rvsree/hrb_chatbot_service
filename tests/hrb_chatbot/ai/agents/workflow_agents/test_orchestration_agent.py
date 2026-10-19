@@ -31,18 +31,33 @@ def _fake_cache_and_eval_judges(monkeypatch):
     monkeypatch.setattr(
         orchestration_agent,
         "evaluate_groundedness",
-        lambda answer, context_texts: {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake", "prompt": "fake"},
+        lambda answer, context_texts, judge_model=None: {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"},
     )
     monkeypatch.setattr(
         orchestration_agent,
         "evaluate_completeness",
-        lambda query, answer, reference_answer=None: {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake"},
+        lambda query, answer, reference_answer=None, judge_model=None: {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"},
     )
     monkeypatch.setattr(
         orchestration_agent,
         "evaluate_retrieval_relevance",
-        lambda query, chunk_texts: {"precision": 1.0, "relevant_chunk_indices": [1], "explanation": "fake", "prompt": "fake"},
+        lambda query, chunk_texts, judge_model=None, wider_pool_texts=None: {
+            "precision": 1.0 if chunk_texts else None,
+            "relevant_chunk_indices": [1] if chunk_texts else [],
+            "explanation": "fake",
+            "prompt": "fake",
+            "model_used": judge_model or "fake-chat-model",
+            "recall_estimate": 1.0 if wider_pool_texts else None,
+            "f1_estimate": 1.0 if wider_pool_texts else None,
+            "pool_size": len(wider_pool_texts) if wider_pool_texts else None,
+            "relevant_pool_count": 1 if wider_pool_texts else None,
+        },
     )
+    # Phase 220 - _score_live_answer() now fetches a wider exact-KNN pool
+    # (search_knn) when sources is non-empty - fake it as "no extra
+    # candidates" for every test in this file, same reasoning
+    # test_pipeline.py's own fixture gives.
+    monkeypatch.setattr(orchestration_agent, "search_knn", lambda query, top_k, vector_db: [])
 
 
 @pytest.fixture(autouse=True)
@@ -61,10 +76,10 @@ def _fake_normalize_query(monkeypatch):
 
 def _patch_guardrails(monkeypatch):
     async def _passthrough_check_input(query):
-        return query
+        return query, {"status": "pass", "rail": None}
 
     async def _passthrough_check_output(query, answer):
-        return answer
+        return answer, {"status": "pass", "rail": None}
 
     monkeypatch.setattr(guarded_pipeline, "check_input", _passthrough_check_input)
     monkeypatch.setattr(guarded_pipeline, "check_output", _passthrough_check_output)
@@ -123,7 +138,7 @@ async def test_one_tool_call_then_final_answer(monkeypatch):
     monkeypatch.setattr(
         orchestration_agent,
         "TOOL_FUNCTIONS",
-        {"SearchKnowledgeBase": lambda args, employee_id: _fake_search(args)},
+        {"SearchKnowledgeBase": lambda args, employee_id, role=None, department=None: _fake_search(args)},
     )
     _patch_llm(
         monkeypatch,
@@ -143,6 +158,7 @@ async def test_one_tool_call_then_final_answer(monkeypatch):
     assert call["iteration"] == 1
     assert call["tool_type"] == "vector_db"  # Phase 126
     assert call["success"] is True
+    assert call["search_strategy"] is None  # Phase 216 - agent didn't choose one this call
     assert call["latency_ms"] is not None
     assert result["iterations"] == 2
     # Phase 160 - one real LlmContextTurn per ReAct iteration, not a guess.
@@ -170,8 +186,8 @@ async def test_tool_calls_across_separate_iterations_each_report_their_own_itera
         orchestration_agent,
         "TOOL_FUNCTIONS",
         {
-            "SearchKnowledgeBase": lambda args, employee_id: _fake_search(args),
-            "GetLeaveBalance": lambda args, employee_id: _fake_leave_balance(employee_id),
+            "SearchKnowledgeBase": lambda args, employee_id, role=None, department=None: _fake_search(args),
+            "GetLeaveBalance": lambda args, employee_id, role=None, department=None: _fake_leave_balance(employee_id),
         },
     )
     _patch_llm(
@@ -194,11 +210,66 @@ async def test_tool_calls_across_separate_iterations_each_report_their_own_itera
     assert result["tools_used"][1]["iteration"] == 2
 
 
+async def test_retrieval_judge_scopes_to_kb_sources_not_the_mixed_tool_output_text(monkeypatch):
+    """Phase 220 - a real bug the live UI surfaced: retrieval_precision/
+    recall/f1 used to be judged against context_texts (raw tool_outputs,
+    which mix KB-chunk text with web-search/MCP text under headers like
+    "Web Source 1") - not what a retrieval metric about chunking/indexing
+    should be scoped to. Now scoped to `sources`, the real structured KB
+    chunks, and a wider pool is fetched for the recall estimate."""
+    _patch_guardrails(monkeypatch)
+    captured = {}
+
+    def _capturing_evaluate_retrieval_relevance(query, chunk_texts, judge_model=None, wider_pool_texts=None):
+        captured["chunk_texts"] = chunk_texts
+        captured["wider_pool_texts"] = wider_pool_texts
+        return {
+            "precision": 1.0, "relevant_chunk_indices": [1], "explanation": "fake", "prompt": "fake",
+            "model_used": "fake-chat-model", "recall_estimate": 0.5, "f1_estimate": 0.67, "pool_size": 2,
+            "relevant_pool_count": 2,
+        }
+
+    def _fake_search_knn(query, top_k, vector_db):
+        captured["wider_pool_top_k"] = top_k
+        return [{"document_id": "doc-2", "chunk_index": 0, "text": "extra chunk from exact-KNN"}]
+
+    monkeypatch.setattr(orchestration_agent, "evaluate_retrieval_relevance", _capturing_evaluate_retrieval_relevance)
+    monkeypatch.setattr(orchestration_agent, "search_knn", _fake_search_knn)
+
+    async def _fake_search(args):
+        return (
+            "Found relevant knowledge base content:\n\n--- Source 1 (plan.pdf) ---\nKB chunk text\n\n"
+            "--- Web Source 1 ---\nunrelated web text",
+            [{"document_id": "doc-1", "chunk_index": 0, "text": "KB chunk text", "filename": "plan.pdf", "score": 0.9}],
+        )
+
+    monkeypatch.setattr(
+        orchestration_agent, "TOOL_FUNCTIONS", {"SearchKnowledgeBase": lambda args, employee_id, role=None, department=None: _fake_search(args)}
+    )
+    _patch_llm(
+        monkeypatch,
+        [
+            FakeResponse(tool_calls=[{"name": "SearchKnowledgeBase", "args": {"input": "x"}, "id": "call_1"}]),
+            FakeResponse(content="final answer"),
+        ],
+    )
+
+    result = await orchestration_agent.run_agent("scoping check", employee_id="EMP052")
+
+    # Scoped to the real KB chunk only - the web-source text never reaches this judge call.
+    assert captured["chunk_texts"] == ["KB chunk text"]
+    assert captured["wider_pool_texts"] == ["KB chunk text", "extra chunk from exact-KNN"]
+    assert captured["wider_pool_top_k"] == orchestration_agent.SEARCH_KNOWLEDGE_BASE_TOP_K * orchestration_agent.WIDER_POOL_MULTIPLIER
+    assert result["eval_scores"]["retrieval_recall_estimate"] == 0.5
+    assert result["eval_scores"]["retrieval_f1_estimate"] == 0.67
+    assert result["eval_scores"]["retrieval_recall_pool_size"] == 2
+
+
 async def test_search_strategy_arg_is_forwarded_to_the_real_tool_function(monkeypatch):
     _patch_guardrails(monkeypatch)
     captured = {}
 
-    async def _fake_search_knowledge_base(query, search_strategy=None):
+    async def _fake_search_knowledge_base(query, search_strategy=None, role=None, department=None):
         captured["query"] = query
         captured["search_strategy"] = search_strategy
         return "fake result", []
@@ -220,17 +291,76 @@ async def test_search_strategy_arg_is_forwarded_to_the_real_tool_function(monkey
         ],
     )
 
-    await orchestration_agent.run_agent("what benefits programs exist", employee_id="EMP052")
+    result = await orchestration_agent.run_agent("what benefits programs exist", employee_id="EMP052")
 
     assert captured["query"] == "what benefits programs exist"
     assert captured["search_strategy"] == "mmr"
+    # Phase 216 - real bug: this same "mmr" choice used to be silently
+    # dropped from tools_used (only tool_args["input"] was captured),
+    # never reaching the Explainability panel at all.
+    assert result["tools_used"][0]["search_strategy"] == "mmr"
+
+
+async def test_caller_search_strategy_default_fills_in_when_the_agent_does_not_choose_one(monkeypatch):
+    """Phase 228 - run_agent()'s own search_strategy param is a DEFAULT,
+    used only when the agent's own tool call didn't already make its own
+    choice."""
+    _patch_guardrails(monkeypatch)
+    captured = {}
+
+    async def _fake_search_knowledge_base(query, search_strategy=None, role=None, department=None):
+        captured["search_strategy"] = search_strategy
+        return "fake result", []
+
+    monkeypatch.setattr(orchestration_agent, "search_knowledge_base", _fake_search_knowledge_base)
+    _patch_llm(
+        monkeypatch,
+        [
+            FakeResponse(tool_calls=[{"name": "SearchKnowledgeBase", "args": {"input": "x"}, "id": "call_1"}]),
+            FakeResponse(content="answer"),
+        ],
+    )
+
+    result = await orchestration_agent.run_agent("x", employee_id="EMP052", search_strategy="mmr")
+
+    assert captured["search_strategy"] == "mmr"
+    assert result["tools_used"][0]["search_strategy"] == "mmr"
+
+
+async def test_caller_search_strategy_default_does_not_override_the_agents_own_choice(monkeypatch):
+    """The agent's own live, per-call choice (Phase 216) must win over the
+    caller's standing default - never force a worse override onto real
+    agent judgment."""
+    _patch_guardrails(monkeypatch)
+    captured = {}
+
+    async def _fake_search_knowledge_base(query, search_strategy=None, role=None, department=None):
+        captured["search_strategy"] = search_strategy
+        return "fake result", []
+
+    monkeypatch.setattr(orchestration_agent, "search_knowledge_base", _fake_search_knowledge_base)
+    _patch_llm(
+        monkeypatch,
+        [
+            FakeResponse(
+                tool_calls=[
+                    {"name": "SearchKnowledgeBase", "args": {"input": "x", "search_strategy": "similarity"}, "id": "call_1"}
+                ]
+            ),
+            FakeResponse(content="answer"),
+        ],
+    )
+
+    await orchestration_agent.run_agent("x", employee_id="EMP052", search_strategy="mmr")
+
+    assert captured["search_strategy"] == "similarity"
 
 
 async def test_max_iterations_reached_gives_a_clear_fallback_not_a_crash(monkeypatch):
     _patch_guardrails(monkeypatch)
     always_calls_tool = FakeResponse(tool_calls=[{"name": "SearchKnowledgeBase", "args": {"input": "x"}, "id": "call_1"}])
     monkeypatch.setattr(
-        orchestration_agent, "TOOL_FUNCTIONS", {"SearchKnowledgeBase": lambda args, employee_id: _noop()}
+        orchestration_agent, "TOOL_FUNCTIONS", {"SearchKnowledgeBase": lambda args, employee_id, role=None, department=None: _noop()}
     )
     _patch_llm(monkeypatch, [always_calls_tool] * 3)
 
@@ -344,10 +474,10 @@ async def test_output_guardrail_can_modify_the_final_answer(monkeypatch):
     false positive found live elsewhere in this project)."""
 
     async def _passthrough_check_input(query):
-        return query
+        return query, {"status": "pass", "rail": None}
 
     async def _masking_check_output(query, answer):
-        return answer.replace("Roth", "<PERSON>")
+        return answer.replace("Roth", "<PERSON>"), {"status": "modified", "rail": "pii detection"}
 
     monkeypatch.setattr(guarded_pipeline, "check_input", _passthrough_check_input)
     monkeypatch.setattr(guarded_pipeline, "check_output", _masking_check_output)
@@ -367,7 +497,7 @@ async def test_iteration_exhaustion_is_now_saved_to_history_matching_genai_rag(m
     _patch_conversation_store(monkeypatch)
     always_calls_tool = FakeResponse(tool_calls=[{"name": "SearchKnowledgeBase", "args": {"input": "x"}, "id": "call_1"}])
     monkeypatch.setattr(
-        orchestration_agent, "TOOL_FUNCTIONS", {"SearchKnowledgeBase": lambda args, employee_id: _noop()}
+        orchestration_agent, "TOOL_FUNCTIONS", {"SearchKnowledgeBase": lambda args, employee_id, role=None, department=None: _noop()}
     )
     _patch_llm(monkeypatch, [always_calls_tool] * 2)
 
@@ -389,7 +519,7 @@ async def test_token_usage_accumulates_across_multiple_llm_calls(monkeypatch):
         return "fake KB result", [{"filename": "x.pdf", "chunk_index": 0, "text": "fake KB result", "score": 0.9}]
 
     monkeypatch.setattr(
-        orchestration_agent, "TOOL_FUNCTIONS", {"SearchKnowledgeBase": lambda args, employee_id: _fake_search(args)}
+        orchestration_agent, "TOOL_FUNCTIONS", {"SearchKnowledgeBase": lambda args, employee_id, role=None, department=None: _fake_search(args)}
     )
     _patch_llm(
         monkeypatch,
@@ -417,6 +547,13 @@ async def test_token_usage_accumulates_across_multiple_llm_calls(monkeypatch):
         "retrieval_relevant_chunk_indices": [1],
         "retrieval_precision_explanation": "fake",
         "retrieval_precision_prompt": "fake",
+        "retrieval_recall_estimate": 1.0,
+        "retrieval_f1_estimate": 1.0,
+        "retrieval_recall_pool_size": 1,
+        "retrieval_recall_relevant_count": 1,
+        "judge_model_used": "fake-chat-model",
+        "below_threshold": False,
+        "below_threshold_metrics": [],
     }
 
 
@@ -446,7 +583,7 @@ async def test_a_repeat_with_only_search_knowledge_base_is_cache_served(monkeypa
 
     monkeypatch.setattr(orchestration_agent, "_build_llm", _fresh_llm)
     monkeypatch.setattr(
-        orchestration_agent, "TOOL_FUNCTIONS", {"SearchKnowledgeBase": lambda args, employee_id: _noop()}
+        orchestration_agent, "TOOL_FUNCTIONS", {"SearchKnowledgeBase": lambda args, employee_id, role=None, department=None: _noop()}
     )
 
     first = await orchestration_agent.run_agent("cacheable question", employee_id="EMP052")
@@ -487,7 +624,7 @@ async def test_a_leave_balance_tool_call_is_never_cached(monkeypatch):
 
     monkeypatch.setattr(orchestration_agent, "_build_llm", _fresh_llm)
     monkeypatch.setattr(
-        orchestration_agent, "TOOL_FUNCTIONS", {"GetLeaveBalance": lambda args, employee_id: _noop()}
+        orchestration_agent, "TOOL_FUNCTIONS", {"GetLeaveBalance": lambda args, employee_id, role=None, department=None: _noop()}
     )
 
     await orchestration_agent.run_agent("what's my pto balance", employee_id="EMP052")
@@ -527,7 +664,7 @@ async def test_a_leave_balance_question_answered_without_the_tool_is_still_never
 
     monkeypatch.setattr(orchestration_agent, "_build_llm", _fresh_llm)
     monkeypatch.setattr(
-        orchestration_agent, "TOOL_FUNCTIONS", {"SearchKnowledgeBase": lambda args, employee_id: _noop()}
+        orchestration_agent, "TOOL_FUNCTIONS", {"SearchKnowledgeBase": lambda args, employee_id, role=None, department=None: _noop()}
     )
 
     await orchestration_agent.run_agent("What's my current PTO balance?", employee_id="EMP052")
@@ -548,7 +685,7 @@ async def test_sources_accumulate_from_search_knowledge_base_calls(monkeypatch):
         return "Found relevant knowledge base content: Match is 5%.", [real_chunk]
 
     monkeypatch.setattr(
-        orchestration_agent, "TOOL_FUNCTIONS", {"SearchKnowledgeBase": lambda args, employee_id: _fake_search(args)}
+        orchestration_agent, "TOOL_FUNCTIONS", {"SearchKnowledgeBase": lambda args, employee_id, role=None, department=None: _fake_search(args)}
     )
     _patch_llm(
         monkeypatch,
@@ -567,7 +704,7 @@ async def test_sources_is_empty_for_a_non_retrieval_tool(monkeypatch):
     """Phase 115 - GetLeaveBalance/GetLeaveHistory never contribute citations."""
     _patch_guardrails(monkeypatch)
     monkeypatch.setattr(
-        orchestration_agent, "TOOL_FUNCTIONS", {"GetLeaveBalance": lambda args, employee_id: _noop()}
+        orchestration_agent, "TOOL_FUNCTIONS", {"GetLeaveBalance": lambda args, employee_id, role=None, department=None: _noop()}
     )
     _patch_llm(
         monkeypatch,
@@ -632,7 +769,7 @@ async def test_tabular_instruction_absent_for_a_plain_query(monkeypatch):
 async def test_tool_call_metrics_mark_success_false_on_an_error_result(monkeypatch):
     _patch_guardrails(monkeypatch)
 
-    async def _fake_failing_tool(args, employee_id):
+    async def _fake_failing_tool(args, employee_id, role=None, department=None):
         return "Error: leave balance service unavailable", []
 
     monkeypatch.setattr(orchestration_agent, "TOOL_FUNCTIONS", {"GetLeaveBalance": _fake_failing_tool})

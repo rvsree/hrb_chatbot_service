@@ -1,5 +1,7 @@
 """Request/response contracts for the document upload API - see docs/agent-reference/endpoint-request-response-contracts.md."""
 
+import json
+
 from pydantic import BaseModel, Field, model_validator
 
 from src.hrb_chatbot.common.config.settings import read_setting
@@ -57,6 +59,11 @@ class DocumentMetadataInput(BaseModel):
     doc_category: str | None = Field(None, max_length=100)
     department: str | None = Field(None, max_length=100)
     doc_description: str | None = Field(None, max_length=100)
+    restricted_roles: list[str] | None = Field(
+        None,
+        description="Phase 231 - caller-supplied only, never LLM-extracted. "
+        "Null/empty means visible to every retrieval-eligible role, unchanged from today.",
+    )
     owner: str | None = Field(None, max_length=200)
     purpose: str | None = Field(None, max_length=500)
     effective_date: str | None = Field(None, max_length=100)
@@ -105,6 +112,9 @@ class DocumentMetadataResult(BaseModel):
         None,
         description="The specific topic this document covers, in the document's own terms (e.g. "
         "'401k') - caller-supplied, or the extraction step's best guess.",
+    )
+    restricted_roles: list[str] | None = Field(
+        None, description="Phase 231 - which roles may retrieve this document; null means everyone can."
     )
     owner: str | None = None
     purpose: str | None = None
@@ -219,6 +229,8 @@ class DocumentRecord(BaseModel):
     @classmethod
     def from_row(cls, document: dict) -> "DocumentRecord":
         """Map a flat metadata-store row into this nested shape - the one place this translation happens."""
+        restricted_roles_raw = document.get("restricted_roles")
+        restricted_roles = json.loads(restricted_roles_raw) if restricted_roles_raw else None
         return cls(
             id=document["id"],
             filename=document["filename"],
@@ -244,6 +256,7 @@ class DocumentRecord(BaseModel):
                 doc_category=document.get("doc_category"),
                 department=document.get("department"),
                 doc_description=document.get("doc_description"),
+                restricted_roles=restricted_roles,
                 owner=document.get("owner"),
                 purpose=document.get("purpose"),
                 effective_date=document.get("effective_date"),

@@ -1,10 +1,12 @@
 """Request/response contracts for single-agentic-rag (Phase 55) - same
 Phase 45 identity-via-payload pattern as models/rag.py, not headers."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from src.hrb_chatbot.models.common import ToolCallInfo, UserProfile
-from src.hrb_chatbot.models.rag import ExplainabilityInfo, RetrievedChunk
+from src.hrb_chatbot.models.rag import EvalOptions, ExplainabilityInfo, RetrievedChunk
 
 
 class AgenticRagRequest(BaseModel):
@@ -13,6 +15,14 @@ class AgenticRagRequest(BaseModel):
     max_iterations: int | None = Field(
         None, ge=1, le=10, description="Upper bound on tool-call rounds before giving up - defaults to 5, matching the course reference."
     )
+    search_strategy: Literal["similarity", "mmr"] | None = Field(
+        None,
+        description="Phase 228 - a DEFAULT the agent's own SearchKnowledgeBase tool call falls back to when it "
+        "doesn't choose one itself (Phase 216 already lets the agent pick per call - this doesn't override that). "
+        "Narrower than genai-rag's SearchOptions.search_strategy on purpose - search_knowledge_base() only ever "
+        "understands these 2 values.",
+    )
+    eval_options: EvalOptions | None = None
     enable_conversation_memory: bool = Field(
         False, description="Carry conversation history across calls, server-side, keyed by conversation_id."
     )

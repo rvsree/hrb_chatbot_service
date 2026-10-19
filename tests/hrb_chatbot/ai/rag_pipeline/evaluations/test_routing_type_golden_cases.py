@@ -33,7 +33,7 @@ async def test_agent_call_cases_bypass_the_llm_entirely(monkeypatch):
     # faked here so this stays a genuinely zero-cost default-suite test, same
     # project rule every other default-suite test already follows.
     async def _passthrough_check_input(query):
-        return query
+        return query, {"status": "pass", "rail": None}
 
     async def _fake_get_leave_balance(employee_id):
         return {"tool": "get_leave_balance", "content": ["PTO: 10 days, Sick: 5 days"]}
@@ -56,7 +56,7 @@ async def test_agent_call_cases_bypass_the_llm_entirely(monkeypatch):
     # which calls check_output() on the final answer - faked as a
     # passthrough for the same zero-real-call reason as check_input above.
     async def _passthrough_check_output(query, answer):
-        return answer
+        return answer, {"status": "pass", "rail": None}
 
     monkeypatch.setattr(pipeline, "check_input", _passthrough_check_input)
     monkeypatch.setattr(pipeline, "decompose", _passthrough_decompose)

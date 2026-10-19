@@ -114,6 +114,7 @@ def test_query_at_exactly_the_max_length_is_accepted_by_validation(monkeypatch):
             "llm_call_count": 1,
             "token_usage": None,
             "latency_ms": {"total": 1.0, "retrieval": None, "generation": None},
+            "guardrails": {"input": {"status": "pass", "rail": None}, "output": {"status": "pass", "rail": None}},
         }
 
     monkeypatch.setattr(retrieve_document.pipeline, "answer_query", _fake_answer_query)

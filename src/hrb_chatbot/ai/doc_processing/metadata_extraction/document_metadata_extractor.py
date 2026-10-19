@@ -21,6 +21,10 @@ EMPTY_RESULT = {
     "doc_category": None,
     "purpose": None,
     "doc_description": None,
+    # Phase 231 - never filled in by extraction below (only str values are
+    # ever written into result, line ~57); an access-control gate can't be
+    # an LLM guess. Caller-supplied only, via document_metadata_override.
+    "restricted_roles": None,
     "effective_date": None,
     "audience": None,
     "confidentiality_level": None,
@@ -35,7 +39,7 @@ EXTRACTION_QUESTION = DOCUMENT_METADATA_EXTRACTION_PROMPT
 
 
 def extract_document_metadata(text: str) -> dict:
-    """Return EMPTY_RESULT's 11 keys filled in where possible - never raises."""
+    """Return EMPTY_RESULT's 12 keys filled in where possible - never raises."""
     if not text.strip():
         return dict(EMPTY_RESULT)
 

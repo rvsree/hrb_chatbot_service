@@ -53,6 +53,8 @@ ADD_COLUMNS = [
     "ALTER TABLE documents ADD COLUMN effective_date TEXT",
     "ALTER TABLE documents ADD COLUMN audience TEXT",
     "ALTER TABLE documents ADD COLUMN confidentiality_level TEXT",
+    # Phase 231 - Document ACL; a JSON-encoded list, same convention chunk_ids already uses.
+    "ALTER TABLE documents ADD COLUMN restricted_roles TEXT",
     # The caller's employee_id, from user_profile - an audit trail, not part of the RBAC decision.
     "ALTER TABLE documents ADD COLUMN uploaded_by TEXT",
     # Provenance/citation fields, not filter dimensions like doc_category/department/doc_description.
@@ -324,6 +326,7 @@ class SQLiteClient(BaseMetadataClient):
         doc_category: str | None,
         purpose: str | None,
         doc_description: str | None,
+        restricted_roles: list[str] | None = None,
         effective_date: str | None = None,
         audience: str | None = None,
         confidentiality_level: str | None = None,
@@ -338,14 +341,16 @@ class SQLiteClient(BaseMetadataClient):
             async with aiosqlite.connect(self.db_path) as db:
                 await db.execute(
                     "UPDATE documents SET owner = ?, department = ?, doc_category = ?, purpose = ?, "
-                    "doc_description = ?, effective_date = ?, audience = ?, confidentiality_level = ?, "
-                    "author = ?, doc_date = ?, doc_version = ?, updated_at = ? WHERE id = ?",
+                    "doc_description = ?, restricted_roles = ?, effective_date = ?, audience = ?, "
+                    "confidentiality_level = ?, author = ?, doc_date = ?, doc_version = ?, "
+                    "updated_at = ? WHERE id = ?",
                     (
                         owner,
                         department,
                         doc_category,
                         purpose,
                         doc_description,
+                        json.dumps(restricted_roles) if restricted_roles else None,
                         effective_date,
                         audience,
                         confidentiality_level,

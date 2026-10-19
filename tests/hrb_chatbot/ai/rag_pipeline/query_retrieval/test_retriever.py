@@ -418,7 +418,76 @@ async def test_parse_self_query_filter_returns_the_models_own_parsed_filter(monk
     monkeypatch.setattr(retriever, "GatewayChatModel", lambda provider="openai": _FakeLLM(response_text=_SELF_QUERY_FILTER_RESPONSE))
     store, provider = retriever.get_vector_store(None)
 
-    applied_filter = retriever._parse_self_query_filter(store, provider, "what's my 401k vesting schedule", "openai")
+    applied_filter = await retriever._parse_self_query_filter(
+        store, provider, "what's my 401k vesting schedule", "openai", retriever.get_db_gateway()
+    )
+
+    # Phase 230 - no document with a real "401k"-ish doc_description is
+    # registered in this test's metadata store, so there's nothing close
+    # enough to resolve to (difflib's own cutoff) - falls back to the
+    # LLM's original value unchanged, same as pre-Phase-230 behavior.
+    assert applied_filter == {"doc_description": {"$eq": "401k"}}
+
+
+async def test_parse_self_query_filter_resolves_to_the_real_indexed_description(monkeypatch):
+    """Phase 230 - the real, previously-reproduced BACKLOG.md failure:
+    the LLM's short guess ("401k") must resolve to the document's own
+    real, longer extracted description ("401(k) Savings Plan"), or an
+    exact-match filter finds nothing."""
+    collection_name, vector_store_client, metadata_store, embeddings = _setup(monkeypatch)
+    await metadata_store.create_document("doc-1", "plan.pdf", "data/uploads/doc-1/plan.pdf")
+    await metadata_store.record_document_metadata(
+        "doc-1", owner=None, department="Benefits", doc_category="benefits",
+        purpose=None, doc_description="401(k) Savings Plan",
+    )
+    monkeypatch.setattr(retriever, "GatewayChatModel", lambda provider="openai": _FakeLLM(response_text=_SELF_QUERY_FILTER_RESPONSE))
+    store, provider = retriever.get_vector_store(None)
+
+    applied_filter = await retriever._parse_self_query_filter(
+        store, provider, "what's my 401k vesting schedule", "openai", retriever.get_db_gateway()
+    )
+
+    assert applied_filter == {"doc_description": {"$eq": "401(k) Savings Plan"}}
+
+
+async def test_parse_self_query_filter_falls_back_to_fuzzy_match_for_a_near_miss_typo(monkeypatch):
+    """Phase 230 - the fallback tier: a near-miss that ISN'T a clean
+    substring (unlike the '401k' case) still resolves via difflib's own
+    character-level similarity."""
+    collection_name, vector_store_client, metadata_store, embeddings = _setup(monkeypatch)
+    await metadata_store.create_document("doc-1", "benefits.pdf", "data/uploads/doc-1/benefits.pdf")
+    await metadata_store.record_document_metadata(
+        "doc-1", owner=None, department="Benefits", doc_category="benefits",
+        purpose=None, doc_description="Healthcare Benefits",
+    )
+    monkeypatch.setattr(
+        retriever, "GatewayChatModel",
+        lambda provider="openai": _FakeLLM(response_text=_SELF_QUERY_FILTER_RESPONSE.replace("401k", "Healthcare Benfits")),
+    )
+    store, provider = retriever.get_vector_store(None)
+
+    applied_filter = await retriever._parse_self_query_filter(
+        store, provider, "what healthcare benefits exist", "openai", retriever.get_db_gateway()
+    )
+
+    assert applied_filter == {"doc_description": {"$eq": "Healthcare Benefits"}}
+
+
+async def test_parse_self_query_filter_leaves_an_unresolvable_value_unchanged(monkeypatch):
+    """Nothing close enough in either tier - falls back to the LLM's
+    original value, same (not worse) than pre-Phase-230 behavior."""
+    collection_name, vector_store_client, metadata_store, embeddings = _setup(monkeypatch)
+    await metadata_store.create_document("doc-1", "unrelated.pdf", "data/uploads/doc-1/unrelated.pdf")
+    await metadata_store.record_document_metadata(
+        "doc-1", owner=None, department="Benefits", doc_category="benefits",
+        purpose=None, doc_description="Completely Unrelated Topic",
+    )
+    monkeypatch.setattr(retriever, "GatewayChatModel", lambda provider="openai": _FakeLLM(response_text=_SELF_QUERY_FILTER_RESPONSE))
+    store, provider = retriever.get_vector_store(None)
+
+    applied_filter = await retriever._parse_self_query_filter(
+        store, provider, "what's my 401k vesting schedule", "openai", retriever.get_db_gateway()
+    )
 
     assert applied_filter == {"doc_description": {"$eq": "401k"}}
 
@@ -428,7 +497,9 @@ async def test_parse_self_query_filter_returns_none_when_the_model_finds_nothing
     monkeypatch.setattr(retriever, "GatewayChatModel", lambda provider="openai": _FakeLLM(response_text=_SELF_QUERY_NO_FILTER_RESPONSE))
     store, provider = retriever.get_vector_store(None)
 
-    applied_filter = retriever._parse_self_query_filter(store, provider, "how much PTO do I get", "openai")
+    applied_filter = await retriever._parse_self_query_filter(
+        store, provider, "how much PTO do I get", "openai", retriever.get_db_gateway()
+    )
 
     assert applied_filter is None
 
@@ -467,4 +538,129 @@ async def test_retrieve_chunks_use_self_query_excludes_superseded_chunks_even_wh
     document_ids = [chunk["document_id"] for chunk in chunks]
     assert "doc-new" in document_ids
     assert "doc-old" not in document_ids
+    assert applied_filter == {"doc_description": {"$eq": "401k"}}
+
+
+async def test_retrieve_chunks_excludes_a_role_restricted_document_for_a_denied_role(monkeypatch):
+    """Phase 231 (Document ACL) - real, end-to-end: a document restricted
+    to manager/hr_support must not come back for an employee caller, even
+    with no self-query filter involved at all (ACL is unconditional)."""
+    collection_name, vector_store_client, metadata_store, embeddings = _setup(monkeypatch)
+    await metadata_store.create_document("doc-restricted", "exec-comp.pdf", "data/uploads/doc-restricted/exec-comp.pdf")
+    await metadata_store.record_document_metadata(
+        "doc-restricted", owner=None, department=None, doc_category="benefits",
+        purpose=None, doc_description=None, restricted_roles=["manager", "hr_support"],
+    )
+    await metadata_store.create_document("doc-open", "handbook.pdf", "data/uploads/doc-open/handbook.pdf")
+    _seed_collection(
+        vector_store_client,
+        collection_name,
+        [
+            {
+                "id": "doc-restricted:0",
+                "text": "executive compensation details",
+                "embedding": [1.0, 0.0],
+                "metadata": {"document_id": "doc-restricted", "chunk_index": 0, "is_current": True},
+            },
+            {
+                "id": "doc-open:0",
+                "text": "general employee handbook text",
+                "embedding": [1.0, 0.0],
+                "metadata": {"document_id": "doc-open", "chunk_index": 0, "is_current": True},
+            },
+        ],
+    )
+    embeddings.register("what is my compensation", [1.0, 0.0])
+
+    chunks, _ = await retriever.retrieve_chunks("what is my compensation", top_k=5, role="employee")
+
+    document_ids = [chunk["document_id"] for chunk in chunks]
+    assert "doc-open" in document_ids
+    assert "doc-restricted" not in document_ids
+
+
+async def test_retrieve_chunks_includes_a_role_restricted_document_for_an_allowed_role(monkeypatch):
+    collection_name, vector_store_client, metadata_store, embeddings = _setup(monkeypatch)
+    await metadata_store.create_document("doc-restricted", "exec-comp.pdf", "data/uploads/doc-restricted/exec-comp.pdf")
+    await metadata_store.record_document_metadata(
+        "doc-restricted", owner=None, department=None, doc_category="benefits",
+        purpose=None, doc_description=None, restricted_roles=["manager", "hr_support"],
+    )
+    _seed_collection(
+        vector_store_client,
+        collection_name,
+        [
+            {
+                "id": "doc-restricted:0",
+                "text": "executive compensation details",
+                "embedding": [1.0, 0.0],
+                "metadata": {"document_id": "doc-restricted", "chunk_index": 0, "is_current": True},
+            },
+        ],
+    )
+    embeddings.register("what is my compensation", [1.0, 0.0])
+
+    chunks, _ = await retriever.retrieve_chunks("what is my compensation", top_k=5, role="manager")
+
+    assert [chunk["document_id"] for chunk in chunks] == ["doc-restricted"]
+
+
+async def test_retrieve_chunks_hr_support_bypasses_the_acl_gate_entirely(monkeypatch):
+    collection_name, vector_store_client, metadata_store, embeddings = _setup(monkeypatch)
+    await metadata_store.create_document("doc-restricted", "exec-comp.pdf", "data/uploads/doc-restricted/exec-comp.pdf")
+    await metadata_store.record_document_metadata(
+        "doc-restricted", owner=None, department="Finance", doc_category="benefits",
+        purpose=None, doc_description=None, restricted_roles=["manager"],
+    )
+    _seed_collection(
+        vector_store_client,
+        collection_name,
+        [
+            {
+                "id": "doc-restricted:0",
+                "text": "executive compensation details",
+                "embedding": [1.0, 0.0],
+                "metadata": {"document_id": "doc-restricted", "chunk_index": 0, "is_current": True},
+            },
+        ],
+    )
+    embeddings.register("what is my compensation", [1.0, 0.0])
+
+    chunks, _ = await retriever.retrieve_chunks(
+        "what is my compensation", top_k=5, role="hr_support", department=None
+    )
+
+    assert [chunk["document_id"] for chunk in chunks] == ["doc-restricted"]
+
+
+async def test_retrieve_chunks_combines_acl_with_a_self_query_filter(monkeypatch):
+    """Both filters must AND together - a chunk matching the parsed
+    doc_description filter is still excluded by ACL, and the function's
+    own returned applied_filter stays self-query-only (not mixed with ACL)."""
+    collection_name, vector_store_client, metadata_store, embeddings = _setup(monkeypatch)
+    await metadata_store.create_document("doc-restricted", "401k-exec.pdf", "data/uploads/doc-restricted/401k-exec.pdf")
+    await metadata_store.record_document_metadata(
+        "doc-restricted", owner=None, department=None, doc_category="benefits",
+        purpose=None, doc_description="401k", restricted_roles=["manager"],
+    )
+    _seed_collection(
+        vector_store_client,
+        collection_name,
+        [
+            {
+                "id": "doc-restricted:0",
+                "text": "restricted 401k text",
+                "embedding": [1.0, 0.0],
+                "metadata": {"document_id": "doc-restricted", "chunk_index": 0, "is_current": True, "doc_description": "401k"},
+            },
+        ],
+    )
+    embeddings.register("what's my 401k vesting schedule", [1.0, 0.0])
+    monkeypatch.setattr(retriever, "GatewayChatModel", lambda provider="openai": _FakeLLM(response_text=_SELF_QUERY_FILTER_RESPONSE))
+
+    chunks, applied_filter = await retriever.retrieve_chunks(
+        "what's my 401k vesting schedule", top_k=5, use_self_query=True, role="employee"
+    )
+
+    assert chunks == []
     assert applied_filter == {"doc_description": {"$eq": "401k"}}

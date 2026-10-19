@@ -21,7 +21,7 @@ def _fake_check_output_by_default(monkeypatch):
     # other test from needing a real OPENAI_API_KEY - a real gap CI caught
     # (passing locally only because of a real local key masking it).
     async def _passthrough_check_output(query, answer):
-        return answer
+        return answer, {"status": "pass", "rail": None}
 
     monkeypatch.setattr(adhoc_document_agent, "check_output", _passthrough_check_output)
 
@@ -240,7 +240,7 @@ async def test_send_email_tool_sends_the_output_guardrail_checked_text_not_the_r
         return {"sent": True, "message": f"Email sent to {recipient}."}
 
     async def _masking_check_output(query, answer):
-        return answer.replace("555-12-3456", "<SSN>")
+        return answer.replace("555-12-3456", "<SSN>"), {"status": "modified", "rail": "pii detection"}
 
     monkeypatch.setattr(adhoc_document_agent, "send_email", _capturing_send_email)
     monkeypatch.setattr(adhoc_document_agent, "check_output", _masking_check_output)
@@ -502,7 +502,7 @@ async def test_email_body_html_is_masked_by_the_output_guardrail(monkeypatch):
         return {"sent": True, "message": f"Email sent to {recipient}."}
 
     async def _masking_check_output(query, answer):
-        return answer.replace("555-12-3456", "<SSN>")
+        return answer.replace("555-12-3456", "<SSN>"), {"status": "modified", "rail": "pii detection"}
 
     monkeypatch.setattr(adhoc_document_agent, "send_email", _capturing_send_email)
     monkeypatch.setattr(adhoc_document_agent, "check_output", _masking_check_output)

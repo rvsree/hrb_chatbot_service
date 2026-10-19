@@ -98,6 +98,56 @@ def _setup(monkeypatch):
     return collection_name, vector_store_client, metadata_store, embeddings
 
 
+def test_matches_metadata_filter_supports_and_and_nin():
+    """Phase 231 (Document ACL) - retriever.py can now combine a self-query
+    clause with the ACL deny-list filter as {"$and": [<clause>, {"document_id":
+    {"$nin": [...]}}]} - this function must understand both, not just the
+    pre-existing flat-equality/$ne shapes."""
+    metadata = {"document_id": "doc-1", "doc_category": "benefits", "is_current": True}
+
+    assert bm25_search._matches_metadata_filter(metadata, None) is True
+    assert bm25_search._matches_metadata_filter(metadata, {"document_id": {"$nin": ["doc-2", "doc-3"]}}) is True
+    assert bm25_search._matches_metadata_filter(metadata, {"document_id": {"$nin": ["doc-1", "doc-2"]}}) is False
+    assert bm25_search._matches_metadata_filter(
+        metadata, {"$and": [{"doc_category": "benefits"}, {"document_id": {"$nin": ["doc-9"]}}]}
+    ) is True
+    assert bm25_search._matches_metadata_filter(
+        metadata, {"$and": [{"doc_category": "benefits"}, {"document_id": {"$nin": ["doc-1"]}}]}
+    ) is False
+
+
+async def test_search_keyword_excludes_an_acl_denied_document(monkeypatch):
+    """Real end-to-end: search_keyword (reached via retrieve_chunks's own
+    SEARCH_STRATEGIES dispatch) must also honor the ACL deny-list, not just
+    the vector strategies - same combined filter, different enforcement path."""
+    collection_name, vector_store_client, metadata_store, embeddings = _setup(monkeypatch)
+    monkeypatch.setattr(retriever, "get_db_gateway", lambda: FakeDBGateway(vector_store=vector_store_client, metadata_store=metadata_store))
+    await metadata_store.create_document("doc-restricted", "exec.pdf", "data/uploads/doc-restricted/exec.pdf")
+    await metadata_store.record_document_metadata(
+        "doc-restricted", owner=None, department=None, doc_category="benefits",
+        purpose=None, doc_description=None, restricted_roles=["manager"],
+    )
+    _seed_collection(
+        vector_store_client,
+        collection_name,
+        [
+            {
+                "id": "doc-restricted:0",
+                "text": "401k vesting schedule for executives",
+                "embedding": [1.0, 0.0],
+                "metadata": {"document_id": "doc-restricted", "chunk_index": 0, "is_current": True},
+            },
+            *_FILLER_CHUNKS,
+        ],
+    )
+
+    chunks, _ = await retriever.retrieve_chunks(
+        "401k vesting schedule", top_k=5, search_strategy="keyword", role="employee"
+    )
+
+    assert chunks == []
+
+
 def test_search_keyword_returns_chunks_matching_query_terms(monkeypatch):
     collection_name, vector_store_client, metadata_store, embeddings = _setup(monkeypatch)
     _seed_collection(
@@ -216,6 +266,35 @@ async def test_search_hybrid_merges_keyword_and_vector_results(monkeypatch):
 
     document_ids = {chunk["document_id"] for chunk in chunks}
     assert document_ids == {"doc-lexical", "doc-semantic"}
+    # Phase 221 - matched_by names which list(s) actually found each chunk,
+    # the real (per-query) substitute for a dense/sparse "weight" that
+    # doesn't exist in RRF - a lexical-only hit must say so, not "dense".
+    by_document_id = {chunk["document_id"]: chunk for chunk in chunks}
+    assert by_document_id["doc-lexical"]["matched_by"] == ["sparse"]
+    assert by_document_id["doc-semantic"]["matched_by"] == ["dense"]
+
+
+async def test_search_hybrid_tags_a_chunk_both_lists_found_as_matched_by_both(monkeypatch):
+    collection_name, vector_store_client, metadata_store, embeddings = _setup(monkeypatch)
+    _seed_collection(
+        vector_store_client,
+        collection_name,
+        [
+            {
+                "id": "doc-both:0",
+                "text": "401k vesting schedule is five years",
+                "embedding": [1.0, 0.0],
+                "metadata": {"document_id": "doc-both", "chunk_index": 0, "is_current": True},
+            },
+            *_FILLER_CHUNKS,
+        ],
+    )
+    embeddings.register("401k vesting schedule", [1.0, 0.0])
+
+    chunks = bm25_search.search_hybrid("401k vesting schedule", top_k=5)
+
+    by_document_id = {chunk["document_id"]: chunk for chunk in chunks}
+    assert sorted(by_document_id["doc-both"]["matched_by"]) == ["dense", "sparse"]
 
 
 async def test_search_hybrid_via_retrieve_chunks(monkeypatch):

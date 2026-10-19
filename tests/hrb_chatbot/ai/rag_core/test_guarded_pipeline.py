@@ -13,10 +13,10 @@ from tests.conftest import FakeConversationStore, FakeDBGateway
 
 def _patch_guardrails(monkeypatch, check_input=None, check_output=None):
     async def _default_check_input(query):
-        return query
+        return query, {"status": "pass", "rail": None}
 
     async def _default_check_output(query, answer):
-        return answer
+        return answer, {"status": "pass", "rail": None}
 
     monkeypatch.setattr(guarded_pipeline, "check_input", check_input or _default_check_input)
     monkeypatch.setattr(guarded_pipeline, "check_output", check_output or _default_check_output)
@@ -30,7 +30,7 @@ def _patch_conversation_store(monkeypatch, conversation_store=None):
 
 async def test_generate_receives_the_checked_query_not_the_raw_one(monkeypatch):
     async def _upper_check_input(query):
-        return query.upper()
+        return query.upper(), {"status": "pass", "rail": None}
 
     _patch_guardrails(monkeypatch, check_input=_upper_check_input)
     captured = {}
@@ -67,7 +67,7 @@ async def test_blocked_input_raises_before_generate_is_ever_called(monkeypatch):
 
 async def test_output_guardrail_can_modify_the_answer(monkeypatch):
     async def _masking_check_output(query, answer):
-        return answer.replace("Roth", "<PERSON>")
+        return answer.replace("Roth", "<PERSON>"), {"status": "modified", "rail": "pii detection"}
 
     _patch_guardrails(monkeypatch, check_output=_masking_check_output)
 
@@ -154,3 +154,84 @@ async def test_pre_checked_query_skips_the_internal_check_input_call(monkeypatch
     )
 
     assert call_count["check_input"] == 0
+
+
+# Phase 224 - real input/output guardrail status reaching the result dict,
+# so a caller (pipeline.py, the route layer) can surface it instead of the
+# status silently disappearing after the guardrail check runs.
+
+
+async def test_result_carries_the_real_pass_pass_guardrail_status_by_default(monkeypatch):
+    _patch_guardrails(monkeypatch)
+
+    async def _generate(checked_query, chat_history):
+        return {"answer": "fake answer"}
+
+    result = await guarded_pipeline.run_guarded_pipeline("test", "EMP052", False, None, _generate)
+
+    assert result["guardrails"] == {
+        "input": {"status": "pass", "rail": None},
+        "output": {"status": "pass", "rail": None},
+    }
+
+
+async def test_result_carries_the_real_modified_status_for_both_input_and_output(monkeypatch):
+    async def _masking_check_input(query):
+        return query.replace("123-45-6789", "<SSN>"), {"status": "modified", "rail": "pii detection"}
+
+    async def _masking_check_output(query, answer):
+        return answer.replace("Roth", "<PERSON>"), {"status": "modified", "rail": "self check output"}
+
+    _patch_guardrails(monkeypatch, check_input=_masking_check_input, check_output=_masking_check_output)
+
+    async def _generate(checked_query, chat_history):
+        return {"answer": "You can make Roth contributions."}
+
+    result = await guarded_pipeline.run_guarded_pipeline("My SSN is 123-45-6789", "EMP052", False, None, _generate)
+
+    assert result["guardrails"] == {
+        "input": {"status": "modified", "rail": "pii detection"},
+        "output": {"status": "modified", "rail": "self check output"},
+    }
+
+
+async def test_pre_checked_input_status_is_used_instead_of_defaulting_to_pass(monkeypatch):
+    """pipeline.py's MCP fast-path already ran check_input() for its own
+    routing decision and knows the real status - the shared core must
+    reuse it, not silently report "pass" for a query that was actually
+    modified."""
+    _patch_guardrails(monkeypatch)
+
+    async def _generate(checked_query, chat_history):
+        return {"answer": "fake answer"}
+
+    result = await guarded_pipeline.run_guarded_pipeline(
+        "test",
+        "EMP052",
+        False,
+        None,
+        _generate,
+        pre_checked_query="already-checked-test",
+        pre_checked_input_status={"status": "modified", "rail": "pii detection"},
+    )
+
+    assert result["guardrails"]["input"] == {"status": "modified", "rail": "pii detection"}
+
+
+async def test_a_blocked_output_status_reaches_the_result_alongside_the_safe_fallback(monkeypatch):
+    """The real silent-swap bug this phase closes: a blocked answer used to
+    be replaced with the safe fallback text with zero caller-visible signal."""
+    from src.hrb_chatbot.ai.rag_pipeline.response_generation.guardrails_output import SAFE_FALLBACK_ANSWER
+
+    async def _blocked_check_output(query, answer):
+        return SAFE_FALLBACK_ANSWER, {"status": "blocked", "rail": "self check output"}
+
+    _patch_guardrails(monkeypatch, check_output=_blocked_check_output)
+
+    async def _generate(checked_query, chat_history):
+        return {"answer": "some unsafe answer"}
+
+    result = await guarded_pipeline.run_guarded_pipeline("test", "EMP052", False, None, _generate)
+
+    assert result["answer"] == SAFE_FALLBACK_ANSWER
+    assert result["guardrails"]["output"] == {"status": "blocked", "rail": "self check output"}

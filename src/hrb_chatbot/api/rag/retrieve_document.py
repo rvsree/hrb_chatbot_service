@@ -30,10 +30,13 @@ logger = get_logger("retrieve_document")
 router_retrieve_document = APIRouter(tags=["query"])
 
 
-def _params_from_request(payload: RagQueryRequest, employee_id: str | None = None) -> RagQueryParams:
+def _params_from_request(
+    payload: RagQueryRequest, employee_id: str | None = None, role: str | None = None, department: str | None = None
+) -> RagQueryParams:
     """Map the nested request into the flat dataclass ai/rag_pipeline/ actually uses."""
     search_options = payload.search_options
     generation_options = payload.generation_options
+    eval_options = payload.eval_options
     return RagQueryParams(
         query=payload.query,
         top_k=search_options.top_k if search_options else None,
@@ -46,14 +49,21 @@ def _params_from_request(payload: RagQueryRequest, employee_id: str | None = Non
         use_self_query=search_options.use_self_query if search_options else False,
         llm_provider=search_options.llm_provider if search_options else None,
         lambda_mult=search_options.lambda_mult if search_options else None,
+        enable_corrective_retry=search_options.enable_corrective_retry if search_options else False,
         employee_id=employee_id,
+        role=role,
+        department=department,
         enable_conversation_memory=payload.enable_conversation_memory,
         conversation_id=payload.conversation_id,
+        judge_model=eval_options.judge_model if eval_options else None,
+        eval_score_threshold=eval_options.eval_score_threshold if eval_options else None,
     )
 
 
-async def _answer_query(payload: RagQueryRequest, employee_id: str | None = None) -> RagQueryResponse | object:
-    params = _params_from_request(payload, employee_id)
+async def _answer_query(
+    payload: RagQueryRequest, employee_id: str | None = None, role: str | None = None, department: str | None = None
+) -> RagQueryResponse | object:
+    params = _params_from_request(payload, employee_id, role, department)
     try:
         result = await time_and_log(
             "/v1/genai-rag-retrieval/query",
@@ -82,6 +92,7 @@ async def _answer_query(payload: RagQueryRequest, employee_id: str | None = None
             vector_db=result["vector_db"],
             search_strategy=result["search_strategy"],
             applied_filter=result.get("applied_filter"),
+            acl_denied_count=result.get("acl_denied_count", 0),
             sources=result["sources"],
         ),
         explainability_info=ExplainabilityInfo(
@@ -94,6 +105,7 @@ async def _answer_query(payload: RagQueryRequest, employee_id: str | None = None
             eval_scores=EvalScores(**eval_scores) if eval_scores else None,
             temperature=result.get("temperature"),
             llm_context=LlmContextInfo(**result["llm_context"]) if result.get("llm_context") else None,
+            guardrails=result["guardrails"],
         ),
         tools_used=[ToolCallInfo(**call) for call in result.get("tools_used", [])],
         conversation_id=result.get("conversation_id"),
@@ -104,4 +116,6 @@ async def _answer_query(payload: RagQueryRequest, employee_id: str | None = None
 async def query(payload: RagQueryRequest, request: Request):
     userProfile = require_role(payload.user_profile, Role.EMPLOYEE, Role.MANAGER, Role.HR_SUPPORT, Role.ADMIN)
     await enforce_rate_limit(request)
-    return await _answer_query(payload, employee_id=userProfile.employee_id)
+    return await _answer_query(
+        payload, employee_id=userProfile.employee_id, role=userProfile.role, department=userProfile.department
+    )

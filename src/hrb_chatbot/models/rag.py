@@ -38,6 +38,12 @@ class SearchOptions(BaseModel):
         description="Which provider powers use_multi_query's rewriting and use_self_query's "
         "filter-parsing - 'openai' is the default when omitted.",
     )
+    enable_corrective_retry: bool = Field(
+        False,
+        description="Phase 226 - when the retrieved chunks' own live precision falls below "
+        "eval_options.eval_score_threshold, retrieve once more with a doubled top_k before generating "
+        "an answer. No-op without eval_score_threshold set - there's no 'low' to detect against.",
+    )
 
 
 class GenerationOptions(BaseModel):
@@ -54,6 +60,28 @@ class GenerationOptions(BaseModel):
     max_tokens: int | None = Field(None, ge=1, description="Upper limit on the generated answer's token count.")
 
 
+class EvalOptions(BaseModel):
+    """Phase 215 - shared across all 3 query requests (genai-rag/single-agentic-rag/
+    multi-agentic-rag), since eval/judge scoring is common to all 3 (Phase 109/110)."""
+
+    model_config = ConfigDict(protected_namespaces=())
+
+    judge_model: str | None = Field(
+        None,
+        max_length=100,
+        description="Override the LLM model used for eval judging (groundedness/completeness/retrieval "
+        "relevance), e.g. 'gpt-4.1-mini'. Defaults to the same model genai-rag generation uses when omitted.",
+    )
+    eval_score_threshold: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="If any live-computed eval score (groundedness/completeness/retrieval precision - "
+        "whichever are present) falls below this, the response is flagged via "
+        "EvalScores.below_threshold/below_threshold_metrics. No check when omitted.",
+    )
+
+
 class RagQueryRequest(BaseModel):
     user_profile: UserProfile | None = None
     query: str = Field(
@@ -64,6 +92,7 @@ class RagQueryRequest(BaseModel):
     )
     search_options: SearchOptions | None = None
     generation_options: GenerationOptions | None = None
+    eval_options: EvalOptions | None = None
     enable_conversation_memory: bool = Field(
         False, description="Carry conversation history across calls, server-side, keyed by conversation_id."
     )
@@ -82,6 +111,11 @@ class RetrievedChunk(BaseModel):
     chunk_index: int = Field(..., description="This chunk's position within that document.")
     text: str = Field(..., description="The chunk's text, as stored at index time.")
     score: float | None = Field(None, description="The vector store's own similarity score, null for MMR results.")
+    matched_by: list[str] | None = Field(
+        None,
+        description="Phase 221 - hybrid search only: which underlying list(s) found this chunk - "
+        "'sparse' (BM25 keyword), 'dense' (vector similarity), or both. Null for every other search_strategy.",
+    )
 
 
 class AnswerInfo(BaseModel):
@@ -96,6 +130,11 @@ class RetrievalInfo(BaseModel):
     search_strategy: str = Field(..., description="Which retrieval technique actually ran: 'similarity' or 'mmr'.")
     applied_filter: dict | None = Field(
         None, description="The metadata filter Self-Query actually parsed out of the question, if any."
+    )
+    acl_denied_count: int = Field(
+        0,
+        description="Phase 232 - how many documents Document ACL (Phase 231) excluded from this answer's "
+        "candidate pool. 0 for the common case (no restricted documents, or the caller's role bypasses the gate).",
     )
     sources: list[RetrievedChunk] = Field(..., description="The chunks the answer was actually grounded in.")
 
@@ -132,7 +171,7 @@ class EvalScores(BaseModel):
     completeness_explanation: str | None = Field(None, description="Phase 202 - the judge LLM's raw 'Score: X / Reasoning: ...' response, verbatim.")
     completeness_prompt: str | None = Field(None, description="Phase 212 - the exact prompt sent to the completeness judge.")
     retrieval_precision: float | None = Field(
-        None, description="Phase 208 - live, computed-this-call: (chunks an LLM judge found relevant) / (chunks retrieved). No live recall/F1 - see field below."
+        None, description="Phase 208 - live, computed-this-call: (chunks an LLM judge found relevant) / (chunks retrieved)."
     )
     retrieval_relevant_chunk_indices: list[int] = Field(
         default_factory=list, description="Phase 208 - 1-indexed positions (within this call's retrieved chunks) the judge marked relevant."
@@ -141,6 +180,41 @@ class EvalScores(BaseModel):
         None, description="Phase 208 - the judge LLM's raw 'Relevant: ... / Reasoning: ...' response, verbatim."
     )
     retrieval_precision_prompt: str | None = Field(None, description="Phase 212 - the exact prompt sent to the retrieval-relevance judge.")
+    retrieval_recall_estimate: float | None = Field(
+        None,
+        description="Phase 219 - NOT true recall (that needs the total count of relevant documents that exist, "
+        "still unknowable for an arbitrary live question). (chunks judged relevant within what was actually "
+        "retrieved) / (chunks judged relevant across a wider exact-KNN candidate pool - see retrieval_recall_pool_size). "
+        "Null when nothing in that pool was judged relevant (undefined, not fabricated as 0 or 1).",
+    )
+    retrieval_f1_estimate: float | None = Field(
+        None, description="Phase 219 - harmonic mean of retrieval_precision and retrieval_recall_estimate. Same estimate caveat as that field."
+    )
+    retrieval_recall_pool_size: int | None = Field(
+        None, description="Phase 219 - how many candidate chunks retrieval_recall_estimate was computed against (capped at 20)."
+    )
+    retrieval_recall_relevant_count: int | None = Field(
+        None,
+        description="Phase 225 - the real denominator of retrieval_recall_estimate: how many chunks the judge "
+        "marked relevant across the whole wider candidate pool (retrieval_recall_pool_size chunks), before "
+        "scoping down to just the originally-retrieved subset (retrieval_relevant_chunk_indices).",
+    )
+    retrieval_retry_attempted: bool = Field(
+        False,
+        description="Phase 226 - true when search_options.enable_corrective_retry was on AND the first "
+        "retrieval's own precision fell below eval_score_threshold, so retrieval ran a second time (doubled "
+        "top_k) before this answer was generated. Always false when the feature was off, threshold wasn't "
+        "set, or the first retrieval already passed.",
+    )
+    judge_model_used: str | None = Field(
+        None, description="Phase 215 - the real model every judge call this turn actually used (the override if given, else the default) - verifiable, not just trusted."
+    )
+    below_threshold: bool = Field(
+        False, description="Phase 215 - true if any live-computed score (groundedness/completeness/retrieval_precision, whichever are present) fell below the request's eval_options.eval_score_threshold. Always false when no threshold was given."
+    )
+    below_threshold_metrics: list[str] = Field(
+        default_factory=list, description="Phase 215 - which metric name(s) triggered below_threshold, e.g. ['completeness']."
+    )
 
 
 class ChatHistoryMessage(BaseModel):
@@ -176,6 +250,38 @@ class LlmContextInfo(BaseModel):
     mcp_tool_calls: list[McpToolCallDetail] = Field(default_factory=list)
 
 
+class ActivatedRailInfo(BaseModel):
+    """Phase 229 - one configured NeMo Guardrails flow that actually ran
+    for this check, with NeMo's own real decision log - live-verified to
+    include every configured rail, not just the one that blocked/modified
+    something, so a clean pass is still demonstrable, not just asserted."""
+
+    name: str = Field(..., description="Which configured flow ran, e.g. 'self check input', 'mask sensitive data on input'.")
+    decisions: list[str] = Field(default_factory=list, description="NeMo's own real sequence of actions this rail took, e.g. ['execute self_check_input'].")
+    stop: bool = Field(False, description="True if this rail halted further processing - this is what makes a check 'blocked'.")
+
+
+class GuardrailCheckStatus(BaseModel):
+    """Phase 224 - one guardrail check's real outcome. Before this, a
+    MODIFIED (PII masked) result was indistinguishable from an untouched
+    PASS to every caller, and a BLOCKED output silently swapped in a safe
+    fallback answer with zero signal reaching anyone."""
+
+    status: str = Field(..., description="'pass', 'modified' (NeMo masked something, e.g. PII), or 'blocked' (output check only - an input block raises a 422 before any response is built, so it never reaches here).")
+    rail: str | None = Field(None, description="Which NeMo Guardrails rail fired. Null on a clean pass, and - confirmed against NeMo's own check_async() logic - also null on a 'modified' result (NeMo itself never attributes a MODIFIED outcome to one specific rail name); see activated_rails for the real per-rail detail.")
+    activated_rails: list[ActivatedRailInfo] = Field(
+        default_factory=list,
+        description="Phase 229 - every configured rail that actually ran for this check, in order, with NeMo's own real decision log - not just the one rail that happened to matter.",
+    )
+
+
+class GuardrailInfo(BaseModel):
+    """Phase 224 - both of NeMo Guardrails' checks for this answer."""
+
+    input: GuardrailCheckStatus
+    output: GuardrailCheckStatus
+
+
 class ExplainabilityInfo(BaseModel):
     """Phase 107/109 - real latency/token/cache-vs-live/eval numbers,
     genai-rag only. Dollar cost is deliberately excluded (see BACKLOG.md)."""
@@ -193,6 +299,7 @@ class ExplainabilityInfo(BaseModel):
     temperature: float | None = Field(
         None, description="Phase 127 - genai-rag only; null for single/multi-agentic-rag, which hardcode temperature=0, not user-configurable."
     )
+    guardrails: GuardrailInfo = Field(..., description="Phase 224 - real input/output guardrail status for this answer. Reused as-is on a cache hit, same reasoning as eval_scores.")
 
 
 class RagQueryResponse(BaseModel):

@@ -1,0 +1,307 @@
+<title>RAG Ingestion Batch Pipeline</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef0f4; --surface: #ffffff; --surface-alt: #f4f5f9; --border: #d9dce4;
+    --text: #191d28; --text-muted: #565f72; --text-faint: #8992a4;
+    --c1: #4d5ad2; --c2: #0f8f7a; --c3: #c4871a; --c4: #9548c9; --c5: #2f8fd2; --c6: #d2486b;
+    --spine: #c7cbdb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #090b10; --surface: #12151e; --surface-alt: #161a24; --border: #232838;
+      --text: #eceef4; --text-muted: #9aa1b6; --text-faint: #5e6579;
+      --c1: #818cf8; --c2: #34d399; --c3: #fbbf4a; --c4: #d48ef2; --c5: #60b6f5; --c6: #f2799c;
+      --spine: #2a2f40;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #090b10; --surface: #12151e; --surface-alt: #161a24; --border: #232838;
+    --text: #eceef4; --text-muted: #9aa1b6; --text-faint: #5e6579;
+    --c1: #818cf8; --c2: #34d399; --c3: #fbbf4a; --c4: #d48ef2; --c5: #60b6f5; --c6: #f2799c;
+    --spine: #2a2f40;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    padding-inline: 16px; padding-block: 28px 50px;
+  }
+  .display { font-family: 'Archivo', 'IBM Plex Sans', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--text-faint); font-weight: 600;
+  }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 13.5px; max-width: 74ch; line-height: 1.5; }
+  .subtitle code { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--text); }
+
+  /* ---- spine layout ---- */
+  .spine-wrap { display: grid; grid-template-columns: 46px 1fr; }
+  .spine-line {
+    position: relative; display: flex; justify-content: center;
+  }
+  .spine-line::before {
+    content: ""; position: absolute; top: 20px; bottom: -14px; width: 2px;
+    background: repeating-linear-gradient(var(--spine), var(--spine) 4px, transparent 4px, transparent 9px);
+  }
+  .stage:last-child .spine-line::before { display: none; }
+
+  .stage { display: grid; grid-template-columns: 46px 1fr; margin-bottom: 14px; }
+  .stage-dot-col { position: relative; display: flex; justify-content: center; }
+  .stage-dot-col::before {
+    content: ""; position: absolute; top: 34px; bottom: -14px; left: 50%; width: 2px; transform: translateX(-50%);
+    background: repeating-linear-gradient(var(--spine), var(--spine) 4px, transparent 4px, transparent 9px);
+  }
+  .stage:last-child .stage-dot-col::before { display: none; }
+  .stage-num {
+    flex: none; width: 34px; height: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; color: #0b0c10;
+    font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 14px;
+    box-shadow: 0 0 0 4px var(--bg), 0 0 0 5px var(--stage-c), 0 0 16px 1px var(--stage-c);
+  }
+
+  .stage-body { padding-left: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .stage-label-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .stage-name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 16px; color: var(--stage-c); }
+  .stage-tag {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--text-faint);
+    background: var(--surface-alt); border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px;
+  }
+
+  .card-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .card {
+    flex: 1 1 200px; min-width: 190px;
+    border-radius: 11px; background: var(--surface);
+    border: 1px solid var(--border); border-top: 2px solid var(--stage-c);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--stage-c) 14%, transparent),
+                0 8px 20px -8px color-mix(in srgb, var(--stage-c) 55%, transparent);
+    padding: 10px 11px; display: flex; flex-direction: column; gap: 5px;
+  }
+  .card.lead { flex-basis: 260px; background: color-mix(in srgb, var(--stage-c) 7%, var(--surface)); }
+  .card-top { display: flex; align-items: center; gap: 8px; }
+  .card-icon {
+    flex: none; width: 30px; height: 30px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--stage-c) 18%, transparent); color: var(--stage-c);
+  }
+  .card-icon svg { width: 16px; height: 16px; }
+  .card-label { font-weight: 700; font-size: 13px; line-height: 1.2; }
+  .card-detail { font-size: 11.5px; color: var(--text-muted); line-height: 1.35; }
+  .card-ref { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-faint); word-break: break-word; }
+
+  .s1 { --stage-c: var(--c1); } .s2 { --stage-c: var(--c2); } .s3 { --stage-c: var(--c3); }
+  .s4 { --stage-c: var(--c4); } .s5 { --stage-c: var(--c5); } .s6 { --stage-c: var(--c6); }
+
+  .link-label {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--text-faint);
+    padding: 2px 0 2px 14px; margin-top: -4px;
+  }
+
+  /* loop-back ribbon */
+  .loop {
+    grid-column: 1 / -1; display: flex; align-items: center; gap: 9px;
+    background: var(--surface-alt); border: 1px solid var(--border); border-radius: 999px;
+    padding: 7px 16px; font-size: 11.5px; color: var(--text-muted); margin: 2px 0 14px 60px; width: fit-content;
+  }
+  .loop svg { width: 13px; height: 13px; flex: none; color: var(--text-faint); }
+  .loop b { color: var(--text); }
+
+  footer { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; padding-left: 60px; }
+  footer .note { font-size: 11px; color: var(--text-faint); line-height: 1.5; max-width: 90ch; }
+
+  @media (max-width: 640px) {
+    .stage, .spine-wrap { grid-template-columns: 34px 1fr; }
+    .loop, footer { margin-left: 44px; padding-left: 0; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">hrb_chatbot_v2 &middot; docs/dev-reference/rag-ingestion</span>
+    <h1 class="display">RAG Ingestion Batch Pipeline</h1>
+    <p class="subtitle">
+      What runs inside <code>POST /v1/genai-rag/ingest-document/documents</code> - every name below
+      is real, from <code>documents_service.py</code>, <code>vector_indexer.py</code> and <code>ingest_document.py</code>.
+    </p>
+  </header>
+
+  <div>
+
+    <!-- Stage 1 -->
+    <div class="stage s1">
+      <div class="stage-dot-col"><div class="stage-num">1</div></div>
+      <div class="stage-body">
+        <div class="stage-label-row">
+          <span class="stage-name">Receive &amp; Authorize</span>
+          <span class="stage-tag">once per batch</span>
+        </div>
+        <div class="card-row">
+          <div class="card lead">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><span class="card-label">Multipart request</span></div>
+            <div class="card-detail"><code class="mono">files[]</code> + JSON <code class="mono">payload</code></div>
+            <div class="card-ref">ingest_document.py :: upload_documents()</div>
+          </div>
+          <div class="card">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div><span class="card-label">Role check</span></div>
+            <div class="card-detail">hr_support / admin / employee_admin only</div>
+            <div class="card-ref">rbac.py :: require_role()</div>
+          </div>
+          <div class="card">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><span class="card-label">Rate limit</span></div>
+            <div class="card-detail">per-caller budget</div>
+            <div class="card-ref">rate_limiter.py</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="link-label" style="margin-left:46px">&darr; authorized batch</div>
+    <div class="loop">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+      Stages 2-6 repeat <b>per file, one at a time</b> - not parallel
+    </div>
+
+    <!-- Stage 2 -->
+    <div class="stage s2">
+      <div class="stage-dot-col"><div class="stage-num">2</div></div>
+      <div class="stage-body">
+        <div class="stage-label-row">
+          <span class="stage-name">Validate &amp; Dedupe</span>
+          <span class="stage-tag">per file</span>
+        </div>
+        <div class="card-row">
+          <div class="card">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><span class="card-label">Type &amp; size</span></div>
+            <div class="card-detail">PDF only, under the limit</div>
+            <div class="card-ref">validate_file()</div>
+          </div>
+          <div class="card lead">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg></div><span class="card-label">Content-hash dedupe</span></div>
+            <div class="card-detail">same bytes = same document, any filename - match short-circuits to "duplicate"</div>
+            <div class="card-ref">find_by_content_hash()</div>
+          </div>
+          <div class="card">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4M7 23l-4-4 4-4M21 5H9a4 4 0 0 0-4 4v2M3 19h12a4 4 0 0 0 4-4v-2"/></svg></div><span class="card-label">Supersede target</span></div>
+            <div class="card-detail">must already exist, if given</div>
+            <div class="card-ref">save_upload()</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="link-label" style="margin-left:46px">&darr; new content, not a duplicate</div>
+
+    <!-- Stage 3 -->
+    <div class="stage s3">
+      <div class="stage-dot-col"><div class="stage-num">3</div></div>
+      <div class="stage-body">
+        <div class="stage-label-row">
+          <span class="stage-name">Store</span>
+          <span class="stage-tag">status: uploaded</span>
+        </div>
+        <div class="card-row">
+          <div class="card">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div><span class="card-label">Write to disk</span></div>
+            <div class="card-detail"><code class="mono">data/uploads/{id}/{file}</code></div>
+            <div class="card-ref">save_upload()</div>
+          </div>
+          <div class="card">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div><span class="card-label">Create metadata row</span></div>
+            <div class="card-detail">content_hash + supersede intent recorded</div>
+            <div class="card-ref">create_document()</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="link-label" style="margin-left:46px">&darr; text extracted</div>
+
+    <!-- Stage 4 -->
+    <div class="stage s4">
+      <div class="stage-dot-col"><div class="stage-num">4</div></div>
+      <div class="stage-body">
+        <div class="stage-label-row">
+          <span class="stage-name">Chunk &amp; Embed</span>
+          <span class="stage-tag">parsing &rarr; chunking &rarr; embedding</span>
+        </div>
+        <div class="card-row">
+          <div class="card lead">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div><span class="card-label">Chunk</span></div>
+            <div class="card-detail">6 LangChain splitter strategies, auto-picked when not given</div>
+            <div class="card-ref">chunking/text_chunker.py</div>
+          </div>
+          <div class="card">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6M12 17v6M4.2 4.2l4.2 4.2M15.5 15.5l4.2 4.2M1 12h6M17 12h6M4.2 19.8l4.2-4.2M15.5 8.5l4.2-4.2"/></svg></div><span class="card-label">Embed</span></div>
+            <div class="card-detail">1 OpenAI call per chunk</div>
+            <div class="card-ref">embedding_generator.py</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="link-label" style="margin-left:46px">&darr; vectors ready</div>
+
+    <!-- Stage 5 -->
+    <div class="stage s5">
+      <div class="stage-dot-col"><div class="stage-num">5</div></div>
+      <div class="stage-body">
+        <div class="stage-label-row">
+          <span class="stage-name">Index</span>
+          <span class="stage-tag">indexing &rarr; indexed</span>
+        </div>
+        <div class="card-row">
+          <div class="card lead">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><span class="card-label">Write to vector store</span></div>
+            <div class="card-detail">Chroma/Pinecone via LangChain's index() - insert vs. update diffed against old chunk_ids</div>
+            <div class="card-ref">vector_indexer.py :: write_chunks()</div>
+          </div>
+          <div class="card">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/><circle cx="18" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="6" cy="18" r="2" fill="currentColor" stroke="none"/></svg></div><span class="card-label">Supersede flip</span></div>
+            <div class="card-detail">old chunks &rarr; is_current=false</div>
+            <div class="card-ref">_apply_supersede()</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="link-label" style="margin-left:46px">&darr; is this a brand-new document?</div>
+
+    <!-- Stage 6 -->
+    <div class="stage s6">
+      <div class="stage-dot-col"><div class="stage-num">6</div></div>
+      <div class="stage-body">
+        <div class="stage-label-row">
+          <span class="stage-name">Extract &amp; Respond</span>
+          <span class="stage-tag">first index only &rarr; always</span>
+        </div>
+        <div class="card-row">
+          <div class="card lead">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 2v10l7 4"/></svg></div><span class="card-label">LLM metadata extraction</span></div>
+            <div class="card-detail">12 fields (doc_category, restricted_roles, ...) - caller overrides always win over the guess</div>
+            <div class="card-ref">document_metadata_extractor.py</div>
+          </div>
+          <div class="card">
+            <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg></div><span class="card-label">Per-file result</span></div>
+            <div class="card-detail">uploaded / duplicate / rejected</div>
+            <div class="card-ref">upload_documents()</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    <p class="note">
+      Leaves out the async presigned-upload + Lambda path (Phase 89 - same steps, triggered after a
+      direct-to-S3 PUT) - see <code>docs/agent-reference/RAG-ROADMAP.md</code>.
+    </p>
+  </footer>
+</div>
