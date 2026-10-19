@@ -10,6 +10,7 @@ from src.hrb_chatbot.ai.agents._llm_helpers import AGENT_LLM_TIMEOUT_SECONDS, bu
 from src.hrb_chatbot.ai.pre_processing import conversation_memory
 from src.hrb_chatbot.ai.pre_processing.query_normalize import normalize_query
 from src.hrb_chatbot.ai.prompts.agent_prompts import ORCHESTRATION_SYSTEM_PROMPT
+from src.hrb_chatbot.ai.rag_core.eval_threshold import check_eval_threshold
 from src.hrb_chatbot.ai.rag_core.guarded_pipeline import run_guarded_pipeline
 from src.hrb_chatbot.ai.rag_core.response_format import TABULAR_FORMAT_INSTRUCTION, should_use_tabular_format
 from src.hrb_chatbot.ai.rag_core.tool_classification import classify_tool
@@ -18,6 +19,7 @@ from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import (
     evaluate_groundedness,
     evaluate_retrieval_relevance,
 )
+from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.exact_knn_search import search_knn
 from src.hrb_chatbot.ai.rag_pipeline.tools.agentic_tools import (
     AGENTIC_TOOL_DEFINITIONS,
     get_leave_balance_tool,
@@ -71,18 +73,60 @@ def _render_turn(label: str, messages: list, response_text: str, latency_ms: flo
     }
 
 
-async def _score_live_answer(query: str, answer: str, context_texts: list[str]) -> tuple[dict | None, float | None]:
+# Phase 220 - same wider-pool approach pipeline.py's own _score_live_answer()
+# uses (Phase 219), adapted here: context_texts (tool_outputs) mixes KB
+# chunks with web-search/MCP text, which isn't something exact-KNN can
+# compare against, so the retrieval judge (precision/recall/f1) now scopes
+# to `sources` - the structured, real KB-chunk list Phase 115 already
+# built for citations - instead of the mixed blob. Groundedness/
+# completeness are unaffected, still judged against the full context_texts.
+WIDER_POOL_MULTIPLIER = 4
+WIDER_POOL_MAX = 20
+# search_knowledge_base (agentic_tools.py) hardcodes top_k=3 for every
+# call - mirrored here, not guessed, since that's the real size being
+# widened from.
+SEARCH_KNOWLEDGE_BASE_TOP_K = 3
+
+
+def _chunk_key(chunk: dict) -> tuple:
+    return (chunk.get("document_id"), chunk.get("chunk_index"))
+
+
+async def _fetch_wider_pool_texts(query: str, original_sources: list[dict]) -> list[str]:
+    wider_k = min(SEARCH_KNOWLEDGE_BASE_TOP_K * WIDER_POOL_MULTIPLIER, WIDER_POOL_MAX)
+    original_keys = {_chunk_key(chunk) for chunk in original_sources}
+    extra_chunks = await asyncio.to_thread(search_knn, query, wider_k, None)
+    deduped_extra = [chunk for chunk in extra_chunks if _chunk_key(chunk) not in original_keys]
+    return [chunk["text"] for chunk in original_sources] + [chunk["text"] for chunk in deduped_extra]
+
+
+async def _score_live_answer(
+    query: str,
+    answer: str,
+    context_texts: list[str],
+    sources: list[dict] | None = None,
+    judge_model: str | None = None,
+    eval_score_threshold: float | None = None,
+) -> tuple[dict | None, float | None]:
     """Same approach as pipeline.py's own _score_live_answer() (Phase 109) -
     skipped when there's no tool-retrieved context to check groundedness
-    against, both judge calls run in parallel via asyncio.to_thread()."""
+    against, both judge calls run in parallel via asyncio.to_thread().
+    Phase 215: judge_model/eval_score_threshold - see ai/rag_core/eval_threshold.py.
+    Phase 220: sources (real KB chunks, may be empty even when context_texts
+    isn't - e.g. an MCP-only or web-only answer) drives retrieval_precision/
+    recall_estimate/f1_estimate now, instead of context_texts - see the
+    module comment above _fetch_wider_pool_texts for why."""
     if not context_texts:
         return None, None
 
+    kb_chunk_texts = [chunk["text"] for chunk in sources] if sources else []
+    wider_pool_texts = await _fetch_wider_pool_texts(query, sources) if sources else None
+
     eval_started_at = time.perf_counter()
     groundedness, completeness, retrieval = await asyncio.gather(
-        asyncio.to_thread(evaluate_groundedness, answer, context_texts),
-        asyncio.to_thread(evaluate_completeness, query, answer),
-        asyncio.to_thread(evaluate_retrieval_relevance, query, context_texts),
+        asyncio.to_thread(evaluate_groundedness, answer, context_texts, judge_model),
+        asyncio.to_thread(evaluate_completeness, query, answer, None, judge_model),
+        asyncio.to_thread(evaluate_retrieval_relevance, query, kb_chunk_texts, judge_model, wider_pool_texts),
     )
     eval_scores = {
         "groundedness": groundedness["score"],
@@ -97,7 +141,15 @@ async def _score_live_answer(query: str, answer: str, context_texts: list[str]) 
         "retrieval_relevant_chunk_indices": retrieval["relevant_chunk_indices"],
         "retrieval_precision_explanation": retrieval["explanation"],
         "retrieval_precision_prompt": retrieval["prompt"],
+        "retrieval_recall_estimate": retrieval["recall_estimate"],
+        "retrieval_f1_estimate": retrieval["f1_estimate"],
+        "retrieval_recall_pool_size": retrieval["pool_size"],
+        "retrieval_recall_relevant_count": retrieval["relevant_pool_count"],
+        "judge_model_used": groundedness["model_used"],
     }
+    eval_scores["below_threshold"], eval_scores["below_threshold_metrics"] = check_eval_threshold(
+        eval_scores, eval_score_threshold
+    )
     return eval_scores, _elapsed_ms(eval_started_at)
 
 # Phase 71: moved into ai/prompts/agent_prompts.py - kept as a module-level
@@ -105,12 +157,14 @@ async def _score_live_answer(query: str, answer: str, context_texts: list[str]) 
 SYSTEM_PROMPT = ORCHESTRATION_SYSTEM_PROMPT
 
 TOOL_FUNCTIONS = {
-    # SearchKnowledgeBase also takes the tool call's own search_strategy arg (the agent's own choice).
-    "SearchKnowledgeBase": lambda args, employee_id: search_knowledge_base(
-        args.get("input", ""), args.get("search_strategy")
+    # SearchKnowledgeBase also takes the tool call's own search_strategy arg
+    # (the agent's own choice) plus role/department (Phase 231, Document
+    # ACL - the caller's own enforced identity, never the agent's choice).
+    "SearchKnowledgeBase": lambda args, employee_id, role, department: search_knowledge_base(
+        args.get("input", ""), args.get("search_strategy"), role=role, department=department
     ),
-    "GetLeaveBalance": lambda args, employee_id: get_leave_balance_tool(employee_id),
-    "GetLeaveHistory": lambda args, employee_id: get_leave_history_tool(employee_id),
+    "GetLeaveBalance": lambda args, employee_id, role, department: get_leave_balance_tool(employee_id),
+    "GetLeaveHistory": lambda args, employee_id, role, department: get_leave_history_tool(employee_id),
 }
 
 
@@ -125,6 +179,11 @@ async def run_agent(
     enable_conversation_memory: bool = False,
     conversation_id: str | None = None,
     request_id: str | None = None,
+    judge_model: str | None = None,
+    eval_score_threshold: float | None = None,
+    search_strategy: str | None = None,
+    role: str | None = None,
+    department: str | None = None,
 ) -> dict:
     """Runs the tool-calling loop for one query - guardrailed and memory-
     tracked via the Phase 98 shared core (previously had neither: no
@@ -136,7 +195,17 @@ async def run_agent(
     caching for the correctness-safe subset of answers - see
     RAG-ROADMAP.md's Phase 110 entry for why GetLeaveBalance/
     GetLeaveHistory turns are excluded from the cache but SearchKnowledgeBase
-    ones are not."""
+    ones are not.
+
+    Phase 228: search_strategy is a DEFAULT for SearchKnowledgeBase tool
+    calls, used only when the agent's own tool call doesn't specify one
+    (Phase 216 already lets it choose "mmr" per call) - never forces the
+    agent's own live choice.
+
+    Phase 231: role/department (Document ACL) are the caller's own
+    enforced identity, passed to every tool call uniformly (unused by
+    GetLeaveBalance/GetLeaveHistory) - unlike search_strategy, never a
+    per-call agent choice, so there's no "default vs. override" nuance here."""
     started_at = time.perf_counter()
     normalized_query = await normalize_query(query)
     resolved_max_iterations = max_iterations or DEFAULT_MAX_ITERATIONS
@@ -146,7 +215,13 @@ async def run_agent(
     if enable_conversation_memory:
         resolved_conversation_id = conversation_id or conversation_memory.new_conversation_id()
 
-    cache_key = build_cache_key(normalized_query, pipeline="single-agentic-rag", max_iterations=resolved_max_iterations)
+    # Phase 231: role/department added - same reasoning as pipeline.py's
+    # own cache key (a cached answer's citations can depend on which
+    # documents the ORIGINAL caller's role/department could see).
+    cache_key = build_cache_key(
+        normalized_query, pipeline="single-agentic-rag", max_iterations=resolved_max_iterations,
+        search_strategy=search_strategy, role=role, department=department,
+    )
     cached_result = await get_db_gateway().answer_cache().get(cache_key)
     if cached_result is not None:
         logger.info("Answer cache hit for %r (single-agentic-rag)", normalized_query)
@@ -230,12 +305,18 @@ async def run_agent(
                 tool_args = tool_call["args"]
                 tool_input = tool_args.get("input", "")
 
+                # Phase 228 - the caller's own search_strategy DEFAULT only
+                # fills in when the agent's own tool call didn't already
+                # make its own choice (Phase 216) - never overrides it.
+                if tool_name == "SearchKnowledgeBase" and "search_strategy" not in tool_args and search_strategy:
+                    tool_args = {**tool_args, "search_strategy": search_strategy}
+
                 tool_function = TOOL_FUNCTIONS.get(tool_name)
                 tool_call_started_at = time.perf_counter()
                 if tool_function is None:
                     tool_output, tool_chunks = f"Error: unknown tool {tool_name!r}", []
                 else:
-                    tool_output, tool_chunks = await tool_function(tool_args, employee_id)
+                    tool_output, tool_chunks = await tool_function(tool_args, employee_id, role, department)
                 tool_call_latency_ms = _elapsed_ms(tool_call_started_at)
 
                 tools_used.append(
@@ -243,6 +324,10 @@ async def run_agent(
                         "tool_name": tool_name,
                         "tool_input": tool_input,
                         "tool_type": classify_tool(tool_name),
+                        # Phase 216 - the agent's own search_strategy choice was
+                        # being silently dropped here before (only "input" was
+                        # captured from tool_args); None for every other tool.
+                        "search_strategy": tool_args.get("search_strategy"),
                         "latency_ms": tool_call_latency_ms,
                         "success": not tool_output.startswith("Error:"),
                         "iteration": i + 1,
@@ -274,7 +359,11 @@ async def run_agent(
     # genai-rag's and multi-agentic-rag's own result dicts already do.
     result["query"] = normalized_query
     result["served_from_cache"] = False
-    eval_scores, eval_ms = await _score_live_answer(normalized_query, result["answer"], result.get("tool_outputs") or [])
+    eval_scores, eval_ms = await _score_live_answer(
+        normalized_query, result["answer"], result.get("tool_outputs") or [],
+        sources=result.get("sources") or [],
+        judge_model=judge_model, eval_score_threshold=eval_score_threshold,
+    )
     result["eval_scores"] = eval_scores
     result["latency_ms"]["eval"] = eval_ms
     result["latency_ms"]["total"] = _elapsed_ms(started_at)

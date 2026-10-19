@@ -8,8 +8,9 @@ from src.hrb_chatbot.common.clients.db_client.pinecone_client import PineconeCli
 
 
 class _FakeVector:
-    def __init__(self, metadata):
+    def __init__(self, metadata, values=None):
         self.metadata = metadata
+        self.values = values or []
 
 
 class _FakeFetchResponse:
@@ -70,7 +71,9 @@ def test_get_all_chunks_falls_back_to_llama_index_node_content(monkeypatch):
 
     chunks = client.get_all_chunks("test_collection")
 
-    assert chunks == [{"id": "chunk-1", "text": "legacy chunk text", "metadata": {"_node_content": node_content}}]
+    assert chunks == [
+        {"id": "chunk-1", "text": "legacy chunk text", "metadata": {"_node_content": node_content}, "embedding": None}
+    ]
 
 
 def test_get_all_chunks_on_empty_namespace_returns_empty_list(monkeypatch):

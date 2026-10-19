@@ -289,10 +289,10 @@
                 <div class="card-label">Role check (employee/manager/hr_support)</div>
                 <div class="card-ref">gateway/rbac.py :: check_role()</div>
               </div>
-              <div class="card missing">
-                <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4v6c0 5-4 8-9 9-5-1-9-4-9-9z"/><path d="M9.5 12l1.8 1.8L15 10"/></svg></div><span class="status-pill">Not built</span></div>
-                <div class="card-label">Document-level ACL by confidentiality</div>
-                <div class="card-ref">rag_pipeline/helper/access_control.py &mdash; 0 bytes</div>
+              <div class="card done">
+                <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4v6c0 5-4 8-9 9-5-1-9-4-9-9z"/><path d="M9.5 12l1.8 1.8L15 10"/></svg></div><span class="status-pill">Done</span></div>
+                <div class="card-label">Document-level ACL by role/department (Phase 231)</div>
+                <div class="card-ref">rag_pipeline/helper/access_control.py :: build_acl_filter()</div>
               </div>
               <div class="card done">
                 <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><span class="status-pill">Done</span></div>
@@ -355,10 +355,10 @@
               <span class="gate">Gate 4 &middot; the Context Gate</span>
             </div>
             <div class="card-row">
-              <div class="card missing">
-                <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M7 6l-4 6 4 6M17 6l4 6-4 6"/></svg></div><span class="status-pill">Not built</span></div>
-                <div class="card-label">Relevance scoring / CRAG re-query fallback</div>
-                <div class="card-ref">no file exists yet &mdash; not even a placeholder</div>
+              <div class="card partial">
+                <div class="card-top"><div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M7 6l-4 6 4 6M17 6l4 6-4 6"/></svg></div><span class="status-pill">Partial</span></div>
+                <div class="card-label">Corrective retry on low precision (Phase 226)</div>
+                <div class="card-ref">rag_pipeline/pipeline.py :: _answer_sub_question() &mdash; CRAG-shaped, opt-in, genai-rag only</div>
               </div>
             </div>
           </div>
@@ -440,7 +440,7 @@
   </div>
 
   <footer>
-    Snapshot: 2026-09-22. Full stage-by-stage reference table (all 19 stages, test files included) lives in <code class="mono">docs/rag-pipeline-status.md</code> alongside this diagram. Six-layer gate scorecard: Gates 1 and 6 done (NeMo Guardrails, Phase 7). Gate 5 deliberately stays unbuilt live - DeepEval's FaithfulnessMetric does that job offline instead (Phase 8), not duplicated. Gate 4 has no file at all, not even reserved.
+    Snapshot: 2026-10-19 (round 2 - Phase 226 correction). Full stage-by-stage reference table (all 19 stages, test files included) lives in <code class="mono">docs/rag-pipeline-status.md</code> alongside this diagram. Six-layer gate scorecard: Gates 1, 2, and 6 done (NeMo Guardrails for 1/6, Phase 7; role check + Document ACL for 2, Phase 231). Gate 5 deliberately stays unbuilt live - DeepEval's FaithfulnessMetric does that job offline instead (Phase 8), not duplicated. Gate 4 was previously logged here as having no file at all - wrong, corrected: Phase 226's corrective retry is real, working CRAG-shaped logic (bounded, precision-gated re-retrieval), just opt-in and genai-rag only.
   </footer>
 
 </div>

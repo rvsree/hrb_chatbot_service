@@ -16,25 +16,46 @@ logger = get_logger("rag_pipeline.bm25_search")
 RRF_K = 60
 
 
-def _matches_metadata_filter(metadata: dict, extra_filter: dict | None) -> bool:
-    """is_current is always enforced here, independent of extra_filter - same
-    rule search_similarity()/search_mmr() apply via CURRENT_CHUNKS_ONLY, just
-    checked directly against raw metadata instead of a vector-store `where`
-    clause. extra_filter only supports flat equality/$ne - the shapes
-    Self-Query actually produces for this project's own METADATA_FIELD_INFO,
-    not a general boolean filter tree."""
-    if metadata.get("is_current") is False:
-        return False
-    if not extra_filter:
+def _matches_filter_clause(metadata: dict, clause: dict | None) -> bool:
+    """Phase 231 - recurses into "$and" (a list of sub-clauses, each ANDed)
+    and understands "$nin" (list membership) in addition to the existing
+    flat-equality/"$ne" support - needed because retriever.py can now
+    combine Self-Query's own filter with the ACL deny-list filter as
+    {"$and": [<self-query clause>, {"document_id": {"$nin": [...]}}]}.
+
+    Note: a "$eq"-wrapped equality clause (the shape Self-Query's own
+    translators actually produce, e.g. {"doc_category": {"$eq": "x"}}) is
+    NOT handled here either - a pre-existing gap found while adding this,
+    not introduced by it (falls through to the "elif actual != condition"
+    branch below, comparing a plain value to a dict, which can never
+    match) - flagged in BACKLOG.md, not fixed here: out of this phase's
+    scope, and doesn't affect ACL's own correctness, since the "$nin"
+    clause this phase adds is always a sibling of any self-query clause
+    under "$and", never nested inside one."""
+    if not clause:
         return True
-    for key, condition in extra_filter.items():
+    if "$and" in clause:
+        return all(_matches_filter_clause(metadata, sub_clause) for sub_clause in clause["$and"])
+    for key, condition in clause.items():
         actual = metadata.get(key)
-        if isinstance(condition, dict) and "$ne" in condition:
-            if actual == condition["$ne"]:
+        if isinstance(condition, dict):
+            if "$ne" in condition and actual == condition["$ne"]:
+                return False
+            if "$nin" in condition and actual in condition["$nin"]:
                 return False
         elif actual != condition:
             return False
     return True
+
+
+def _matches_metadata_filter(metadata: dict, extra_filter: dict | None) -> bool:
+    """is_current is always enforced here, independent of extra_filter - same
+    rule search_similarity()/search_mmr() apply via CURRENT_CHUNKS_ONLY, just
+    checked directly against raw metadata instead of a vector-store `where`
+    clause."""
+    if metadata.get("is_current") is False:
+        return False
+    return _matches_filter_clause(metadata, extra_filter)
 
 
 def search_keyword(query: str, top_k: int = 5, vector_db: str | None = None, extra_filter: dict | None = None) -> list[dict]:
@@ -73,25 +94,33 @@ def _chunk_key(chunk: dict) -> tuple:
     return (chunk["document_id"], chunk["chunk_index"])
 
 
-def _reciprocal_rank_fusion(ranked_lists: list[list[dict]], top_k: int) -> list[dict]:
+def _reciprocal_rank_fusion(labeled_ranked_lists: dict[str, list[dict]], top_k: int) -> list[dict]:
     """score = sum(1 / (RRF_K + rank)) across every list a chunk appears in,
     rank 1-indexed - lets two differently-scaled rankings (BM25's unbounded
-    score, cosine similarity's 0-1 range) combine without normalizing either."""
+    score, cosine similarity's 0-1 range) combine without normalizing either.
+    No weighting term - every list's rank contributes identically regardless
+    of label, by design (RRF's own point is being scale-free, not a tunable
+    blend - Phase 221, see the "matched_by" field this adds for why a
+    dense/sparse WEIGHT isn't a real, configurable thing in this
+    implementation; which list(s) a chunk actually came from is)."""
     rrf_scores: dict[tuple, float] = {}
     chunks_by_key: dict[tuple, dict] = {}
+    matched_by: dict[tuple, list[str]] = {}
 
-    for ranked_list in ranked_lists:
+    for label, ranked_list in labeled_ranked_lists.items():
         for position, chunk in enumerate(ranked_list):
             key = _chunk_key(chunk)
             rank = position + 1
             rrf_scores[key] = rrf_scores.get(key, 0.0) + 1.0 / (RRF_K + rank)
             chunks_by_key.setdefault(key, chunk)
+            matched_by.setdefault(key, []).append(label)
 
     ranked_keys = sorted(rrf_scores, key=lambda key: rrf_scores[key], reverse=True)[:top_k]
     results = []
     for key in ranked_keys:
         fused_chunk = dict(chunks_by_key[key])
         fused_chunk["score"] = rrf_scores[key]
+        fused_chunk["matched_by"] = matched_by[key]
         results.append(fused_chunk)
     return results
 
@@ -107,4 +136,4 @@ def search_hybrid(query: str, top_k: int = 5, vector_db: str | None = None, extr
     fetch_k = top_k * 3
     keyword_results = search_keyword(query, top_k=fetch_k, vector_db=vector_db, extra_filter=extra_filter)
     vector_results = search_similarity(query, top_k=fetch_k, vector_db=vector_db, extra_filter=extra_filter)
-    return _reciprocal_rank_fusion([keyword_results, vector_results], top_k)
+    return _reciprocal_rank_fusion({"sparse": keyword_results, "dense": vector_results}, top_k)

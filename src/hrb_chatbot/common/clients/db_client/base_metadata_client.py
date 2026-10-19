@@ -84,6 +84,7 @@ class BaseMetadataClient(ABC):
         doc_category: str | None,
         purpose: str | None,
         doc_description: str | None,
+        restricted_roles: list[str] | None = None,
         effective_date: str | None = None,
         audience: str | None = None,
         confidentiality_level: str | None = None,

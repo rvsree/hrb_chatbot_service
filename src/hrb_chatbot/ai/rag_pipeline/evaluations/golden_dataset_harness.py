@@ -50,10 +50,17 @@ def _parse_judge_score(output: str) -> float:
         return 0.5
 
 
-def evaluate_groundedness(answer: str, context_texts: list[str]) -> dict:
+def evaluate_groundedness(answer: str, context_texts: list[str], judge_model: str | None = None) -> dict:
     """Groundedness (Faithfulness): is the answer supported by the retrieved context?
-    LLM-as-judge, course's own prompt - judge sees ONLY retrieved evidence, to test faithfulness."""
+    LLM-as-judge, course's own prompt - judge sees ONLY retrieved evidence, to test faithfulness.
+
+    Phase 215: judge_model, when given, overrides which model does the
+    judging - the real model used (override or the client's own default)
+    is always returned as model_used, so a caller can verify an override
+    actually took effect rather than just trusting it did."""
     context = "\n\n".join(context_texts)
+    client = get_client_gateway().openai_chat()
+    resolved_model = judge_model or client.model
 
     prompt = f"""Evaluate if the ANSWER is fully supported by the CONTEXT. Check for hallucinations or unsupported claims.
 
@@ -74,17 +81,21 @@ Score: X
 Reasoning: <explanation>"""
 
     try:
-        output = get_client_gateway().openai_chat().ask(prompt, temperature=0.0)
+        output = client.ask(prompt, temperature=0.0, model_name_override=judge_model)
         score = _parse_judge_score(output)
         verdict = "GROUNDED" if score >= 0.7 else "PARTIAL" if score >= 0.4 else "HALLUCINATED"
-        return {"score": score, "verdict": verdict, "explanation": output, "prompt": prompt}
+        return {"score": score, "verdict": verdict, "explanation": output, "prompt": prompt, "model_used": resolved_model}
     except Exception as error:
-        return {"score": 0.5, "verdict": "ERROR", "explanation": str(error), "prompt": prompt}
+        return {"score": 0.5, "verdict": "ERROR", "explanation": str(error), "prompt": prompt, "model_used": resolved_model}
 
 
-def evaluate_completeness(question: str, answer: str, reference_answer: str | None = None) -> dict:
+def evaluate_completeness(question: str, answer: str, reference_answer: str | None = None, judge_model: str | None = None) -> dict:
     """Response Completeness: does the answer fully address the question?
-    LLM-as-judge, course's own prompt - relative to reference coverage when one exists."""
+    LLM-as-judge, course's own prompt - relative to reference coverage when one exists.
+
+    Phase 215: judge_model, when given, overrides which model does the judging."""
+    client = get_client_gateway().openai_chat()
+    resolved_model = judge_model or client.model
     if reference_answer:
         prompt = f"""Evaluate if the ANSWER fully addresses the QUESTION compared to the REFERENCE ANSWER.
 
@@ -126,29 +137,59 @@ Score: X
 Reasoning: <explanation>"""
 
     try:
-        output = get_client_gateway().openai_chat().ask(prompt, temperature=0.0)
+        output = client.ask(prompt, temperature=0.0, model_name_override=judge_model)
         score = _parse_judge_score(output)
         verdict = "COMPLETE" if score >= 0.7 else "PARTIAL" if score >= 0.4 else "INCOMPLETE"
-        return {"score": score, "verdict": verdict, "explanation": output, "prompt": prompt}
+        return {"score": score, "verdict": verdict, "explanation": output, "prompt": prompt, "model_used": resolved_model}
     except Exception as error:
-        return {"score": 0.5, "verdict": "ERROR", "explanation": str(error), "prompt": prompt}
+        return {"score": 0.5, "verdict": "ERROR", "explanation": str(error), "prompt": prompt, "model_used": resolved_model}
 
 
-def evaluate_retrieval_relevance(query: str, chunk_texts: list[str]) -> dict:
+def evaluate_retrieval_relevance(
+    query: str,
+    chunk_texts: list[str],
+    judge_model: str | None = None,
+    wider_pool_texts: list[str] | None = None,
+) -> dict:
     """Live (per-query) retrieval precision - the piece calculate_retrieval_metrics()
     can't do for a live question, which has no pre-known "correct" document to
     exact-match against. One LLM call judges every retrieved chunk at once (not one
     call per chunk - real cost, kept to a single call), asked which chunks actually
     help answer the question. precision = (chunks judged relevant) / (chunks retrieved).
 
-    Deliberately does NOT return a live recall or F1 - recall needs the total count
-    of relevant documents that exist, which is unknowable for an arbitrary live
-    question outside the golden dataset. Returning a fabricated recall number here
-    would be worse than not showing one."""
-    if not chunk_texts:
-        return {"precision": None, "relevant_chunk_indices": [], "explanation": None, "prompt": None}
+    Still can't return a TRUE live recall/F1 - that needs the total count of
+    relevant documents that exist, which stays unknowable for an arbitrary live
+    question outside the golden dataset; that limitation hasn't changed and this
+    function still refuses to fabricate a number claiming to be it.
 
-    numbered_chunks = "\n\n".join(f"[{index + 1}] {text}" for index, text in enumerate(chunk_texts))
+    Phase 219 - wider_pool_texts (optional) is a real, different, explicitly-
+    bounded metric instead: pass chunk_texts' own values as wider_pool_texts'
+    first len(chunk_texts) entries, followed by extra candidates (pipeline.py's
+    _fetch_wider_pool_texts fetches these via exact-KNN, a different search
+    path than whatever strategy actually produced chunk_texts, so the pool
+    isn't just re-confirming the same approximation). Judging that whole pool
+    in this SAME single LLM call (not a second one) gives "recall_estimate" =
+    (relevant chunks within chunk_texts) / (relevant chunks found anywhere in
+    the pool) - real and computable, but bounded by pool size, never claimed
+    as true recall. None when wider_pool_texts isn't given, or when nothing
+    in the pool was judged relevant (undefined, not fabricated as 0 or 1)."""
+    client = get_client_gateway().openai_chat()
+    resolved_model = judge_model or client.model
+    judge_texts = wider_pool_texts if wider_pool_texts else chunk_texts
+    if not judge_texts:
+        return {
+            "precision": None,
+            "relevant_chunk_indices": [],
+            "explanation": None,
+            "prompt": None,
+            "model_used": resolved_model,
+            "recall_estimate": None,
+            "f1_estimate": None,
+            "pool_size": None,
+            "relevant_pool_count": None,
+        }
+
+    numbered_chunks = "\n\n".join(f"[{index + 1}] {text}" for index, text in enumerate(judge_texts))
     prompt = f"""Below are chunks retrieved for a question. Identify which chunks are actually
 relevant to answering it - a chunk is relevant if it contains information that helps
 answer the question, even partially. A chunk about an unrelated topic is not relevant.
@@ -168,7 +209,7 @@ Relevant: 1, 3
 Reasoning: <explanation>"""
 
     try:
-        output = get_client_gateway().openai_chat().ask(prompt, temperature=0.0)
+        output = client.ask(prompt, temperature=0.0, model_name_override=judge_model)
         relevant_line = next((line for line in output.split("\n") if line.startswith("Relevant:")), "Relevant: none")
         numbers_text = relevant_line.split(":", 1)[1].strip()
         raw_indices = (
@@ -177,13 +218,55 @@ Reasoning: <explanation>"""
         # The judge is a free-text LLM response, not a constrained one - it can
         # hallucinate a duplicate or out-of-range chunk number (confirmed live:
         # "Relevant: 1, 3, 2, 5" against only 2 real chunks produced precision
-        # 2.0, mathematically impossible). Clamp to the real chunk range and
-        # dedupe before computing precision.
-        relevant_indices = sorted({index for index in raw_indices if 1 <= index <= len(chunk_texts)})
-        precision = len(relevant_indices) / len(chunk_texts)
-        return {"precision": precision, "relevant_chunk_indices": relevant_indices, "explanation": output, "prompt": prompt}
+        # 2.0, mathematically impossible). Clamp to the real (judged) range and
+        # dedupe before computing precision/recall.
+        relevant_indices = sorted({index for index in raw_indices if 1 <= index <= len(judge_texts)})
+        original_count = len(chunk_texts)
+        # chunk_texts occupies positions 1..original_count of judge_texts by
+        # construction (see docstring) - this is what keeps precision scoped
+        # to the originally-retrieved set even when a wider pool was judged.
+        relevant_in_original = [index for index in relevant_indices if index <= original_count]
+        precision = len(relevant_in_original) / original_count if original_count else None
+
+        recall_estimate = None
+        f1_estimate = None
+        pool_size = None
+        relevant_pool_count = None
+        if wider_pool_texts:
+            pool_size = len(wider_pool_texts)
+            if relevant_indices:
+                # Phase 225 - the real denominator of recall_estimate,
+                # previously computed here but never returned, so the
+                # Explainability panel could show the final ratio but not
+                # the arithmetic behind it.
+                relevant_pool_count = len(relevant_indices)
+                recall_estimate = len(relevant_in_original) / relevant_pool_count
+                if precision is not None and (precision + recall_estimate) > 0:
+                    f1_estimate = 2 * precision * recall_estimate / (precision + recall_estimate)
+
+        return {
+            "precision": precision,
+            "relevant_chunk_indices": relevant_in_original,
+            "explanation": output,
+            "prompt": prompt,
+            "model_used": resolved_model,
+            "recall_estimate": recall_estimate,
+            "f1_estimate": f1_estimate,
+            "pool_size": pool_size,
+            "relevant_pool_count": relevant_pool_count,
+        }
     except Exception as error:
-        return {"precision": None, "relevant_chunk_indices": [], "explanation": str(error), "prompt": prompt}
+        return {
+            "precision": None,
+            "relevant_chunk_indices": [],
+            "explanation": str(error),
+            "prompt": prompt,
+            "model_used": resolved_model,
+            "recall_estimate": None,
+            "f1_estimate": None,
+            "pool_size": len(wider_pool_texts) if wider_pool_texts else None,
+            "relevant_pool_count": None,
+        }
 
 
 async def score_case(case: dict, ask) -> dict:

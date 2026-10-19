@@ -22,10 +22,10 @@ EMPLOYEE_PROFILE = {"employee_id": "EMP052", "full_name": "Eddy Employee", "role
 
 def _patch_guardrails_and_agent(monkeypatch, agent_result=None):
     async def _passthrough_check_input(query):
-        return query
+        return query, {"status": "pass", "rail": None}
 
     async def _passthrough_check_output(query, answer):
-        return answer
+        return answer, {"status": "pass", "rail": None}
 
     async def _fake_run_agent(question, file_texts, file_bytes, chat_history=None):
         return agent_result or {

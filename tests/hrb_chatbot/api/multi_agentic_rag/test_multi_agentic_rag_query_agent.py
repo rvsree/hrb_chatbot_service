@@ -17,7 +17,10 @@ def _body(query: str = "What's my PTO balance and the parental leave policy?", u
     return {"user_profile": EMPLOYEE_USER_PROFILE if user_profile is None else user_profile, "query": query}
 
 
-async def _fake_run_multi_agent(query, employee_id, enable_conversation_memory=False, conversation_id=None, request_id=None):
+async def _fake_run_multi_agent(
+    query, employee_id, enable_conversation_memory=False, conversation_id=None, request_id=None,
+    judge_model=None, eval_score_threshold=None, search_strategy=None, role=None, department=None,
+):
     return {
         "answer": "Parental leave is 8 weeks paid. Your balance is 10 days.",
         "tasks": [
@@ -41,6 +44,7 @@ async def _fake_run_multi_agent(query, employee_id, enable_conversation_memory=F
             "completeness": 0.9,
             "completeness_verdict": "COMPLETE",
         },
+        "guardrails": {"input": {"status": "pass", "rail": None}, "output": {"status": "pass", "rail": None}},
     }
 
 
@@ -64,7 +68,10 @@ def test_well_formed_query_returns_answer_tasks_and_tools_used(monkeypatch):
 
 
 def test_guardrail_blocked_input_is_422(monkeypatch):
-    async def _blocked(query, employee_id, enable_conversation_memory=False, conversation_id=None, request_id=None):
+    async def _blocked(
+        query, employee_id, enable_conversation_memory=False, conversation_id=None, request_id=None,
+        judge_model=None, eval_score_threshold=None, search_strategy=None, role=None, department=None,
+    ):
         raise GuardrailBlockedError("This request was blocked by a safety check.")
 
     monkeypatch.setattr(query_agent.multi_agent_pipeline, "run_multi_agent", _blocked)

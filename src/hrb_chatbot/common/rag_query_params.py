@@ -17,5 +17,10 @@ class RagQueryParams:
     llm_provider: str | None = None
     lambda_mult: float | None = None  # Phase 131 - 'mmr' only
     employee_id: str | None = None  # Phase 49: caller's own id, for MCP tool routing
+    role: str | None = None  # Phase 231: Document ACL
+    department: str | None = None  # Phase 231: Document ACL
     enable_conversation_memory: bool = False  # Phase 58
     conversation_id: str | None = None  # Phase 58
+    judge_model: str | None = None  # Phase 215
+    eval_score_threshold: float | None = None  # Phase 215
+    enable_corrective_retry: bool = False  # Phase 226

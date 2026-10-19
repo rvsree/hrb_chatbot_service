@@ -334,6 +334,13 @@ resolved; `❖` marks something still genuinely open.
 
 ## Retrieval quality (Phase 20, found 2026-09-14 during live verification)
 
+- **RESOLVED by Phase 230 (2026-10-19).** `_parse_self_query_filter()`
+  now resolves the LLM's parsed `doc_description` guess to the closest
+  real indexed value (substring containment, with a `difflib` fuzzy
+  fallback for typos) before the filter is applied - the "401k" vs.
+  "401(k) Savings Plan" case below now matches. See
+  `docs/agent-reference/RAG-ROADMAP.md`'s Phase 230 entry for the fix detail;
+  left below for the historical record of the original failure.
 - **Self-Query's `doc_description` filter only matches exact strings,
   but `doc_description` is deliberately free text** (Phase 19's own
   design - "not a fixed enum, real documents vary too much to hardcode a
@@ -550,9 +557,9 @@ explicit earlier decision to keep as-is for later, not a new finding.
   copies of `hr_chatbot_schema*.sql` are still deleted, but that no longer
   matters: Phase 50's OAuth2 schema and MCP registry both write directly
   into the real, live `hr_chatbot` database now, not a planned one.
-- **Gate 2 (document ACL) plan sketched, not started** - see the six-gate
-  framework note above; needs a decision on role-gated vs. department-gated
-  document visibility before a spec is written.
+- **RESOLVED by Phase 231 (2026-10-19).** Document ACL is built - both
+  role-gated and department-gated (user's explicit choice, not one or the
+  other). See `docs/agent-reference/RAG-ROADMAP.md`'s Phase 231 entry.
 
 ## Schema/data work completed, 2026-09-22 (Phases 50-51 + OAuth2 redesign)
 
@@ -1503,3 +1510,122 @@ which is inherently tool-shaped - no static document exists to attach as
 a Resource) and concurrent tool-call execution (m1_mcp doesn't do this
 either; this project's tool-calls-per-turn count is 1-2, not worth the
 complexity yet).
+
+## No reranking step anywhere in hybrid search; RRF fusion discards per-chunk dense/sparse scores (found 2026-10-19)
+
+User asked why the Explainability panel's Retrieval Strategy tab doesn't
+show a hybrid answer's chunks broken down by semantic-score vs keyword-
+score, or any "ranking process" info, and whether ranking is the
+Reviewer agent's job or retrieval's. Investigated directly, not assumed:
+
+- **No reranking/cross-encoder step exists at all** - `grep -rniI
+  "rerank" src/hrb_chatbot` returns zero matches anywhere in the
+  codebase. `reviewer_agent.py` only merges domain agents' final TEXT
+  answers (one LLM call); it never touches chunk order or scores -
+  ranking, to the extent it happens, is entirely inside retrieval
+  (`ai/rag_pipeline/query_retrieval/bm25_search.py`), not the Reviewer.
+- **`search_hybrid()`'s Reciprocal Rank Fusion (`_reciprocal_rank_fusion`,
+  `bm25_search.py`) keeps only one fused RRF score plus a categorical
+  `matched_by` tag** (`["sparse"]`/`["dense"]`/both) per chunk - the
+  original per-list dense similarity score and sparse BM25 score are
+  each computed, then discarded once fused. `ExplainabilityModal.tsx`'s
+  "Dense/Sparse Contribution" panel already surfaces `matched_by`
+  honestly (aggregate counts only); it can't show a numeric semantic-
+  vs-keyword breakdown because the backend doesn't retain one.
+- A real production hybrid pipeline (sparse list + dense list kept
+  separate → RRF → a cross-encoder reranker re-scoring the fused
+  top-N) would need both: (1) retaining each chunk's own dense/sparse
+  score through fusion, and (2) a real reranking model/library choice -
+  the latter is a new-library decision, not something to pick
+  unilaterally (project convention: no unreviewed library additions).
+  Flagged, not started - needs a confirmed library choice before any
+  spec gets written.
+
+## No corrective action when an answer's eval score is below threshold (found 2026-10-19)
+
+`eval_score_threshold` (Settings → RAG Config) only ever flags an
+already-generated answer for display - confirmed by reading
+`ai/rag_core/eval_threshold.py`'s `check_eval_threshold()` (compares
+scores, returns `(breached, breached_metrics)`, takes no corrective
+action) and its 3 call sites (`pipeline.py`, `orchestration_agent.py`,
+`multi_agent_pipeline.py`), none of which branch on the result - the
+flag is stored straight into `eval_scores["below_threshold"]` for the
+UI. No retry, re-retrieval, or regeneration happens anywhere when a
+score is low; this was previously undocumented as its own gap (the
+existing `BACKLOG.md` "Retry / circuit breaker" entry is scoped to
+transient API failures, not low eval scores - a different problem).
+The Explainability panel's own "Loop Engineering" card already says
+this honestly ("No loop - one-shot parallel fan-out... no agent re-
+runs"), so the UI isn't misrepresenting anything. Building a real
+corrective loop (e.g. re-retrieve with a wider top_k, or regenerate
+once with a stricter prompt, when groundedness/completeness/precision
+breaches threshold) is new scope - needs its own spec (loop-exit
+condition, max-retries bound, latency/cost impact) before
+implementation, not started here.
+
+## 2 NFR golden-dataset cases now fail - confirmed pre-existing model/library drift, not a regression (found 2026-10-19, during Phase 229)
+
+While live-verifying Phase 229's guardrails refactor (`check_input()`/
+`check_output()` switched from NeMo's `check_async()` convenience
+wrapper to calling `generate_async()` directly - see RAG-ROADMAP.md),
+running the real (non-mocked, `pytest -m eval`) NFR suite surfaced 2
+new failures beyond the 1 already-documented `false_positive-04` issue:
+`pii-01` (SSN in a question) now scores `pass` instead of the dataset's
+expected `blocked`; `pii-03` (credit card number) now scores `blocked`
+instead of the dataset's expected `masked`. Both reproduced consistently
+across 3 repeated runs each (not flaky/non-deterministic noise).
+
+**Confirmed NOT caused by Phase 229's refactor** - the exact same 2
+queries run through NeMo's own, completely unmodified `check_async()`
+(bypassing this project's code entirely) produce the identical results
+(`PASSED`/`None` for pii-01, `BLOCKED`/`self check input` for pii-03).
+This is real drift in the underlying `self check input` LLM judgment
+(and/or the `gpt-4.1-mini` model version behind it) since the dataset's
+own "verified live 2026-09-22" notes were written, not a code bug -
+flagged, not silently fixed by editing the dataset's expected values or
+papering over the test. `nfr_golden_dataset_harness.py`'s own test
+already separates "known, already-documented" failures from new ones in
+its output, so these 2 show up correctly as new - not something to
+silence there either. Needs a decision: re-verify and update the
+dataset's expected outcomes, or treat this as a real quality signal
+worth investigating (why self-check's own judgment shifted) - not
+decided here.
+
+## 2 pre-existing bugs found while reading retriever.py/bm25_search.py for Phase 231 (Document ACL) - confirmed, not fixed (2026-10-19)
+
+Neither is caused by or related to ACL's own correctness (the `$nin`
+clause Phase 231 adds is always a sibling of any self-query clause under
+`$and`, never nested inside one) - found incidentally while reading this
+code closely for an unrelated change, flagged per "flag, don't fix," not
+silently patched alongside Phase 231's own diff.
+
+- **`DocumentRecord.from_row()` (`models/documents.py`) passes `chunk_ids`
+  straight from a metadata-store row into a `list[str] | None` Pydantic
+  field without `json.loads()`-ing it first** - both `sqlite_client.py`
+  and `postgres_client.py` store it as a JSON-encoded string (confirmed:
+  `json.dumps(chunk_ids)` on write, same convention this phase's own
+  `restricted_roles` column follows correctly). Confirmed live with a
+  direct Pydantic check: `list[str]` rejects a raw JSON string outright
+  (`validation error ... Input should be a valid list`), not silently
+  coerced. This means `GET /v1/genai-rag/ingest-document/documents` or
+  `GET .../{id}` would 500 for any REAL indexed document (non-null
+  `chunk_ids`) against a real SQLite/Postgres backend - not exercised by
+  the existing test suite, which uses `FakeMetadataStore` but apparently
+  no test combines "index a document" + "assert the full `DocumentRecord`
+  response shape" in one place. Worth a dedicated fix-and-regression-test
+  phase, not touched here (out of Document ACL's own scope).
+- **`bm25_search.py`'s `_matches_metadata_filter()` (now `_matches_filter_clause()`)
+  mishandles a `$eq`-wrapped equality clause** - the shape Self-Query's
+  own LangChain translators actually produce (e.g. `{"doc_category":
+  {"$eq": "benefits"}}`), not a flat value. The existing code only special-
+  cased `$ne` inside a dict condition; a `$eq`-wrapped dict falls through
+  to `actual != condition`, comparing a plain metadata value to a dict,
+  which can never be equal - so a Self-Query filter combined with
+  `search_keyword`/`search_hybrid`/`search_knn` (the BM25/exact-KNN
+  strategies, all three share this function) silently returns zero
+  results whenever Self-Query parses a filter, not the real candidate
+  set. Only noticed because Phase 231 added `$and`/`$nin` support to this
+  same function and had to read it closely; the `$eq` gap predates this
+  phase and is unrelated to ACL's own correctness. Worth a dedicated fix
+  (add `$eq` handling, parallel to the existing `$ne` case) with its own
+  regression test, not folded into this phase's diff.

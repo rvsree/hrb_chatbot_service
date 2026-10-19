@@ -25,6 +25,7 @@ async def run_guarded_pipeline(
     conversation_id: str | None,
     generate: GenerateFn,
     pre_checked_query: str | None = None,
+    pre_checked_input_status: dict | None = None,
 ) -> dict:
     """Input guardrail -> load history -> generate (mode-specific) -> output
     guardrail -> save turn. `generate` returns at least {"answer": str} -
@@ -35,8 +36,16 @@ async def run_guarded_pipeline(
     already ran check_input() itself for an earlier routing decision -
     skips a redundant second guardrail call. Must be that call's actual
     return value, never the raw query - omit it and this function checks
-    the query itself, which is the right default for every other caller."""
-    checked_query = pre_checked_query if pre_checked_query is not None else await check_input(query)
+    the query itself, which is the right default for every other caller.
+    `pre_checked_input_status`: that same earlier call's own status dict -
+    required alongside pre_checked_query (Phase 224), so the real input
+    guardrail outcome still reaches result["guardrails"] on the fast path
+    too, not just a hardcoded "pass"."""
+    if pre_checked_query is not None:
+        checked_query = pre_checked_query
+        input_status = pre_checked_input_status or {"status": "pass", "rail": None}
+    else:
+        checked_query, input_status = await check_input(query)
 
     resolved_conversation_id = None
     if enable_conversation_memory:
@@ -46,11 +55,12 @@ async def run_guarded_pipeline(
     with log_backend_call(logger, "rag_core", "generate"):
         result = await generate(checked_query, chat_history)
 
-    checked_answer = await check_output(checked_query, result["answer"])
+    checked_answer, output_status = await check_output(checked_query, result["answer"])
 
     if resolved_conversation_id:
         await conversation_memory.save_turn(resolved_conversation_id, employee_id, checked_query, checked_answer)
 
     result["answer"] = checked_answer
     result["conversation_id"] = resolved_conversation_id
+    result["guardrails"] = {"input": input_status, "output": output_status}
     return result

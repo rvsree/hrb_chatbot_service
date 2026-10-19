@@ -154,11 +154,21 @@ class ChromaDBClient(BaseVectorDBClient):
     def get_all_chunks(self, collection_name: str) -> list[dict]:
         with self.collection_lock, log_backend_call(logger, "chromadb", "vector.get_all_chunks", collection=collection_name):
             collection = self.get_collection(collection_name)
-            result = collection.get(include=["documents", "metadatas"])
+            # Phase 218 - "embeddings" added to the include list for exact-KNN's
+            # brute-force search; BM25's existing caller just ignores the new key.
+            result = collection.get(include=["documents", "metadatas", "embeddings"])
 
+        embeddings = result.get("embeddings")
         return [
-            {"id": chunk_id, "text": document or "", "metadata": metadata or {}}
-            for chunk_id, document, metadata in zip(result["ids"], result["documents"], result["metadatas"], strict=True)
+            {
+                "id": chunk_id,
+                "text": document or "",
+                "metadata": metadata or {},
+                "embedding": list(embeddings[index]) if embeddings is not None else None,
+            }
+            for index, (chunk_id, document, metadata) in enumerate(
+                zip(result["ids"], result["documents"], result["metadatas"], strict=True)
+            )
         ]
 
     def health_check(self) -> dict:

@@ -22,12 +22,14 @@ from src.hrb_chatbot.ai.agents.workflow_agents import planner_agent, reviewer_ag
 from src.hrb_chatbot.ai.pre_processing import conversation_memory
 from src.hrb_chatbot.ai.pre_processing.guardrails_input import check_input
 from src.hrb_chatbot.ai.pre_processing.query_normalize import normalize_query
+from src.hrb_chatbot.ai.rag_core.eval_threshold import check_eval_threshold
 from src.hrb_chatbot.ai.rag_core.tool_classification import classify_tool
 from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import (
     evaluate_completeness,
     evaluate_groundedness,
     evaluate_retrieval_relevance,
 )
+from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.exact_knn_search import search_knn
 from src.hrb_chatbot.ai.rag_pipeline.response_generation.guardrails_output import check_output
 from src.hrb_chatbot.common.clients.cache_client.answer_cache import build_cache_key
 from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
@@ -46,17 +48,60 @@ def _elapsed_ms(started_at: float) -> float:
     return round((time.perf_counter() - started_at) * 1000, 1)
 
 
-async def _score_live_answer(query: str, answer: str, context_texts: list[str]) -> tuple[dict | None, float | None]:
+# Phase 220 - same wider-pool approach pipeline.py/orchestration_agent.py's
+# own _score_live_answer() already use (Phase 219/220): agent_result_texts
+# mixes KB-chunk content with web-search/MCP/other agent text, which isn't
+# something exact-KNN can compare against, so the retrieval judge
+# (precision/recall/f1) scopes to `sources` - the structured, real KB-chunk
+# list Phase 115/120 already built for citations - instead of that mixed
+# text. Groundedness/completeness are unaffected, still judged against the
+# full agent_result_texts.
+WIDER_POOL_MULTIPLIER = 4
+WIDER_POOL_MAX = 20
+# vector_kb_agent.run() calls search_knowledge_base(focus) with no top_k
+# override, which itself hardcodes top_k=3 (agentic_tools.py) - mirrored
+# here, not guessed.
+VECTOR_KB_AGENT_TOP_K = 3
+
+
+def _chunk_key(chunk: dict) -> tuple:
+    return (chunk.get("document_id"), chunk.get("chunk_index"))
+
+
+async def _fetch_wider_pool_texts(query: str, original_sources: list[dict]) -> list[str]:
+    wider_k = min(VECTOR_KB_AGENT_TOP_K * WIDER_POOL_MULTIPLIER, WIDER_POOL_MAX)
+    original_keys = {_chunk_key(chunk) for chunk in original_sources}
+    extra_chunks = await asyncio.to_thread(search_knn, query, wider_k, None)
+    deduped_extra = [chunk for chunk in extra_chunks if _chunk_key(chunk) not in original_keys]
+    return [chunk["text"] for chunk in original_sources] + [chunk["text"] for chunk in deduped_extra]
+
+
+async def _score_live_answer(
+    query: str,
+    answer: str,
+    context_texts: list[str],
+    sources: list[dict] | None = None,
+    judge_model: str | None = None,
+    eval_score_threshold: float | None = None,
+) -> tuple[dict | None, float | None]:
     """Same approach as pipeline.py/orchestration_agent.py's own
-    _score_live_answer() (Phase 109/110)."""
+    _score_live_answer() (Phase 109/110). Phase 215: judge_model/
+    eval_score_threshold - see ai/rag_core/eval_threshold.py.
+    Phase 220: sources (real KB chunks, may be empty even when
+    context_texts isn't - e.g. an LMS/web-only answer) drives
+    retrieval_precision/recall_estimate/f1_estimate now, instead of
+    context_texts - see the module comment above _fetch_wider_pool_texts."""
     if not context_texts:
         return None, None
 
+    kb_chunk_texts = [chunk["text"] for chunk in sources] if sources else []
+    wider_pool_texts = await _fetch_wider_pool_texts(query, sources) if sources else None
+
     eval_started_at = time.perf_counter()
     groundedness, completeness, retrieval = await asyncio.gather(
-        asyncio.to_thread(evaluate_groundedness, answer, context_texts),
-        asyncio.to_thread(evaluate_completeness, query, answer),
-        asyncio.to_thread(evaluate_retrieval_relevance, query, context_texts),
+        asyncio.to_thread(evaluate_groundedness, answer, context_texts, judge_model),
+        asyncio.to_thread(evaluate_completeness, query, answer, None, judge_model),
+        asyncio.to_thread(evaluate_retrieval_relevance, query, kb_chunk_texts, judge_model, wider_pool_texts),
     )
     eval_scores = {
         "groundedness": groundedness["score"],
@@ -71,7 +116,15 @@ async def _score_live_answer(query: str, answer: str, context_texts: list[str]) 
         "retrieval_relevant_chunk_indices": retrieval["relevant_chunk_indices"],
         "retrieval_precision_explanation": retrieval["explanation"],
         "retrieval_precision_prompt": retrieval["prompt"],
+        "retrieval_recall_estimate": retrieval["recall_estimate"],
+        "retrieval_f1_estimate": retrieval["f1_estimate"],
+        "retrieval_recall_pool_size": retrieval["pool_size"],
+        "retrieval_recall_relevant_count": retrieval["relevant_pool_count"],
+        "judge_model_used": groundedness["model_used"],
     }
+    eval_scores["below_threshold"], eval_scores["below_threshold_metrics"] = check_eval_threshold(
+        eval_scores, eval_score_threshold
+    )
     return eval_scores, _elapsed_ms(eval_started_at)
 
 DOMAIN_AGENT_NODES = [
@@ -87,6 +140,13 @@ class MultiAgentState(TypedDict):
     query: str
     employee_id: str | None
     request_id: str | None
+    # Phase 228 - only vector_kb_agent_node reads this; other domain
+    # agents ignore it, harmless to thread through all of them uniformly.
+    search_strategy: str | None
+    # Phase 231 (Document ACL) - same reasoning as search_strategy above:
+    # only vector_kb_agent_node uses these, harmless to thread uniformly.
+    role: str | None
+    department: str | None
     tasks: list[dict]
     agent_results: Annotated[list[dict], operator.add]
     answer: str
@@ -105,14 +165,29 @@ def dispatch_to_agents(state: MultiAgentState) -> list[Send]:
     """The Orchestration Agent's dispatch step - fans each task out to its domain
     agent in parallel via LangGraph's own Send() API, not asyncio.gather()."""
     return [
-        Send(task["agent"], {"query": state["query"], "employee_id": state["employee_id"], "focus": task["focus"]})
+        Send(
+            task["agent"],
+            {
+                "query": state["query"],
+                "employee_id": state["employee_id"],
+                "focus": task["focus"],
+                "search_strategy": state.get("search_strategy"),
+                "role": state.get("role"),
+                "department": state.get("department"),
+            },
+        )
         for task in state["tasks"]
     ]
 
 
 async def vector_kb_agent_node(state: dict) -> dict:
     started_at = time.perf_counter()
-    result, chunks = await vector_kb_agent.run(state["focus"])
+    result, chunks = await vector_kb_agent.run(
+        state["focus"],
+        search_strategy=state.get("search_strategy"),
+        role=state.get("role"),
+        department=state.get("department"),
+    )
     return {
         "agent_results": [
             {
@@ -225,6 +300,11 @@ async def run_multi_agent(
     enable_conversation_memory: bool = False,
     conversation_id: str | None = None,
     request_id: str | None = None,
+    judge_model: str | None = None,
+    eval_score_threshold: float | None = None,
+    search_strategy: str | None = None,
+    role: str | None = None,
+    department: str | None = None,
 ) -> dict:
     """Runs the Planner -> Orchestration -> domain agents -> Reviewer graph for one query.
     Guardrails run here, same layer as genai-rag's pipeline.answer_query() - the route
@@ -237,16 +317,25 @@ async def run_multi_agent(
     (LIVE_DATA_AGENTS) - see RAG-ROADMAP.md's Phase 115 entry. Per-
     domain-agent token capture is still not done (would touch all 7
     agent files this phase doesn't otherwise need to change) - a real,
-    logged gap (BACKLOG.md), not silently skipped."""
+    logged gap (BACKLOG.md), not silently skipped.
+
+    Phase 228: search_strategy only affects vector_kb_agent - unlike
+    single-agentic-rag, there's no agent-level choice to defer to here,
+    this is the only lever."""
     started_at = time.perf_counter()
     normalized_query = await normalize_query(query)
-    checked_query = await check_input(normalized_query)
+    checked_query, input_guardrail_status = await check_input(normalized_query)
 
     resolved_conversation_id = None
     if enable_conversation_memory:
         resolved_conversation_id = conversation_id or conversation_memory.new_conversation_id()
 
-    cache_key = build_cache_key(checked_query, pipeline="multi-agentic-rag")
+    # Phase 231: role/department added - same reasoning as pipeline.py's
+    # own cache key (a cached answer's citations can depend on which
+    # documents the ORIGINAL caller's role/department could see).
+    cache_key = build_cache_key(
+        checked_query, pipeline="multi-agentic-rag", search_strategy=search_strategy, role=role, department=department
+    )
     cached_result = await get_db_gateway().answer_cache().get(cache_key)
     if cached_result is not None:
         logger.info("Answer cache hit for %r (multi-agentic-rag)", checked_query)
@@ -280,6 +369,9 @@ async def run_multi_agent(
             "query": checked_query,
             "employee_id": employee_id,
             "request_id": request_id,
+            "search_strategy": search_strategy,
+            "role": role,
+            "department": department,
             "tasks": [],
             "agent_results": [],
             "answer": "",
@@ -290,7 +382,7 @@ async def run_multi_agent(
         config=graph_config,
     )
 
-    answer = await check_output(checked_query, final_state["answer"])
+    answer, output_guardrail_status = await check_output(checked_query, final_state["answer"])
     if resolved_conversation_id:
         await conversation_memory.save_turn(resolved_conversation_id, employee_id, checked_query, answer)
 
@@ -311,7 +403,10 @@ async def run_multi_agent(
     # Real citations (Phase 115/120) - always [] except vector_kb_agent/lms_ops_agent.
     sources = [chunk for result in agent_results for chunk in result.get("sources", [])]
 
-    eval_scores, eval_ms = await _score_live_answer(checked_query, answer, agent_result_texts)
+    eval_scores, eval_ms = await _score_live_answer(
+        checked_query, answer, agent_result_texts, sources=sources,
+        judge_model=judge_model, eval_score_threshold=eval_score_threshold,
+    )
 
     # Phase 160 - only planner/reviewer make a real LLM call; every domain
     # agent is LLM-free (retrieval/MCP/web-search calls, or a stub) - their
@@ -339,6 +434,7 @@ async def run_multi_agent(
         "llm_context": llm_context,
         "eval_scores": eval_scores,
         "latency_ms": {"total": _elapsed_ms(started_at), "retrieval": None, "generation": None, "eval": eval_ms},
+        "guardrails": {"input": input_guardrail_status, "output": output_guardrail_status},
     }
 
     cache_eligible = not any(task["agent"] in LIVE_DATA_AGENTS for task in final_state["tasks"])

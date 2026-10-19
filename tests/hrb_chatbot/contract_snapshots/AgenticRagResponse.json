@@ -1,5 +1,34 @@
 {
   "$defs": {
+    "ActivatedRailInfo": {
+      "description": "Phase 229 - one configured NeMo Guardrails flow that actually ran\nfor this check, with NeMo's own real decision log - live-verified to\ninclude every configured rail, not just the one that blocked/modified\nsomething, so a clean pass is still demonstrable, not just asserted.",
+      "properties": {
+        "name": {
+          "description": "Which configured flow ran, e.g. 'self check input', 'mask sensitive data on input'.",
+          "title": "Name",
+          "type": "string"
+        },
+        "decisions": {
+          "description": "NeMo's own real sequence of actions this rail took, e.g. ['execute self_check_input'].",
+          "items": {
+            "type": "string"
+          },
+          "title": "Decisions",
+          "type": "array"
+        },
+        "stop": {
+          "default": false,
+          "description": "True if this rail halted further processing - this is what makes a check 'blocked'.",
+          "title": "Stop",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "ActivatedRailInfo",
+      "type": "object"
+    },
     "ChatHistoryMessage": {
       "properties": {
         "role": {
@@ -104,7 +133,7 @@
             }
           ],
           "default": null,
-          "description": "Phase 208 - live, computed-this-call: (chunks an LLM judge found relevant) / (chunks retrieved). No live recall/F1 - see field below.",
+          "description": "Phase 208 - live, computed-this-call: (chunks an LLM judge found relevant) / (chunks retrieved).",
           "title": "Retrieval Precision"
         },
         "retrieval_relevant_chunk_indices": {
@@ -140,6 +169,91 @@
           "default": null,
           "description": "Phase 212 - the exact prompt sent to the retrieval-relevance judge.",
           "title": "Retrieval Precision Prompt"
+        },
+        "retrieval_recall_estimate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 219 - NOT true recall (that needs the total count of relevant documents that exist, still unknowable for an arbitrary live question). (chunks judged relevant within what was actually retrieved) / (chunks judged relevant across a wider exact-KNN candidate pool - see retrieval_recall_pool_size). Null when nothing in that pool was judged relevant (undefined, not fabricated as 0 or 1).",
+          "title": "Retrieval Recall Estimate"
+        },
+        "retrieval_f1_estimate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 219 - harmonic mean of retrieval_precision and retrieval_recall_estimate. Same estimate caveat as that field.",
+          "title": "Retrieval F1 Estimate"
+        },
+        "retrieval_recall_pool_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 219 - how many candidate chunks retrieval_recall_estimate was computed against (capped at 20).",
+          "title": "Retrieval Recall Pool Size"
+        },
+        "retrieval_recall_relevant_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 225 - the real denominator of retrieval_recall_estimate: how many chunks the judge marked relevant across the whole wider candidate pool (retrieval_recall_pool_size chunks), before scoping down to just the originally-retrieved subset (retrieval_relevant_chunk_indices).",
+          "title": "Retrieval Recall Relevant Count"
+        },
+        "retrieval_retry_attempted": {
+          "default": false,
+          "description": "Phase 226 - true when search_options.enable_corrective_retry was on AND the first retrieval's own precision fell below eval_score_threshold, so retrieval ran a second time (doubled top_k) before this answer was generated. Always false when the feature was off, threshold wasn't set, or the first retrieval already passed.",
+          "title": "Retrieval Retry Attempted",
+          "type": "boolean"
+        },
+        "judge_model_used": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 215 - the real model every judge call this turn actually used (the override if given, else the default) - verifiable, not just trusted.",
+          "title": "Judge Model Used"
+        },
+        "below_threshold": {
+          "default": false,
+          "description": "Phase 215 - true if any live-computed score (groundedness/completeness/retrieval_precision, whichever are present) fell below the request's eval_options.eval_score_threshold. Always false when no threshold was given.",
+          "title": "Below Threshold",
+          "type": "boolean"
+        },
+        "below_threshold_metrics": {
+          "description": "Phase 215 - which metric name(s) triggered below_threshold, e.g. ['completeness'].",
+          "items": {
+            "type": "string"
+          },
+          "title": "Below Threshold Metrics",
+          "type": "array"
         }
       },
       "required": [
@@ -233,15 +347,73 @@
           "default": null,
           "description": "Phase 127 - genai-rag only; null for single/multi-agentic-rag, which hardcode temperature=0, not user-configurable.",
           "title": "Temperature"
+        },
+        "guardrails": {
+          "$ref": "#/$defs/GuardrailInfo",
+          "description": "Phase 224 - real input/output guardrail status for this answer. Reused as-is on a cache hit, same reasoning as eval_scores."
         }
       },
       "required": [
         "request_id",
         "served_from_cache",
         "llm_call_count",
-        "latency_ms"
+        "latency_ms",
+        "guardrails"
       ],
       "title": "ExplainabilityInfo",
+      "type": "object"
+    },
+    "GuardrailCheckStatus": {
+      "description": "Phase 224 - one guardrail check's real outcome. Before this, a\nMODIFIED (PII masked) result was indistinguishable from an untouched\nPASS to every caller, and a BLOCKED output silently swapped in a safe\nfallback answer with zero signal reaching anyone.",
+      "properties": {
+        "status": {
+          "description": "'pass', 'modified' (NeMo masked something, e.g. PII), or 'blocked' (output check only - an input block raises a 422 before any response is built, so it never reaches here).",
+          "title": "Status",
+          "type": "string"
+        },
+        "rail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Which NeMo Guardrails rail fired. Null on a clean pass, and - confirmed against NeMo's own check_async() logic - also null on a 'modified' result (NeMo itself never attributes a MODIFIED outcome to one specific rail name); see activated_rails for the real per-rail detail.",
+          "title": "Rail"
+        },
+        "activated_rails": {
+          "description": "Phase 229 - every configured rail that actually ran for this check, in order, with NeMo's own real decision log - not just the one rail that happened to matter.",
+          "items": {
+            "$ref": "#/$defs/ActivatedRailInfo"
+          },
+          "title": "Activated Rails",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "GuardrailCheckStatus",
+      "type": "object"
+    },
+    "GuardrailInfo": {
+      "description": "Phase 224 - both of NeMo Guardrails' checks for this answer.",
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/GuardrailCheckStatus"
+        },
+        "output": {
+          "$ref": "#/$defs/GuardrailCheckStatus"
+        }
+      },
+      "required": [
+        "input",
+        "output"
+      ],
+      "title": "GuardrailInfo",
       "type": "object"
     },
     "LatencyInfo": {
@@ -467,6 +639,22 @@
           "default": null,
           "description": "The vector store's own similarity score, null for MMR results.",
           "title": "Score"
+        },
+        "matched_by": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 221 - hybrid search only: which underlying list(s) found this chunk - 'sparse' (BM25 keyword), 'dense' (vector similarity), or both. Null for every other search_strategy.",
+          "title": "Matched By"
         }
       },
       "required": [
@@ -551,6 +739,19 @@
           "default": null,
           "description": "Phase 206 - which ReAct iteration (1-indexed) made this call. Single-agentic-rag only.",
           "title": "Iteration"
+        },
+        "search_strategy": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 216 - the agent's own strategy choice for a search_knowledge_base call ('similarity'/'mmr'). Null for every other tool.",
+          "title": "Search Strategy"
         }
       },
       "required": [

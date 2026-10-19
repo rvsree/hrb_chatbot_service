@@ -19,7 +19,8 @@ def _body(query: str = "What's the 401k match?", user_profile=None) -> dict:
 
 
 async def _fake_run_agent(
-    query, employee_id, max_iterations, enable_conversation_memory=False, conversation_id=None, request_id=None
+    query, employee_id, max_iterations, enable_conversation_memory=False, conversation_id=None, request_id=None,
+    judge_model=None, eval_score_threshold=None, search_strategy=None, role=None, department=None,
 ):
     return {
         "answer": "The match is 100% up to 5%.",
@@ -44,6 +45,7 @@ async def _fake_run_agent(
             "completeness": 0.9,
             "completeness_verdict": "COMPLETE",
         },
+        "guardrails": {"input": {"status": "pass", "rail": None}, "output": {"status": "pass", "rail": None}},
     }
 
 
@@ -63,6 +65,7 @@ def test_well_formed_query_returns_answer_and_tools_used(monkeypatch):
             "latency_ms": 120.5,
             "success": True,
             "iteration": None,
+            "search_strategy": None,
         }
     ]
     assert body["iterations"] == 2
@@ -72,7 +75,8 @@ def test_guardrail_blocked_input_is_422(monkeypatch):
     # Phase 98: previously impossible - run_agent() never raised this
     # because orchestration_agent.py never ran any guardrail.
     async def _blocked(
-        query, employee_id, max_iterations, enable_conversation_memory=False, conversation_id=None, request_id=None
+        query, employee_id, max_iterations, enable_conversation_memory=False, conversation_id=None, request_id=None,
+        judge_model=None, eval_score_threshold=None, search_strategy=None, role=None, department=None,
     ):
         raise GuardrailBlockedError("This request was blocked by a safety check.")
 

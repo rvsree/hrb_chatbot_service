@@ -31,6 +31,7 @@ def test_clean_json_response_is_parsed_correctly(monkeypatch):
         "doc_category": "policy",
         "purpose": "Describes paid time off.",
         "doc_description": "leave policy",
+        "restricted_roles": None,
         "effective_date": "January 1, 2026",
         "audience": "Full-time employees",
         "confidentiality_level": "Internal",

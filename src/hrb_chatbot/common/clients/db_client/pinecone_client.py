@@ -211,7 +211,17 @@ class PineconeClient(BaseVectorDBClient):
                 for chunk_id, vector in response.vectors.items():
                     metadata = dict(vector.metadata or {})
                     text = metadata.pop("document", "") or _text_from_llama_index_node_content(metadata)
-                    chunks.append({"id": chunk_id, "text": text, "metadata": metadata})
+                    # Phase 218 - vector.values was already being fetched for
+                    # every chunk here, just discarded; exact-KNN's brute-force
+                    # search needs it. BM25's existing caller ignores the new key.
+                    chunks.append(
+                        {
+                            "id": chunk_id,
+                            "text": text,
+                            "metadata": metadata,
+                            "embedding": list(vector.values) if vector.values else None,
+                        }
+                    )
 
         return chunks
 

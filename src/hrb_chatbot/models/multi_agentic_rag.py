@@ -1,16 +1,26 @@
 """Request/response contracts for multi-agentic-rag - see
 docs/agent-reference/endpoint-request-response-contracts.md. Phase 61: the contract is real, the pipeline behind it is stubbed."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from src.hrb_chatbot.models.common import ToolCallInfo
 from src.hrb_chatbot.models.common import UserProfile
-from src.hrb_chatbot.models.rag import ExplainabilityInfo, RetrievedChunk
+from src.hrb_chatbot.models.rag import EvalOptions, ExplainabilityInfo, RetrievedChunk
 
 
 class MultiAgenticRagRequest(BaseModel):
     user_profile: UserProfile | None = None
     query: str = Field(..., min_length=1, max_length=2000, description="The question to ask the multi-agent system.")
+    search_strategy: Literal["similarity", "mmr"] | None = Field(
+        None,
+        description="Phase 228 - vector_kb_agent never exposed a choice before this (always indirectly "
+        "'similarity' via search_knowledge_base()'s own default) - this is the only way to influence it. "
+        "Narrower than genai-rag's SearchOptions.search_strategy on purpose - search_knowledge_base() only ever "
+        "understands these 2 values.",
+    )
+    eval_options: EvalOptions | None = None
     enable_conversation_memory: bool = Field(
         False, description="Carry conversation history across calls, server-side, keyed by conversation_id."
     )
