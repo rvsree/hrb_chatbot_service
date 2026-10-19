@@ -1,5 +1,8 @@
 """Searches the vector store for chunks matching a query - similarity/MMR, plus LangChain's own retrievers layered on top."""
 
+import difflib
+import re
+
 from langchain.chains.query_constructor.schema import AttributeInfo
 from langchain.retrievers.multi_query import MultiQueryRetriever
 from langchain.retrievers.self_query.base import SelfQueryRetriever
@@ -7,6 +10,7 @@ from langchain_community.query_constructors.chroma import ChromaTranslator
 from langchain_community.query_constructors.pinecone import PineconeTranslator
 from langchain_core.documents import Document
 
+from src.hrb_chatbot.ai.rag_pipeline.helper.access_control import build_acl_filter
 from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 from src.hrb_chatbot.common.clients.db_client.langchain_vector_store import get_vector_store
 from src.hrb_chatbot.common.clients.llm_client.langchain_chat_model import GatewayChatModel
@@ -124,9 +128,11 @@ SEARCH_STRATEGIES = {
 # bm25_search.py imports search_similarity from this module - importing it
 # down here, after SEARCH_STRATEGIES exists, avoids a circular import at module load time.
 from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.bm25_search import search_hybrid, search_keyword  # noqa: E402
+from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.exact_knn_search import search_knn  # noqa: E402
 
 SEARCH_STRATEGIES["keyword"] = search_keyword
 SEARCH_STRATEGIES["hybrid"] = search_hybrid
+SEARCH_STRATEGIES["knn"] = search_knn
 
 
 def search_multi_query(
@@ -153,8 +159,74 @@ def search_multi_query(
     return [_document_to_chunk(document, None) for document in documents]
 
 
-def _parse_self_query_filter(
-    store, provider: str, query: str, llm_provider: str
+# Phase 230 - below this cutoff, difflib's own match confidence is low
+# enough that substituting it would likely pick the WRONG document rather
+# than fix the right one - falls back to the LLM's original (unresolved)
+# value instead, same "finds nothing" outcome as before this phase, not a
+# new, worse failure mode (a wrong document would be worse than none).
+# This is the FALLBACK tier only (near-miss typos) - see
+# _resolve_doc_description_value()'s own docstring for why the PRIMARY
+# match tier isn't difflib at all.
+DOC_DESCRIPTION_MATCH_CUTOFF = 0.6
+
+
+def _normalize_for_matching(text: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", text.lower())
+
+
+def _resolve_doc_description_value(value: str, real_descriptions: list[str]) -> str:
+    """Self-Query's parsing LLM is prompted for a short topic phrase
+    (AttributeInfo's own description, e.g. '401k'), but the real indexed
+    value is the document's own full extracted description (e.g. '401(k)
+    Savings Plan') - confirmed, reproduced BACKLOG.md gap: an exact-match
+    filter on the LLM's short guess reliably finds nothing.
+
+    Two-tier resolution, both standard-library only (no new dependency):
+    1. Normalized substring containment - strips case/punctuation/spacing
+       from both sides and checks if the LLM's short guess appears inside
+       a real description. This is the real, common case, and it's NOT
+       what difflib.get_close_matches() alone was built for: a generic
+       character-level similarity ratio penalizes the length difference
+       between a short keyword and a long title so heavily that the real
+       documented pair here ('401k' vs '401(k) Savings Plan') scores only
+       0.35 - below any cutoff that wouldn't also risk false-matching
+       unrelated short queries elsewhere. Substring containment on
+       normalized text catches this reliably instead.
+    2. difflib.get_close_matches() as a fallback, for near-miss typos that
+       aren't a clean substring (e.g. 'healthcare benfits' vs the real
+       'Healthcare Benefits')."""
+    normalized_value = _normalize_for_matching(value)
+    if normalized_value:
+        for real_value in real_descriptions:
+            if normalized_value in _normalize_for_matching(real_value):
+                return real_value
+
+    matches = difflib.get_close_matches(value, real_descriptions, n=1, cutoff=DOC_DESCRIPTION_MATCH_CUTOFF)
+    return matches[0] if matches else value
+
+
+def _rewrite_doc_description_filter(filter_value, real_descriptions: list[str]):
+    """Walks a backend-native filter dict (LangChain's own translator
+    output, e.g. {"doc_description": {"$eq": "401k"}}, possibly nested
+    under "$and" alongside doc_category/department) and resolves any
+    doc_description equality value in place - everything else passes
+    through unchanged."""
+    if isinstance(filter_value, dict):
+        if "doc_description" in filter_value and isinstance(filter_value["doc_description"], dict):
+            eq_clause = filter_value["doc_description"]
+            if "$eq" in eq_clause:
+                return {
+                    **filter_value,
+                    "doc_description": {**eq_clause, "$eq": _resolve_doc_description_value(eq_clause["$eq"], real_descriptions)},
+                }
+        return {key: _rewrite_doc_description_filter(value, real_descriptions) for key, value in filter_value.items()}
+    if isinstance(filter_value, list):
+        return [_rewrite_doc_description_filter(item, real_descriptions) for item in filter_value]
+    return filter_value
+
+
+async def _parse_self_query_filter(
+    store, provider: str, query: str, llm_provider: str, db_gateway
 ) -> dict | None:
     """Parse `query` into a filter over METADATA_FIELD_INFO, or None - not yet combined with is_current."""
     translator = _STRUCTURED_QUERY_TRANSLATORS[provider]()
@@ -169,7 +241,32 @@ def _parse_self_query_filter(
     # which does the same internally) - one LLM call, and returns the filter itself.
     structured_query = self_query_retriever.query_constructor.invoke({"query": query})
     _, search_kwargs = self_query_retriever._prepare_query(query, structured_query)
-    return search_kwargs.get("filter")
+    parsed_filter = search_kwargs.get("filter")
+    if parsed_filter is None:
+        return None
+
+    # Phase 230 - only pay for the real-values lookup when the parsed
+    # filter actually references doc_description at all.
+    if "doc_description" in str(parsed_filter):
+        documents = await db_gateway.metadata_store().list_documents()
+        real_descriptions = [doc["doc_description"] for doc in documents if doc.get("doc_description")]
+        if real_descriptions:
+            parsed_filter = _rewrite_doc_description_filter(parsed_filter, real_descriptions)
+    return parsed_filter
+
+
+def _combine_extra_filters(self_query_filter: dict | None, acl_filter: dict | None) -> dict | None:
+    """Phase 231 - ANDs Self-Query's own filter with the ACL deny-list
+    filter, both optional. Kept separate from _combine_with_current_only()
+    (which always applies, self-query or not) since ACL must too - it's
+    computed unconditionally in retrieve_chunks(), not gated behind
+    use_self_query the way applied_filter is."""
+    filters = [f for f in (self_query_filter, acl_filter) if f]
+    if not filters:
+        return None
+    if len(filters) == 1:
+        return filters[0]
+    return {"$and": filters}
 
 
 async def retrieve_chunks(
@@ -181,8 +278,14 @@ async def retrieve_chunks(
     use_self_query: bool = False,
     llm_provider: str | None = None,
     lambda_mult: float | None = None,
+    role: str | None = None,
+    department: str | None = None,
 ) -> tuple[list[dict], dict | None]:
-    """Returns (chunks, applied_filter) - score is null for MMR/MultiQuery results."""
+    """Returns (chunks, applied_filter) - score is null for MMR/MultiQuery
+    results. applied_filter is Self-Query's own filter only (for the
+    Explainability "Applied Filter" display) - the Phase 231 ACL filter is
+    always combined in separately before chunks are actually searched, but
+    deliberately not reported back as part of "the query's own filter"."""
     resolved_strategy = search_strategy or "similarity"
     resolved_llm_provider = get_active_llm_provider(llm_provider)
     logger.info(
@@ -203,7 +306,7 @@ async def retrieve_chunks(
     if use_self_query:
         # Best-effort - same "never block the answer" approach as extraction.
         try:
-            applied_filter = _parse_self_query_filter(store, provider, query, resolved_llm_provider)
+            applied_filter = await _parse_self_query_filter(store, provider, query, resolved_llm_provider, db_gateway)
         except Exception as error:
             logger.warning(
                 "Self-Query filter parsing failed for %r - falling back to an unfiltered search: %s: %s",
@@ -213,6 +316,24 @@ async def retrieve_chunks(
             )
             applied_filter = None
 
+    # Phase 231 - unconditional, unlike applied_filter above: ACL must gate
+    # every retrieval, not just self-query ones. Best-effort (same "never
+    # block the answer" choice every other best-effort step here already
+    # makes) - matches this project's existing philosophy consistently
+    # rather than introducing one path that fails closed and every other
+    # path that doesn't; RBAC here is already documented as a formality,
+    # not a real security boundary (endpoint-request-response-contracts.md).
+    try:
+        acl_filter = await build_acl_filter(db_gateway, role, department)
+    except Exception as error:
+        logger.warning(
+            "ACL filter resolution failed - falling back to an unfiltered search: %s: %s",
+            type(error).__name__,
+            error,
+        )
+        acl_filter = None
+    combined_filter = _combine_extra_filters(applied_filter, acl_filter)
+
     if use_multi_query:
         chunks = search_multi_query(
             query,
@@ -220,11 +341,11 @@ async def retrieve_chunks(
             vector_db=vector_db,
             search_strategy=resolved_strategy,
             llm_provider=resolved_llm_provider,
-            extra_filter=applied_filter,
+            extra_filter=combined_filter,
         )
     else:
         search_function = SEARCH_STRATEGIES[resolved_strategy]
-        search_call_kwargs = {"top_k": top_k, "vector_db": vector_db, "extra_filter": applied_filter}
+        search_call_kwargs = {"top_k": top_k, "vector_db": vector_db, "extra_filter": combined_filter}
         if resolved_strategy == "mmr" and lambda_mult is not None:
             search_call_kwargs["lambda_mult"] = lambda_mult
         chunks = search_function(query, **search_call_kwargs)
@@ -232,7 +353,8 @@ async def retrieve_chunks(
     await _attach_filenames(chunks, db_gateway)
 
     logger.info(
-        "Retrieved %d chunk(s) via %s, applied_filter=%s", len(chunks), resolved_strategy, applied_filter
+        "Retrieved %d chunk(s) via %s, applied_filter=%s, acl_filter=%s",
+        len(chunks), resolved_strategy, applied_filter, acl_filter,
     )
     return chunks, applied_filter
 

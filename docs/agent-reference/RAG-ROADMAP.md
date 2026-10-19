@@ -16792,6 +16792,82 @@ Explicitly deferred to a later, separate wave - not part of the above:
     already-tested design choice, not a gap to patch over. No code
     changed here.
 
+- [x] **Phase 215 (EX-2k) - real, editable LLM Judge Model override and a
+  real Eval Score Threshold gate (low-confidence flagging), per the
+  user's own direct answers to this session's clarifying questions.**
+  - **Built/verified 2026-10-18:** new `ai/rag_core/eval_threshold.py`
+    (shared by all 3 pipelines, 5 direct unit tests). `openai_client.py`'s
+    `ask()` gains `model_name_override`. All 3 `evaluate_*` judge
+    functions gain `judge_model`, return `model_used` (2 new direct
+    tests confirming the override is actually passed through and echoed
+    back, not just accepted silently). `EvalOptions` added to all 3
+    request models; `EvalScores` gains `judge_model_used`/
+    `below_threshold`/`below_threshold_metrics`. Full suite green (702
+    passed) - required updating every eval-judge test fake across 6
+    files (4 fixture files' fake functions, 2 route-level fakes, 2
+    exact-match `eval_scores` dict assertions) to match the new
+    signatures/fields, same category of churn as Phase 208.
+  - **Spec:**
+    - **Context:** user asked for a "Model" Settings tab with an editable
+      LLM Judge Model, and a "RAG Config" tab's Eval Score Threshold to be
+      a real backend gate, not cosmetic - explicit answers to this
+      session's own clarifying questions, not assumed.
+    - **Data/API contracts:** new shared `EvalOptions` model
+      (`models/rag.py`, next to `EvalScores`) -
+      `judge_model: str | None` (free text, same convention
+      `GenerationOptions.model_name` already uses - a model name is
+      genuinely open-ended, never an enum per this project's own
+      convention) and `eval_score_threshold: float | None` (0.0-1.0).
+      Added as `eval_options: EvalOptions | None = None` to
+      `RagQueryRequest`, `AgenticRagRequest`, and `MultiAgenticRagRequest`
+      - none of the 3 had a shared "options" sub-object before this, since
+      eval/judge scoring is common to all 3 pipelines (the same symmetry
+      Phase 109/110 already established for groundedness/completeness).
+      `EvalScores` gains `judge_model_used: str | None` (echoes back which
+      model actually ran, override or default - verifiable, not just
+      trusted), `below_threshold: bool`, `below_threshold_metrics: list[str]`.
+    - **User-visible behavior:** a caller can override which model judges
+      groundedness/completeness/retrieval-relevance per request. When any
+      live-computed score (groundedness, completeness, retrieval
+      precision - whichever are present) falls below
+      `eval_score_threshold`, the response is flagged so the frontend can
+      show a visible low-confidence warning on the answer itself, not
+      just buried in the Explainability panel.
+    - **Design - what "gate" means here, confirmed scope:** flagging, not
+      retry. No automatic re-generation on a low score - this project has
+      no existing retry-on-low-score pattern anywhere, and improvising one
+      (cost, infinite-loop risk, which step would even retry) is real new
+      design work beyond what was asked. This phase makes the breach
+      visible and real, not silent - if automatic retry is wanted later,
+      that's its own phase.
+    - **Changes:** `openai_client.py`'s `ask()` gains
+      `model_name_override: str | None = None`, using
+      `model_name_override or self.model` for the real call.
+      `golden_dataset_harness.py`'s 3 `evaluate_*` functions each gain a
+      `judge_model` param, returned back as `model_used` in their own
+      result dict. `_score_live_answer()` in all 3 pipelines accepts
+      `judge_model`/`eval_score_threshold`, threads `judge_model` into all
+      3 judge calls, and computes `below_threshold`/
+      `below_threshold_metrics` by comparing whichever scores are present
+      against the threshold (opt-in - `None` threshold means no check,
+      unchanged behavior for every existing caller). `answer_query()`/
+      `run_agent()`/`run_multi_agent()` each gain `judge_model`/
+      `eval_score_threshold` params threaded through to
+      `_score_live_answer()`. The 3 routes extract
+      `payload.eval_options.judge_model`/`.eval_score_threshold` (`None`
+      when `eval_options` itself is omitted) and pass them down.
+    - **Failure modes:** an invalid/unavailable `judge_model` name - the
+      existing per-judge-function `except Exception` branch already
+      degrades to `verdict: "ERROR"`/`precision: None` rather than
+      failing the whole response; unchanged by this phase, now also
+      covers a bad model override specifically.
+    - **Out of scope:** automatic retry on a threshold breach (see
+      Design above). A `judge_model` override for the offline golden-
+      dataset harness/`scripts/run_release_gate.py` - that script always
+      uses the default judge, unchanged.
+    - **Open questions:** none - both were resolved by the user's direct
+      answers this session.
+
 - [x] **Phase 208 (EX-2e) - live retrieval precision via a batched
   LLM-judge call, resolving the open "how should live Retrieval Eval
   Score work" question by building the more rigorous of the 2 options
@@ -16984,4 +17060,1171 @@ Explicitly deferred to a later, separate wave - not part of the above:
       dataset multi-agent cases' own expectations - expected_agents
       (Phase 200) stays agent-only, no reasoning ground truth to check
       against.
+
+- [x] **Phase 216 (EX-2l) - surface which retrieval strategy actually ran,
+  single-agentic-rag's own agent-chosen one included; a frontend-only
+  chunking-strategy-per-source addition alongside it. `hrb_chatbot_v2` +
+  `hrb_chatbot_ui`.**
+  - **Built/verified 2026-10-18:** `models/common.py`'s `ToolCallInfo`
+    gained `search_strategy`; `orchestration_agent.py` now captures
+    `tool_args.get("search_strategy")` into `tools_used` (was silently
+    dropped before - only `tool_args["input"]` was kept). 2 regression
+    tests added to `test_orchestration_agent.py` (strategy forwarded to
+    `tools_used`, and stays `None` when the agent doesn't choose one). All
+    3 contract snapshots regenerated. Full suite green (702 passed).
+    Frontend: `ExplainabilityModal.tsx`'s Retrieval Strategy tab now
+    resolves the real strategy for all 3 pipeline modes (genai-rag's
+    `retrieval_info`, multi-agentic-rag's hardcoded `"similarity"`,
+    single-agentic-rag's new `search_strategy` field) instead of "not
+    tracked"; a new Chunking Strategy panel fetches each source's
+    `chunking_strategy` live via the existing `getDocument()` call,
+    gated client-side to HR_SUPPORT/ADMIN/EMPLOYEE_ADMIN to match the
+    endpoint's own RBAC. `tsc -b`, `npm run build`, `npm run lint` all
+    clean. Not live-verified in a running browser.
+  - **Spec:**
+    - **Context:** the Explainability panel's new Retrieval Strategy tab
+      (this conversation, frontend-only) shows genai-rag's real
+      `search_strategy` already, but reads "not tracked for this pipeline
+      mode" for single/multi-agentic-rag. Investigating found two
+      different real answers, not one gap: multi-agentic-rag's KB Vector
+      Agent (`ai/agents/domain_agents/vector_kb_agent.py`) calls
+      `search_knowledge_base(focus)` with no `search_strategy` arg, so
+      it's always `"similarity"` - fixed, knowable without any backend
+      change. single-agentic-rag is different: its own ReAct tool
+      (`ai/rag_pipeline/tools/agentic_tools.py::search_knowledge_base`)
+      already accepts an agent-chosen `search_strategy`
+      (`similarity`/`mmr`) per call, confirmed by reading the tool
+      schema - but `orchestration_agent.py`'s tool-call logging
+      (`tool_input = tool_args.get("input", "")`) only ever captured the
+      query text, silently dropping the agent's own strategy choice
+      before it reached `tools_used`. That's a real, previously-unknown
+      gap, not a design choice - confirmed by reading the code, not
+      assumed.
+    - **Data/API contracts:** see
+      endpoint-request-response-contracts.md's "`search_strategy` on
+      `ToolCallInfo`" section (Finalized) - one new optional field.
+    - **User-visible behavior:** the Explainability panel's Retrieval
+      Strategy tab can show the real strategy for all 3 pipeline modes:
+      genai-rag from `retrieval_info` (already shipped), multi-agentic-rag
+      hardcoded `"similarity"` (frontend-only, no backend field needed -
+      it genuinely never varies), single-agentic-rag from the new
+      `search_strategy` field on its `search_knowledge_base` tool call.
+    - **Changes:** `models/common.py`'s `ToolCallInfo` gains
+      `search_strategy: str | None = None`.
+      `orchestration_agent.py`'s tool-call loop captures
+      `tool_args.get("search_strategy")` into the `tools_used` dict
+      (only meaningful for `search_knowledge_base`; `None` for every
+      other tool - MCP/web-search tools don't take this arg at all).
+      `multi_agent_pipeline.py`'s KB Vector Agent dispatch is untouched -
+      its `"similarity"` value is a frontend constant, not a backend
+      field, since it never varies.
+    - **Chunking strategy (frontend-only, no backend change):** per-
+      source chunking strategy comes from the existing
+      `GET /v1/genai-rag/ingest-document/documents/{id}` endpoint
+      (`DocumentRecord.chunk_info.chunking_strategy`), called once per
+      unique source `document_id` from the Explainability modal - not a
+      new backend capability. That endpoint is RBAC-gated to
+      HR_SUPPORT/ADMIN/EMPLOYEE_ADMIN only
+      (`api/rag/ingest_document.py::get_document`), so an employee/
+      manager viewer sees a role-gated note instead of a 403. Confirms
+      the architecture call from the prior round (query pipeline stays
+      decoupled from the metadata store) still holds - this reuses an
+      existing read endpoint instead of adding a new metadata-store join
+      inside `ai/rag_pipeline/pipeline.py`.
+    - **Failure modes:** N/A - an additive, optional response field; no
+      new request validation.
+    - **Out of scope:** making multi-agentic-rag's KB Vector Agent itself
+      support `search_strategy` (it would need its own new arg threaded
+      from the Planner, a real behavior change, not just an Explainability
+      fix - not requested here). A genuine per-query "distance algorithm"
+      selector (KNN/ANN/HNSW) - flagged back to the user as not a real
+      per-query knob in this project's actual stack (Chroma/Pinecone both
+      use HNSW as a fixed index-time choice, not swappable per call).
+      User decision 2026-10-18: scope the one real, related knob
+      (Chroma's distance metric) as its own spec rather than build
+      anything now - see Phase 217.
+    - **Open questions:** none.
+
+- [ ] **Phase 217 (EX-2m) - make the vector store's distance metric
+  configurable, with a real re-indexing flow. `hrb_chatbot_v2` +
+  `hrb_chatbot_ui`. Status: 📋 Planned, not started.**
+  - **Spec:**
+    - **Context:** user asked for a "Search Distance: KNN/ANN/HNSW"
+      control in Settings. Investigating (Phase 216) found that distinction
+      doesn't exist as a per-query option in this stack - both ChromaDB
+      and Pinecone always use HNSW internally, chosen once when an index/
+      collection is created. The one genuinely real, related, currently-
+      unexposed knob is Chroma's own **distance metric**
+      (`hnsw:space`: `l2` squared-Euclidean (today's default, unset),
+      `cosine`, or `ip` inner-product) - but it's a collection-creation-
+      time setting, not swappable on an existing collection, confirmed by
+      reading `common/clients/db_client/langchain_vector_store.py`'s
+      `Chroma(...)` call (no `collection_metadata` override passed today)
+      and Chroma's own docs. Pinecone is worse: its distance metric is set
+      at **index** creation (not collection/namespace), so changing it
+      there means standing up an entirely new Pinecone index, not just a
+      new collection.
+    - **Data/API contracts:** none finalized yet - this needs
+      endpoint-request-response-contracts.md confirmed first if it ends up
+      touching any request shape (e.g. an ingestion-time or admin-only
+      "distance metric" field), per this project's own SDD convention.
+    - **User-visible behavior:** TBD, depends on the open questions below.
+    - **Failure modes:** TBD.
+    - **Out of scope:** a per-query distance metric (confirmed not
+      possible in this stack, see Phase 216's own finding).
+    - **Open questions (none resolved yet - needs the user's decision
+      before implementation starts):**
+      - Global (one setting for the whole knowledge base) or per-document/
+        per-collection? A global change means every existing document
+        needs re-indexing into a new collection under the new metric, not
+        just new uploads.
+      - Chroma's embeddings themselves don't change when the metric
+        changes (same vectors, different distance math over them) - does
+        "re-index" here mean copying existing embeddings into a fresh
+        collection (cheaper, no new OpenAI embedding calls), or a full
+        re-embed-from-source (safer if chunk text/metadata might have
+        drifted, but costs real API calls)?
+      - Pinecone's index-level constraint is a bigger decision: does this
+        feature ship for Chroma only (the project's default provider) and
+        explicitly stay unsupported for Pinecone, or does it need a real
+        Pinecone index-recreation flow too?
+      - Who can trigger a re-index - any caller, or an HR_SUPPORT/ADMIN-
+        gated admin action (matching the project's existing pattern for
+        destructive/expensive operations)? A bad choice here risks a
+        confused or accidental metric change wiping retrieval quality
+        for the whole knowledge base.
+
+- [x] **Phase 218 (EX-2n) - real, exact-KNN search_strategy, after
+  re-investigating Phase 216/217's own finding. `hrb_chatbot_v2` +
+  `hrb_chatbot_ui`.**
+  - **Built/verified 2026-10-18:** `common/enums.py`'s `SearchStrategy`
+    gained `KNN = "knn"`. `BaseVectorDBClient.get_all_chunks()`'s contract
+    extended (both `ChromaDBClient`/`PineconeClient` now also return each
+    chunk's own `embedding`, additive - BM25's existing caller ignores
+    it). New `ai/rag_pipeline/query_retrieval/exact_knn_search.py`
+    (`search_knn()` - plain-Python cosine similarity, no numpy
+    dependency), registered into `retriever.py`'s `SEARCH_STRATEGIES`.
+    3 new tests (`test_exact_knn_search.py`, real ephemeral-chromadb +
+    `FakeEmbeddings`, genuine cosine math - exact match scores 1.0,
+    superseded chunks excluded, top_k respected); 3 existing Pinecone
+    client tests updated for the new `embedding` key. Full suite green
+    (705 passed). Frontend: `SearchStrategy` type/labels gain `"knn"`
+    with the acronym-expanded name + per-backend cost tradeoff in its
+    "?" tooltip; `"similarity"`'s own label/tooltip now names ANN/HNSW
+    explicitly. Explainability's Retrieval Strategy tab (Phase 216)
+    displays the same expanded labels, no other change needed - it
+    already rendered whatever `search_strategy` value came back.
+    `tsc -b`, `npm run build`, `npm run lint` both clean. Not live-
+    verified in a running browser.
+  - **Spec:**
+    - **Context:** user pushed back twice on Phase 216/217's conclusion
+      ("not a real per-query knob"), explicitly framing it like chunking
+      strategy (a real, backend-wired dropdown) and asking for a
+      per-backend compatibility check rather than a dismissal. Re-reading
+      `pinecone_client.py::get_all_chunks()` (already used by
+      `search_keyword`/`search_hybrid`) found it already does a full
+      `list()` + `fetch()` walk of the whole index, and each fetched
+      vector already carries its own embedding (`vector.values`) -
+      currently discarded before building the returned chunk dict. Same
+      for Chroma's `get_all_chunks()` (`collection.get(include=[...])`) -
+      `embeddings` just isn't in the `include` list yet. That means a
+      real, exact brute-force KNN (cosine similarity computed in Python
+      against every current chunk's own stored embedding, no
+      index/approximation) is genuinely buildable against both backends'
+      existing method, not a new per-backend capability each would need.
+      The earlier finding was right about one thing: `"ann"`/`"hnsw"`
+      are NOT separate buildable options - both backends' native
+      `similarity_search` already IS HNSW, so a 3rd/4th option that ran
+      the identical code under a different name would be the decorative
+      control correctly rejected before. Only `"knn"` is a genuinely new,
+      different code path.
+    - **Data/API contracts:** see
+      endpoint-request-response-contracts.md's "`knn` added to
+      `SearchOptions.search_strategy`" section (Finalized) - one new
+      enum value, no shape change.
+    - **User-visible behavior:** Settings' RAG Search tab gains a 5th
+      Retrieval option, "Exact KNN (K-Nearest Neighbors, brute-force)" -
+      selecting it and sending the next genai-rag query actually runs
+      brute-force cosine search, not the existing HNSW-backed path. The
+      existing default option's label gains "- ANN (Approximate Nearest
+      Neighbor) via HNSW" so the acronym is named, not just implied. Both
+      options' "?" tooltips state which of Chroma/Pinecone they run
+      against and the real cost tradeoff (Pinecone's full-index walk is
+      slower than Chroma's local bulk read - same profile `keyword`/
+      `hybrid` already accept on Pinecone). The Explainability panel's
+      Retrieval Strategy tab shows `"knn"` like any other real
+      `search_strategy` value (already plumbed through `retrieval_info`
+      from Phase 216 - no Explainability-side code change needed beyond
+      the label map).
+    - **Changes:**
+      - `common/enums.py`'s `SearchStrategy` gains `KNN = "knn"`.
+      - `base_vector_db_client.py`'s `get_all_chunks()` docstring/contract
+        updated to note `embedding` is now part of each returned dict
+        (additive key, BM25's existing caller ignores it, nothing else
+        breaks).
+      - `chroma_client.py::get_all_chunks()` adds `"embeddings"` to its
+        `collection.get(include=[...])` call, returns it as
+        `chunk["embedding"]`.
+      - `pinecone_client.py::get_all_chunks()` extracts `vector.values`
+        into `chunk["embedding"]` (already fetched, just discarded today).
+      - New `ai/rag_pipeline/query_retrieval/exact_knn_search.py`
+        (mirrors `bm25_search.py`'s own file-per-strategy-family
+        convention): `search_knn(query, top_k, vector_db, extra_filter)`
+        - embeds `query` via the existing `get_embeddings().embed_query()`,
+        pulls every current chunk + its embedding via `get_all_chunks()`,
+        computes plain-Python cosine similarity (no new dependency -
+        dot product over vector norms, not numpy), returns the real
+        top_k by that score. Reuses `bm25_search.py`'s own
+        `_matches_metadata_filter()` for the is_current/extra_filter
+        check, same as `search_keyword` does.
+      - `retriever.py`'s `SEARCH_STRATEGIES` dict gains `"knn": search_knn`
+        (same late-import-to-avoid-circularity pattern already used for
+        `keyword`/`hybrid`).
+      - `hrb_chatbot_ui`: `SearchStrategy` type gains `"knn"`;
+        `SEARCH_STRATEGY_LABELS`/`SEARCH_STRATEGY_HELP` in `ChatPage.tsx`
+        gain the new option with acronym-expanded label + the per-backend
+        compatibility/cost note in its help text; `"similarity"`'s own
+        label/help text gains the "ANN via HNSW" naming.
+    - **Failure modes:** none new - `"knn"` is a normal, always-valid
+      `SearchStrategy` member like every other one; no backend-specific
+      rejection needed since both Chroma and Pinecone support it.
+    - **Out of scope:** wiring `"knn"` into single/multi-agentic-rag's
+      own tool-level `search_strategy` choice (`agentic_tools.py`
+      currently restricts the ReAct agent to `similarity`/`mmr` only) -
+      not asked for here, and letting an LLM agent autonomously pick a
+      slower brute-force search deserves its own explicit sign-off, not
+      a side effect of this phase. A configurable relevance bar for
+      `"knn"` results (today's `MAX_CHROMA_DISTANCE`/`MIN_PINECONE_SCORE`
+      bars are strategy-specific, not reused here) - mirrors MMR's own
+      "no relevance-bar filtering" precedent instead.
+    - **Open questions:** none - both backends confirmed to support it,
+      no per-backend branching needed beyond the cost-tradeoff note.
+
+- [x] **Phase 219 (EX-2o) - live recall/F1 estimate for genai-rag, against
+  a wider exact-KNN pool. `hrb_chatbot_v2` + `hrb_chatbot_ui`.**
+  - **Built/verified 2026-10-18:**
+    `ai/rag_pipeline/evaluations/golden_dataset_harness.py::evaluate_retrieval_relevance()`
+    gained an optional `wider_pool_texts` param - when given, judges that
+    larger list in the same single LLM call and splits the result into
+    `precision` (scoped to `chunk_texts`, unchanged) and
+    `recall_estimate`/`f1_estimate`/`pool_size` (new). `pipeline.py` gained
+    `_fetch_wider_pool_texts()` (original chunks first, deduped
+    exact-KNN extras up to `min(top_k*4, 20)` after) and threads
+    `top_k`/`vector_db` into `_score_live_answer()` to call it.
+    `EvalScores` (`models/rag.py`) gained the 3 matching fields - see
+    endpoint-request-response-contracts.md (Finalized). 5 new tests (3 in
+    `test_llm_judge_scoring.py` - real precision/recall/F1 math against a
+    wider pool, None-not-fabricated when nothing's relevant, unchanged
+    behavior with no pool given; 2 in `test_pipeline.py` - dedup by
+    document_id/chunk_index with original-first ordering, the
+    `WIDER_POOL_MAX` cap). Full suite green (710 passed), bandit clean.
+  - **Spec:**
+    - **Context:** user wants live Precision/Recall/F1 "similar to
+      offline" specifically to guide RAG ingestion (chunking, indexing)
+      and retrieval-strategy tuning from real traffic, not just the
+      25-case golden dataset. `evaluate_retrieval_relevance()`'s own
+      docstring already had a deliberate, reasoned refusal to fabricate
+      live recall ("needs the total count of relevant documents that
+      exist, which is unknowable... worse than not showing one") - a
+      real prior decision, not an oversight, so this wasn't built
+      without surfacing that tradeoff to the user first (confirmed
+      2026-10-18: build a real, explicitly-bounded estimate instead of
+      either fabricating true recall or leaving it precision-only).
+      Phase 218's exact-KNN capability (same turn) made a defensible
+      reference pool possible: a DIFFERENT search path than whatever
+      strategy produced the answer being scored, not just re-confirming
+      the same approximation.
+    - **Data/API contracts:** see
+      endpoint-request-response-contracts.md's
+      "`retrieval_recall_estimate`/`retrieval_f1_estimate`/
+      `retrieval_recall_pool_size` on `EvalScores`" section (Finalized).
+    - **User-visible behavior:** every genai-rag live answer with
+      retrieved context now reports an estimated recall/F1 alongside
+      precision, each labeled clearly as an estimate (never claimed
+      equivalent to the golden dataset's own ground-truth recall) -
+      intended use is spotting a real, actionable drop (e.g. recall
+      estimate consistently low on a document category -> that
+      document's chunking strategy or indexing is worth revisiting).
+    - **Changes:** see Built/verified above.
+    - **Failure modes:** a wider-pool fetch or judge-call failure
+      degrades the same way groundedness/completeness/precision already
+      do (caught, returns `None`s) - no new failure path, reuses
+      `evaluate_retrieval_relevance()`'s existing `except` branch.
+    - **Out of scope:** wiring the same wider-pool recall estimate into
+      single-agentic-rag/multi-agentic-rag's own, separate
+      `_score_live_answer()` copies (`orchestration_agent.py`/
+      `multi_agent_pipeline.py`) - their `context_texts` come from tool
+      results, not chunk dicts with `document_id`/`chunk_index`, so the
+      same dedup approach needs its own small adaptation; flagged as a
+      natural, low-risk follow-on (the function signature change is
+      already backward-compatible) rather than done here. Showing the
+      estimate's trend over time (e.g. "average live recall this week")
+      - this phase only adds it per-answer; an aggregate view is a
+      separate reporting feature.
+    - **Open questions:** none.
+
+- [x] **Phase 220 (EX-2p) - extend Phase 219's live recall/F1 estimate to
+  single/multi-agentic-rag, fixing a real scoping bug the live UI
+  surfaced along the way. `hrb_chatbot_v2`.**
+  - **Built/verified 2026-10-18:**
+    `orchestration_agent.py`/`multi_agent_pipeline.py`'s own separate
+    `_score_live_answer()` copies each gained their own
+    `_fetch_wider_pool_texts()` (same shape as `pipeline.py`'s, local
+    copy - matches this project's existing "each pipeline keeps its own
+    `_score_live_answer()`" convention, not a new shared abstraction) and
+    a `sources` param. The retrieval judge now scopes to `sources` (real
+    KB chunks) instead of `context_texts`/`agent_result_texts` (mixed
+    tool-output text) - see endpoint-request-response-contracts.md's
+    Phase 220 update for the real bug this closes. 2 new regression
+    tests (one per file) confirm web-search text never reaches the
+    retrieval judge and the wider pool/recall estimate flow through
+    correctly. Full suite green (712 passed), bandit clean.
+  - **Spec:**
+    - **Context:** live screenshot showed Retrieval Eval Score's
+      "Recall (estimate)"/"F1 (estimate)" as "n/a" for a single/multi-
+      agentic-rag answer, with no explanation - Phase 219 had only wired
+      the wider-pool fetch into `pipeline.py` (genai-rag), flagged at
+      the time as "a natural, low-risk follow-on" rather than done
+      immediately. User asked why, wanting real numbers "similar to
+      offline" in every mode to guide ingestion/retrieval tuning from
+      live traffic generally, not just genai-rag. Investigating the
+      follow-on surfaced it wasn't just a missing wire-up: `context_texts`/
+      `agent_result_texts` in these 2 pipelines mix KB-chunk text with
+      web-search/MCP text (confirmed by reading the actual judged-relevant
+      explanation on a live answer - it named "Web Source 1-5" alongside
+      real chunk numbers), which the wider-pool KNN approach can't
+      sensibly compare against (exact-KNN only searches the vector DB,
+      not the web). Fixing the scope to real KB chunks only is also a
+      more correct definition of "retrieval precision" than before, not
+      just a prerequisite for the new recall field.
+    - **Data/API contracts:** see
+      endpoint-request-response-contracts.md's Phase 220 update to the
+      existing Phase 219 section - no new fields, a behavior change to
+      what `retrieval_precision` already measured for these 2 response
+      types.
+    - **User-visible behavior:** single/multi-agentic-rag's own
+      Explainability panel now shows real recall/F1 estimates (not n/a)
+      whenever the answer used `SearchKnowledgeBase`/`vector_kb_agent` -
+      still n/a (correctly) for an MCP-only or web-only answer, since
+      there's no KB retrieval to score. `retrieval_precision` itself may
+      read differently than before on an answer that mixed KB + web/MCP
+      content, since it no longer credits web/MCP text as "retrieved
+      chunks".
+    - **Failure modes:** unchanged - reuses the same judge-call
+      `except` branch Phase 219 already established.
+    - **Out of scope:** nothing left - this was the one flagged follow-on
+      from Phase 219.
+    - **Open questions:** none.
+
+- [x] **Phase 221 (EX-2q) - hybrid search's real dense/sparse contribution
+  per chunk, after confirming there's no actual "weight" in this project's
+  RRF implementation. `hrb_chatbot_v2` + `hrb_chatbot_ui`.**
+  - **Built/verified 2026-10-18:**
+    `bm25_search.py::_reciprocal_rank_fusion()` now takes labeled lists
+    (`{"sparse": ..., "dense": ...}` instead of a plain list) and tags
+    each fused chunk with `matched_by` (which label(s) it came from).
+    `RetrievedChunk` (`models/rag.py`) gained the matching optional
+    field - null for every strategy but hybrid. 2 tests extended/added
+    in `test_bm25_search.py` (a sparse-only and dense-only hit tagged
+    correctly; a chunk both lists found tagged `["dense", "sparse"]`).
+    3 contract snapshots regenerated. Full suite green (713 passed),
+    bandit clean. Frontend: `RetrievedChunk.matched_by` added to
+    `types.ts`; the Retrieval Strategy tab gained a "Dense/Sparse
+    Contribution" panel (hybrid-mode answers only) showing a real
+    per-query sparse-only/dense-only/both breakdown plus a "?" tooltip
+    explaining RRF and why no tunable weight exists. `tsc -b`,
+    `npm run build`, `npm run lint` all clean. Not live-verified in a
+    running browser.
+  - **Spec:**
+    - **Context:** user asked to show "score weights for Dense Index and
+      Sparse Index" when Hybrid is selected, under Explainability's
+      Retrieval Strategy tab. Investigating
+      `bm25_search.py::_reciprocal_rank_fusion()` directly (not assumed)
+      found this project's hybrid search is pure Reciprocal Rank Fusion -
+      `score = sum(1/(RRF_K+rank))`, `RRF_K=60` - with no alpha/weight
+      term anywhere; both lists contribute identically by rank position,
+      by design (RRF's own point is being scale-free, not a tunable
+      blend). So a literal "dense weight: 0.6 / sparse weight: 0.4"
+      control would be decorative - there's no such number computed
+      anywhere to show, the same category of problem Phase 216/218's own
+      KNN/ANN/HNSW investigation found and declined to fake. The real,
+      honest substitute: which list(s) actually found each result chunk -
+      computable directly from the RRF merge step, previously discarded
+      once the final score was computed.
+    - **Data/API contracts:** see
+      endpoint-request-response-contracts.md's "`matched_by` on
+      `RetrievedChunk`" section (Finalized).
+    - **User-visible behavior:** the Retrieval Strategy tab shows, for a
+      hybrid-mode answer: an RRF explanation (formula/RRF_K, why no
+      tunable weight exists) plus a real per-query breakdown of how many of this
+      answer's chunks were sparse-only/dense-only/both.
+    - **Failure modes:** N/A - an additive, optional response field.
+    - **Out of scope:** exposing `matched_by` for MultiQuery/Self-Query
+      results (those don't go through `_reciprocal_rank_fusion` at all,
+      so there's nothing to tag - stays null, correctly, not a gap).
+    - **Open questions:** none.
+
+- [x] **Phase 222 (EX-2r) - Engineering Trace tab content overhaul:
+  comprehensive, with real examples, better format. `hrb_chatbot_ui`
+  only (presentational - no backend/wire-shape change).**
+  - **Built/verified 2026-10-18:** `ExplainabilityModal.tsx`'s Prompt
+    Engineering panel gained a `PROMPT_CONSTANT_ROLES` lookup (one
+    verified sentence per real prompt constant, read directly from
+    `ai/prompts/agent_prompts.py`/`response_generator.py`, not
+    paraphrased from memory) plus an expandable real-system-prompt-text
+    section per turn (`turn.system_prompt`, already captured, previously
+    unused here). Context Engineering gained the real assembly format
+    (`[filename, chunk N]` vs `[agent_name] result`) with a live example
+    built from this specific answer's own first source, plus the actual
+    source document filenames. Loop Engineering gained concrete per-mode
+    detail: multi-agentic-rag lists which agents were actually dispatched
+    and their focus; single-agentic-rag lists each iteration's real tool
+    call; genai-rag lists the real decomposed sub-question text when
+    more than one ran. Harness Engineering gained a one-line "why this
+    control-flow choice fits this mode" per mode, grounded in what's
+    actually different about each (parallel fan-out size decided at
+    runtime vs. one sequential agent vs. no multi-step decision at all).
+    `tsc -b`, `npm run build`, `npm run lint` all clean. Not live-
+    verified in a running browser.
+  - **Spec:**
+    - **Context:** user feedback: the 4 Engineering Trace panels were
+      too thin (one sentence each) to be useful for understanding how
+      this project's own agent/prompt engineering actually works -
+      wanted "examples, comprehensive, better format."
+    - **Data/API contracts:** N/A - reuses fields already in the
+      response (`llm_context.turns[].system_prompt`, `tasks`,
+      `toolsUsed`, `sources`), no new field, no backend change.
+    - **User-visible behavior:** see Built/verified above.
+    - **Failure modes:** N/A - presentational only.
+    - **Out of scope:** none.
+    - **Open questions:** none.
+
+- [x] **Phase 223 (EX-2s) - real tuning recommendations when a live score
+  misses its threshold, plus a real cache-hit bug this surfaced.
+  `hrb_chatbot_v2` + `hrb_chatbot_ui`.**
+  - **Built/verified 2026-10-18:**
+    `pipeline.py`'s cache-hit branch now recomputes
+    `below_threshold`/`below_threshold_metrics` against the CURRENT
+    call's `eval_score_threshold` (cheap - `check_eval_threshold()` is
+    pure arithmetic over the already-cached scores, no judge re-run) -
+    previously frozen from whenever that exact query+config was first
+    asked. 1 new regression test (`test_pipeline.py`) proves the flag
+    re-evaluates correctly on a cache hit while the underlying score
+    stays reused, not re-judged. Full suite green (714 passed), bandit
+    clean. Frontend: `ChatMessage` carries the `evalScoreThreshold`
+    actually sent with each request now; a new `RESPONSE_METRIC_GUIDANCE`
+    dict (groundedness/completeness, same shape as the existing
+    `RETRIEVAL_METRIC_GUIDANCE`) plus a shared `BelowThresholdRecommendations`
+    component surfaces a visible, specific "Recommendations" callout -
+    not just a hover tooltip - on both the Retrieval Eval Score and
+    Response Generation Eval Score tabs whenever `below_threshold_metrics`
+    names that tab's own metric. `tsc -b`, `npm run build`, `npm run lint`
+    all clean. Not live-verified in a running browser.
+  - **Spec:**
+    - **Context:** user asked for a way to get actionable tuning
+      recommendations toward a target score (0.8, or "industry
+      standard") across RAG layers, to compare after adjusting
+      config/retrieval strategy - and separately flagged a real caching
+      risk: would a repeated query get served a stale cached answer
+      instead of re-running with new settings? Checking `build_cache_key()`
+      directly (not assumed) found the risk was already handled for the
+      parameters that matter for "comparing retrieval strategies" -
+      `top_k`/`vector_db`/`search_strategy`/`temperature`/`model_name`/
+      `max_tokens`/`use_multi_query`/`use_self_query`/`llm_provider`/
+      `lambda_mult` are ALL already part of the cache key, so changing
+      any of them already busts the cache correctly. What wasn't handled:
+      `eval_score_threshold` and `judge_model` are deliberately NOT part
+      of the cache key (they don't affect retrieval/generation, only
+      scoring) - but the comment above the cache-hit branch said
+      eval_scores were reused "since it's a property of the (question,
+      context, answer) triple" and then also froze `below_threshold`
+      alongside it, which is wrong: that flag is a property of THIS
+      call's own threshold, not the cached one. A real, confirmable bug,
+      found by verifying the user's concern rather than dismissing or
+      assuming it.
+    - **"Industry standard 0.8" - no single number exists to assert as
+      fact**, so none is hardcoded anywhere - the existing, already-built
+      `eval_score_threshold` Settings field (Phase 215) already lets the
+      user set whatever target they want; this phase makes hitting or
+      missing it actionable instead of just a silent boolean.
+    - **Data/API contracts:** no new field - `below_threshold`/
+      `below_threshold_metrics` already existed (Phase 215) but were
+      never surfaced in the frontend at all until this phase; this is a
+      correctness fix to their existing values plus a new UI consumer.
+    - **User-visible behavior:** see Built/verified above.
+    - **Failure modes:** N/A - reuses existing, already-tested code paths.
+    - **Out of scope:** an LLM-generated (vs. this phase's rule-based)
+      recommendation - rule-based reuses the tuning guidance text already
+      written and costs nothing extra per answer; not revisited without a
+      concrete reason the static guidance falls short. Re-running the
+      judge itself with a different `judge_model` on a cache hit (still
+      serves the original judge's scores + model_used in that specific
+      case) - flagged, not fixed, since forcing a live re-judge on every
+      cache hit would defeat part of the point of caching.
+    - **Open questions:** none.
+
+- [x] **Phase 224 (EX-2t) - real input/output guardrail status reaching the
+  Explainability panel, plus a real silent-swap bug this surfaced.
+  `hrb_chatbot_v2` + `hrb_chatbot_ui`. Backend built/verified -
+  `hrb_chatbot_v2`'s full suite green (720 passed), `bandit -ll` clean;
+  `hrb_chatbot_ui`'s own Guardrails tab not yet built.**
+  - **Spec:**
+    - **Context:** user asked for a Guardrails tab (Input/Output
+      "Validations Gateway") in Explainability. Investigated before
+      building any UI, per this project's own "no decorative controls"
+      bar - found `check_input()`/`check_output()`
+      (`ai/pre_processing/guardrails_input.py`/
+      `ai/rag_pipeline/response_generation/guardrails_output/__init__.py`)
+      both only ever returned the resulting TEXT, never whether a check
+      passed/modified/blocked - a PASS and a MODIFIED (PII masked) were
+      indistinguishable to every caller, and `run_guarded_pipeline()`
+      (`ai/rag_core/guarded_pipeline.py`) never put anything
+      guardrail-related into the result dict at all. Worse than just
+      "not observable": `check_output()` on a BLOCKED result silently
+      returns `SAFE_FALLBACK_ANSWER` with no signal at all - the caller
+      gets an ordinary 200 with a swapped answer and no way to know.
+      `grep` for "guardrail" across all 3 response models confirmed zero
+      existing fields - nothing to surface without new backend plumbing.
+    - **Data/API contracts:** see
+      endpoint-request-response-contracts.md's "`guardrails` on
+      `ExplainabilityInfo`" section (Finalized).
+    - **User-visible behavior:** the Explainability panel gains a
+      Guardrails tab showing, per answer: Input check (pass/modified/
+      which rail) and Output check (pass/modified/blocked, which rail) -
+      real per-call data, not a static description of what guardrails
+      exist.
+    - **Changes:**
+      - `check_input()`/`check_output()` both change return type from
+        `str` to `tuple[str, dict]` (`{"status": "pass"|"modified"|
+        "blocked", "rail": str | None}` - `"blocked"` only reachable from
+        `check_output()`, since `check_input()` still raises
+        `GuardrailBlockedError` on a block, unchanged).
+      - `run_guarded_pipeline()` captures both statuses (including the
+        `pre_checked_query`/`pre_checked_input_status` bypass path
+        genai-rag's own MCP fast-path uses) and adds
+        `result["guardrails"] = {"input": ..., "output": ...}`.
+      - `multi_agent_pipeline.py` (calls `check_input`/`check_output`
+        directly, not through the shared core - a known, already-recorded
+        gap, not newly introduced here) updated the same way, locally.
+      - Every other call site updated to match the new tuple return,
+        behavior otherwise unchanged: `pipeline.py`'s own top-level
+        `check_input` call, `adhoc_document_chat.py` (3 call sites),
+        `adhoc_document_agent.py` (2, the pre-email masking check),
+        `nfr_golden_dataset_harness.py` (now reads the real `status`
+        field instead of inferring "masked" by string-comparing the
+        checked query against the original - strictly more accurate).
+      - New `GuardrailCheckStatus`/`GuardrailInfo` models
+        (`models/rag.py`), `guardrails: GuardrailInfo` added to the
+        shared `ExplainabilityInfo`.
+      - All 3 route files (`retrieve_document.py`,
+        `api/agentic_rag/query_agent.py`,
+        `api/multi_agentic_rag/query_agent.py`) construct it from
+        `result["guardrails"]`.
+    - **Failure modes:** N/A for the new field itself (additive). The
+      BLOCKED-input 422 path is unchanged (still a plain string message
+      with the rail name interpolated into it, not a structured field) -
+      out of scope, see below.
+    - **Out of scope:** structuring the input-BLOCKED 422 error body's
+      own `rail` as a real field (today it's just text inside the error
+      message) - the success-path silent-swap was the real, confirmed
+      bug; the block-path error already surfaces a message, just not
+      machine-parseable. `adhoc_document_chat.py`'s own response
+      doesn't gain a `guardrails` field - it has its own separate,
+      smaller `AdhocExplainability` view, not `ExplainabilityInfo`, and
+      wasn't asked for here.
+    - **Open questions:** none.
+
+- [x] **Phase 225 (EX-2u) - the real recall-estimate denominator, so the
+  Explainability panel can show the actual arithmetic behind Precision/
+  Recall/F1, not just the final numbers. `hrb_chatbot_v2` +
+  `hrb_chatbot_ui`. Built/verified both sides - backend: full suite green
+  (720 passed), `bandit -ll` clean; frontend: Retrieval/Response Eval
+  Score tabs now show the real formula with real numbers, `npm run
+  build`/`lint` clean.**
+  - **Spec:**
+    - **Context:** user asked to see "the real calculation behind" the
+      live Precision/Recall/F1 scores, not just the final 0.67/0.40/0.50.
+      Investigated what's already real vs. missing: `retrieval_precision`
+      is fully derivable client-side today
+      (`retrieval_relevant_chunk_indices.length / sources.length`) - no
+      backend change needed there. `retrieval_recall_estimate`'s
+      numerator is visible the same way, but its DENOMINATOR (how many
+      chunks were judged relevant across the whole wider exact-KNN pool,
+      before scoping down to just the originally-retrieved subset) is
+      computed inside `evaluate_retrieval_relevance()`
+      (`ai/rag_pipeline/evaluations/golden_dataset_harness.py`, the local
+      `relevant_indices` before it's filtered to `relevant_in_original`)
+      but never returned - the one real gap. Response-generation scores
+      (groundedness/completeness) already carry their real calculation
+      end to end (`groundedness_explanation`/`completeness_explanation`
+      already contain the judge's raw "Score: X / Reasoning: ..." text
+      verbatim, and `score = X / 10.0` is the entire normalization) - no
+      backend change needed there either, this is a frontend
+      presentation gap only (see Out of scope).
+    - **Data/API contracts:** new `EvalScores` field only, additive:
+      `retrieval_recall_relevant_count: int | None` - "how many chunks
+      were judged relevant across the whole wider candidate pool
+      (`retrieval_recall_pool_size` chunks) - the real denominator of
+      `retrieval_recall_estimate`." Not a renegotiated shape, so no
+      `endpoint-request-response-contracts.md` section - purely additive
+      to the existing Finalized `EvalScores` shape.
+    - **User-visible behavior:** the Retrieval Eval Score tab shows the
+      real arithmetic: "Precision = {relevant_chunk_indices.length} /
+      {sources.length} = {precision}", "Recall = {relevant_chunk_indices.
+      length} / {retrieval_recall_relevant_count} = {recall_estimate}",
+      "F1 = harmonic mean(precision, recall)". The Response Generation
+      Eval Score tab shows the judge's raw 0-10 score parsed out of the
+      existing explanation text, with the normalization made explicit
+      ("X/10 = 0.XX"), ahead of the full reasoning paragraph.
+    - **Changes:**
+      - `evaluate_retrieval_relevance()` returns one new key,
+        `relevant_pool_count` - `len(relevant_indices)` (the unscoped
+        count), already computed, just not returned before.
+      - `pipeline.py`/`orchestration_agent.py`/`multi_agent_pipeline.py`
+        (all 3, identical today) each add
+        `"retrieval_recall_relevant_count": retrieval["relevant_pool_count"]`
+        to their `eval_scores` dict construction.
+      - New `EvalScores.retrieval_recall_relevant_count` field. No route
+        file changes - all 3 already do `EvalScores(**eval_scores)`.
+      - Frontend: `GuardrailCheckStatus`-style additive type field, plus
+        a real arithmetic breakdown rendered in the Retrieval Eval Score
+        tab and a parsed raw-score line in the Response Generation tab.
+    - **Failure modes:** N/A - additive field, null when
+      `wider_pool_texts` wasn't given (same existing null case as
+      `retrieval_recall_pool_size`).
+    - **Out of scope:** changing how `calculate_retrieval_metrics()`
+      (the OFFLINE golden-dataset Precision@5/Recall@5/F1 numbers) are
+      computed or returned - `true_positives`/`retrieved_count`/
+      `relevant_count` already exist in that function's own return dict;
+      surfacing them in the golden-dataset-reference panel is a smaller,
+      separately-scoped frontend-only follow-up, not touched here.
+    - **Open questions:** none.
+
+- [x] **Phase 226 - a real corrective retry: retrieve again, once, when
+  retrieval precision is below the caller's own eval_score_threshold.
+  `hrb_chatbot_v2` + `hrb_chatbot_ui`. genai-rag only. Built/verified
+  both sides - backend: full suite green (725 passed), `bandit -ll`
+  clean; frontend: new "Retry Once on Low Retrieval Score" checkbox in
+  Settings' RAG Config tab, Retrieval Eval Score tab shows when a retry
+  happened, `npm run build`/`lint` clean.**
+  - **Spec:**
+    - **Context:** user (a RAG learner, explicit about not having the
+      background to pick between design options) asked for a real
+      corrective-retry loop, delegating the technical design to this
+      project's own implementation + real-world practice, with one
+      constraint: whatever new behavior exists needs a real control
+      under Settings' RAG Config tab, not a silent always-on change.
+      Investigated the existing shared core
+      (`ai/rag_core/guarded_pipeline.py`) before designing anything: it
+      already saves a generated answer to conversation memory as part of
+      `generate()`'s own return, before `pipeline.py` ever scores that
+      answer - so a naive "generate -> score the answer -> regenerate if
+      low" retry would save the FIRST (possibly-replaced) answer to
+      conversation history while returning a DIFFERENT second answer to
+      the caller, a real, silent correctness bug. Designed around that
+      instead of into it: retry RETRIEVAL, gated on the RETRIEVED
+      CHUNKS' own live precision (`evaluate_retrieval_relevance()`,
+      already real and already called elsewhere in this file, now also
+      called once BEFORE generation starts), never the generated answer
+      - by construction, an answer is only ever generated and saved
+      once, after retrieval already had its one chance to improve. This
+      is the standard "Corrective RAG" (CRAG) shape, not invented here.
+    - **Data/API contracts:** see endpoint-request-response-contracts.md's
+      "`enable_corrective_retry` on `SearchOptions` + `retrieval_retry_
+      attempted` on `EvalScores`" section (Finalized).
+    - **User-visible behavior:** a new "Retry Once on Low Retrieval
+      Score" checkbox in Settings' RAG Config tab, next to the existing
+      Eval Score Threshold field it depends on (disabled/no-op without a
+      threshold set). When on, and this call's first retrieval scores
+      below that threshold on precision, retrieval runs a second time
+      with a doubled top_k (capped at 20) before any answer is
+      generated - the Explainability panel's Retrieval Eval Score tab
+      shows whether this happened (`retrieval_retry_attempted`).
+    - **Changes:**
+      - `SearchOptions.enable_corrective_retry: bool = False` (new
+        request field, genai-rag only).
+      - `RagQueryParams.enable_corrective_retry: bool = False`.
+      - `_answer_sub_question()` (pipeline.py): after `retrieve_chunks()`
+        returns, when `enable_corrective_retry` and
+        `eval_score_threshold` are both set and chunks is non-empty, one
+        extra `evaluate_retrieval_relevance()` call (no wider pool - the
+        PRE-generation precision check this phase adds, distinct from
+        Phase 219's POST-generation wider-pool recall estimate) judges
+        the chunks alone; if precision is below the threshold,
+        `retrieve_chunks()` runs again with `top_k * 2` (capped at 20,
+        reusing Phase 219's `WIDER_POOL_MAX` constant) and the retried
+        chunks replace the originals if that second call returned any.
+        Exactly one retry, never a loop - bounded cost by construction.
+      - `generate()`'s own return dict (pipeline.py) gains
+        `retry_attempted: bool` (any sub-question retried) - passes
+        through `run_guarded_pipeline()`'s existing "extra keys survive
+        unchanged" behavior with no core change needed.
+      - `answer_query()` copies it into `eval_scores["retrieval_retry_
+        attempted"]` once eval_scores exists (null-safe: eval_scores can
+        be `None` when there are no sources at all).
+      - New `EvalScores.retrieval_retry_attempted: bool` field.
+      - Frontend: new RAG Config checkbox (paired with Eval Score
+        Threshold), new `EvalScores` field, shown in the Retrieval Eval
+        Score tab's existing "Calculation" block.
+    - **Retrieval quality criteria:** the retry's own trigger IS a
+      retrieval-quality check (live precision vs. the caller's
+      threshold) - no golden-dataset case changes; this doesn't touch
+      chunking/indexing, only adds a second retrieval attempt at query
+      time.
+    - **Failure modes:** N/A - additive, opt-in, defaults to today's
+      exact behavior (one retrieval attempt) when the new field is
+      omitted or false.
+    - **Out of scope:** single-agentic-rag/multi-agentic-rag - their
+      retrieval shapes (a ReAct tool call; parallel domain-agent
+      dispatch) don't map onto "retry retrieve_chunks() once" as
+      directly as genai-rag's single retrieve-then-generate call does;
+      extending this pattern to either is a separately-scoped follow-up,
+      not started here. Retrying GENERATION itself (vs. retrieval) -
+      ruled out above, not a smaller version of this phase but a
+      different, riskier design given the conversation-memory-save
+      ordering issue found. A configurable retry COUNT (more than 1) -
+      bounded to exactly 1 deliberately, for cost/latency control; not
+      exposed as a tunable number. Real reranking (per-chunk dense/sparse
+      scores kept through fusion + an actual reranking step) - still
+      queued, separately scoped, needs a reranker-approach decision
+      first (see BACKLOG.md's 2026-10-19 reranking entry).
+    - **Open questions:** none.
+
+- [x] **Phase 227 - dynamic tuning recommendations: drop a suggestion this
+  specific answer's own real settings already ruled out, instead of
+  always repeating the same static text. `hrb_chatbot_ui` only (frontend
+  presentation logic over data already in the response - no backend
+  change).**
+  - **Spec:**
+    - **Context:** user finalized this feature's design (delegated to
+      this project's own implementation given no RAG background) -
+      "make tooltip content dynamically relevant... to the DeepEval
+      Scoring values." Investigated what real per-turn signal already
+      exists before building anything new: `retrievalInfo.search_strategy`,
+      `sources.length`, and `explainability.temperature` are all real,
+      already-returned fields (genai-rag only - the only mode with these
+      exposed in its response shape) - no new backend plumbing needed.
+    - **Changes:** `ExplainabilityModal.tsx`'s `BelowThresholdRecommendations`
+      (the "Recommendations" panel shown for a flagged below-threshold
+      metric) now takes the real `message` and filters each metric's
+      static `tune` list through `dynamicTune()`: drops "Try Hybrid"/"Try
+      MMR" when that strategy is already the one used this turn, drops
+      "Raise Top K" when `sources.length` is already at the platform's
+      hard max (20), drops "Lower Temperature" when it's already <= 0.1.
+      Never removes a line without a concrete reason, never invents new
+      wording, and falls back to the full original list if filtering
+      would ever empty it (a possibly-redundant tip beats a blank panel).
+    - **Out of scope:** the generic hover-help "?" popovers
+      (`RetrievalMetricIcon`/`ResponseMetricIcon`) stay static - those
+      also serve the OFFLINE golden-dataset table rows, which have no
+      live answer/message context to be dynamic about, and are asked
+      before any specific answer exists. single-agentic-rag/multi-
+      agentic-rag - no real per-turn search_strategy/temperature data
+      exists in their response shapes to be dynamic about.
+    - **Open questions:** none.
+
+- [x] **Phase 228 - a real Retrieval Strategy control for Single-Agent RAG
+  and Multi-Agent RAG, not just Reflex RAG. `hrb_chatbot_v2` +
+  `hrb_chatbot_ui`. Built/verified both sides - backend: full suite green
+  (729 passed), `bandit -ll` clean; frontend: Retrieval Strategy dropdown
+  now shows for all 3 modes (2-option list for Single/Multi-Agent RAG),
+  `npm run build`/`lint` clean.**
+  - **Spec:**
+    - **Context:** user confirmed (after the real backend-justified
+      explanation of why it was hidden) that they want this built as a
+      real feature, not just explained away. Investigated both
+      pipelines' actual retrieval call sites before designing anything:
+      `orchestration_agent.py`'s `SearchKnowledgeBase` tool already lets
+      the LLM AGENT choose `search_strategy` per call (Phase 216) - this
+      phase adds a caller-level DEFAULT the agent falls back to, not a
+      forced override of the agent's own live choice.
+      `multi_agent_pipeline.py`'s `vector_kb_agent` never exposed a
+      choice at all - hardcoded to `search_knowledge_base()`'s own
+      `"similarity"` default indirectly; this phase is the only way to
+      influence it. Both pipelines' shared tool
+      (`agentic_tools.py::search_knowledge_base()`) only understands
+      `"similarity"`/`"mmr"` - never `"keyword"`/`"hybrid"`/`"knn"` -
+      confirmed by reading its own resolution logic, not assumed from
+      genai-rag's unrelated 5-option enum.
+    - **Data/API contracts:** see endpoint-request-response-contracts.md's
+      "`search_strategy` on `AgenticRagRequest`/`MultiAgenticRagRequest`"
+      section (Finalized) - `Literal["similarity", "mmr"]`, deliberately
+      narrower than genai-rag's own `SearchStrategy` enum, so an
+      unsupported value is a real 422, not a silent no-op.
+    - **User-visible behavior:** Settings' RAG Search tab shows a
+      Retrieval Strategy dropdown for Single-Agent RAG and Multi-Agent
+      RAG too now, with only 2 options (Semantic Search / MMR) - not
+      genai-rag's full 5, since the other 3 would be accepted but do
+      nothing on these 2 pipelines.
+    - **Changes:**
+      - `AgenticRagRequest.search_strategy` / `MultiAgenticRagRequest.
+        search_strategy`: `Literal["similarity", "mmr"] | None = None`.
+      - `orchestration_agent.run_agent()` gains `search_strategy: str |
+        None = None`; at the `SearchKnowledgeBase` tool-dispatch site,
+        when the agent's own `tool_args` has no `search_strategy` key,
+        this default is injected before calling the tool - the agent's
+        own explicit choice, when present, is untouched. Also added to
+        this pipeline's own cache key.
+      - `multi_agent_pipeline.py`: `MultiAgentState` gains
+        `search_strategy: str | None`; `dispatch_to_agents()` threads it
+        into every `Send()`'s state; `vector_kb_agent_node()` passes it
+        to `vector_kb_agent.run()`. `run_multi_agent()` gains the same
+        param, seeded into the graph's initial state and added to this
+        pipeline's own cache key.
+      - `vector_kb_agent.run()` gains `search_strategy: str | None =
+        None`, forwarded to `search_knowledge_base()`.
+      - Both route files (`api/agentic_rag/query_agent.py`,
+        `api/multi_agentic_rag/query_agent.py`) pass
+        `payload.search_strategy` through.
+      - Frontend: `ChatPage.tsx`'s RAG Search tab shows the dropdown for
+        all 3 modes now; Single/Multi-Agent RAG get a 2-option list
+        (reusing the same `<select>`, a smaller option set) instead of
+        genai-rag's 5. The 3 "why isn't this here" dev-notes added last
+        turn are removed for the modes that now have the real control
+        (Single-Agent RAG's agent-chooses-its-own note and Multi-Agent
+        RAG's always-similarity note no longer apply once this ships;
+        the GenAI Chat Workflow's own note stays - that combination
+        still skips the vector store entirely).
+    - **Failure modes:** a `search_strategy` value outside
+      `"similarity"`/`"mmr"` on either endpoint is a 422 (Pydantic
+      `Literal` validation), same shape as every other enum-typed field
+      this project already uses.
+    - **Out of scope:** `lambda_mult` (MMR's diversity knob) for these 2
+      modes - user asked specifically about the Retrieval Strategy
+      dropdown, not the lambda control; genai-rag keeps the only
+      `lambda_mult` field. Letting the agent's own per-call choice be
+      forcibly overridden (vs. just defaulted) for single-agentic-rag -
+      would remove real, already-shipped agent judgment (Phase 216) for
+      a net loss, not asked for.
+    - **Open questions:** none.
+
+- [x] **Phase 229 - real per-rail guardrail logs: which specific NeMo
+  validations ran for this answer, not just the aggregate pass/modified/
+  blocked status. `hrb_chatbot_v2` + `hrb_chatbot_ui`. Built/verified
+  both sides - backend: full suite green (729 passed), `bandit -ll`
+  clean, live-verified against real NeMo calls (3 scenarios: pass,
+  masked, blocked); frontend: Guardrails tab shows a real per-rail table
+  under each Input/Output Check, `npm run build`/`lint` clean. Real,
+  pre-existing (unrelated) NFR-dataset drift found during live
+  verification, documented in BACKLOG.md rather than silently papered
+  over.**
+  - **Spec:**
+    - **Context:** user asked for a tabular log of which guardrail
+      validations are actually triggering, to demonstrate the real logic
+      implemented - not satisfied by the existing Guardrails tab's
+      aggregate Input/Output "Pass" boxes alone. Investigated NeMo
+      Guardrails' own library source (not assumed): `LLMRails.
+      check_async()` (what `check_input()`/`check_output()` currently
+      call) already internally requests NeMo's full per-rail activation
+      log on every call (`options["log"] = {"activated_rails": True}`),
+      then discards it, returning only the aggregate status/rail. Live-
+      verified against this project's real guardrails config
+      (`ai/guardrails_config/`) with 3 real calls: a benign question
+      shows BOTH configured input flows (`self check input` AND
+      `mask sensitive data on input`) individually, each with NeMo's own
+      real decision trace, even though neither changed anything; a PII-
+      masking call shows the same 2 flows plus the real masked output; a
+      jailbreak-blocked call shows only `self check input` (`stop: true`)
+      - `mask sensitive data` never got a turn, live-confirming this
+      project's own BACKLOG.md note about rail ordering rather than just
+      citing it.
+    - **Data/API contracts:** see endpoint-request-response-contracts.md's
+      "`activated_rails` on `GuardrailCheckStatus`" section (Finalized).
+    - **User-visible behavior:** the Guardrails tab's Input Check/Output
+      Check panels each gain a real table: every configured rail that
+      actually ran for THIS answer, with its own real decision log - not
+      just the one rail that happened to matter. Demonstrates the
+      implemented validation logic directly, with live evidence, instead
+      of only the final aggregate verdict.
+    - **Changes:**
+      - `check_input()`/`check_output()` stop calling `LLMRails.
+        check_async()` - they call `LLMRails.generate_async()` directly
+        (the same call `check_async()` made internally) with
+        `options={"rails": [...], "log": {"activated_rails": True}}`,
+        and replicate `check_async()`'s own status-determination logic
+        locally (verified simple and self-contained against NeMo's own
+        source - not a dependency on NeMo's private helper functions).
+      - Both functions' returned status dict gains `activated_rails:
+        list[{"name": str, "decisions": list[str], "stop": bool}]`.
+      - New `ActivatedRailInfo` Pydantic model; `GuardrailCheckStatus`
+        gains `activated_rails: list[ActivatedRailInfo]`.
+      - `run_guarded_pipeline()`/`multi_agent_pipeline.py`'s own
+        guardrails dicts pass the new field through unchanged (already
+        just forward whatever `check_input`/`check_output` return).
+      - Frontend: `GuardrailCheckPanel` (ExplainabilityModal.tsx) gains a
+        real table of activated rails under each Input/Output Check,
+        instead of just the single `rail`/no-rail-fired line.
+    - **Failure modes:** N/A - additive; `activated_rails` defaults to an
+      empty list, same null-safety precedent as every other additive
+      field this phase set already uses.
+    - **Out of scope:** per-rail pass/fail labeling beyond what NeMo
+      itself logs - `decisions` is NeMo's own real trace (e.g. "execute
+      mask_sensitive_data"), not a clean boolean verdict per rail (NeMo
+      doesn't expose one for a non-blocking rail); showing the real log
+      text is more honest than inventing a pass/fail label NeMo doesn't
+      actually compute per-rail. Changing which rails are CONFIGURED
+      (config.yml) - this phase only surfaces what already runs.
+    - **Open questions:** none.
+
+- [x] **Phase 230 - fix Self-Query's `doc_description` exact-match failure
+  (BACKLOG.md's own documented gap) by resolving the LLM's parsed guess
+  to the closest REAL indexed value before querying. `hrb_chatbot_v2`
+  only - internal retrieval-quality fix, no request/response shape
+  change.**
+  - **Spec:**
+    - **Context:** part of the user's confirmed implementation plan
+      following the 6-gate status review (Gate 3's own documented
+      limitation). Re-read the real bug, already diagnosed in BACKLOG.md:
+      `AttributeInfo`'s own `doc_description` field description
+      (`retriever.py`) asks the parsing LLM for a short topic phrase
+      ("401k"), but the real indexed value is the document's own full
+      extracted description ("401(k) Savings Plan") - an exact-match
+      filter on the LLM's short guess reliably returns zero chunks, a
+      real, silent retrieval failure, not a soft degradation.
+      `doc_category` (a fixed 5-value enum) doesn't have this problem,
+      but narrowing Self-Query to only that field would lose the
+      specific-topic filtering it exists for - not a fix, a regression
+      in capability.
+    - **Data/API contracts:** N/A - `applied_filter`'s own shape is
+      unchanged (`{"doc_description": {"$eq": "<value>"}}`, confirmed
+      against `test_routes_query.py`'s own existing assertion); only the
+      resolved `<value>` inside it changes, from the LLM's raw guess to
+      the closest real indexed description.
+    - **User-visible behavior:** a Self-Query request whose parsed filter
+      references `doc_description` now actually finds the intended
+      document, instead of silently returning zero chunks when the LLM's
+      phrasing doesn't exactly match the stored value.
+    - **Changes:**
+      - `retriever.py`'s `_parse_self_query_filter()` (now `async def`,
+        takes `db_gateway`) fetches every current document's real
+        `doc_description` via the existing `metadata_store().
+        list_documents()` (no new backend call shape), and - only when
+        the parsed filter contains a `doc_description` equality clause -
+        resolves the LLM's value to the closest real one. Two tiers, not
+        one: primary is normalized substring containment (strip
+        non-alphanumerics, lowercase, check the LLM's guess is `in` a
+        real value - handles "401k" -> "401(k) Savings Plan" directly);
+        secondary fallback is stdlib `difflib.get_close_matches()`
+        (`cutoff=0.6`) for near-miss typos the substring check won't
+        catch (e.g. "Healthcare Benfits" -> "Healthcare Benefits"). Pure
+        `difflib` alone was tried first and rejected - live-verified its
+        character-level ratio for the real "401k" case is only 0.348,
+        well under any usable cutoff, because it penalizes the
+        short-guess-vs-long-title length gap too heavily; substring
+        containment doesn't have that problem for this exact pattern.
+        Walks the filter dict recursively (handles a bare
+        `doc_description` filter and one combined with
+        `doc_category`/`department` via `$and`). Falls back to the LLM's
+        original (unresolved) value when neither tier matches - never
+        raises, matches this function's existing "best-effort, never
+        block the answer" exception handling one level up. No new
+        dependency either tier - `difflib`/`re` are both stdlib.
+    - **Retrieval quality criteria:** this directly targets the
+      documented BACKLOG.md failure mode (exact-string mismatch on a
+      real, previously-reproduced case: "401k" vs "401(k) Savings Plan")
+      - verified by a real regression test using that exact pair, not a
+      synthetic example.
+    - **Failure modes:** N/A - a resolution miss (no close match found)
+      falls back to the original unresolved filter value, same behavior
+      as today (a filter that finds nothing), not a new failure mode.
+    - **Out of scope:** `doc_category`/`department` - both already exact,
+      fixed-value fields with no equivalent mismatch problem, confirmed
+      in BACKLOG.md's own note. Fuzzy-matching on the vector-store side
+      (a Chroma/Pinecone-native "contains" filter) - resolving to a real
+      value in Python before querying is simpler and backend-agnostic,
+      one implementation for both translators instead of two.
+    - **Open questions:** none.
+
+- [x] **Phase 231 - Document ACL (Gate 2): role- and department-gated
+  document visibility.** BACKLOG.md's own "Gate 2 (document ACL) plan
+  sketched, not started" note, resolved: user confirmed role-gated AND
+  department-gated (not one or the other) after reviewing the concrete
+  design below.
+  - **Spec:**
+    - **Context:** part of the user's confirmed implementation plan
+      following the 6-gate status review. `ai/rag_pipeline/helper/
+      access_control.py` has been an empty, 0-byte scaffold file since
+      early in the project's history, reserved for exactly this - this
+      phase is the first thing to write into it.
+    - **Data/API contracts:** see `docs/agent-reference/
+      endpoint-request-response-contracts.md`'s "`department` on
+      `UserProfile`" and "`restricted_roles` on
+      `DocumentMetadataInput`/`DocumentMetadataResult`" sections
+      (Phase 231), both Finalized. Models: `UserProfile`
+      (`models/common.py`), `DocumentMetadataInput`/
+      `DocumentMetadataResult` (`models/documents.py`).
+    - **User-visible behavior:** a document uploaded with
+      `restricted_roles` and/or `department` set is excluded from
+      retrieval for any caller who doesn't satisfy both gates - a plain
+      404-style "not found" by omission (the document silently isn't in
+      the candidate pool), not a 403, since retrieval has no per-document
+      response to attach an error to. `HR_SUPPORT`/`ADMIN` always see
+      every document regardless (the two roles this project already
+      treats as administrative/"sees everything" - `ADMIN`'s own enum
+      docstring says "Engineering Admin - everything"). Every other
+      caller (`EMPLOYEE`/`MANAGER`) is gated by both dimensions.
+    - **Changes:**
+      - New `ai/rag_pipeline/helper/access_control.py`:
+        `build_acl_filter(db_gateway, role, department) -> dict | None`.
+        Fetches every document via the existing
+        `metadata_store().list_documents()` (same call Phase 230 already
+        established for self-query's `doc_description` resolution - a
+        second, independent call here, not shared/cached across the
+        two, to keep this module self-contained). For each document,
+        denies it when `restricted_roles` is set and `role` isn't in it,
+        OR `department` is set on the document and doesn't
+        case-insensitively match the caller's `department` (`None`
+        caller department never matches a set document department - the
+        safe-by-default side). Returns `{"document_id": {"$nin":
+        [...]}}` listing every denied document_id, or `None` when
+        nothing is denied (the common case today - no document sets
+        either field yet). A deny-list via `$nin`, not an allow-list via
+        `$in` - far smaller in the common case (most documents are
+        open), and the list changes only when a *restricted* document
+        is added/removed, not on every upload.
+      - `retriever.py`'s `retrieve_chunks()` gains `role`/`department`
+        params, calls `build_acl_filter()` unconditionally (not gated
+        behind `use_self_query` - ACL must apply to every retrieval,
+        not just self-query ones, unlike Phase 230's fix). The ACL
+        filter is combined with self-query's own `applied_filter` via a
+        new `_combine_extra_filters()` helper (`$and` when both present)
+        and passed as the search functions' existing `extra_filter`
+        param - `_combine_with_current_only()`/`search_similarity()`/
+        `search_mmr()`/`search_multi_query()` are UNCHANGED, since ACL
+        is folded in before `extra_filter` ever reaches them. The
+        function's own *returned* `applied_filter` (used for the
+        Explainability "Applied Filter" display) stays self-query-only,
+        unaffected by ACL - conflating a security control into what's
+        presented as "the query's own filter" would be misleading there.
+      - `bm25_search.py`'s `_matches_metadata_filter()` (shared by
+        `search_keyword`/`search_hybrid`/`exact_knn_search.py`'s
+        `search_knn`) gains `$and` (recurse into a list of sub-clauses)
+        and `$nin` (list-membership) support - needed because the
+        combined filter above can now be `{"$and": [<self-query
+        clause>, {"document_id": {"$nin": [...]}}]}`, a shape this
+        function didn't previously have to parse. `$eq`-wrapped
+        equality (the shape Self-Query's own translators actually
+        produce, e.g. `{"doc_category": {"$eq": "benefits"}}`) is a
+        **separate, pre-existing, confirmed bug** in this same function
+        found while reading it for this change (falls through to a
+        flat `actual != condition` comparison, which a dict can never
+        equal) - flagged in BACKLOG.md, not fixed here: out of this
+        phase's scope, and doesn't affect ACL's own correctness (the
+        `$nin` clause is a sibling of any self-query clause under
+        `$and`, never nested inside one).
+      - `role`/`department` threaded from the route layer down to
+        `retrieve_chunks()` across all three pipelines: genai-rag
+        (`RagQueryParams` gains both fields,
+        `api/rag/retrieve_document.py`'s `_params_from_request()` reads
+        them off `userProfile`, `pipeline.py`'s `_answer_sub_question()`/
+        `answer_query()` pass them through both the normal and
+        corrective-retry `retrieve_chunks()` calls); single-agentic-rag
+        (`run_agent()` gains both params, `TOOL_FUNCTIONS["SearchKnowledgeBase"]`'s
+        lambda and `search_knowledge_base()` itself both gain them -
+        **not** exposed in `AGENTIC_TOOL_DEFINITIONS`'s tool schema, so
+        the agent's own LLM can never choose or override them, unlike
+        `search_strategy`); multi-agentic-rag (`MultiAgentState` gains
+        both, `dispatch_to_agents()`'s `Send()` payload and
+        `vector_kb_agent_node()` pass them to `vector_kb_agent.run()`,
+        which gains both params too).
+      - All three pipelines' answer-cache keys (`build_cache_key(...)`)
+        now include `role`/`department` - same "anything that can change
+        the answer belongs in the key" rule `search_strategy` already
+        follows (Phase 228). This is a deliberate, necessary departure
+        from genai-rag's own Phase 78 "the key never includes
+        employee_id" decision: that decision was about not fragmenting
+        the cache per INDIVIDUAL employee (which would defeat caching
+        entirely), a different concern from this one - a cached
+        answer's own sources/citations can now depend on which
+        documents the ORIGINAL caller's role/department could see, and
+        serving that same cached text to a more-restricted caller would
+        leak restricted content through the cache. `role`/`department`
+        are coarse categories (5 roles, a handful of departments at
+        most), not per-employee, so this doesn't reintroduce the
+        fragmentation problem Phase 78 was avoiding.
+    - **Retrieval quality criteria:** N/A - this is an access-control
+      gate, not a relevance change; a document visible to a caller
+      retrieves exactly as it did before this phase.
+    - **Failure modes:** none new - a caller denied a document simply
+      doesn't see it in the candidate pool, same shape as any other
+      filter that happens to match nothing (an unfiltered, empty, or
+      smaller-than-top_k result), not a new error path.
+    - **Out of scope:** real department validation (no department
+      directory exists in this project - `department` is self-asserted,
+      same placeholder-trust caveat as `role`, recorded in the contracts
+      doc). A PATCH/edit-metadata endpoint for setting `restricted_roles`
+      on an already-uploaded document - today, like every other
+      `document_metadata` field, it's settable only at initial upload
+      (first index), not on a re-index, consistent with how
+      `doc_category`/`department`/etc. already behave, not a new
+      limitation invented for this field. Per-chunk vector-store ACL
+      metadata (storing `restricted_roles` as literal chunk metadata and
+      filtering on it at the vector-store layer) - deliberately not
+      done: Chroma's metadata values must be scalar, not a list, so this
+      would need its own string-encoding scheme; resolving to a
+      `document_id` deny-list in Python first (this phase's actual
+      approach) sidesteps that entirely and reuses `document_id`, which
+      is already per-chunk metadata. Real human-to-app OAuth2 (session's
+      own earlier-flagged 4th, much bigger item) - untouched, remains a
+      separate future initiative.
+    - **Open questions:** none.
+
+- [ ] **Phase 232 - Document ACL visibility: a real `acl_denied_count` on
+  `RetrievalInfo`, genai-rag only.** Found immediately after Phase 231
+  shipped: the user ran a real query and asked why the Guardrails tab
+  still only showed NeMo's own 2+2 rails - correct behavior (ACL isn't a
+  NeMo rail, never was going to show there), but it surfaced that
+  Document ACL has *zero* visible signal anywhere in Explainability today
+  - user confirmed they want one added now rather than left backend-only.
+  - **Spec:**
+    - **Context:** Phase 231 deliberately returned `acl_filter` from
+      nowhere in `retrieve_chunks()`'s own return value (kept separate
+      from `applied_filter` to avoid mislabeling a security control as
+      "the query's own filter") - that was the right call for
+      `applied_filter` specifically, but left no path at all for a
+      caller to ever learn ACL did anything, even when it silently
+      excludes a document from every retrieval for a given role.
+    - **Data/API contracts:** see `docs/agent-reference/
+      endpoint-request-response-contracts.md`'s "`acl_denied_count` on
+      `RetrievalInfo`" section (Phase 232), Finalized. Model:
+      `RetrievalInfo` (`models/rag.py`).
+    - **User-visible behavior:** the Retrieval Strategy tab (and the
+      Engineering Trace table's Applied Filter row) shows "N document(s)
+      excluded by access-control rules" when `acl_denied_count > 0`;
+      shows nothing extra when `0` (the common case today - no
+      restricted documents exist yet), matching how `applied_filter`
+      itself only renders when non-null.
+    - **Changes:**
+      - `ai/rag_pipeline/pipeline.py`'s `_answer_sub_question()` calls
+        `build_acl_filter()` directly (its own independent call,
+        mirroring how Self-Query's `doc_description` resolution and
+        `retrieve_chunks()`'s own internal ACL filtering already each
+        call `list_documents()`/`build_acl_filter()` separately - not
+        threading a value out of `retrieve_chunks()`'s return tuple,
+        which would force every one of that function's ~20 call sites
+        across `pipeline.py`/`agentic_tools.py`/both test files to
+        change their unpacking for a field only genai-rag's own response
+        shape needs) and derives `acl_denied_count` from the filter's own
+        `$nin` list length (`0` when `None`). `answer_query()`'s merge
+        step takes the max across sub-questions (the denied set is
+        identical across every sub-question of one request - role/
+        department don't vary mid-request - so this is really "pick any
+        one," not an aggregation; `max()` over `next()`-with-a-truthy-
+        filter specifically because `0` is a real, meaningful value here,
+        unlike `applied_filter`, where `None` is the "nothing happened"
+        state `next()`'s filter already skips correctly).
+      - `api/rag/retrieve_document.py` sets `RetrievalInfo(...,
+        acl_denied_count=result.get("acl_denied_count", 0))`.
+      - `hrb_chatbot_ui`: `types.ts`'s `RetrievalInfo` gains
+        `acl_denied_count: number`; `ExplainabilityModal.tsx` renders a
+        one-line note near the existing Applied Filter displays (Retrieval
+        Strategy tab + Engineering Trace table) only when `> 0`.
+    - **Out of scope:** single-agentic-rag/multi-agentic-rag - neither
+      exposes a `retrieval_info`-shaped object in its response at all
+      today (both return `sources`/`tools_used` directly), so there's no
+      existing field to extend without inventing new response structure
+      for those two endpoints - a separate, later decision if wanted.
+      Listing which specific documents were denied (not just a count) -
+      would leak which restricted documents exist to a caller who can't
+      see them, defeating the gate's own purpose.
     - **Open questions:** none.

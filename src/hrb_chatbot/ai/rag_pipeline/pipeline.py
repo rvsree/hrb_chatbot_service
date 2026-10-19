@@ -8,6 +8,7 @@ from src.hrb_chatbot.ai.pre_processing import conversation_memory
 from src.hrb_chatbot.ai.pre_processing.guardrails_input import check_input
 from src.hrb_chatbot.ai.pre_processing.query_decompose import decompose
 from src.hrb_chatbot.ai.pre_processing.query_normalize import normalize_query
+from src.hrb_chatbot.ai.rag_core.eval_threshold import check_eval_threshold
 from src.hrb_chatbot.ai.rag_core.guarded_pipeline import run_guarded_pipeline
 from src.hrb_chatbot.ai.rag_core.tool_classification import classify_tool
 from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import (
@@ -15,6 +16,8 @@ from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import (
     evaluate_groundedness,
     evaluate_retrieval_relevance,
 )
+from src.hrb_chatbot.ai.rag_pipeline.helper.access_control import build_acl_filter
+from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.exact_knn_search import search_knn
 from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.retriever import retrieve_chunks
 from src.hrb_chatbot.ai.rag_pipeline.response_generation.response_generator import generate_answer
 from src.hrb_chatbot.ai.rag_pipeline.tools.mcp_tools import try_route_to_mcp
@@ -42,22 +45,73 @@ def _elapsed_ms(started_at: float) -> float:
     return round((time.perf_counter() - started_at) * 1000, 1)
 
 
-async def _score_live_answer(query: str, answer: str, sources: list[dict]) -> tuple[dict | None, float | None]:
+# Phase 219 - the wider candidate pool evaluate_retrieval_relevance() judges
+# alongside the originally-retrieved chunks, to produce a real (if bounded,
+# clearly-labeled-as-an-estimate) live recall/F1 instead of none at all.
+# Capped, not top_k*WIDER_POOL_MULTIPLIER unbounded - a judge prompt over an
+# uncapped pool on a high top_k would get expensive and slow fast.
+WIDER_POOL_MULTIPLIER = 4
+WIDER_POOL_MAX = 20
+
+
+def _chunk_key(chunk: dict) -> tuple:
+    return (chunk.get("document_id"), chunk.get("chunk_index"))
+
+
+async def _fetch_wider_pool_texts(
+    query: str, original_sources: list[dict], top_k: int, vector_db: str | None
+) -> list[str]:
+    """Original chunks first (so they occupy positions 1..len(original) of
+    the judged list, the invariant evaluate_retrieval_relevance() relies on
+    to split precision from the recall estimate), then extra exact-KNN
+    candidates beyond them, deduped by (document_id, chunk_index) - exact
+    KNN specifically, not whatever search_strategy produced original_sources,
+    so the reference pool isn't just re-confirming the same approximation
+    that produced the answer being scored."""
+    wider_k = min(top_k * WIDER_POOL_MULTIPLIER, WIDER_POOL_MAX)
+    original_keys = {_chunk_key(chunk) for chunk in original_sources}
+    extra_chunks = await asyncio.to_thread(search_knn, query, wider_k, vector_db)
+    deduped_extra = [chunk for chunk in extra_chunks if _chunk_key(chunk) not in original_keys]
+    return [chunk["text"] for chunk in original_sources] + [chunk["text"] for chunk in deduped_extra]
+
+
+async def _score_live_answer(
+    query: str,
+    answer: str,
+    sources: list[dict],
+    judge_model: str | None = None,
+    eval_score_threshold: float | None = None,
+    top_k: int = 5,
+    vector_db: str | None = None,
+) -> tuple[dict | None, float | None]:
     """Phase 109: live eval-judge scoring for one just-generated answer -
     skipped when there's no retrieved context to check groundedness
     against. Both judge calls are synchronous (evaluate_groundedness/
     evaluate_completeness make a real blocking HTTP call) - run via
     asyncio.to_thread() so one slow judge call can't stall the whole
-    event loop, and in parallel via gather() so the two don't add up."""
+    event loop, and in parallel via gather() so the two don't add up.
+
+    Phase 215: judge_model overrides which model all 3 judge calls use;
+    eval_score_threshold, when given, flags the result via
+    below_threshold/below_threshold_metrics - see ai/rag_core/eval_threshold.py.
+
+    Phase 219: top_k/vector_db are new - used only to fetch the wider
+    candidate pool (_fetch_wider_pool_texts) evaluate_retrieval_relevance()
+    needs for its recall_estimate/f1_estimate. Adds one real retrieval call
+    (exact-KNN) before the 3 parallel judge calls, on every answer that has
+    retrieved context - a real cost/latency increase, confirmed acceptable
+    by the user (2026-10-18) over the alternative of no live recall/F1 at
+    all, given the estimate is clearly labeled as such everywhere it's shown."""
     if not sources:
         return None, None
 
     eval_started_at = time.perf_counter()
     context_texts = [chunk["text"] for chunk in sources]
+    wider_pool_texts = await _fetch_wider_pool_texts(query, sources, top_k, vector_db)
     groundedness, completeness, retrieval = await asyncio.gather(
-        asyncio.to_thread(evaluate_groundedness, answer, context_texts),
-        asyncio.to_thread(evaluate_completeness, query, answer),
-        asyncio.to_thread(evaluate_retrieval_relevance, query, context_texts),
+        asyncio.to_thread(evaluate_groundedness, answer, context_texts, judge_model),
+        asyncio.to_thread(evaluate_completeness, query, answer, None, judge_model),
+        asyncio.to_thread(evaluate_retrieval_relevance, query, context_texts, judge_model, wider_pool_texts),
     )
     eval_scores = {
         "groundedness": groundedness["score"],
@@ -72,7 +126,15 @@ async def _score_live_answer(query: str, answer: str, sources: list[dict]) -> tu
         "retrieval_relevant_chunk_indices": retrieval["relevant_chunk_indices"],
         "retrieval_precision_explanation": retrieval["explanation"],
         "retrieval_precision_prompt": retrieval["prompt"],
+        "retrieval_recall_estimate": retrieval["recall_estimate"],
+        "retrieval_f1_estimate": retrieval["f1_estimate"],
+        "retrieval_recall_pool_size": retrieval["pool_size"],
+        "retrieval_recall_relevant_count": retrieval["relevant_pool_count"],
+        "judge_model_used": groundedness["model_used"],
     }
+    eval_scores["below_threshold"], eval_scores["below_threshold_metrics"] = check_eval_threshold(
+        eval_scores, eval_score_threshold
+    )
     return eval_scores, _elapsed_ms(eval_started_at)
 
 
@@ -91,10 +153,25 @@ async def _answer_sub_question(
     chat_history: list,
     lambda_mult: float | None = None,
     request_id: str | None = None,
+    enable_corrective_retry: bool = False,
+    judge_model: str | None = None,
+    eval_score_threshold: float | None = None,
+    role: str | None = None,
+    department: str | None = None,
 ) -> dict:
     """Phase 130: one sub-question's own MCP-check-then-retrieve-or-generate -
     the same two-path logic answer_query() always had, just run once per
-    sub-question instead of once per whole (possibly compound) query."""
+    sub-question instead of once per whole (possibly compound) query.
+
+    Phase 226: enable_corrective_retry/judge_model/eval_score_threshold -
+    when both the retry flag and a threshold are set, the retrieved
+    chunks' own live precision is checked BEFORE generation; if it's
+    below threshold, retrieval runs once more with a doubled top_k. This
+    retries RETRIEVAL only, never generation - see
+    endpoint-request-response-contracts.md's Phase 226 entry for why:
+    the shared guarded_pipeline core already saves whatever generate()
+    returns to conversation memory, so a generated answer must never be
+    silently replaced after the fact."""
     mcp_result = await try_route_to_mcp(sub_question, employee_id)
     if mcp_result is not None:
         return {
@@ -111,6 +188,7 @@ async def _answer_sub_question(
             },
             "token_usage": None,
             "llm_call_count": 0,
+            "acl_denied_count": 0,
             "retrieval_ms": 0.0,
             "generation_ms": 0.0,
             "llm_context_turn": None,  # no LLM call - nothing to capture
@@ -131,7 +209,51 @@ async def _answer_sub_question(
         use_self_query=use_self_query,
         llm_provider=resolved_llm_provider,
         lambda_mult=lambda_mult,
+        role=role,
+        department=department,
     )
+
+    # Phase 232 - a second, independent build_acl_filter() call just to
+    # report a count back to the caller, same "its own self-contained
+    # call, not threaded out of retrieve_chunks()'s own return value"
+    # choice Phase 231's own spec already made for keeping this out of
+    # applied_filter - never raises further than build_acl_filter() itself
+    # already doesn't (best-effort, same as retrieve_chunks()'s own ACL
+    # resolution one level down).
+    try:
+        acl_filter_for_count = await build_acl_filter(get_db_gateway(), role, department)
+    except Exception:
+        acl_filter_for_count = None
+    acl_denied_count = len(acl_filter_for_count["document_id"]["$nin"]) if acl_filter_for_count else 0
+
+    # Phase 226 - a real, bounded (exactly one) corrective retry: check the
+    # chunks' own live precision before generation ever happens, and if
+    # it's below the caller's threshold, retrieve again with more
+    # candidates. No wider pool here (unlike _score_live_answer's own
+    # evaluate_retrieval_relevance call) - this is a precision-only
+    # pre-generation gate, not the post-generation recall estimate.
+    retry_attempted = False
+    if enable_corrective_retry and eval_score_threshold is not None and chunks:
+        precision_check = await asyncio.to_thread(
+            evaluate_retrieval_relevance, sub_question, [chunk["text"] for chunk in chunks], judge_model
+        )
+        if precision_check["precision"] is not None and precision_check["precision"] < eval_score_threshold:
+            retry_top_k = min(resolved_top_k * 2, WIDER_POOL_MAX)
+            retried_chunks, retried_filter = await retrieve_chunks(
+                sub_question,
+                top_k=retry_top_k,
+                vector_db=resolved_vector_db,
+                search_strategy=resolved_search_strategy,
+                use_multi_query=use_multi_query,
+                use_self_query=use_self_query,
+                llm_provider=resolved_llm_provider,
+                lambda_mult=lambda_mult,
+                role=role,
+                department=department,
+            )
+            if retried_chunks:
+                chunks, applied_filter = retried_chunks, retried_filter
+                retry_attempted = True
     retrieval_ms = _elapsed_ms(retrieval_started_at)
 
     generation_started_at = time.perf_counter()
@@ -146,6 +268,7 @@ async def _answer_sub_question(
         "model_used": generation["model_used"],
         "sources": chunks,
         "applied_filter": applied_filter,
+        "acl_denied_count": acl_denied_count,
         "tool_call": None,
         "token_usage": generation.get("token_usage"),
         "llm_call_count": 1,
@@ -153,6 +276,7 @@ async def _answer_sub_question(
         "generation_ms": generation_ms,
         "llm_context_turn": generation.get("llm_context_turn"),
         "mcp_tool_call": None,
+        "retry_attempted": retry_attempted,
     }
 
 
@@ -176,7 +300,7 @@ async def answer_query(params: RagQueryParams, request_id: str | None = None) ->
     each part is routed - MCP or RAG - on its own merits."""
     started_at = time.perf_counter()
     normalized_query = await normalize_query(params.query)
-    checked_query = await check_input(normalized_query)
+    checked_query, input_guardrail_status = await check_input(normalized_query)
 
     resolved_conversation_id = None
     if params.enable_conversation_memory:
@@ -201,6 +325,14 @@ async def answer_query(params: RagQueryParams, request_id: str | None = None) ->
     # the earlier answer verbatim, ignoring whatever conversation context
     # has accumulated since. Faster/cheaper, at the cost of a cached answer
     # occasionally not reflecting a mid-conversation follow-up's context.
+    # Phase 231: role/department now added to the cache key - a cached
+    # answer's own sources/citations can depend on which documents the
+    # ORIGINAL caller's role/department could see (Document ACL), so a
+    # more-restricted caller must not be served another caller's cached
+    # answer. Deliberately narrower than "never includes employee_id"
+    # above - role/department are coarse categories (5 roles, a handful of
+    # departments), not per-individual, so this doesn't reintroduce the
+    # cache fragmentation that decision was avoiding.
     cache_key = build_cache_key(
         checked_query,
         top_k=resolved_top_k,
@@ -213,6 +345,8 @@ async def answer_query(params: RagQueryParams, request_id: str | None = None) ->
         use_self_query=params.use_self_query,
         llm_provider=resolved_llm_provider,
         lambda_mult=params.lambda_mult,
+        role=params.role,
+        department=params.department,
     )
     cached_result = await get_db_gateway().answer_cache().get(cache_key)
     if cached_result is not None:
@@ -233,10 +367,26 @@ async def answer_query(params: RagQueryParams, request_id: str | None = None) ->
         # Phase 107/109: this call made zero LLM/retrieval/eval-judge
         # calls - overwrite whatever latency_ms/token_usage the cached
         # dict carried from when it was FIRST generated, since those
-        # describe that earlier call, not this one. eval_scores is the
-        # one exception - left as-is below, reused rather than
-        # recomputed, since it's a property of the (question, context,
-        # answer) triple, which is identical for an exact cache hit.
+        # describe that earlier call, not this one. The eval SCORES
+        # themselves are the one exception - left as-is, reused rather
+        # than recomputed, since they're a property of the (question,
+        # context, answer) triple, which is identical for an exact cache
+        # hit (re-running the judge LLM would cost a real call for a
+        # result that should already match, modulo LLM nondeterminism).
+        #
+        # Phase 223: below_threshold/below_threshold_metrics are NOT part
+        # of that "identical" set, though, and were a real bug before this
+        # fix - they're a property of THIS call's eval_score_threshold,
+        # not the cached one from whenever this entry was first written.
+        # A caller who raises their threshold in Settings and re-asks the
+        # exact same question (same retrieval/generation config, so same
+        # cache key) must see the re-evaluated flag, not a stale one from
+        # a looser (or absent) threshold set the first time.
+        if result.get("eval_scores") is not None:
+            result["eval_scores"] = dict(result["eval_scores"])
+            result["eval_scores"]["below_threshold"], result["eval_scores"]["below_threshold_metrics"] = (
+                check_eval_threshold(result["eval_scores"], params.eval_score_threshold)
+            )
         result["served_from_cache"] = True
         result["llm_call_count"] = 0
         result["token_usage"] = None
@@ -282,13 +432,26 @@ async def answer_query(params: RagQueryParams, request_id: str | None = None) ->
                     chat_history,
                     lambda_mult=params.lambda_mult,
                     request_id=request_id,
+                    enable_corrective_retry=params.enable_corrective_retry,
+                    judge_model=params.judge_model,
+                    eval_score_threshold=params.eval_score_threshold,
+                    role=params.role,
+                    department=params.department,
                 )
             )
         retrieval_ms = sum(sub_result["retrieval_ms"] for sub_result in sub_results)
         generation_ms = sum(sub_result["generation_ms"] for sub_result in sub_results)
+        retry_attempted = any(sub_result.get("retry_attempted", False) for sub_result in sub_results)
 
         sources = [chunk for sub_result in sub_results for chunk in sub_result["sources"]]
         applied_filter = next((sub_result["applied_filter"] for sub_result in sub_results if sub_result["applied_filter"]), None)
+        # Phase 232 - role/department (and so the ACL deny-list) don't vary
+        # across one request's own sub-questions, so every sub_result's
+        # count is already identical - max() just picks one, not an
+        # aggregation. Unlike applied_filter above, 0 is a real, meaningful
+        # value here, not "nothing happened" - can't use the same
+        # skip-falsy next() pattern.
+        acl_denied_count = max((sub_result.get("acl_denied_count", 0) for sub_result in sub_results), default=0)
         tools_used = [sub_result["tool_call"] for sub_result in sub_results if sub_result["tool_call"] is not None]
         llm_call_count = 1 + sum(sub_result["llm_call_count"] for sub_result in sub_results)  # 1 = the decompose call itself
 
@@ -355,11 +518,13 @@ async def answer_query(params: RagQueryParams, request_id: str | None = None) ->
             "vector_db": resolved_vector_db,
             "search_strategy": resolved_search_strategy,
             "applied_filter": applied_filter,
+            "acl_denied_count": acl_denied_count,
             "served_from_cache": False,
             "llm_call_count": llm_call_count,
             "token_usage": token_usage,
             "temperature": resolved_temperature,
             "tools_used": tools_used,
+            "retry_attempted": retry_attempted,
             "llm_context": {"turns": llm_context_turns, "mcp_tool_calls": mcp_tool_calls},
             "latency_ms": {
                 "total": None,
@@ -376,10 +541,18 @@ async def answer_query(params: RagQueryParams, request_id: str | None = None) ->
         params.conversation_id,
         generate,
         pre_checked_query=checked_query,
+        pre_checked_input_status=input_guardrail_status,
     )
     result["eval_scores"], result["latency_ms"]["eval"] = await _score_live_answer(
-        checked_query, result["answer"], result["sources"]
+        checked_query, result["answer"], result["sources"],
+        judge_model=params.judge_model, eval_score_threshold=params.eval_score_threshold,
+        top_k=resolved_top_k, vector_db=resolved_vector_db,
     )
+    # Phase 226 - surfaced here, not just inside the merged dict, so it's
+    # discoverable alongside below_threshold/eval_score_threshold rather
+    # than a separate top-level field a caller would have to know to check.
+    if result["eval_scores"] is not None:
+        result["eval_scores"]["retrieval_retry_attempted"] = result.get("retry_attempted", False)
 
     # total_ms covers the whole call (guardrails, cache check, retrieval,
     # generation, eval scoring, conversation-memory save) -

@@ -27,18 +27,29 @@ def _fake_cache_and_eval_judges(monkeypatch):
     monkeypatch.setattr(
         multi_agent_pipeline,
         "evaluate_groundedness",
-        lambda answer, context_texts: {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake", "prompt": "fake"},
+        lambda answer, context_texts, judge_model=None: {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"},
     )
     monkeypatch.setattr(
         multi_agent_pipeline,
         "evaluate_completeness",
-        lambda query, answer, reference_answer=None: {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake"},
+        lambda query, answer, reference_answer=None, judge_model=None: {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"},
     )
     monkeypatch.setattr(
         multi_agent_pipeline,
         "evaluate_retrieval_relevance",
-        lambda query, chunk_texts: {"precision": 1.0, "relevant_chunk_indices": [1], "explanation": "fake", "prompt": "fake"},
+        lambda query, chunk_texts, judge_model=None, wider_pool_texts=None: {
+            "precision": 1.0 if chunk_texts else None,
+            "relevant_chunk_indices": [1] if chunk_texts else [],
+            "explanation": "fake",
+            "prompt": "fake",
+            "model_used": judge_model or "fake-chat-model",
+            "recall_estimate": 1.0 if wider_pool_texts else None,
+            "f1_estimate": 1.0 if wider_pool_texts else None,
+            "pool_size": len(wider_pool_texts) if wider_pool_texts else None,
+            "relevant_pool_count": 1 if wider_pool_texts else None,
+        },
     )
+    monkeypatch.setattr(multi_agent_pipeline, "search_knn", lambda query, top_k, vector_db: [])
 
 
 @pytest.fixture(autouse=True)
@@ -53,10 +64,10 @@ def _fake_normalize_query(monkeypatch):
 
 def _patch_guardrails(monkeypatch):
     async def _passthrough_check_input(query):
-        return query
+        return query, {"status": "pass", "rail": None}
 
     async def _passthrough_check_output(query, answer):
-        return answer
+        return answer, {"status": "pass", "rail": None}
 
     monkeypatch.setattr(multi_agent_pipeline, "check_input", _passthrough_check_input)
     monkeypatch.setattr(multi_agent_pipeline, "check_output", _passthrough_check_output)
@@ -71,7 +82,7 @@ async def test_one_domain_agent_failing_does_not_crash_the_graph_or_drop_the_oth
             {"agent": "lms_ops_agent", "focus": "my leave balance"},
         ], {"label": "planner"}
 
-    async def _fake_vector_kb_run(focus):
+    async def _fake_vector_kb_run(focus, search_strategy=None, role=None, department=None):
         return "8 weeks paid.", []
 
     async def _failing_lms_ops_run(focus, employee_id):
@@ -109,7 +120,7 @@ async def test_a_domain_agent_node_raising_outright_propagates_rather_than_silen
     async def _fake_plan(query, request_id=None):
         return [{"agent": "vector_kb_agent", "focus": "parental leave policy"}], {"label": "planner"}
 
-    async def _raising_vector_kb_run(focus):
+    async def _raising_vector_kb_run(focus, search_strategy=None, role=None, department=None):
         raise RuntimeError("unexpected failure inside the tool wrapper")
 
     monkeypatch.setattr(multi_agent_pipeline.planner_agent, "plan", _fake_plan)

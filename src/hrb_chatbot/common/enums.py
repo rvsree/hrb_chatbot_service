@@ -45,6 +45,7 @@ class SearchStrategy(StrEnum):
     MMR = "mmr"
     KEYWORD = "keyword"
     HYBRID = "hybrid"
+    KNN = "knn"
 
 
 class Role(StrEnum):

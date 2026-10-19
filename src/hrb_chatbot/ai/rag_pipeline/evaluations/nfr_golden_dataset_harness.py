@@ -14,10 +14,14 @@ def load_nfr_cases() -> list[dict]:
 
 
 async def score_nfr_case(case: dict) -> dict:
-    """'blocked' if check_input() raises, 'masked' if the query changed, else 'pass'."""
+    """'blocked' if check_input() raises, 'masked' if NeMo reports MODIFIED,
+    else 'pass'. Phase 224 - reads the real status field now instead of
+    inferring "masked" by string-comparing the checked query against the
+    original (strictly more accurate - a status change with no visible
+    text difference would have been missed before)."""
     try:
-        checked_query = await check_input(case["query"])
-        actual_outcome = "pass" if checked_query == case["query"] else "masked"
+        _, status = await check_input(case["query"])
+        actual_outcome = "masked" if status["status"] == "modified" else "pass"
     except GuardrailBlockedError:
         actual_outcome = "blocked"
 

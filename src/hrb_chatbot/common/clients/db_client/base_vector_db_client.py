@@ -46,7 +46,9 @@ class BaseVectorDBClient(ABC):
     @abstractmethod
     def get_all_chunks(self, collection_name: str) -> list[dict]:
         """Phase 131: every chunk in the collection, no filtering (is_current
-        filtering happens in retriever.py) - [{"id", "text", "metadata"}, ...]. Needed for BM25's corpus."""
+        filtering happens in retriever.py) - [{"id", "text", "metadata", "embedding"}, ...].
+        Needed for BM25's corpus (Phase 131) and exact-KNN's brute-force search (Phase 218 -
+        "embedding" is that phase's own addition, ignored by BM25's existing caller)."""
         raise NotImplementedError
 
     @abstractmethod

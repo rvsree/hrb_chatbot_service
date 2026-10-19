@@ -7,6 +7,7 @@ class UserProfile(BaseModel):
     employee_id: str = Field(..., max_length=50)
     full_name: str = Field(..., max_length=200)
     role: str = Field(..., max_length=50)
+    department: str | None = Field(None, max_length=100, description="Phase 231 - self-asserted, like role.")
 
 
 class IdentityPayload(BaseModel):
@@ -29,4 +30,9 @@ class ToolCallInfo(BaseModel):
     success: bool = Field(True, description="Phase 126 - false if this call returned an 'Error: ...' result.")
     iteration: int | None = Field(
         None, description="Phase 206 - which ReAct iteration (1-indexed) made this call. Single-agentic-rag only."
+    )
+    search_strategy: str | None = Field(
+        None,
+        description="Phase 216 - the agent's own strategy choice for a search_knowledge_base call "
+        "('similarity'/'mmr'). Null for every other tool.",
     )

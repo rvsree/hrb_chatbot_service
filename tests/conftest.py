@@ -113,6 +113,7 @@ class FakeChatClient:
         system_prompt: str | None = None,
         temperature: float = 0.0,
         max_tokens=None,
+        model_name_override: str | None = None,
     ) -> str:
         self.calls.append(
             {
@@ -121,6 +122,7 @@ class FakeChatClient:
                 "system_prompt": system_prompt,
                 "temperature": temperature,
                 "max_tokens": max_tokens,
+                "model_name_override": model_name_override,
             }
         )
         return self._answer
@@ -224,7 +226,12 @@ class FakeVectorStore(BaseVectorDBClient):
     def get_all_chunks(self, collection_name):
         collection = self.collections.get(collection_name, {})
         return [
-            {"id": chunk_id, "text": entry["document"], "metadata": entry["metadata"]}
+            {
+                "id": chunk_id,
+                "text": entry["document"],
+                "metadata": entry["metadata"],
+                "embedding": entry.get("embedding"),
+            }
             for chunk_id, entry in collection.items()
         ]
 
@@ -276,6 +283,7 @@ class FakeMetadataStore(BaseMetadataClient):
             "doc_category": None,
             "purpose": None,
             "doc_description": None,
+            "restricted_roles": None,
             "author": None,
             "doc_date": None,
             "doc_version": None,
@@ -361,6 +369,7 @@ class FakeMetadataStore(BaseMetadataClient):
         doc_category,
         purpose,
         doc_description,
+        restricted_roles=None,
         effective_date=None,
         audience=None,
         confidentiality_level=None,
@@ -368,6 +377,8 @@ class FakeMetadataStore(BaseMetadataClient):
         doc_date=None,
         doc_version=None,
     ):
+        import json
+
         document = self.documents.get(document_id)
         if document is not None:
             document["owner"] = owner
@@ -375,6 +386,7 @@ class FakeMetadataStore(BaseMetadataClient):
             document["doc_category"] = doc_category
             document["purpose"] = purpose
             document["doc_description"] = doc_description
+            document["restricted_roles"] = json.dumps(restricted_roles) if restricted_roles else None
             document["effective_date"] = effective_date
             document["audience"] = audience
             document["confidentiality_level"] = confidentiality_level

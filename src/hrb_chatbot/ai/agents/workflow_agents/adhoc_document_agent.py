@@ -268,8 +268,8 @@ async def run_agent(
                 # second, separately-written piece of text the model
                 # produces - masking must cover it too, not just the plain
                 # "answer".
-                safe_answer_text = await check_output(question, answer_text)
-                safe_html_body = await check_output(question, html_body_text) if html_body_text else None
+                safe_answer_text, _ = await check_output(question, answer_text)
+                safe_html_body, _ = await check_output(question, html_body_text) if html_body_text else (None, None)
                 last_emailed_answer_text = safe_answer_text
                 # Phase 152: attach every uploaded file when asked, not just
                 # the ones ReadDocument happened to be called on - "attach

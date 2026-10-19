@@ -61,7 +61,7 @@ flowchart TD
 
     subgraph GATE2["Gate #2 - Privilege and Policy Separation (Access Control)"]
         direction LR
-        RBAC["Role check: employee / manager / hr_support<br/>api/gateway/rbac.py :: check_role()"] --> DOCACL["Document-level ACL by<br/>confidentiality_level / audience<br/>ai/rag_pipeline/helper/access_control.py<br/>(0 bytes)"] --> RATELIMIT["Rate limiting<br/>common/rate_limiting/rate_limiter.py<br/>:: enforce_rate_limit()"]
+        RBAC["Role check: employee / manager / hr_support<br/>api/gateway/rbac.py :: check_role()"] --> DOCACL["Document-level ACL by<br/>restricted_roles / department (Phase 231)<br/>ai/rag_pipeline/helper/access_control.py<br/>:: build_acl_filter()"] --> RATELIMIT["Rate limiting<br/>common/rate_limiting/rate_limiter.py<br/>:: enforce_rate_limit()"]
     end
 
     subgraph GATE3["Gate #3 - Query Intent and Filter Validation (Retrieval Strategy Gate)"]
@@ -71,7 +71,7 @@ flowchart TD
 
     subgraph GATE4["Gate #4 - Document Relevance and Context Grading (Context Gate)"]
         direction LR
-        GRADE["Relevance scoring / CRAG re-query fallback<br/>no file exists yet - not even a placeholder"]
+        GRADE["Corrective retry on low precision (Phase 226)<br/>rag_pipeline/pipeline.py :: _answer_sub_question()<br/>CRAG-shaped, opt-in, genai-rag only"]
     end
 
     GENERATE["Generation: LCEL stuff-chain, grounded system prompt<br/>rag_pipeline/response_generation/response_generator.py :: generate_answer()"]
@@ -94,8 +94,9 @@ flowchart TD
     classDef client fill:#1f6f68,stroke:#123f3a,color:#ffffff;
 
     class CLIENT client
-    class ROUTE,SCHEMA,IDENTITY,RBAC,RATELIMIT,PARAMS,RETRIEVE,SELFQUERY,GENERATE,RESPBUILD,ERRHANDLE,INPUTGUARD,OUTGUARD done
-    class DOCACL,DECOMPOSE,GRADE,FAITHFUL missing
+    class ROUTE,SCHEMA,IDENTITY,RBAC,RATELIMIT,PARAMS,RETRIEVE,SELFQUERY,GENERATE,RESPBUILD,ERRHANDLE,INPUTGUARD,OUTGUARD,DOCACL done
+    class GRADE partial
+    class DECOMPOSE,FAITHFUL missing
 ```
 
 ### Reference table - every stage, file, and function
@@ -108,13 +109,13 @@ flowchart TD
 | 4 | Identity resolution | Gate 1 | 🟩 | `api/gateway/user_profile.py :: resolve_user_from_profile()` | `test_routes_query.py` (401/unknown-role cases) |
 | 5 | Input guardrails (PII mask, prompt-injection) | Gate 1 | 🟩 Done | `ai/pre_processing/guardrails_input.py :: check_input()` - NeMo Guardrails, `check_async()` | `test_guardrails_input.py` |
 | 6 | Role check | Gate 2 | 🟩 | `api/gateway/rbac.py :: check_role()` | `test_routes_query.py` (403 case) |
-| 7 | Document-level ACL (confidentiality_level/audience) | Gate 2 | 🟥 Not built | `ai/rag_pipeline/helper/access_control.py` - 0 bytes | none |
+| 7 | Document-level ACL (restricted_roles/department, Phase 231) | Gate 2 | 🟩 Done | `ai/rag_pipeline/helper/access_control.py :: build_acl_filter()` | `test_access_control.py`, `test_retriever.py` (ACL cases) |
 | 8 | Rate limiting | Gate 2 | 🟩 | `common/rate_limiting/rate_limiter.py :: enforce_rate_limit()` | `test_rate_limiter.py` |
 | 9 | Map request -> internal params | Gate 3 | 🟩 | `api/rag/retrieve_document.py :: _params_from_request()` | `test_routes_query.py` |
 | 10 | Query decomposition | Gate 3 | 🟥 Not built | `ai/pre_processing/query_decompose.py` - 0 bytes | none |
 | 11 | Self-query metadata-filter parsing | Gate 3 | 🟧 Partial | `rag_pipeline/query_retrieval/retriever.py :: SelfQueryRetriever` - real, but `doc_classification` exact-match is unreliable (see `docs/BACKLOG.md`) | `test_retriever.py` |
 | 12 | Retrieval (similarity/MMR/MultiQuery) | - | 🟩 | `rag_pipeline/query_retrieval/retriever.py :: retrieve_chunks()` | `test_retriever.py` |
-| 13 | Document relevance / context grading | Gate 4 | 🟥 Not built | no file exists - not even a placeholder | none |
+| 13 | Document relevance / context grading | Gate 4 | 🟧 Partial | `rag_pipeline/pipeline.py :: _answer_sub_question()` - Phase 226's corrective retry (checks retrieved chunks' own live precision, retries retrieval once if below threshold) - CRAG-shaped, but opt-in (not an always-on per-chunk grade) and genai-rag only | `test_pipeline.py` (corrective-retry cases) |
 | 14 | Answer generation (LCEL chain) | - | 🟩 | `rag_pipeline/response_generation/response_generator.py :: generate_answer()` | `test_generator.py` |
 | 15 | Faithfulness / hallucination check | Gate 5 | 🟥 Not built (by design) | live check deliberately not built here - `FaithfulnessMetric` (DeepEval, Phase 8) is the one implementation, offline only | none live; `test_golden_dataset_harness.py` offline |
 | 16 | Output guardrails (PII mask, toxicity) | Gate 6 | 🟩 Done | `rag_pipeline/response_generation/guardrails_output/ :: check_output()` - NeMo Guardrails | `test_guardrails_output.py` |
@@ -125,16 +126,23 @@ flowchart TD
 **Orchestration note:** stages 9-16 all run inside one call from the route
 to `ai/rag_pipeline/pipeline.py :: answer_query()`, which is what actually
 sequences retrieval -> generation - see `test_pipeline.py`. The gates
-listed as "not built" have no hook point inside `pipeline.py` yet either,
-not just a missing file.
+still listed as "not built" (query decomposition) have no hook point
+inside `pipeline.py` either, not just a missing file - Gate 4's own
+corrective-retry hook (Phase 226) is the one exception, added without a
+dedicated file of its own.
 
-**Six-layer gate scorecard, updated 2026-09-22:** Gates 1 and 6 are done
-(NeMo Guardrails, Phase 7). Gate 5 stays deliberately unbuilt live - its
-job is done offline by DeepEval's `FaithfulnessMetric` instead, not
-duplicated. Gate 2 is half-built (role check yes, document-level ACL no).
-Gate 3 is half-built (deterministic decomposition no, LangChain's own
-SelfQueryRetriever yes, with a known limitation). Gate 4 has zero real
-code, not even a placeholder - the one gate with no work done at all.
+**Six-layer gate scorecard, updated 2026-10-19 (round 2 - Phase 226
+correction):** Gates 1, 2, and 6 are done (NeMo Guardrails for 1/6,
+Phase 7; role check + Document ACL for 2, Phase 231). Gate 5 stays
+deliberately unbuilt live - its job is done offline by DeepEval's
+`FaithfulnessMetric` instead, not duplicated (a separate, live, custom
+groundedness judge runs per-answer regardless - see stage 15's own note
+elsewhere in this file - just not DeepEval itself). Gate 3 is half-built
+(deterministic decomposition no, LangChain's own SelfQueryRetriever yes,
+with a known limitation). **Gate 4 was previously logged here as "zero
+real code" - wrong, corrected 2026-10-19: Phase 226's corrective retry
+(a bounded, precision-gated re-retrieval) is real, working CRAG-shaped
+logic, just opt-in and genai-rag only, which is why it read as unbuilt.**
 
 ---
 

@@ -16,6 +16,20 @@ def test_groundedness_parses_a_high_score_as_grounded(monkeypatch):
 
     assert result["score"] == 0.9
     assert result["verdict"] == "GROUNDED"
+    assert result["model_used"] == "fake-chat-model"  # Phase 215 - the client's own default, no override given
+
+
+def test_groundedness_judge_model_override_is_passed_through_and_echoed_back(monkeypatch):
+    fake_chat_client = FakeChatClient(model="fake-chat-model", answer="Score: 9\nReasoning: fully supported.")
+    fake_gateway = FakeClientGateway(chat_client=fake_chat_client)
+    monkeypatch.setattr(golden_dataset_harness, "get_client_gateway", lambda: fake_gateway)
+
+    result = golden_dataset_harness.evaluate_groundedness(
+        "The plan matches 100%.", ["401k plan matches 100%."], judge_model="gpt-4.1-mini"
+    )
+
+    assert result["model_used"] == "gpt-4.1-mini"
+    assert fake_chat_client.calls[0]["model_name_override"] == "gpt-4.1-mini"
 
 
 def test_groundedness_parses_a_low_score_as_hallucinated(monkeypatch):
@@ -122,3 +136,66 @@ def test_retrieval_relevance_dedupes_a_repeated_index(monkeypatch):
 
     assert result["relevant_chunk_indices"] == [1]
     assert result["precision"] == pytest.approx(1 / 3)
+
+
+# Phase 219 - live recall/F1 estimate, judged against a wider pool (the
+# originally-retrieved chunks, positions 1..len(chunk_texts), plus extra
+# exact-KNN candidates beyond them).
+
+
+def test_recall_estimate_computed_against_the_wider_pool_not_just_original_chunks(monkeypatch):
+    fake_gateway = FakeClientGateway(
+        chat_client=FakeChatClient(answer="Relevant: 1, 2, 4\nReasoning: 1 and 2 answer it directly, 4 is related.")
+    )
+    monkeypatch.setattr(golden_dataset_harness, "get_client_gateway", lambda: fake_gateway)
+    original = ["chunk about matching", "chunk about vesting"]
+    wider_pool = original + ["unrelated chunk", "another relevant chunk found only via exact-KNN"]
+
+    result = golden_dataset_harness.evaluate_retrieval_relevance(
+        "What is the 401k match?", original, wider_pool_texts=wider_pool
+    )
+
+    # Precision stays scoped to the original 2 chunks (both judged relevant).
+    assert result["precision"] == 1.0
+    assert result["relevant_chunk_indices"] == [1, 2]
+    # Recall estimate: 2 of the original chunks relevant, out of 3 relevant total in the pool.
+    assert result["recall_estimate"] == pytest.approx(2 / 3)
+    assert result["f1_estimate"] == pytest.approx(2 * 1.0 * (2 / 3) / (1.0 + 2 / 3))
+    assert result["pool_size"] == 4
+    # Phase 225 - the real denominator behind recall_estimate (2/3 above),
+    # previously computed but never returned.
+    assert result["relevant_pool_count"] == 3
+
+
+def test_recall_estimate_is_none_when_no_wider_pool_given(monkeypatch):
+    fake_gateway = FakeClientGateway(chat_client=FakeChatClient(answer="Relevant: 1\nReasoning: direct match."))
+    monkeypatch.setattr(golden_dataset_harness, "get_client_gateway", lambda: fake_gateway)
+
+    result = golden_dataset_harness.evaluate_retrieval_relevance("Question", ["chunk one"])
+
+    assert result["precision"] == 1.0
+    assert result["recall_estimate"] is None
+    assert result["f1_estimate"] is None
+    assert result["pool_size"] is None
+    assert result["relevant_pool_count"] is None
+
+
+def test_recall_estimate_is_none_not_fabricated_as_zero_when_pool_has_no_relevant_chunks(monkeypatch):
+    """Nothing in the whole wider pool was judged relevant - recall is
+    undefined (0 relevant found / 0 relevant total), not fabricated as 0.0
+    or 1.0 - same "never fabricate" ethic the function's own docstring
+    already holds for true recall."""
+    fake_gateway = FakeClientGateway(chat_client=FakeChatClient(answer="Relevant: none\nReasoning: nothing matches."))
+    monkeypatch.setattr(golden_dataset_harness, "get_client_gateway", lambda: fake_gateway)
+
+    result = golden_dataset_harness.evaluate_retrieval_relevance(
+        "Unrelated question", ["chunk one"], wider_pool_texts=["chunk one", "chunk two"]
+    )
+
+    assert result["precision"] == 0.0
+    assert result["recall_estimate"] is None
+    assert result["f1_estimate"] is None
+    assert result["pool_size"] == 2
+    # relevant_pool_count stays None too (undefined, same "never fabricate"
+    # reasoning) - nothing in the pool was judged relevant at all.
+    assert result["relevant_pool_count"] is None

@@ -73,7 +73,7 @@ class OpenAIChatClient(BaseLLMClient):
             "project": self.project,
         }
 
-    def ask(self, question, context=None, system_prompt=None, temperature=0.0, max_tokens=None):
+    def ask(self, question, context=None, system_prompt=None, temperature=0.0, max_tokens=None, model_name_override=None):
         """Ask one question and return the answer text."""
         if context:
             message_text = f"Context:\n{context}\n\nQuestion:\n{question}"
@@ -85,9 +85,10 @@ class OpenAIChatClient(BaseLLMClient):
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": message_text})
 
-        with log_backend_call(logger, "openai", "chat.ask", model=self.model, temperature=temperature):
+        resolved_model = model_name_override or self.model
+        with log_backend_call(logger, "openai", "chat.ask", model=resolved_model, temperature=temperature):
             response = self.get_client().chat.completions.create(
-                model=self.model,
+                model=resolved_model,
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,

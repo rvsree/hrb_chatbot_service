@@ -151,7 +151,7 @@ async def adhoc_document_chat(
         # categories) rather than letting file content skip screening
         # entirely, which was the gap before this phase.
         try:
-            file_texts[file.filename] = await check_input(extracted_text)
+            file_texts[file.filename], _ = await check_input(extracted_text)
         except GuardrailBlockedError as error:
             return json_error(
                 422,
@@ -161,7 +161,7 @@ async def adhoc_document_chat(
         file_bytes[file.filename] = content
 
     try:
-        checked_question = await check_input(question)
+        checked_question, _ = await check_input(question)
     except GuardrailBlockedError as error:
         return json_error(422, str(error), code=error_codes.INPUT_GUARDRAIL_BLOCKED)
 
@@ -209,7 +209,7 @@ async def adhoc_document_chat(
         logger.error("Adhoc document chat failed for %r: %s: %s", question, type(error).__name__, error)
         return json_error(500, "The question could not be answered. Please try again.", code=error_codes.QUERY_FAILED)
 
-    result["answer"] = await check_output(checked_question, result["answer"])
+    result["answer"], _ = await check_output(checked_question, result["answer"])
 
     # Phase 163: the checkbox-driven path - deliberately separate code from
     # the agent's own in-text SendEmailWithAnswer decision above, which has

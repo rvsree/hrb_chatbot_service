@@ -51,6 +51,7 @@ async def _fake_answer_query(params, request_id=None):
         "token_usage": {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120},
         "latency_ms": {"total": 500.0, "retrieval": 150.0, "generation": 350.0},
         "temperature": params.temperature if params.temperature is not None else 0.0,
+        "guardrails": {"input": {"status": "pass", "rail": None}, "output": {"status": "pass", "rail": None}},
     }
 
 
@@ -84,6 +85,7 @@ def test_mcp_routed_answer_reports_routed_to_in_explainability(monkeypatch):
             "token_usage": None,
             "latency_ms": {"total": 80.0, "retrieval": None, "generation": None},
             "routed_to": "get_leave_balance",
+            "guardrails": {"input": {"status": "pass", "rail": None}, "output": {"status": "pass", "rail": None}},
         }
 
     monkeypatch.setattr(retrieve_document.pipeline, "answer_query", _fake_mcp_answer_query)
@@ -291,6 +293,7 @@ def test_mcp_routed_answer_reports_tools_used(monkeypatch):
             "token_usage": None,
             "latency_ms": {"total": 80.0, "retrieval": None, "generation": None},
             "routed_to": "get_leave_balance",
+            "guardrails": {"input": {"status": "pass", "rail": None}, "output": {"status": "pass", "rail": None}},
             "tools_used": [
                 {
                     "tool_name": "get_leave_balance",
