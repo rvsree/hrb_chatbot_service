@@ -24,7 +24,7 @@ from src.hrb_chatbot.common.clients.storage_client.s3_upload_client import (
     delete_leave_document_object,
     generate_admin_doc_download_url,
 )
-from src.hrb_chatbot.common.enums import Role
+from src.hrb_chatbot.common.enums import Application, Role
 from src.hrb_chatbot.common.logging.logger import get_logger
 from src.hrb_chatbot.common.rate_limiting.rate_limiter import enforce_rate_limit
 from src.hrb_chatbot.models.admin import (
@@ -320,43 +320,151 @@ async def get_eval_run(run_id: int, user_profile: UserProfile | None = Depends(i
     )
 
 
-def _to_workflow_status(result: dict) -> WorkflowStatus:
+def _to_workflow_status(workflow_file: str, result: dict, page: int) -> WorkflowStatus:
+    total_count = result["total_count"]
     return WorkflowStatus(
+        workflow_file=workflow_file,
+        display_name=_WORKFLOW_DISPLAY_NAMES.get(workflow_file, workflow_file),
         runs=[WorkflowRunSummary(**run) for run in result["runs"]],
+        total_count=total_count,
+        has_more=page * _CI_STATUS_PER_PAGE < total_count,
         error=result["error"],
     )
 
 
+# Phase 235 - plain-language names for the "Full run history" grid's own
+# section headers - the real file name still shows, just behind a "?"
+# popover (same treatment PipelineStepper.tsx's WORKFLOW_HELP already
+# uses), not removed.
+_WORKFLOW_DISPLAY_NAMES: dict[str, str] = {
+    "ci.yml": "Continuous Integration Checks",
+    "deploy.yml": "Production Deploy",
+    "deploy-lambda.yml": "Async Ingestion Deploy",
+}
+_CI_STATUS_PER_PAGE = 5
+
+
+# Phase 233 - which GitHub repo + workflow file(s) each real deployable
+# maps to. BACKEND/INGESTION_LAMBDA share one repo (hrb_chatbot_v2) but
+# must never show each other's runs - that mixing is the exact confusion
+# this phase exists to fix. LMS_MCP is a genuinely separate repo (its own
+# GITHUB_TOKEN access already live-verified before this was written).
+# FRONTEND isn't here at all - it has no GitHub Actions workflow,
+# handled as its own early-return in get_ci_pipeline_status() below.
+_APPLICATION_REPOS: dict[Application, str | None] = {
+    Application.BACKEND: None,  # client_gateway's own default (GITHUB_REPO)
+    Application.INGESTION_LAMBDA: None,
+    Application.LMS_MCP: "rvsree/hrb_lms_mcp",
+}
+_APPLICATION_WORKFLOW_FILES: dict[Application, list[str]] = {
+    Application.BACKEND: ["ci.yml", "deploy.yml"],
+    Application.INGESTION_LAMBDA: ["deploy-lambda.yml"],
+    Application.LMS_MCP: ["deploy.yml"],
+}
+# None means "use get_latest_run_sha() (any workflow in the repo)" - safe
+# for BACKEND (ci.yml already effectively anchors "latest" today, since
+# it's by far the most frequent) and for LMS_MCP (a dedicated repo with
+# only this one real workflow). INGESTION_LAMBDA must scope explicitly,
+# or "latest commit" could resolve to a sha deploy-lambda.yml never ran on.
+_APPLICATION_ANCHOR_WORKFLOW: dict[Application, str | None] = {
+    Application.BACKEND: None,
+    Application.INGESTION_LAMBDA: "deploy-lambda.yml",
+    Application.LMS_MCP: None,
+}
+
+
 @router_manage_admin.get("/ci-status", response_model=CiStatusResponse)
-async def get_ci_status(user_profile: UserProfile | None = Depends(identity_from_query_params)):
-    """Phase 183 - the Deployment Dashboard's CI/Build Status tab, a live
-    read of this repo's own ci.yml/deploy.yml GitHub Actions runs. ADMIN
-    only. Never 500s on a GitHub-side failure (unset token, rate limit,
-    network) - each workflow's own `error` field carries that instead,
-    same error-as-data convention every external client here follows."""
+async def get_ci_status(
+    application: Application = Application.BACKEND,
+    page: int = 1,
+    user_profile: UserProfile | None = Depends(identity_from_query_params),
+):
+    """Phase 183 - the Deployment Dashboard's "Full run history" grid, a
+    live read of GitHub Actions runs. ADMIN only. Never 500s on a
+    GitHub-side failure (unset token, rate limit, network) - each
+    workflow's own `error` field carries that instead, same error-as-data
+    convention every external client here follows.
+
+    Phase 235 - `application`/`page` (both default to this route's exact
+    prior behavior for any caller that doesn't pass them): reuses the same
+    `_APPLICATION_REPOS`/`_APPLICATION_WORKFLOW_FILES` maps Phase 233
+    already built for the Pipeline stepper, so this grid now actually
+    respects the same Application dropdown instead of only ever showing
+    `backend`'s own ci.yml/deploy.yml regardless of selection."""
     require_role(user_profile, Role.ADMIN)
 
-    github = get_client_gateway().github_actions()
-    ci_result = github.list_workflow_runs("ci.yml")
-    deploy_result = github.list_workflow_runs("deploy.yml")
+    if application == Application.FRONTEND:
+        # Same honest-degradation message as get_ci_pipeline_status()
+        # below - hrb_chatbot_ui has no GitHub Actions workflow at all.
+        return CiStatusResponse(
+            application=application,
+            page=page,
+            workflows=[],
+            error=(
+                "hrb_chatbot_ui has no automated CI/CD yet - deployed manually "
+                "(npm run build + aws s3 sync + CloudFront invalidation). "
+                "See hrb_chatbot_ui/README.md."
+            ),
+        )
 
-    return CiStatusResponse(ci=_to_workflow_status(ci_result), deploy=_to_workflow_status(deploy_result))
+    repo = _APPLICATION_REPOS[application]
+    workflow_files = _APPLICATION_WORKFLOW_FILES[application]
+    github = get_client_gateway().github_actions(repo=repo)
+
+    workflows = [
+        _to_workflow_status(workflow_file, github.list_workflow_runs(workflow_file, per_page=_CI_STATUS_PER_PAGE, page=page), page)
+        for workflow_file in workflow_files
+    ]
+
+    return CiStatusResponse(application=application, page=page, workflows=workflows, error=None)
 
 
 @router_manage_admin.get("/ci-status/pipeline", response_model=PipelineStatusResponse)
-async def get_ci_pipeline_status(sha: str | None = None, user_profile: UserProfile | None = Depends(identity_from_query_params)):
+async def get_ci_pipeline_status(
+    sha: str | None = None,
+    application: Application = Application.BACKEND,
+    user_profile: UserProfile | None = Depends(identity_from_query_params),
+):
     """Phase 188 - one commit's full logical pipeline, stitched together
     from however many separate GitHub Actions workflow files actually ran
     for it (ci.yml always; deploy.yml only on master), plus its nearest
     eval-gate release-gate result if one exists. Defaults to the most
-    recently run commit when no `sha` is given. ADMIN only."""
+    recently run commit when no `sha` is given. ADMIN only.
+
+    Phase 233 - `application` (default BACKEND, preserving this route's
+    exact prior behavior for any caller that doesn't pass it) picks which
+    of this project's real deployables to show - see the module-level
+    _APPLICATION_* maps above for the real repo/workflow-file mapping."""
     require_role(user_profile, Role.ADMIN)
 
-    github = get_client_gateway().github_actions()
+    if application == Application.FRONTEND:
+        # hrb_chatbot_ui has no GitHub Actions workflow at all - reusing
+        # the existing `error` field (same one a missing GITHUB_TOKEN
+        # already uses) rather than inventing a new "no CI/CD" response
+        # shape for one application.
+        return PipelineStatusResponse(
+            head_sha="",
+            head_commit_message="",
+            head_branch="",
+            event="",
+            actor_login="",
+            runs=[],
+            eval_gate=None,
+            error=(
+                "hrb_chatbot_ui has no automated CI/CD yet - deployed manually "
+                "(npm run build + aws s3 sync + CloudFront invalidation). "
+                "See hrb_chatbot_ui/README.md."
+            ),
+        )
+
+    repo = _APPLICATION_REPOS[application]
+    workflow_files = _APPLICATION_WORKFLOW_FILES[application]
+    anchor_workflow = _APPLICATION_ANCHOR_WORKFLOW[application]
+    github = get_client_gateway().github_actions(repo=repo)
 
     target_sha = sha
     if not target_sha:
-        latest = github.get_latest_run_sha()
+        latest = github.get_latest_run_sha_for_workflow(anchor_workflow) if anchor_workflow else github.get_latest_run_sha()
         if latest["error"] or not latest["sha"]:
             return PipelineStatusResponse(
                 head_sha="",
@@ -383,13 +491,19 @@ async def get_ci_pipeline_status(sha: str | None = None, user_profile: UserProfi
             error=runs_result["error"],
         )
 
+    # Phase 233 - only this application's own workflow file(s). A shared
+    # repo (BACKEND/INGESTION_LAMBDA) can have both kinds of run on the
+    # same commit - showing them mixed together is the exact confusion
+    # this phase exists to fix.
+    relevant_runs = [run for run in runs_result["runs"] if run["workflow_file"] in workflow_files]
+
     pipeline_runs = []
     head_commit_message = ""
     head_branch = ""
     event = ""
     actor_login = ""
     latest_run_created_at = None
-    for run in runs_result["runs"]:
+    for run in relevant_runs:
         head_commit_message = run["head_commit_message"] or head_commit_message
         # Branch/event/actor are commit-level facts, consistent across
         # whichever workflows ran for this sha in the common case - taken
@@ -416,9 +530,15 @@ async def get_ci_pipeline_status(sha: str | None = None, user_profile: UserProfi
     # Nearest eval-gate run at or before this pipeline's own timestamp -
     # eval-gate.yml is workflow_dispatch-only, so most commits have none,
     # and that's shown as "not run for this commit," never an error.
+    # Phase 233 - BACKEND only: eval_run_store only ever holds
+    # hrb_chatbot_v2's own golden-dataset release-gate runs, which have
+    # no real relationship to an lms_mcp or ingestion_lambda deploy -
+    # showing "nearest eval gate" there would just be whatever backend
+    # eval happened to run around the same calendar time, not a
+    # meaningful correlation.
     eval_gate_summary = None
     reference_time = latest_run_created_at or (pipeline_runs[0].created_at if pipeline_runs else None)
-    if reference_time:
+    if reference_time and application == Application.BACKEND:
         all_eval_runs = await get_db_gateway().eval_run_store().list_runs()
         candidates = [run for run in all_eval_runs if run["run_at"] <= reference_time]
         if candidates:
@@ -439,6 +559,27 @@ async def get_ci_pipeline_status(sha: str | None = None, user_profile: UserProfi
     # for offline/historical review past GitHub's own log retention
     # window, without a new GitHub Actions step. Never allowed to break
     # the live response if it fails - logged, not raised.
+    # Phase 233 - BACKEND only, deliberately: pipeline_runs' own schema
+    # keys snapshots by head_sha alone with no application/repo column,
+    # so persisting an lms_mcp or ingestion_lambda snapshot here would
+    # either collide with (practically never, but schema-wise possible)
+    # or - the real issue - get mixed into the same undifferentiated
+    # history list as backend's own snapshots, with no way to tell them
+    # apart later. Extending snapshot history to other applications needs
+    # its own schema change (an application column + migration), not
+    # silently done here - out of this phase's own spec.
+    if application != Application.BACKEND:
+        return PipelineStatusResponse(
+            head_sha=target_sha,
+            head_commit_message=head_commit_message,
+            head_branch=head_branch,
+            event=event,
+            actor_login=actor_login,
+            runs=pipeline_runs,
+            eval_gate=eval_gate_summary,
+            error=None,
+        )
+
     try:
         await get_db_gateway().pipeline_run_store().upsert_snapshot(
             head_sha=target_sha,

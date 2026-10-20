@@ -1,0 +1,334 @@
+<title>401(k) Loan Agent — A2A Design</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+<style>
+:root {
+  --bg: #f3f4f6; --surface: #ffffff; --surface-sunken: #eceef1;
+  --fg: #181d26; --fg-muted: #5c6472; --border: #d8dce2;
+  --accent: #35587a; --accent-soft: #e4ecf3;
+  --warn: #a8641f; --warn-soft: #faf0e2; --warn-border: #e8c893;
+  --good: #2f7a52; --good-soft: #e7f3ec;
+  --bad: #b03a3a; --bad-soft: #fbe9e9; --bad-border: #eab8b8;
+  --code-bg: #eef0f3;
+  --font-display: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10141b; --surface: #171c26; --surface-sunken: #1d2330;
+    --fg: #e7eaef; --fg-muted: #99a2b3; --border: #2b3242;
+    --accent: #80aed9; --accent-soft: #1d2d3f;
+    --warn: #e3a765; --warn-soft: #332514; --warn-border: #5c4523;
+    --good: #6fc99a; --good-soft: #152821;
+    --bad: #e08080; --bad-soft: #301616; --bad-border: #5c2323;
+    --code-bg: #1b212c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10141b; --surface: #171c26; --surface-sunken: #1d2330;
+  --fg: #e7eaef; --fg-muted: #99a2b3; --border: #2b3242;
+  --accent: #80aed9; --accent-soft: #1d2d3f;
+  --warn: #e3a765; --warn-soft: #332514; --warn-border: #5c4523;
+  --good: #6fc99a; --good-soft: #152821;
+  --bad: #e08080; --bad-soft: #301616; --bad-border: #5c2323;
+  --code-bg: #1b212c; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); line-height: 1.55; }
+.page { max-width: 960px; margin: 0 auto; padding: 32px 16px 64px; display: flex; flex-direction: column; gap: 24px; }
+header.doc-head { display: flex; flex-direction: column; gap: 10px; padding-bottom: 20px; border-bottom: 2px solid var(--border); }
+.eyebrow { font-family: var(--font-display); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+h1 { font-family: var(--font-display); font-size: clamp(26px, 4vw, 34px); margin: 0; text-wrap: balance; font-weight: 600; }
+.subtitle { color: var(--fg-muted); font-size: 15px; max-width: 70ch; }
+.status-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.chip { font-family: var(--font-display); font-size: 11px; letter-spacing: 0.03em; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--fg-muted); background: var(--surface-sunken); }
+.chip.warn { color: var(--warn); background: var(--warn-soft); border-color: var(--warn-border); }
+.chip.bad { color: var(--bad); background: var(--bad-soft); border-color: var(--bad-border); }
+section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 22px clamp(16px, 4vw, 28px); display: flex; flex-direction: column; gap: 14px; }
+.section-head { display: flex; align-items: baseline; gap: 10px; }
+.section-num { font-family: var(--font-display); font-size: 13px; color: var(--accent); min-width: 26px; }
+h2 { font-family: var(--font-display); font-size: 19px; margin: 0; font-weight: 600; }
+h3 { font-family: var(--font-display); font-size: 15px; margin: 10px 0 0; font-weight: 600; color: var(--fg); }
+p { margin: 0; }
+.lede { color: var(--fg-muted); font-size: 14px; }
+.callout { border-radius: 8px; padding: 14px 16px; font-size: 14px; display: flex; flex-direction: column; gap: 8px; }
+.callout.warn { background: var(--warn-soft); border: 1px solid var(--warn-border); }
+.callout.good { background: var(--good-soft); border: 1px solid color-mix(in srgb, var(--good) 40%, var(--border)); }
+.callout.bad { background: var(--bad-soft); border: 1px solid var(--bad-border); }
+.callout .callout-label { font-family: var(--font-display); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--warn); }
+.callout.good .callout-label { color: var(--good); }
+.callout.bad .callout-label { color: var(--bad); }
+.callout code { background: transparent; padding: 0; }
+pre.mermaid { background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 8px; padding: 16px; overflow-x: auto; }
+pre.json, pre.ddl { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-family: var(--font-display); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; }
+code.inline { font-family: var(--font-display); background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 0.92em; }
+ul.spec-list, ol.spec-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+ul.spec-list li, ol.spec-list li { padding-left: 2px; }
+table.schema { border-collapse: collapse; width: 100%; font-size: 13px; }
+table.schema caption { font-family: var(--font-display); text-align: left; font-size: 13.5px; font-weight: 600; margin-bottom: 8px; color: var(--accent); }
+table.schema th, table.schema td { border: 1px solid var(--border); padding: 7px 10px; text-align: left; vertical-align: top; }
+table.schema th { background: var(--surface-sunken); font-family: var(--font-display); font-size: 11.5px; letter-spacing: 0.02em; }
+.schema-wrap { overflow-x: auto; }
+.option-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.option-card { border: 1px solid var(--border); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; }
+.option-card.recommended { border-color: var(--good); background: var(--good-soft); }
+.option-card.blocked { border-color: var(--bad); background: var(--bad-soft); }
+.option-title { font-family: var(--font-display); font-size: 13px; font-weight: 600; }
+.option-card.recommended .option-title::after { content: "recommended"; font-family: var(--font-display); font-size: 10px; color: var(--good); border: 1px solid var(--good); border-radius: 999px; padding: 1px 7px; margin-left: 8px; letter-spacing: 0.03em; vertical-align: middle; }
+.decision-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.decision-table td, .decision-table th { border-bottom: 1px solid var(--border); padding: 10px 8px; text-align: left; vertical-align: top; }
+.decision-table th { font-family: var(--font-display); font-size: 11.5px; color: var(--fg-muted); }
+.decision-table td:first-child { font-family: var(--font-display); font-size: 12.5px; white-space: nowrap; }
+.source-quote { border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; font-size: 13.5px; color: var(--fg-muted); font-style: italic; }
+footer.doc-foot { text-align: center; color: var(--fg-muted); font-size: 12px; padding-top: 8px; }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<div class="page">
+
+<header class="doc-head">
+  <span class="eyebrow">design exploration &middot; not a scoped phase</span>
+  <h1>401(k) Loan Agent — A2A Protocol Design</h1>
+  <p class="subtitle">What it would actually take to let an employee request a 401(k) plan loan through a real Agent-to-Agent (A2A) exchange with a separate "Empower Retirement" agent — grounded in this project's own real plan-loan policy text, the real IK FDE course material on Google ADK + A2A, and the architecture reasoning already recorded in two prior design docs.</p>
+  <div class="status-row">
+    <span class="chip warn">Status: design only — no code, no new repo created</span>
+    <span class="chip">Verdict: yes, a separate project (see &sect;01)</span>
+    <span class="chip">Grounded in real KB text, not invented numbers</span>
+  </div>
+  <div class="doc-nav"><a href="hrb-chatbot-integration.html" style="font-family: var(--font-display); font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--fg-muted); text-decoration: none;">companion doc: hrb_chatbot_v2 extension &amp; isolation &rarr;</a></div>
+</header>
+
+<section>
+  <div class="section-head"><span class="section-num">00</span><h2>Summary, up front</h2></div>
+  <p class="lede">Three things this doc answers directly, since they were the actual questions asked:</p>
+  <ul class="spec-list">
+    <li><strong>Is this a different project?</strong> Yes. Not a style preference — the real A2A wire protocol (Agent Cards, JSON-RPC, a server listening on its own port) only makes sense between <em>separate, independently-deployed</em> services. Nothing in <code class="inline">hrb_chatbot_v2</code> today is deployed separately from the rest of itself. See &sect;01.</li>
+    <li><strong>Should it use Google ADK?</strong> Yes — and this is the first real case where that's actually justified in this project's own history (see the callout in &sect;01). A new, standalone service has no existing agent framework to collide with.</li>
+    <li><strong>Should it follow the IK FDE course material?</strong> Yes, directly — <code class="inline">github.com/jeev1992/real-estate-negotiation-simulator</code>'s <code class="inline">m2_adk_multiagents</code> module, re-fetched live via the GitHub API for this doc (not from memory). &sect;03 maps its demos/exercises onto this use case's own design decisions, concept by concept.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">01</span><h2>Why this is a different project, not a new phase</h2></div>
+  <p class="lede">Two decisions already on record in this project — found while researching what "A2A" meant here before writing this doc — both point the same direction.</p>
+
+  <h3>Decision 1 — the carve-out that applies here</h3>
+  <p class="source-quote">"If a future phase genuinely needs to call a <strong>separate, independently-deployed</strong> agent service — not a hypothetical today — adopting the real A2A SDK then is the right call, reviewed on its own, not folded into this schema work." — <code class="inline">docs/dev-reference/genai-chat-workflow-memory-design.html</code> &sect;04</p>
+  <p>That doc rejected Google ADK/real A2A for the <em>existing</em> features, because every agent in <code class="inline">multi_agent_pipeline.py</code> runs in-process inside one <code class="inline">StateGraph.ainvoke()</code> call — no network boundary to protocol over. A 401(k) Loan Agent representing Empower Retirement is exactly the "future phase" that carve-out described: a real, external, separately-administered system (the plan's own KB document names Empower by name — &sect;02 below), not a role this codebase can simulate in-process.</p>
+
+  <h3>Decision 2 — the one this does <em>not</em> contradict</h3>
+  <p class="source-quote">"Scope decided: deeper <em>internal</em> multi-agent collaboration, not Google's Agent2Agent protocol. Cheaper path — no new wire protocol, just evolving what <code class="inline">multi_agent_pipeline.py</code> already does." — <code class="inline">docs/dev-reference/planning/upcoming-features-scoping-notes.md</code>, item 4 "A2A communications"</p>
+  <p>That's a separate, still-open idea about the Planner/domain-agents/Reviewer graph talking to <em>itself</em> more richly — internal collaboration, explicitly not real A2A. This doc doesn't touch that item; a 401(k) loan request never goes through <code class="inline">multi_agent_pipeline.py</code>'s own internal agents at all — it goes <em>out</em>, to a different organization's system.</p>
+
+  <div class="callout good">
+    <span class="callout-label">Why Google ADK is the right call here, specifically</span>
+    <p>This is the first scenario in this project's history where ADK doesn't duplicate an existing framework. The Loan Agent is a brand-new service with nothing already built in LangGraph to collide with — ADK's own <code class="inline">adk web --a2a</code> is literally how the course module itself stands up an A2A server, so using it here is the direct, intended path, not a workaround.</p>
+  </div>
+
+  <h3>What "different project" means concretely</h3>
+  <ul class="spec-list">
+    <li>A new, separately-deployed Python service — its own directory tree (new repo, or at minimum a new top-level folder deployed independently — see &sect;09, open decision), <strong>not</strong> a module under <code class="inline">src/hrb_chatbot/</code>.</li>
+    <li>A new dependency entirely: <code class="inline">google-adk</code> — not reviewed or approved for this project before now, per this project's own "no unreviewed libraries without explicit approval" rule. This doc is that review.</li>
+    <li>A new deployable: its own container, its own port, its own health check, its own entry in whatever CI/CD this gets (see &sect;09).</li>
+    <li><code class="inline">hrb_chatbot_v2</code>'s own change is comparatively small: one new A2A <em>client</em> call-site, most naturally a new tool/domain-agent in <code class="inline">multi_agentic_rag</code> (parallel to how MCP tools are wired today) — not a rewrite of anything existing.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">02</span><h2>Domain grounding — real plan terms, not invented numbers</h2></div>
+  <p class="lede">Pulled directly from the real, already-ingested KB document (<code class="inline">resources/kb_docs/archived/text/JPMC Empower 401(k) Savings Plan.txt</code>, &sect;6.1 "Plan Loans") — the same no-invented-facts rule this project's own golden dataset already follows.</p>
+  <div class="schema-wrap">
+    <table class="schema">
+      <caption>Section 6.1 Plan Loans — real plan terms</caption>
+      <thead><tr><th>Term</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Maximum loan amount</td><td>Lesser of $50,000 or 50% of vested account balance</td></tr>
+        <tr><td>Minimum loan amount</td><td>Typically $1,000</td></tr>
+        <tr><td>Repayment term</td><td>Up to 5 years (longer for primary-residence purchase)</td></tr>
+        <tr><td>Interest rate</td><td>Prime rate + 1% (paid back into the participant's own account)</td></tr>
+        <tr><td>Repayment method</td><td>Automatic payroll deduction</td></tr>
+        <tr><td>Administrator</td><td>Empower Retirement, via the mySedgwick portal</td></tr>
+        <tr><td>Processing time</td><td>Typically 5–7 business days</td></tr>
+        <tr><td>Default consequence</td><td>Taxable income + 10% penalty if under age 59½</td></tr>
+        <tr><td>Termination consequence</td><td>Outstanding balance typically due within 60–90 days</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>The document's own real intake steps ("Access mySedgwick portal → Navigate to 401(k) Savings Plan → Select 'Request a Loan' → Complete loan application specifying amount and purpose → Review loan terms and repayment schedule → Submit request") map almost directly onto an A2A Task lifecycle — see &sect;05.</p>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">03</span><h2>Course material alignment — direct, not approximate</h2></div>
+  <p class="lede"><code class="inline">m2_adk_multiagents</code>'s own README, re-fetched for this doc: "This module teaches Google's Agent Development Kit (ADK) from first principles, then shows how agents communicate over the A2A protocol." The buyer/seller real-estate negotiation is the course's running example; this table maps each relevant piece onto the loan use case instead.</p>
+  <div class="schema-wrap">
+    <table class="schema">
+      <caption>Course concept &rarr; loan-agent analog</caption>
+      <thead><tr><th>Course material</th><th>What it teaches</th><th>Analog here</th></tr></thead>
+      <tbody>
+        <tr><td>Demo 10 — A2A wire format</td><td>Agent Card discovery, raw <code class="inline">message/send</code> HTTP, Task taken apart</td><td>&sect;05 Agent Card + Task shape below</td></tr>
+        <tr><td>Demo 11 — context threading</td><td><code class="inline">contextId</code> ties multiple Tasks into one conversation</td><td>One <code class="inline">contextId</code> per loan application, even across a resubmission</td></tr>
+        <tr><td>Demo 12 — parts &amp; artifacts</td><td>TextPart/DataPart, where content lives (history vs. status vs. artifacts)</td><td>Loan request as DataPart; signed agreement as an Artifact (FilePart) — &sect;05</td></tr>
+        <tr><td>Demo 13 — orchestration, polled vs. streamed</td><td>Buyer polls (<code class="inline">tasks/get</code>), seller streams (<code class="inline">message/stream</code>) — a live negotiation, completes in seconds</td><td>Doesn't transfer directly — see &sect;07, a real loan takes 5–7 <em>business days</em>, not seconds. Genuine point of departure, explained there.</td></tr>
+        <tr><td>Demo 14 — error handling</td><td>4 layers: transport, protocol, task, application</td><td>Same 4 layers apply: network down, malformed JSON-RPC, Task <code class="inline">status: failed</code>, vs. a "completed" Task whose own content says "ineligible"</td></tr>
+        <tr><td>Exercise 1 — budget-cap callback</td><td>Deterministic <code class="inline">before_tool_callback</code> blocks an action over a hard limit, not just an instruction</td><td>&sect;06 hard-block tier — the $50,000/50%-vested ceiling is enforced in code, never left to the LLM's judgment</td></tr>
+        <tr><td>Exercise 3 — A2A multiround client</td><td>Drive an A2A exchange end to end, threaded by <code class="inline">contextId</code> — "the matchmaker pattern"</td><td>This is literally <code class="inline">hrb_chatbot_v2</code>'s own new role: the client driving the employee's request against the Loan Agent</td></tr>
+        <tr><td>Exercise 6 — human-in-the-loop, 3-tier governance</td><td>Auto-approve / human checkpoint / hard block, triggered by a price threshold</td><td>&sect;06 below — triggered by loan amount + risk flags instead of price</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="lede">This project's own prior leave-approval design doc already cited this same course's "Exercise 6" as its closer analog than buyer/seller negotiation — same reasoning applies again here, now with a real external counterparty to make the full A2A wire format (not just the vocabulary) actually relevant.</p>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">04</span><h2>Architecture</h2></div>
+  <pre class="mermaid">
+sequenceDiagram
+    participant E as Employee (chat)
+    participant C as hrb_chatbot_v2<br/>(A2A client)
+    participant L as 401(k) Loan Agent<br/>(new service, Google ADK)
+    participant H as Human plan specialist<br/>(checkpoint tier only)
+
+    E->>C: "I want to borrow $12,000 from my 401(k)"
+    C->>L: GET .well-known/agent-card.json (discover skills)
+    L-->>C: Agent Card (skills, auth scheme)
+    C->>L: message/send (DataPart: amount, purpose, contextId)
+    L->>L: check_loan_eligibility (vested balance, existing loans)
+    alt within auto-approve tier
+        L-->>C: Task completed, status.message + Artifact (terms)
+    else needs human review
+        L->>H: specialist review request (same HITL pattern as Phase 172)
+        H-->>L: approve / deny
+        L-->>C: Task completed or failed
+    else exceeds hard limit
+        L-->>C: Task failed (deterministic block, never reaches a human)
+    end
+    C-->>E: result, in plain language
+  </pre>
+  <p class="lede">The Loan Agent is deployed on its own — own port, own Agent Card, own process. <code class="inline">hrb_chatbot_v2</code> holds no loan-eligibility logic itself; it only knows how to discover and call the Agent Card's advertised skills, same separation of concerns the course's buyer/seller agents demonstrate.</p>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">05</span><h2>A2A wire spec</h2></div>
+  <h3>Agent Card</h3>
+  <pre class="json">{
+  "name": "401k-loan-agent",
+  "description": "Processes 401(k) plan loan requests on behalf of Empower Retirement",
+  "url": "https://loan-agent.internal/a2a/loan_agent",
+  "capabilities": { "streaming": false, "pushNotifications": true },
+  "skills": [
+    {
+      "id": "check_loan_eligibility",
+      "name": "Check Loan Eligibility",
+      "description": "Validates a requested amount against vested balance, min/max limits, and existing loans"
+    },
+    {
+      "id": "submit_loan_application",
+      "name": "Submit Loan Application",
+      "description": "Files a loan request; returns a Task that may require human review"
+    },
+    {
+      "id": "get_application_status",
+      "name": "Get Application Status",
+      "description": "Polls an existing loan Task by id"
+    }
+  ]
+}</pre>
+  <p class="lede"><code class="inline">pushNotifications: true</code>, not <code class="inline">streaming</code> — see &sect;07 for why.</p>
+
+  <h3>Task lifecycle, mapped onto the KB document's own real process steps</h3>
+  <div class="schema-wrap">
+    <table class="schema">
+      <caption>KB &sect;6.1 step &rarr; A2A Task state</caption>
+      <thead><tr><th>KB document's own step</th><th>A2A Task state</th></tr></thead>
+      <tbody>
+        <tr><td>"Complete loan application specifying amount and purpose"</td><td><code class="inline">submitted</code></td></tr>
+        <tr><td>(eligibility/limit check against vested balance)</td><td><code class="inline">working</code></td></tr>
+        <tr><td>"Review loan terms and repayment schedule"</td><td><code class="inline">input-required</code> — employee must confirm before it proceeds</td></tr>
+        <tr><td>(routed to a human specialist, checkpoint tier only)</td><td><code class="inline">auth-required</code> or held <code class="inline">working</code>, pending the same HITL mechanism Phase 172 already built</td></tr>
+        <tr><td>"Loan typically processed within 5–7 business days"</td><td><code class="inline">working</code> for up to 5–7 days — this is why push notifications matter (&sect;07)</td></tr>
+        <tr><td>Approved and disbursed</td><td><code class="inline">completed</code>, with an <code class="inline">Artifact</code> (signed agreement + repayment schedule)</td></tr>
+        <tr><td>Exceeds $50,000/50%-vested, or employee ineligible</td><td><code class="inline">failed</code> — deterministic, &sect;06</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Example Task, completed</h3>
+  <pre class="json">{
+  "id": "task-7f2a",
+  "contextId": "loan-req-emp01042",
+  "status": { "state": "completed" },
+  "history": [
+    { "role": "user", "parts": [{ "kind": "data", "data": { "amount": 12000, "purpose": "home_repair" } }] },
+    { "role": "agent", "parts": [{ "kind": "text", "text": "Eligible: within 50% of vested balance ($41,200 vested)." }] }
+  ],
+  "artifacts": [
+    {
+      "artifactId": "art-9c1",
+      "name": "loan_agreement.pdf",
+      "parts": [{ "kind": "file", "file": { "mimeType": "application/pdf", "uri": "s3://.../loan_agreement.pdf" } }]
+    }
+  ]
+}</pre>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">06</span><h2>Three-tier governance (Exercise 6 + Exercise 1 patterns)</h2></div>
+  <p class="lede">Every threshold below comes straight from &sect;02's real plan terms, not invented.</p>
+  <div class="option-grid">
+    <div class="option-card recommended">
+      <span class="option-title">Auto-approve</span>
+      <p>Amount between $1,000 and $50,000/50%-vested, no existing outstanding loan, no hardship flag. The Loan Agent (an ADK <code class="inline">LlmAgent</code>) processes and completes the Task on its own.</p>
+    </div>
+    <div class="option-card">
+      <span class="option-title">Human checkpoint</span>
+      <p>Request sits near the maximum threshold, is flagged as hardship-related, or the employee is near termination. Routes to a human plan specialist — same HITL mechanism Phase 172 already built for leave approval, not a new one.</p>
+    </div>
+    <div class="option-card blocked">
+      <span class="option-title">Hard block</span>
+      <p>Amount exceeds $50,000/50%-vested, or below the $1,000 minimum, or an existing unresolved default. Enforced in a deterministic <code class="inline">before_tool_callback</code>, exactly Exercise 1's pattern — the LLM is never in a position to override it, regardless of how it reasons about the request.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">07</span><h2>Polling vs. streaming vs. push — a real departure from the course demo</h2></div>
+  <p class="lede">The course's buyer/seller negotiation completes in seconds, so Demo 13's choice (buyer polls, seller streams) is really about UX during one live conversation. A 401(k) loan is explicitly a <strong>5–7 business day</strong> process (&sect;02) — the employee will not keep a connection open that long, so neither polling nor <code class="inline">message/stream</code> fits as the primary mechanism.</p>
+  <div class="callout warn">
+    <span class="callout-label">Design decision, not yet confirmed</span>
+    <p>The Agent Card should advertise <code class="inline">pushNotifications: true</code>: the client registers a webhook via <code class="inline">tasks/pushNotificationConfig/set</code> once the Task enters <code class="inline">working</code>, and the Loan Agent calls it back when the state changes — days later, asynchronously — rather than the employee's session polling for a week. <code class="inline">hrb_chatbot_v2</code> would then need its own durable notification/inbox delivery (something like email, or a dashboard "My loan requests" view) — this is new surface, not reused from anywhere existing.</p>
+  </div>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">08</span><h2>Google ADK component mapping</h2></div>
+  <div class="schema-wrap">
+    <table class="schema">
+      <caption>ADK concept &rarr; role in the Loan Agent</caption>
+      <thead><tr><th>ADK concept</th><th>Role here</th></tr></thead>
+      <tbody>
+        <tr><td><code class="inline">LlmAgent</code></td><td>The Loan Agent's own reasoning — explains eligibility results in plain language, same role as the course's buyer/seller agents</td></tr>
+        <tr><td><code class="inline">before_tool_callback</code></td><td>Deterministic hard-block on the $50,000/50%-vested ceiling (Exercise 1's pattern, &sect;06)</td></tr>
+        <tr><td><code class="inline">McpToolset</code></td><td>Open question — where does vested-balance/loan-history data actually come from? See &sect;09</td></tr>
+        <tr><td><code class="inline">adk web --a2a</code></td><td>Exposes the Agent Card + A2A JSON-RPC endpoint — the literal mechanism the course itself uses</td></tr>
+        <tr><td>Session/state (<code class="inline">app:</code> scope)</td><td>Could hold the plan's own real rate table (Prime + 1%) as shared state, same pattern as the course's Exercise 8 shared market intel</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">09</span><h2>Open decisions — need your answer before this is a real spec</h2></div>
+  <table class="decision-table">
+    <thead><tr><th>Decision</th><th>Why it's open</th></tr></thead>
+    <tbody>
+      <tr><td>New repo, or a folder?</td><td>A genuinely separate GitHub repo (cleanest, matches "different project") vs. a new top-level folder inside an existing repo, deployed independently. Affects CI/CD, not the design above.</td></tr>
+      <tr><td>Where does vested-balance/loan data come from?</td><td><code class="inline">hrb_lms_mcp</code> already holds real employee data for the leave-approval HITL flow and could be extended — or this stays a fully separate, self-contained mock dataset. Different ownership/trust implications either way.</td></tr>
+      <tr><td>Real Empower integration, or simulated?</td><td>No real external API exists to call — same spirit as the course's own simulated buyer/seller agents. Worth stating explicitly so it's never mistaken for live.</td></tr>
+      <tr><td>Deployment target</td><td>Reuse the existing AWS App Runner pattern (proven, used by both <code class="inline">hrb_chatbot_v2</code> and <code class="inline">hrb_lms_mcp</code>) vs. something else entirely for a Google-ADK-based service.</td></tr>
+      <tr><td><code class="inline">hrb_chatbot_v2</code>'s own call-site</td><td>New domain agent/tool inside <code class="inline">multi_agentic_rag</code> (parallel to existing MCP tools) is the natural fit, but not yet confirmed against the rest of that pipeline's own scope.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer class="doc-foot">hrb_chatbot_v2 &middot; design exploration &middot; grounded in real KB text + the real IK FDE m2_adk_multiagents module, not invented</footer>
+
+</div>
+<script>mermaid.initialize({ startOnLoad: true, theme: "neutral" });</script>

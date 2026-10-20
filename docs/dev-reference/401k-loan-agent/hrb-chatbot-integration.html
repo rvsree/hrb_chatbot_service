@@ -1,0 +1,284 @@
+<title>HRB Chatbot ⇄ 401(k) Loan Agent Integration</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+<style>
+:root {
+  --bg: #f3f4f6; --surface: #ffffff; --surface-sunken: #eceef1;
+  --fg: #181d26; --fg-muted: #5c6472; --border: #d8dce2;
+  --accent: #35587a; --accent-soft: #e4ecf3;
+  --warn: #a8641f; --warn-soft: #faf0e2; --warn-border: #e8c893;
+  --good: #2f7a52; --good-soft: #e7f3ec;
+  --bad: #b03a3a; --bad-soft: #fbe9e9; --bad-border: #eab8b8;
+  --code-bg: #eef0f3;
+  --font-display: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10141b; --surface: #171c26; --surface-sunken: #1d2330;
+    --fg: #e7eaef; --fg-muted: #99a2b3; --border: #2b3242;
+    --accent: #80aed9; --accent-soft: #1d2d3f;
+    --warn: #e3a765; --warn-soft: #332514; --warn-border: #5c4523;
+    --good: #6fc99a; --good-soft: #152821;
+    --bad: #e08080; --bad-soft: #301616; --bad-border: #5c2323;
+    --code-bg: #1b212c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10141b; --surface: #171c26; --surface-sunken: #1d2330;
+  --fg: #e7eaef; --fg-muted: #99a2b3; --border: #2b3242;
+  --accent: #80aed9; --accent-soft: #1d2d3f;
+  --warn: #e3a765; --warn-soft: #332514; --warn-border: #5c4523;
+  --good: #6fc99a; --good-soft: #152821;
+  --bad: #e08080; --bad-soft: #301616; --bad-border: #5c2323;
+  --code-bg: #1b212c; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); line-height: 1.55; }
+.page { max-width: 980px; margin: 0 auto; padding: 32px 16px 64px; display: flex; flex-direction: column; gap: 24px; }
+header.doc-head { display: flex; flex-direction: column; gap: 10px; padding-bottom: 20px; border-bottom: 2px solid var(--border); }
+.eyebrow { font-family: var(--font-display); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+h1 { font-family: var(--font-display); font-size: clamp(24px, 4vw, 32px); margin: 0; text-wrap: balance; font-weight: 600; }
+.subtitle { color: var(--fg-muted); font-size: 15px; max-width: 72ch; }
+.status-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.doc-nav { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.doc-nav a { font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--fg-muted); text-decoration: none; }
+.chip { font-family: var(--font-display); font-size: 11px; letter-spacing: 0.03em; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--fg-muted); background: var(--surface-sunken); }
+.chip.warn { color: var(--warn); background: var(--warn-soft); border-color: var(--warn-border); }
+.chip.good { color: var(--good); background: var(--good-soft); border-color: var(--good); }
+section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 22px clamp(16px, 4vw, 28px); display: flex; flex-direction: column; gap: 14px; }
+.section-head { display: flex; align-items: baseline; gap: 10px; }
+.section-num { font-family: var(--font-display); font-size: 13px; color: var(--accent); min-width: 26px; }
+h2 { font-family: var(--font-display); font-size: 19px; margin: 0; font-weight: 600; }
+h3 { font-family: var(--font-display); font-size: 15px; margin: 10px 0 0; font-weight: 600; color: var(--fg); }
+p { margin: 0; }
+.lede { color: var(--fg-muted); font-size: 14px; }
+.callout { border-radius: 8px; padding: 14px 16px; font-size: 14px; display: flex; flex-direction: column; gap: 8px; }
+.callout.warn { background: var(--warn-soft); border: 1px solid var(--warn-border); }
+.callout.good { background: var(--good-soft); border: 1px solid color-mix(in srgb, var(--good) 40%, var(--border)); }
+.callout.bad { background: var(--bad-soft); border: 1px solid var(--bad-border); }
+.callout .callout-label { font-family: var(--font-display); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--warn); }
+.callout.good .callout-label { color: var(--good); }
+.callout.bad .callout-label { color: var(--bad); }
+pre.mermaid { background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 8px; padding: 16px; overflow-x: auto; }
+pre.tree, pre.json { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-family: var(--font-display); font-size: 12.5px; line-height: 1.6; white-space: pre; }
+code.inline { font-family: var(--font-display); background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 0.92em; }
+ul.spec-list, ol.spec-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+ul.spec-list li, ol.spec-list li { padding-left: 2px; }
+table.schema { border-collapse: collapse; width: 100%; font-size: 13px; }
+table.schema caption { font-family: var(--font-display); text-align: left; font-size: 13.5px; font-weight: 600; margin-bottom: 8px; color: var(--accent); }
+table.schema th, table.schema td { border: 1px solid var(--border); padding: 7px 10px; text-align: left; vertical-align: top; }
+table.schema th { background: var(--surface-sunken); font-family: var(--font-display); font-size: 11.5px; letter-spacing: 0.02em; }
+.schema-wrap { overflow-x: auto; }
+.option-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.option-card { border: 1px solid var(--border); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; }
+.option-card.recommended { border-color: var(--good); background: var(--good-soft); }
+.option-title { font-family: var(--font-display); font-size: 13px; font-weight: 600; }
+.option-card.recommended .option-title::after { content: "recommended"; font-family: var(--font-display); font-size: 10px; color: var(--good); border: 1px solid var(--good); border-radius: 999px; padding: 1px 7px; margin-left: 8px; letter-spacing: 0.03em; vertical-align: middle; }
+.decision-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.decision-table td, .decision-table th { border-bottom: 1px solid var(--border); padding: 10px 8px; text-align: left; vertical-align: top; }
+.decision-table th { font-family: var(--font-display); font-size: 11.5px; color: var(--fg-muted); }
+.decision-table td:first-child { font-family: var(--font-display); font-size: 12.5px; white-space: nowrap; }
+.blindspot-num { font-family: var(--font-display); color: var(--bad); font-weight: 700; }
+footer.doc-foot { text-align: center; color: var(--fg-muted); font-size: 12px; padding-top: 8px; }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<div class="page">
+
+<header class="doc-head">
+  <span class="eyebrow">design exploration &middot; companion doc</span>
+  <h1>HRB Chatbot ⇄ 401(k) Loan Agent — Integration &amp; Isolation</h1>
+  <p class="subtitle">Assuming "HRB 401k Manager" is built and running as its own separate A2A service (per <code class="inline">design.html</code>), this is how <code class="inline">hrb_chatbot_v2</code> (backend + frontend) extends to talk to it — with a hard isolation boundary so none of this code path intermixes with the existing RAG/agentic features.</p>
+  <div class="status-row">
+    <span class="chip warn">Status: design only — no code written</span>
+    <span class="chip good">Revision 2 — business-domain naming, not protocol-prefixed (see &sect;00)</span>
+  </div>
+  <div class="doc-nav"><a href="design.html">&larr; companion doc: Loan Agent's own design</a></div>
+</header>
+
+<section>
+  <div class="section-head"><span class="section-num">00</span><h2>Correction from revision 1 — naming</h2></div>
+  <div class="callout bad">
+    <span class="callout-label">What was wrong</span>
+    <p>Revision 1 of this doc named every new backend/frontend artifact with an <code class="inline">a2a_</code>/<code class="inline">A2A_</code> prefix — <code class="inline">api/a2a_401k/</code>, <code class="inline">services/a2a_401k_service.py</code>, <code class="inline">A2A_401K_LOAN_AGENT_URL</code>, route <code class="inline">/v1/a2a-401k</code>. That bakes a transport protocol (A2A) into business-domain names, and it's inconsistent with how this project already names things: <code class="inline">github_actions_client.py</code> is named for the target (GitHub Actions), not the transport (REST); <code class="inline">HRB_LMS_MCP_URL</code> leads with the business system name, with the protocol only a trailing qualifier. A2A is an implementation detail of how this project happens to reach the Loan Agent today — the business concept (processing a 401(k) loan request) doesn't depend on it and shouldn't be named after it. It's also a real Python issue, not just style: a package can't be named starting with a digit, so even <code class="inline">401k_loans</code> alone wouldn't import.</p>
+  </div>
+  <div class="callout good">
+    <span class="callout-label">Fixed — naming used from here on</span>
+    <p>Business-layer code (routers, services, models, routes, settings) is named <code class="inline">loan_401k</code> / <code class="inline">LOAN_401K</code> — domain first, no protocol prefix. The one place a protocol name is legitimate is the literal transport client, same as this project's own <code class="inline">oauth_client.py</code>/<code class="inline">mcp_tools/</code> precedent — and even there, the file is named for the counterparty it talks to (<code class="inline">loan_401k_agent_client.py</code>), not for the wire format alone.</p>
+  </div>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">01</span><h2>Diagram 1 — the Loan Agent project, restated on its own</h2></div>
+  <p class="lede">Same service as <code class="inline">design.html</code>, redrawn here just to show its own boundary clearly before &sect;02 shows what sits on the other side of it.</p>
+  <pre class="mermaid">
+flowchart TB
+    subgraph LA["HRB 401k Manager — separate repo, separate deploy"]
+        AC["Agent Card<br/>.well-known/agent-card.json"]
+        SRV["A2A JSON-RPC server<br/>(adk web --a2a)"]
+        LLM["LlmAgent — eligibility reasoning"]
+        CB["before_tool_callback<br/>hard $50k/50%-vested block"]
+        DATA[("Vested balance / loan history<br/>(data source TBD — design.html §09)")]
+        SRV --> LLM --> CB --> DATA
+        AC --- SRV
+    end
+    EXT["Any A2A client<br/>(hrb_chatbot_v2, or anything else)"] -->|JSON-RPC over HTTP| SRV
+  </pre>
+  <p>The important property: nothing about this box's internals is visible to or reachable from <code class="inline">hrb_chatbot_v2</code> except through the Agent Card + JSON-RPC surface. That boundary is what makes the isolation on the other side possible too.</p>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">02</span><h2>Diagram 2 — hrb_chatbot_v2 backend extension</h2></div>
+  <pre class="mermaid">
+flowchart TB
+    subgraph EXIST["Existing hrb_chatbot_v2 — untouched"]
+        direction TB
+        E1["api/rag/*, api/agentic_rag/*, api/multi_agentic_rag/*"]
+        E2["ai/rag_pipeline/*, ai/agents/*"]
+        E3["common/clients/llm_client/*, vector_db/*, db_client/*"]
+        E1 --> E2 --> E3
+    end
+    subgraph NEW["New, isolated subtree — loan_401k/"]
+        direction TB
+        N1["api/loan_401k/loan_requests.py<br/>(own router, own prefix /v1/401k-loans)"]
+        N2["services/loan_401k_service.py<br/>(thin orchestration, mirrors documents_service.py's role)"]
+        N3["common/clients/loan_agent_client/loan_401k_agent_client.py<br/>(A2A JSON-RPC transport, Agent Card discovery)"]
+        N4["models/loan_401k.py<br/>(Task/Message/Part/Artifact request-response models)"]
+        N1 --> N2 --> N3
+        N1 -.-> N4
+        N2 -.-> N4
+    end
+    GW["client_gateway.py<br/>new: get_client_gateway().loan_401k_agent()"]
+    N3 --> GW
+    GW -->|JSON-RPC| LAEXT["HRB 401k Manager<br/>(Diagram 1)"]
+
+    style NEW fill:transparent,stroke:#35587a,stroke-width:2px,stroke-dasharray: 4 3
+    style EXIST fill:transparent,stroke:#99a2b3,stroke-width:1px
+  </pre>
+  <h3>Directory layout</h3>
+  <pre class="tree">src/hrb_chatbot/
+├── api/
+│   ├── rag/, agentic_rag/, multi_agentic_rag/, admin/     ← untouched
+│   └── loan_401k/                                         ← NEW, own folder, named for the business capability
+│       └── loan_requests.py
+├── services/
+│   └── loan_401k_service.py                               ← NEW
+├── models/
+│   └── loan_401k.py                                       ← NEW, own file
+└── common/clients/
+    ├── ci_client/, auth_client/, llm_client/, ...          ← untouched
+    └── loan_agent_client/                                 ← NEW, named for the counterparty (matches github_actions_client.py's own naming)
+        └── loan_401k_agent_client.py                       ← the one file where naming the protocol (A2A/JSON-RPC) in its own docstring is appropriate - it IS the transport layer</pre>
+  <h3>The one rule that keeps this isolated</h3>
+  <ul class="spec-list">
+    <li><strong>Dependency direction is one-way.</strong> <code class="inline">loan_401k/*</code> may import shared primitives (<code class="inline">models/common.py</code>'s <code class="inline">UserProfile</code>, <code class="inline">api/dependencies.py</code>'s <code class="inline">json_error</code>, the RBAC gateway) — the same way every existing router already does. Nothing in <code class="inline">ai/rag_pipeline/*</code> or <code class="inline">ai/agents/*</code> imports anything from <code class="inline">loan_401k/*</code>. If that direction ever reverses, the isolation is broken.</li>
+    <li><strong>New router, mounted separately.</strong> <code class="inline">app.include_router(loan_401k_router, prefix="/v1/401k-loans", dependencies=[...])</code> in <code class="inline">main.py</code> — one new line next to the existing router mounts, same Phase 23 gateway-at-mount-level pattern already used for everything else. Its own RBAC rule, not reusing an existing one verbatim (loan requests need <code class="inline">EMPLOYEE</code> write access that documents/ingestion don't grant today).</li>
+    <li><strong>New settings, own prefix — business name first.</strong> <code class="inline">LOAN_401K_AGENT_URL</code>, <code class="inline">LOAN_401K_CLIENT_ID</code>/<code class="inline">_SECRET</code> — same shape as the existing <code class="inline">HRB_LMS_MCP_URL</code>/<code class="inline">HRB_LMS_MCP_OAUTH_*</code> settings (business system name leads, protocol is never the primary identifier), not folded into any existing settings group.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">03</span><h2>Diagram 3 — hrb_chatbot_ui frontend extension</h2></div>
+  <pre class="mermaid">
+flowchart TB
+    subgraph EXIST["Existing hrb_chatbot_ui — untouched"]
+        P1["pages/ChatPage.tsx, DocumentsPage.tsx, AdminDashboardPage.tsx"]
+        C1["api/client.ts (existing functions, untouched)"]
+        T1["types.ts (existing types, untouched)"]
+    end
+    subgraph NEW["New, isolated — loan401k/"]
+        P2["pages/loan401k/Loan401kPage.tsx<br/>(employee-facing: submit + track)"]
+        P3["pages/loan401k/Loan401kAdminPage.tsx<br/>(specialist checkpoint review — own page, not another AdminDashboardPage tab)"]
+        C2["api/loan401kClient.ts<br/>(own file, not appended to client.ts)"]
+        T2["types/loan401k.ts<br/>(own file, not appended to types.ts)"]
+        P2 --> C2
+        P3 --> C2
+        C2 --> T2
+    end
+    R["App.tsx — 2 new routes:<br/>/401k-loan, /401k-loan-admin"]
+    R --> P2
+    R --> P3
+
+    style NEW fill:transparent,stroke:#35587a,stroke-width:2px,stroke-dasharray: 4 3
+    style EXIST fill:transparent,stroke:#99a2b3,stroke-width:1px
+  </pre>
+  <h3>Why 2 new pages, not 2 new tabs on existing ones</h3>
+  <p>Folding the specialist-review UI into <code class="inline">AdminDashboardPage.tsx</code> as another tab would repeat exactly the mistake already caught and fixed once this session (the "Build &amp; Deployment" menu item that turned out to be a reskinned Admin Dashboard, not a real separate surface). A dedicated route, dedicated component, dedicated data-fetch — same pattern the fixed <code class="inline">/deployments</code> route now uses (<code class="inline">standaloneCategory</code> prop), but here as a genuinely separate page from the start rather than a shared component.</p>
+  <h3>One shared touchpoint, unavoidable and small</h3>
+  <ul class="spec-list">
+    <li><code class="inline">App.tsx</code> gains 2 new <code class="inline">&lt;Route&gt;</code> entries and <code class="inline">ChatPage.tsx</code>'s nav menu gains one new link — both additive, no existing route/link edited.</li>
+    <li><code class="inline">IdentityContext</code> is reused as-is (same <code class="inline">UserProfile</code> shape already threads through every page) — not duplicated.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">04</span><h2>The one optional seam: chat integration — deliberately deferred</h2></div>
+  <div class="callout warn">
+    <span class="callout-label">Tension worth naming directly</span>
+    <p>A user asking the chatbot "I want to borrow from my 401(k)" and getting routed to a real loan flow is the more impressive demo — but it requires adding a new domain agent to <code class="inline">multi_agent_pipeline.py</code>'s own Planner dispatch table, which <em>is</em> touching existing routing logic, even if the agent's own body just calls <code class="inline">loan_401k_service.py</code>. That's a real, if small, intermix — not a false alarm.</p>
+  </div>
+  <p class="lede">Recommendation: build &sect;02–03 first as a fully standalone surface (own page, own API, zero chat involvement) and treat chat integration as a separate, later, explicitly-scoped phase — exactly the same phasing discipline already applied to Phase 233 (visibility, built) vs. Phase 234 (trigger-from-UI, spec-only, deliberately deferred). Isolation stays perfect until that phase is deliberately opened.</p>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">05</span><h2>New settings/credentials needed</h2></div>
+  <div class="schema-wrap">
+    <table class="schema">
+      <caption>Backend <code class="inline">.env</code> additions, mirroring the existing HRB_LMS_MCP_* shape (business name first)</caption>
+      <thead><tr><th>Setting</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code class="inline">LOAN_401K_AGENT_URL</code></td><td>Base URL of the Loan Agent's A2A endpoint</td></tr>
+        <tr><td><code class="inline">LOAN_401K_OAUTH_TOKEN_URL</code></td><td>Reuses the Phase 53 client-credentials pattern, not a new auth mechanism</td></tr>
+        <tr><td><code class="inline">LOAN_401K_OAUTH_CLIENT_ID</code> / <code class="inline">_SECRET</code></td><td>This service's own credentials, never reused from <code class="inline">hrb_lms_mcp</code>'s</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">06</span><h2>Blind spots and course corrections</h2></div>
+  <p class="lede">Straight answers to "are we missing anything" — ranked by how much it actually matters.</p>
+
+  <div class="callout bad">
+    <span class="callout-label"><span class="blindspot-num">1 &middot; biggest gap</span> — identity trust doesn't hold up for real money</span>
+    <p>Every RBAC check in this project today reads an <strong>unsigned, caller-supplied</strong> <code class="inline">user_profile</code> straight from the request body — documented and accepted deliberately, because nothing load-bearing depended on it being real. A 401(k) loan is the first feature in this project where that stops being a comfortable assumption: it authorizes a real financial transaction against a specific employee's real account. Options, not yet decided: (a) explicitly scope this as a <em>simulation</em> — no real money, no real identity guarantee, stated plainly in the UI, matching how the Loan Agent itself is already simulated (design.html &sect;09); (b) treat this as the actual forcing function for finally building the "human-to-app OAuth2" design that's existed only as a placeholder (<code class="inline">common/clients/auth_client/oauth_client.py</code>) since early in this project. Building the loan feature without picking one of these is the real risk, not a hypothetical one.</p>
+  </div>
+
+  <div class="callout warn">
+    <span class="callout-label">2 — PII/financial data handling, not yet designed</span>
+    <p>Vested balance, loan amount, and (eventually) disbursement details are more sensitive than anything this project currently logs. The existing LangSmith tracing, request-metrics logging, and Explainability panel were all designed around RAG/retrieval content — none of them have been reviewed for "should a dollar figure ever reach a trace." Needs an explicit redaction pass before this ships, not an assumption that existing guardrails already cover it.</p>
+  </div>
+
+  <div class="callout warn">
+    <span class="callout-label">3 — idempotency over a 5–7 day async process</span>
+    <p>A <code class="inline">message/send</code> retried after a timeout, or a double-click on "Submit," can create two real loan Tasks instead of one. Needs an idempotency key (client-generated, carried in the DataPart) from day one — not something to patch in after a duplicate is found in production.</p>
+  </div>
+
+  <div class="callout warn">
+    <span class="callout-label">4 — async client style is a real departure worth deciding on purpose</span>
+    <p>This project's existing external clients (<code class="inline">github_actions_client.py</code>, etc.) use synchronous <code class="inline">requests</code>. A real A2A SDK exchange, especially with push-notification callbacks (design.html &sect;07), fits this project's otherwise-async FastAPI style much better with <code class="inline">httpx</code>'s async client. Flagging so it's a deliberate choice for <code class="inline">loan_401k_agent_client.py</code>, not an accidental inconsistency with the rest of <code class="inline">common/clients/</code>.</p>
+  </div>
+
+  <div class="callout good">
+    <span class="callout-label">5 — smaller, easy to fold in: testing isolation</span>
+    <p>Already covered by this project's own existing convention, just worth stating: <code class="inline">tests/hrb_chatbot/loan_401k/</code> mirrors <code class="inline">src/hrb_chatbot/loan_401k/</code> 1:1, same as everywhere else. No special casing needed from the <code class="inline">spec_gate.py</code> hook either — it already gates all of <code class="inline">src/hrb_chatbot/**</code> uniformly, this subtree included.</p>
+  </div>
+
+  <div class="callout good">
+    <span class="callout-label">6 — worth confirming explicitly, not a correction</span>
+    <p>Is "HRB 401k Manager" meant to actually get built and deployed, or does this stay a pure architecture/learning exercise (like the course's own simulated buyer/seller agents)? Doesn't change &sect;01–05's design, but changes how much of &sect;02–05 is worth building for real right now versus keeping as reference material.</p>
+  </div>
+</section>
+
+<section>
+  <div class="section-head"><span class="section-num">07</span><h2>Next steps</h2></div>
+  <ol class="spec-list">
+    <li>Decide blind spot 1 (simulation vs. real identity) and blind spot 6 (build it for real vs. architecture exercise) — both change scope materially, nothing else should start before these.</li>
+    <li>If proceeding: a real <code class="inline">RAG-ROADMAP.md</code> phase + an <code class="inline">endpoint-request-response-contracts.md</code> section for <code class="inline">/v1/401k-loans/*</code>, same SDD process as every other phase in this project.</li>
+    <li>Backend subtree (&sect;02) and frontend subtree (&sect;03) can be built and reviewed independently of each other and of the Loan Agent service itself, as long as the client is stubbed against the Agent Card shape in <code class="inline">design.html</code> &sect;05 first.</li>
+  </ol>
+</section>
+
+<footer class="doc-foot">hrb_chatbot_v2 &middot; design exploration &middot; companion to this folder's design.html</footer>
+
+</div>
+<script>mermaid.initialize({ startOnLoad: true, theme: "neutral" });</script>

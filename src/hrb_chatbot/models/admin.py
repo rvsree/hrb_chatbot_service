@@ -9,6 +9,8 @@ equivalent anywhere)."""
 
 from pydantic import BaseModel
 
+from src.hrb_chatbot.common.enums import Application
+
 
 class AdminConversationSummary(BaseModel):
     conversation_id: str
@@ -128,13 +130,29 @@ class WorkflowRunSummary(BaseModel):
 
 
 class WorkflowStatus(BaseModel):
+    """Phase 235 - one workflow file's own paged run history, with a
+    plain-language `display_name` alongside the real `workflow_file` (the
+    real file name moves to a "?" popover on the frontend, not removed)."""
+
+    workflow_file: str
+    display_name: str
     runs: list[WorkflowRunSummary]
+    total_count: int
+    has_more: bool
     error: str | None
 
 
 class CiStatusResponse(BaseModel):
-    ci: WorkflowStatus
-    deploy: WorkflowStatus
+    """Phase 235 - `workflows` replaces the old fixed `ci`/`deploy` pair,
+    which only ever fit `backend`'s own 2 workflow files - a generic list
+    so it naturally renders however many workflow files the selected
+    `application` actually has (1 for ingestion_lambda/lms_mcp, 2 for
+    backend)."""
+
+    application: Application
+    page: int
+    workflows: list[WorkflowStatus]
+    error: str | None
 
 
 class PipelineStepDetail(BaseModel):
