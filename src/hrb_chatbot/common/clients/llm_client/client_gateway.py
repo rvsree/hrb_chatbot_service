@@ -24,7 +24,10 @@ class ClientGateway:
         self.openrouter_chat_client = None
         self.bedrock_chat_client = None
         self.tavily_search_client = None
-        self.github_actions_client = None
+        # Phase 233 - keyed by repo (not a single shared instance), so a
+        # second repo (hrb_lms_mcp) gets its own cached client instead of
+        # fighting over the default's self.repo.
+        self.github_actions_clients: dict[str, GitHubActionsClient] = {}
 
     def openai_chat(self) -> OpenAIChatClient:
         """Return the shared OpenAI chat client, building it on first use."""
@@ -62,11 +65,16 @@ class ClientGateway:
             self.tavily_search_client = TavilyClient()
         return self.tavily_search_client
 
-    def github_actions(self) -> GitHubActionsClient:
-        """Return the shared GitHub Actions client, building it on first use (Phase 183)."""
-        if self.github_actions_client is None:
-            self.github_actions_client = GitHubActionsClient()
-        return self.github_actions_client
+    def github_actions(self, repo: str | None = None) -> GitHubActionsClient:
+        """Return the shared GitHub Actions client for the given repo,
+        building it on first use (Phase 183; Phase 233 added the repo
+        param). `repo=None` keeps this project's own default
+        (GITHUB_REPO / rvsree/hrb_chatbot_v2) - same GITHUB_TOKEN either
+        way, just pointed at a different repo's Actions API."""
+        key = repo or "default"
+        if key not in self.github_actions_clients:
+            self.github_actions_clients[key] = GitHubActionsClient(repo=repo)
+        return self.github_actions_clients[key]
 
 
 # Module-level singleton, not a DI container - `global` below reuses this

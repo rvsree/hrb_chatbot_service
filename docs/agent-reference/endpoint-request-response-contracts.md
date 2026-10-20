@@ -1140,38 +1140,125 @@ breakdown.
 "groundedness": 0.9, "completeness": 0.85}, "status": "scored"}, ...]`.
 404 (`ADMIN_EVAL_RUN_NOT_FOUND`) for an unknown id.
 
-## GET /v1/admin/ci-status — Finalized (Phase 183)
+## GET /v1/admin/ci-status — Finalized (Phase 183, redesigned Phase 235)
 
 Identity: query params, same Phase 96 convention. `Role.ADMIN` only. Live
-read of this repo's own GitHub Actions `ci.yml`/`deploy.yml` runs (5
-latest each) via `github_actions_client.py`. Never 500s on a GitHub-side
-failure (unset `GITHUB_TOKEN`, rate limit, network) - each workflow's own
-`error` field carries that instead of a crashed request.
+read of one `application`'s GitHub Actions runs via
+`github_actions_client.py`. Never 500s on a GitHub-side failure (unset
+`GITHUB_TOKEN`, rate limit, network) - each workflow's own `error` field
+carries that instead of a crashed request.
+
+**Phase 235 redesign, breaking change** - the original `{ci, deploy}` fixed
+pair only ever fit `backend`'s own 2 workflow files. Phase 233 gave the
+*pipeline* endpoint (`/ci-status/pipeline`) an `application` selector but
+never touched this one (`/ci-status`, the older "Full run history" grid
+below it) - it still only ever showed `hrb_chatbot_v2`'s own `ci.yml`/
+`deploy.yml`, regardless of which application the Application dropdown had
+selected. This redesign gives it the same `application` param, plus new
+`page`/pagination (user-reported: the grid would otherwise grow
+unboundedly tall as more runs accumulate), plus a human-readable
+`display_name` per workflow (user-reported: raw file names like
+`deploy-lambda.yml` aren't meaningful to a non-technical reader - the real
+file name moves to a "?" popover instead, not removed). No caller outside
+this project's own 2 repos existed for the old shape (confirmed - no
+test, no other consumer), so this is a clean replacement, not a
+versioned/dual-shape endpoint.
+
+```
+GET /v1/admin/ci-status?application=backend&page=1&employee_id=...&full_name=...&role=admin
+```
+
+`application: Application = "backend"` - same enum/semantics as Phase
+233's `/ci-status/pipeline?application=...` (see that section below).
+`page: int = 1` (1-indexed) - each workflow file's own run list is paged
+independently, 5 runs per page (reduced from an initial 10 - 2026-10-19,
+user-requested), newest-first (GitHub's own API default
+order, unchanged).
 
 ```json
 {
-  "ci": {
-    "runs": [
-      {
-        "id": 123456,
-        "status": "completed",
-        "conclusion": "success",
-        "head_sha": "d870681",
-        "head_commit_message": "Add golden dataset Postgres mirror",
-        "html_url": "https://github.com/rvsree/hrb_chatbot_v2/actions/runs/123456",
-        "created_at": "2026-10-15T03:58:22Z"
-      }
-    ],
-    "error": null
-  },
-  "deploy": {
-    "runs": [],
-    "error": null
-  }
+  "application": "backend",
+  "page": 1,
+  "workflows": [
+    {
+      "workflow_file": "ci.yml",
+      "display_name": "Continuous Integration Checks",
+      "runs": [
+        {
+          "id": 123456,
+          "run_number": 240,
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "d870681",
+          "head_commit_message": "Add golden dataset Postgres mirror",
+          "html_url": "https://github.com/rvsree/hrb_chatbot_v2/actions/runs/123456",
+          "created_at": "2026-10-15T03:58:22Z"
+        }
+      ],
+      "total_count": 47,
+      "has_more": true,
+      "error": null
+    },
+    {
+      "workflow_file": "deploy.yml",
+      "display_name": "Production Deploy",
+      "runs": [],
+      "total_count": 12,
+      "has_more": true,
+      "error": null
+    }
+  ],
+  "error": null
 }
 ```
-`error` is a string (e.g. `"GITHUB_TOKEN not configured"`) when the
-GitHub-side call failed - `runs` is then always `[]`, never a partial list.
+A workflow's own `error` is a string (e.g. `"GITHUB_TOKEN not configured"`)
+when that one GitHub-side call failed - its `runs` is then always `[]`,
+never a partial list; `total_count`/`has_more` are `0`/`false` in that
+case. The top-level `error` is reused for the same honest-degradation
+pattern Phase 233 established for `frontend` on the pipeline endpoint
+(`hrb_chatbot_ui` has no GitHub Actions workflow at all) - `workflows` is
+then always `[]`. An unrecognized `application` value is a clean 422
+(Pydantic enum validation), same as every other `Application` param.
+
+## `application` on `GET /v1/admin/ci-status/pipeline` (Phase 233) — Finalized
+
+New optional query param, `application: Application = "backend"` (default
+preserves today's exact behavior - every existing caller that doesn't
+pass it keeps working unchanged):
+
+```
+GET /v1/admin/ci-status/pipeline?application=ingestion_lambda&employee_id=...&full_name=...&role=admin
+```
+
+`Application` (new `StrEnum`, `common/enums.py`): `backend` (this
+project's own `ci.yml`/`deploy.yml`, `rvsree/hrb_chatbot_v2`),
+`ingestion_lambda` (`deploy-lambda.yml`, same repo as `backend` but a
+different deployable, filtered out of `backend`'s own view and vice
+versa - they used to be shown mixed together, confirmed confusing in
+practice), `lms_mcp` (`deploy.yml`, `rvsree/hrb_lms_mcp` - a genuinely
+separate repo; the existing `GITHUB_TOKEN` already has real read access
+to it, live-verified before this was written), `frontend`
+(`hrb_chatbot_ui` - **no GitHub Actions workflow exists for it at all**,
+confirmed deliberately deferred per its own README, not a gap in this
+feature).
+
+For `frontend` specifically, the response reuses the *existing*
+`PipelineStatusResponse.error` field rather than inventing a new "no
+CI/CD" response shape - same honest-degradation pattern this field
+already serves for a missing `GITHUB_TOKEN`:
+
+```json
+{
+  "head_sha": "", "head_commit_message": "", "head_branch": "",
+  "event": "", "actor_login": "", "runs": [], "eval_gate": null,
+  "error": "hrb_chatbot_ui has no automated CI/CD yet - deployed manually (npm run build + aws s3 sync + CloudFront invalidation). See hrb_chatbot_ui/README.md."
+}
+```
+
+An unrecognized `application` value is a clean 422 (Pydantic's own enum
+validation at the API boundary), same reasoning every other `StrEnum`
+request param in this project already follows - never a silent fallback
+to `backend`.
 
 ## GET /v1/admin/request-metrics — Finalized (Phase 184)
 

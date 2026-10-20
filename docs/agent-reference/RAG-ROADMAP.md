@@ -18228,3 +18228,450 @@ Explicitly deferred to a later, separate wave - not part of the above:
       would leak which restricted documents exist to a caller who can't
       see them, defeating the gate's own purpose.
     - **Open questions:** none.
+
+- [x] **Phase 233 - CI/CD Pipeline Visibility, multi-application: a real
+  `application` selector (backend/ingestion_lambda/lms_mcp/frontend)
+  instead of one repo's workflows all shown mixed together, plus a
+  honest "no CI/CD" state for the one real deployable that has none.
+  User-requested, after live-deploying this session's own work surfaced
+  that the dashboard only ever reflected `hrb_chatbot_v2`'s own repo.**
+  - **Spec:**
+    - **Context:** this project has 4 real deployables across 2 GitHub
+      repos: `hrb_chatbot_v2`'s own App Runner backend (`ci.yml`/
+      `deploy.yml`) and its ingestion Lambda (`deploy-lambda.yml`, same
+      repo, different target) - both already queried but shown
+      undifferentiated in one view; `hrb_lms_mcp`'s own App Runner-hosted
+      MCP server (`deploy.yml`, a genuinely separate GitHub repo) - zero
+      visibility today, the dashboard's backend only ever talks to
+      `hrb_chatbot_v2`'s repo; and `hrb_chatbot_ui`'s frontend - no
+      GitHub Actions workflow exists for it at all (confirmed: no
+      `.github/workflows/` directory), deployed manually
+      (`npm run build` -> `aws s3 sync` -> CloudFront invalidation,
+      documented in its own README as a deliberately deferred gap, not
+      an oversight to silently work around here).
+    - **Data/API contracts:** see `docs/agent-reference/
+      endpoint-request-response-contracts.md`'s "`application` on
+      `GET /v1/admin/ci-status/pipeline`" section (Phase 233), Finalized.
+    - **User-visible behavior:** a new "Application" dropdown (not child
+      tabs - chosen deliberately over tabs so this scales past 4 without
+      the tab row wrapping/scrolling as more deployables are added later;
+      reuses the same dropdown pattern the existing "Viewing: Live/
+      snapshot" selector right next to it already establishes) lets the
+      admin pick which of the 4 deployables' pipeline to view. `frontend`
+      shows a plain, honest message (no fabricated pipeline stepper for
+      data that doesn't exist) pointing at how it's actually deployed
+      today.
+    - **Changes:**
+      - New `Application` `StrEnum` (`common/enums.py`): `backend`,
+        `ingestion_lambda`, `lms_mcp`, `frontend`.
+      - `common/clients/ci_client/github_actions_client.py` gains
+        `get_latest_run_sha_for_workflow(workflow_file)` - same shape as
+        the existing `get_latest_run_sha()`, scoped to one workflow file.
+        Needed because `ingestion_lambda`/`backend` share one repo but
+        must never resolve "latest commit" to a SHA the OTHER
+        application's own workflow never ran on - `get_latest_run_sha()`'s
+        existing "any workflow in the repo" scope could otherwise do
+        exactly that.
+      - `common/clients/llm_client/client_gateway.py`'s `github_actions()`
+        gains an optional `repo` param, cached per-repo (a dict, not a
+        single shared instance) - lets `lms_mcp` reuse the existing
+        `GITHUB_TOKEN` against `rvsree/hrb_lms_mcp` instead of
+        `rvsree/hrb_chatbot_v2`. **Live-verified before writing this
+        spec**: the existing token already has real read access to
+        `hrb_lms_mcp`'s repo (a direct API call returned real workflow
+        run data, not a 403) - no new credential needed.
+      - `api/admin/manage_admin.py`'s `get_ci_pipeline_status()` gains
+        `application: Application = Application.BACKEND`. Resolves the
+        target repo + relevant workflow file(s) per application, uses
+        `get_latest_run_sha_for_workflow()` for `ingestion_lambda`
+        (`backend` keeps today's `get_latest_run_sha()` behavior
+        unchanged, since `ci.yml` - the one that already effectively
+        anchors "latest" today - is one of `backend`'s own files), then
+        filters `get_runs_for_sha()`'s result down to only the requested
+        application's own workflow file(s) before building the response -
+        this is what actually stops `backend`'s view from ever showing a
+        `deploy-lambda.yml` run again, and vice versa. `frontend` skips
+        the GitHub call entirely and returns the honest "no CI/CD, see
+        README" message via the existing `error` field (not a new
+        response shape - same field already used for a missing
+        `GITHUB_TOKEN`).
+      - `hrb_chatbot_ui`: new `Application` type + dropdown in
+        `AdminDashboardPage.tsx`, wired into `getPipelineStatus()`'s
+        existing call (new optional param, same function). Default
+        `"backend"` preserves today's behavior for anyone who hasn't
+        touched the new dropdown yet.
+    - **Retrieval quality criteria:** N/A - not a retrieval-affecting
+      change.
+    - **Failure modes:** an unrecognized `application` value is a 422
+      (Pydantic enum validation), not a silent fallback. A GitHub-side
+      failure for `lms_mcp`/`ingestion_lambda` degrades the same way
+      `backend` already does today (the existing `error` field), nothing
+      new to handle there.
+    - **Out of scope:** triggering a workflow from the UI (a separate,
+      security-sensitive decision - see the next phase's own spec, not
+      bundled into this read-only visibility work). A persisted "last
+      manually deployed" record for `hrb_chatbot_ui` (would need a new
+      table + something to actually write to it, e.g. this session's own
+      manual `aws s3 sync` calls - real, but a separate decision, not
+      invented here just to make the `frontend` dropdown option look
+      more "live" than it actually is).
+    - **Open questions:** none.
+
+- [ ] **Phase 234 - trigger a workflow from the UI. SPEC ONLY - do not
+  implement until explicitly re-confirmed.** User-requested, scoped out
+  deliberately before any code, since this is a meaningfully different
+  risk category from every other admin-dashboard feature so far: a
+  button that can kick off a real production deploy, not a read-only
+  view.
+  - **Spec:**
+    - **Context:** every admin CI/CD feature built so far (Phases 183,
+      188, 189, 196-198, 233) is explicitly, deliberately read-only - the
+      dashboard's own intro text says so today ("a live read of this
+      repo's own GitHub Actions runs. Read-only."). This phase would be
+      the first exception.
+    - **Data/API contracts:** not yet written - needs its own
+      confirmation pass in `endpoint-request-response-contracts.md`
+      before a spec here is considered final, same as every other
+      wire-shape decision in this project. Sketch only, not finalized:
+      `POST /v1/admin/ci-status/trigger` with `{application, workflow_file,
+      ref}`, `Role.ADMIN` only (not `employee_admin` - matches
+      `DEVOPS_ONLY_CATEGORIES`' existing restriction), returns the new
+      run's id/html_url so the UI can immediately show it as "queued" in
+      the existing Pipeline stepper.
+    - **New credential needed:** the existing `GITHUB_TOKEN` is
+      documented, in the client's own docstring, as read-only
+      (`actions:read` scope) - "this client never triggers or cancels a
+      run." A trigger endpoint needs a **separate, higher-privilege**
+      token (`actions:write` / `workflow` scope) - never widen the
+      existing read-only token's scope, since every other admin-
+      dashboard feature's safety argument today rests on it being
+      incapable of this by construction, not just unused for it.
+    - **Required before implementation, not optional hardening:**
+      1. A real confirmation step in the UI before firing - "Deploy to
+         production" must never be a single-click action.
+      2. An audit trail distinguishing "triggered from this dashboard"
+         vs. "triggered by a real git push" - today's pipeline data
+         can't tell the two apart, and it should be able to once a
+         button can cause one of them.
+      3. Rate limiting / re-entrancy protection on the new endpoint
+         itself - nothing today stops the same admin (or a compromised
+         session) from firing the same deploy repeatedly.
+    - **User-visible behavior:** not decided - deferred until the
+      trigger itself is re-confirmed.
+    - **Out of scope (for now):** everything except the design above.
+      No code, no new token provisioned, no route added.
+    - **Open questions:** does this get built as "trigger any workflow
+      for any application" (more powerful, more to secure) or scoped
+      narrowly to one specific, pre-approved action (e.g. only "re-run
+      `deploy.yml` on `master`," nothing else selectable)? Needs a real
+      answer before `Data/API contracts` above can move past "sketch."
+
+- [x] **Phase 235 - "Full run history" grid: real per-application scoping,
+  pagination, and meaningful workflow names.** User-reported, same
+  feedback batch as Phase 233/232's own fixes: the older "Full run
+  history" section (Phase 183) sits directly below the Pipeline stepper's
+  own Application dropdown but never actually respected it - it was
+  simply hidden for every application except `backend` (a stopgap, not a
+  real fix), it shows a fixed number of runs with no way to see older ones
+  without the page growing taller forever, and its headers are raw
+  GitHub file names (`ci.yml`, `deploy-lambda.yml`) with no explanation
+  for a non-technical reader.
+  - **Spec:**
+    - **Context:** Phase 233 added the `application` selector to the
+      Pipeline stepper (`/ci-status/pipeline`) but deliberately left this
+      older, separate endpoint (`/ci-status`) untouched, noting in its own
+      code comment that doing so properly was a separate piece of work.
+      This phase is that work.
+    - **Data/API contracts:** see `docs/agent-reference/
+      endpoint-request-response-contracts.md`'s "`GET /v1/admin/ci-status`"
+      section (Phase 235), Finalized. Models: `src/hrb_chatbot/models/
+      admin.py`'s `WorkflowStatus` (now carries `workflow_file`/
+      `display_name`/`total_count`/`has_more`, not just `runs`/`error`)
+      and `CiStatusResponse` (`workflows: list[WorkflowStatus]` replacing
+      the old fixed `ci`/`deploy` pair, plus `application`/`page`/`error`).
+    - **User-visible behavior:** the Application dropdown (already built,
+      Phase 233) now actually re-scopes this grid too, not just the
+      Pipeline stepper above it. Each workflow's own card shows a plain-
+      language name (e.g. "Continuous Integration Checks") with the real
+      file name behind a "?" popover - same treatment `PipelineStepper.tsx`
+      already uses for `WORKFLOW_HELP`/`JOB_HELP`, reused here rather than
+      invented fresh. Prev/Next pagination, 10 runs per page per workflow,
+      newest-first (unchanged GitHub ordering) - the page no longer grows
+      without bound as more runs accumulate.
+    - **Changes:**
+      - `common/clients/ci_client/github_actions_client.py`'s
+        `list_workflow_runs()` gains a `page: int = 1` param (passed
+        straight through as GitHub's own `page` query param) and returns
+        `total_count` from GitHub's own response JSON alongside `runs`/
+        `error` - needed to compute `has_more` without a second API call.
+      - `api/admin/manage_admin.py`: new `_WORKFLOW_DISPLAY_NAMES` map
+        (`ci.yml` -> "Continuous Integration Checks", `deploy.yml` ->
+        "Production Deploy", `deploy-lambda.yml` -> "Async Ingestion
+        Deploy") and a `_CI_STATUS_PER_PAGE = 10` constant. `get_ci_status()`
+        gains `application: Application = Application.BACKEND` and
+        `page: int = 1`, reuses the same `_APPLICATION_REPOS`/
+        `_APPLICATION_WORKFLOW_FILES` maps Phase 233 already built (no new
+        per-application mapping invented), and the same `frontend`
+        honest-"no CI/CD" early return as the pipeline endpoint.
+      - `hrb_chatbot_ui`: `CiStatusResponse`/`WorkflowStatus` types
+        redefined to match; `getCiStatus()` gains `application`/`page`
+        params; `AdminDashboardPage.tsx` gets its own `ciStatusPage` state
+        (reset to 1 whenever `selectedApplication` changes, same place
+        `handleSelectApplication()` already resets `selectedSnapshotId`)
+        and a dedicated fetch effect (not bundled into the page's one big
+        `Promise.allSettled` initial load, since this now needs to
+        re-fetch independently on every application/page change);
+        `renderWorkflowStatus()` takes a `WorkflowStatus` entry directly
+        (carries its own `workflow_file`/`display_name` now) instead of a
+        hardcoded `("ci.yml", ciStatus.ci)` call per workflow, and iterates
+        `ciStatus.workflows` so it naturally renders however many workflow
+        files the selected application actually has (1 for
+        `ingestion_lambda`/`lms_mcp`, 2 for `backend`) instead of 2 fixed
+        calls.
+    - **Retrieval quality criteria:** N/A - not a retrieval-affecting
+      change.
+    - **Failure modes:** unchanged from today - a GitHub-side failure for
+      any one workflow file surfaces via that workflow's own `error`
+      field, never a 500; an unrecognized `application` is a 422.
+    - **Out of scope:** changing the Pipeline stepper's own display (that's
+      Phase 233's already-shipped work, this phase only touches the
+      separate "Full run history" grid below it). Persisting run history
+      past GitHub's own retention window - unlike the Pipeline stepper's
+      `pipeline_runs` snapshot table (Phase 189), this grid stays a live
+      GitHub read only, same as before.
+    - **Open questions:** none.
+
+- [x] **Phase 236 - Pipeline tab polish round 2: per-application accent
+  colors, a forced-dark Pipeline subtree, a real Retrieval/Response
+  Generation breakdown for the golden dataset gate, and 3 application-
+  scoping bugs (at-a-glance summary, the gate card, and a misleading
+  error-banner for `frontend`). `hrb_chatbot_ui` only, no backend change.
+  User-requested, same feedback batch as Phase 235.**
+  - **Spec:**
+    - **Context:** after Phase 233/235 made the Pipeline tab/Full run
+      history genuinely multi-application, 2 follow-up rounds of direct
+      user feedback (screenshots) surfaced: (1) the 4 applications' boxes
+      were visually indistinguishable and cramped; (2) the golden dataset
+      gate's aggregated scores were a dense, context-free text line; (3)
+      the "At-a-glance summary" phase bar silently showed all-gray for
+      `ingestion_lambda`/`lms_mcp` - correctly, since it's resolved
+      against `ci.yml`/`deploy.yml`'s own specific job/step names (Phase
+      196), which simply don't exist in `deploy-lambda.yml`'s very
+      different single job - not a bug, but a confusing silent one; (4)
+      `frontend`'s honest "no CI/CD" message rendered as a red
+      `error-banner`, indistinguishable from a genuine GitHub-side
+      failure.
+    - **Data/API contracts:** N/A - no backend/wire-shape change, pure
+      frontend rendering + one new shared constants file
+      (`src/constants/evalMetricGuidance.ts`, extracted from
+      `ExplainabilityModal.tsx`'s own `RETRIEVAL_METRIC_GUIDANCE`/
+      `RESPONSE_METRIC_GUIDANCE` so the golden-dataset-gate's new
+      recommendations reuse the exact same guidance text instead of a
+      second, drifting copy).
+    - **User-visible behavior:**
+      - A left accent-color stripe per application (blue/purple/teal/
+        amber) on the Pipeline tab's own boxes, and the whole subtree now
+        always renders in a forced dark palette (reuses this app's
+        existing dark-mode token values) regardless of the site's own
+        light/dark theme - user-requested, "whichever suits."
+      - More breathing room between the at-a-glance summary/banner/run
+        cards (24/14/20px margins -> 32/26/28px).
+      - The golden dataset gate's metrics are now 2 sub-tabs ("Retrieval
+        Score"/"Response Generation Score" - same pattern
+        `ExplainabilityModal.tsx`'s per-message Eval Score tab already
+        uses), each showing its own metric tiles (color-banded good/
+        warn/poor, 0.70/0.40), a "How this was calculated" methodology
+        note grounded in the real scoring code
+        (`ai/rag_pipeline/evaluations/golden_dataset_harness.py` - LLM-
+        as-judge for both groups, 2 different judge calls), and a
+        Recommendations block (reusing `RETRIEVAL_METRIC_GUIDANCE`/
+        `RESPONSE_METRIC_GUIDANCE`'s `what`/`tune` text) for any metric
+        below 0.80 - a deliberately stricter, separate threshold from the
+        0.70 tile-color banding, confirmed with the user.
+      - "At-a-glance summary" and the golden dataset gate card now only
+        render for `application === "backend"` - honest omission (same
+        reasoning Phase 233 already used for `frontend`'s own "no
+        CI/CD" case) instead of a silently-empty/always-"not run" section
+        for applications these 2 views were never going to have data for.
+      - `pipeline.error` renders as a quiet `dev-note-inline` instead of
+        a red `error-banner` specifically when `application === "frontend"`
+        (the only case where that field is always an expected, fixed
+        message, never a real GitHub-side failure) - every other
+        application keeps the red banner for a genuine failure.
+    - **Changes:** `src/components/PipelineStepper.tsx` (all of the
+      above), `src/constants/evalMetricGuidance.ts` (new, guidance text
+      moved here), `src/components/ExplainabilityModal.tsx` (imports the
+      moved constants instead of its own copies - no behavior change),
+      `src/App.css` (new `.pipeline-dashboard`/`.pipeline-app-*`/
+      `.eval-gate-metric*` rules, spacing adjustments).
+    - **Retrieval quality criteria:** N/A.
+    - **Failure modes:** N/A - no new failure path, purely rendering logic
+      against data this component already receives.
+    - **Out of scope:** a standalone modal/page for the gate's own detail
+      (user confirmed the in-place sub-tab treatment is what they wanted,
+      not a bigger separate view like the per-message Explainability
+      panel). Generalizing the at-a-glance summary to work for every
+      application (would need a per-application phase-bar definition,
+      not just a backend-only gate - a separate, larger decision if
+      wanted later).
+    - **Open questions:** none.
+
+- [x] **Phase 237 - Pipeline tab polish round 3: a real per-query scores
+  grid for the golden dataset gate (reusing `getEvalRun()`, no new
+  endpoint), collapsible frames, a dynamic query-count-aware calculation
+  explanation, removed a useless "Pipeline" label, and a real pagination
+  bug fix for "Full run history" (stale page persisting across tab
+  visits) + page size reduced to 5. `hrb_chatbot_v2` gets one 1-line
+  constant change (`_CI_STATUS_PER_PAGE` 10 -> 5); everything else is
+  `hrb_chatbot_ui` only.**
+  - **Spec:**
+    - **Context:** direct user feedback on Phase 236's own output: (1) the
+      "Pipeline" heading next to the Application dropdown added no
+      information; (2) the gate's "How this was calculated" text was
+      "as usual verbose info" without the real arithmetic or query count,
+      and aggregated-only scores hid which specific golden dataset query
+      was dragging a metric down - user wants to see each query's own
+      score to target tuning at the right layer; (3) "Full run history"
+      pagination looked broken, climbing to Page 14 on its own - traced to
+      `ciStatusPage` never resetting when the CI/CD Pipeline tab was
+      simply re-opened (only an Application switch reset it), so a page
+      number from a past session/visit silently persisted and compounded
+      confusion each time the tab was reopened.
+    - **Data/API contracts:** no new endpoint. The per-query grid reuses
+      `GET /v1/admin/eval-runs/{id}` (`getEvalRun()`), the exact call the
+      existing Eval Runs tab's own row-click modal already makes against
+      `EvalRunDetail.cases` - `pipeline.eval_gate.id` is the same id. Only
+      wire-shape change: `_CI_STATUS_PER_PAGE` 10 -> 5 in
+      `api/admin/manage_admin.py` (no model/contract shape change, just
+      the constant - `endpoint-request-response-contracts.md`'s Phase 235
+      section updated to say 5, not re-finalized as a new section).
+    - **User-visible behavior:**
+      - "Pipeline" heading removed; the Application dropdown row now just
+        right-aligns on its own.
+      - The gate's "How this was calculated" text now states the actual
+        averaging arithmetic with the run's own real `scored_cases` count
+        substituted in (not a hardcoded "25"), and points at the new
+        "Per-query scores" panel for the individual numbers behind that
+        average.
+      - New collapsible (native `<details>`, open by default) "Per-query
+        scores" panel: one row per golden dataset case (`case_id`/
+        `category`), one column per metric in the active sub-tab
+        (Retrieval: Precision/Recall/F1; Response: Groundedness/
+        Completeness), each score shown as a compact good/warn/poor
+        color-banded pill - same 0.70/0.40 banding as the tile grid above
+        it, so a weak query is visually obvious without reading numbers.
+      - The existing Recommendations block is now also a collapsible
+        `<details>` (open by default) instead of always-expanded, so both
+        panels together don't permanently dominate the card - user-
+        requested, "manage real estate."
+      - "Full run history" pagination: re-opening the CI/CD Pipeline tab
+        now always starts from page 1 (a `wasOnCiStatusTabRef` tracks
+        whether the previous render already had the tab open - true
+        "fresh visit" detection, not just an Application-switch reset).
+        Page size 10 -> 5 rows. A workflow with fewer total runs than the
+        page currently shown now says "No runs on this page" instead of
+        the more alarming "No runs found" when paging past its own
+        shorter history while a different workflow in the same grid still
+        has more (e.g. `ci.yml` runs far more often than `deploy.yml`).
+    - **Changes:** `src/pages/AdminDashboardPage.tsx` (pagination reset
+      fix, `evalGateCaseDetail`/`evalGateCaseDetailError` state + fetch
+      effect, "Pipeline" label removed, page-aware empty-state message),
+      `src/components/PipelineStepper.tsx` (`evalGateCaseDetail`/
+      `evalGateCaseDetailError` props, per-query grid, collapsible
+      frames, `evalGateCalculation()` now a function of real
+      `scored_cases` instead of a static string), `src/App.css` (new
+      `.eval-gate-details`/`.eval-gate-case-score` rules),
+      `src/hrb_chatbot/api/admin/manage_admin.py` (`_CI_STATUS_PER_PAGE`
+      5), `tests/hrb_chatbot/api/admin/test_manage_admin.py` (pagination
+      test's own page-5-is-last-page assertion updated to match).
+    - **Retrieval quality criteria:** N/A.
+    - **Failure modes:** `evalGateCaseDetailError` surfaces the same way
+      every other dedicated-fetch-effect error in this file already does
+      (`error-banner`, via `ApiRequestError`) - no new failure path.
+    - **Out of scope:** a dedicated backend endpoint for per-query gate
+      scores (reusing `getEvalRun()` was sufficient - no new route
+      needed). Auditing every other admin grid for the same pagination
+      bug - confirmed (grep, no other "Next"/"Previous" control exists
+      anywhere else in `AdminDashboardPage.tsx`) that "Full run history"
+      is the only paginated grid in the app today, so there was nothing
+      else to check.
+    - **Open questions:** none.
+
+- [x] **Phase 238 - per-query grid gets real question text and per-row
+  recommendations; Application/Viewing dropdowns fixed to left-align; the
+  frontend's duplicated "no automated CI/CD" message shown only once.
+  `hrb_chatbot_ui` only, no backend change.**
+  - **Spec:**
+    - **Context:** direct follow-up feedback on Phase 237: (1) the
+      per-query grid's "Query" column was mislabeled - it actually showed
+      the raw `case_id` (e.g. `401k-01`), not the real question text; (2)
+      user wants recommendations scoped to each individual query row, not
+      only the one aggregate block for the whole metric; (3) the
+      Application/Viewing dropdown row flipped to `flex-end` when the
+      "Pipeline" heading was removed, so it visually shifted depending on
+      which application was selected (whether "Viewing" was present);
+      (4) the frontend's own "no CI/CD" message appeared twice (Pipeline
+      section and Full run history), confirmed redundant via
+      AskUserQuestion and user chose "show it once only."
+    - **Data/API contracts:** N/A - no backend change. The real query text
+      is looked up client-side: `EvalRunCaseDetail.case_id` and
+      `GoldenDatasetCaseSummary.case_key` are the same string (both read
+      `golden_dataset.json`'s own `"id"` field - confirmed by reading
+      `scripts/sync_golden_dataset.py` and `scripts/run_release_gate.py`
+      directly, not assumed), so `goldenDatasetCases` (already loaded by
+      `AdminDashboardPage` for the separate Golden Dataset tab) is passed
+      down to `PipelineStepper` and joined against each row.
+    - **User-visible behavior:**
+      - Per-query grid's first column now shows the real question text
+        (falls back to the raw case id only if no matching golden dataset
+        case is found).
+      - New "Recommendations" column per row: "&#10003; none" when every
+        metric in the active sub-tab is &ge;0.80 for that query, otherwise
+        a clickable "N issue(s)" toggle that expands an inline detail row
+        with that query's own below-threshold metrics - reuses the exact
+        same `RETRIEVAL_METRIC_GUIDANCE`/`RESPONSE_METRIC_GUIDANCE` text
+        as the aggregate Recommendations block, just scoped to one row
+        instead of the whole metric. Per-row, not all-expanded-by-default,
+        to keep a 25-row grid scannable.
+      - Application/Viewing dropdown row now always left-aligns
+        (`flex-start`), so it stays in the same place regardless of
+        whether the Viewing dropdown is present.
+      - "Full run history" (heading included) no longer renders at all for
+        `frontend` - the Pipeline section above it already shows the
+        identical "no automated CI/CD" message.
+    - **Changes:** `src/components/PipelineStepper.tsx`
+      (`goldenDatasetCases` prop, per-row `expandedCaseIds` state/toggle,
+      Query/Recommendations columns), `src/pages/AdminDashboardPage.tsx`
+      (passes `goldenDatasetCases` through, `flex-start`, hides Full run
+      history for `frontend`).
+    - **Retrieval quality criteria:** N/A.
+    - **Failure modes:** N/A - no new failure path.
+    - **Out of scope:** none.
+    - **Open questions:** none.
+    - **Correction, same phase (found while implementing per-row
+      recommendations, re-verifying what the gate's own numbers meant
+      before explaining them to the user):** Phase 236/237's
+      `evalGateCalculation()` text wrongly described this card's
+      Precision/Recall/F1 as LLM-judge-based (it copied the mental model
+      of `evaluate_retrieval_relevance()`, the LIVE per-message method
+      genai-rag's own real-time Explainability panel uses). The golden-
+      dataset gate (`scripts/run_release_gate.py`) actually calls
+      `calculate_retrieval_metrics()` - the IK FDE course's own exact-
+      match method: each case has exactly 1 labeled
+      `expected_source_document`, compared by filename against the top-k
+      retrieved chunks. Confirmed by reading both functions directly, not
+      assumed. Fixed: `evalGateCalculation()` now states the real
+      exact-match mechanism and the real `retrieval_k` (from
+      `EvalRunSummary.retrieval_k`, already a real field, not new).
+      Precision/F1 are mathematically capped at `1/retrieval_k` whenever
+      only 1 relevant document can ever exist per case (0.20 at k=5) -
+      `scripts/run_release_gate.py`'s own `GATE_METRICS` already excludes
+      both from the real pass/fail decision for exactly this reason
+      (`recall`/`groundedness`/`completeness` only). The UI previously
+      flagged Precision/F1 as "needs tuning" below 0.80 and colored their
+      tiles red ("poor") even when retrieval was working perfectly -
+      actively misleading. Fixed: a new `RECOMMENDATION_ELIGIBLE_METRICS`
+      set (`recall`/`groundedness`/`completeness`) excludes Precision/F1
+      from both the Recommendations logic (aggregate and per-row) and the
+      good/warn/poor tile coloring, which now shows a neutral "(capped)"
+      info-colored band for those 2 metrics instead of red.
