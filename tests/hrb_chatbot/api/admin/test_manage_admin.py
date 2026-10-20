@@ -539,13 +539,36 @@ class _FakeGitHubActionsClient:
     """Phase 188 - controlled fixture data standing in for real GitHub
     Actions API responses, same never-raises shape as the real client."""
 
-    def __init__(self, latest_sha="abc1234", runs=None, jobs_by_run_id=None, error=None):
+    def __init__(self, latest_sha="abc1234", runs=None, jobs_by_run_id=None, error=None, runs_by_workflow_file=None, total_count_by_workflow_file=None):
         self.latest_sha = latest_sha
         self.runs = runs if runs is not None else []
         self.jobs_by_run_id = jobs_by_run_id or {}
         self.error = error
+        # Phase 235 - fixture data for list_workflow_runs(), keyed by
+        # workflow_file - separate from `runs` above, which backs
+        # get_runs_for_sha() for the Pipeline stepper's own tests.
+        self.runs_by_workflow_file = runs_by_workflow_file or {}
+        self.total_count_by_workflow_file = total_count_by_workflow_file or {}
+        self.list_workflow_runs_calls = []
+
+    def list_workflow_runs(self, workflow_file, per_page=5, page=1):
+        self.list_workflow_runs_calls.append((workflow_file, per_page, page))
+        if self.error:
+            return {"runs": [], "total_count": 0, "error": self.error}
+        runs = self.runs_by_workflow_file.get(workflow_file, [])
+        total_count = self.total_count_by_workflow_file.get(workflow_file, len(runs))
+        return {"runs": runs, "total_count": total_count, "error": None}
 
     def get_latest_run_sha(self):
+        if self.error:
+            return {"sha": None, "error": self.error}
+        return {"sha": self.latest_sha, "error": None}
+
+    def get_latest_run_sha_for_workflow(self, workflow_file):
+        # Phase 233 - same fixture data as get_latest_run_sha(), real
+        # tests only need to confirm the route calls this one when an
+        # application's own anchor_workflow is set, not a different sha
+        # per workflow file.
         if self.error:
             return {"sha": None, "error": self.error}
         return {"sha": self.latest_sha, "error": None}
@@ -559,12 +582,133 @@ class _FakeGitHubActionsClient:
         return {"jobs": self.jobs_by_run_id.get(run_id, []), "error": None}
 
 
-def _fake_client_gateway_with_github(fake_github):
+def _fake_client_gateway_with_github(fake_github, requested_repos=None):
+    # Phase 233 - requested_repos (a list, if given) records every repo=
+    # value github_actions() was called with, so a test can confirm which
+    # repo a given `application` actually requested.
     class _FakeClientGateway:
-        def github_actions(self):
+        def github_actions(self, repo=None):
+            if requested_repos is not None:
+                requested_repos.append(repo)
             return fake_github
 
     return _FakeClientGateway()
+
+
+def _fake_workflow_run(run_id, run_number):
+    return {
+        "id": run_id,
+        "run_number": run_number,
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "d870681",
+        "head_commit_message": "A real commit",
+        "html_url": f"https://github.com/rvsree/hrb_chatbot_v2/actions/runs/{run_id}",
+        "created_at": "2026-10-19T03:58:22Z",
+    }
+
+
+def test_employee_admin_cannot_view_ci_status(monkeypatch):
+    response = client.get("/v1/admin/ci-status", params=EMPLOYEE_ADMIN_PROFILE)
+    assert response.status_code == 403
+
+
+def test_ci_status_defaults_to_backend_with_both_workflows(monkeypatch):
+    fake_github = _FakeGitHubActionsClient(
+        runs_by_workflow_file={
+            "ci.yml": [_fake_workflow_run(1, 240)],
+            "deploy.yml": [_fake_workflow_run(2, 58)],
+        },
+    )
+    requested_repos = []
+    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github, requested_repos))
+
+    response = client.get("/v1/admin/ci-status", params=ADMIN_PROFILE)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["application"] == "backend"
+    assert body["page"] == 1
+    assert body["error"] is None
+    assert [w["workflow_file"] for w in body["workflows"]] == ["ci.yml", "deploy.yml"]
+    assert body["workflows"][0]["display_name"] == "Continuous Integration Checks"
+    assert body["workflows"][1]["display_name"] == "Production Deploy"
+    assert body["workflows"][0]["runs"][0]["run_number"] == 240
+    # backend's own default repo - github_actions() called with repo=None.
+    assert requested_repos == [None]
+
+
+def test_ci_status_ingestion_lambda_shows_only_its_own_workflow(monkeypatch):
+    fake_github = _FakeGitHubActionsClient(
+        runs_by_workflow_file={"deploy-lambda.yml": [_fake_workflow_run(3, 12)]},
+    )
+    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github))
+
+    response = client.get("/v1/admin/ci-status", params={**ADMIN_PROFILE, "application": "ingestion_lambda"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [w["workflow_file"] for w in body["workflows"]] == ["deploy-lambda.yml"]
+    assert body["workflows"][0]["display_name"] == "Async Ingestion Deploy"
+
+
+def test_ci_status_lms_mcp_uses_its_own_repo(monkeypatch):
+    fake_github = _FakeGitHubActionsClient(runs_by_workflow_file={"deploy.yml": []})
+    requested_repos = []
+    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github, requested_repos))
+
+    response = client.get("/v1/admin/ci-status", params={**ADMIN_PROFILE, "application": "lms_mcp"})
+
+    assert response.status_code == 200
+    assert requested_repos == ["rvsree/hrb_lms_mcp"]
+
+
+def test_ci_status_frontend_returns_honest_message_and_skips_github_call(monkeypatch):
+    fake_github = _FakeGitHubActionsClient(error="should never be called for frontend")
+    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github))
+
+    response = client.get("/v1/admin/ci-status", params={**ADMIN_PROFILE, "application": "frontend"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["workflows"] == []
+    assert "no automated CI/CD" in body["error"]
+
+
+def test_ci_status_has_more_true_when_additional_pages_exist(monkeypatch):
+    fake_github = _FakeGitHubActionsClient(
+        runs_by_workflow_file={"ci.yml": [_fake_workflow_run(1, 1)], "deploy.yml": []},
+        total_count_by_workflow_file={"ci.yml": 25, "deploy.yml": 0},
+    )
+    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github))
+
+    response = client.get("/v1/admin/ci-status", params={**ADMIN_PROFILE, "page": 1})
+
+    body = response.json()
+    ci_workflow = next(w for w in body["workflows"] if w["workflow_file"] == "ci.yml")
+    assert ci_workflow["total_count"] == 25
+    assert ci_workflow["has_more"] is True
+
+    # 25 total runs at 5 per page (_CI_STATUS_PER_PAGE) - page 5 is the
+    # real last page (5 * 5 = 25, nothing beyond it).
+    response_last_page = client.get("/v1/admin/ci-status", params={**ADMIN_PROFILE, "page": 5})
+    body_last_page = response_last_page.json()
+    ci_workflow_last_page = next(w for w in body_last_page["workflows"] if w["workflow_file"] == "ci.yml")
+    assert ci_workflow_last_page["has_more"] is False
+
+
+def test_ci_status_surfaces_a_github_error_per_workflow(monkeypatch):
+    fake_github = _FakeGitHubActionsClient(error="GITHUB_TOKEN not configured")
+    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github))
+
+    response = client.get("/v1/admin/ci-status", params=ADMIN_PROFILE)
+
+    body = response.json()
+    assert body["error"] is None
+    for workflow in body["workflows"]:
+        assert workflow["error"] == "GITHUB_TOKEN not configured"
+        assert workflow["runs"] == []
+        assert workflow["has_more"] is False
 
 
 def test_employee_admin_cannot_view_pipeline_status(monkeypatch):
@@ -725,6 +869,165 @@ def test_pipeline_status_persists_a_snapshot_on_read(monkeypatch):
     assert body["count"] == 1
     assert body["snapshots"][0]["head_sha"] == "cafef00d"
     assert body["snapshots"][0]["head_commit_message"] == "A real commit"
+
+
+def test_pipeline_status_frontend_application_returns_the_honest_no_cicd_message(monkeypatch):
+    """Phase 233 - hrb_chatbot_ui has no GitHub Actions workflow at all -
+    this must never touch GitHub, just return the honest message."""
+    requested_repos = []
+    fake_github = _FakeGitHubActionsClient(error="should never be called for frontend")
+    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github, requested_repos))
+
+    response = client.get("/v1/admin/ci-status/pipeline", params={**ADMIN_PROFILE, "application": "frontend"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["runs"] == []
+    assert "no automated CI/CD" in body["error"]
+    assert "hrb_chatbot_ui/README.md" in body["error"]
+    assert requested_repos == []
+
+
+def test_pipeline_status_ingestion_lambda_filters_out_the_backend_workflows(monkeypatch):
+    """Phase 233 - a shared repo can have BOTH kinds of run on one commit;
+    ingestion_lambda must only ever show its own deploy-lambda.yml."""
+    fake_github = _FakeGitHubActionsClient(
+        latest_sha="shared1234",
+        runs=[
+            {
+                "id": 1, "run_number": 240, "workflow_file": "ci.yml", "status": "completed", "conclusion": "success",
+                "head_commit_message": "c", "head_branch": "develop", "event": "push", "actor_login": "rvsree",
+                "html_url": "https://github.com/.../runs/1", "created_at": "2026-10-19T00:00:00Z",
+            },
+            {
+                "id": 2, "run_number": 23, "workflow_file": "deploy-lambda.yml", "status": "completed", "conclusion": "success",
+                "head_commit_message": "c", "head_branch": "master", "event": "push", "actor_login": "rvsree",
+                "html_url": "https://github.com/.../runs/2", "created_at": "2026-10-19T00:01:00Z",
+            },
+        ],
+        jobs_by_run_id={1: [], 2: []},
+    )
+    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github))
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(eval_run_store=FakeEvalRunStore(runs=[])))
+
+    response = client.get("/v1/admin/ci-status/pipeline", params={**ADMIN_PROFILE, "application": "ingestion_lambda"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [run["workflow_file"] for run in body["runs"]] == ["deploy-lambda.yml"]
+
+
+def test_pipeline_status_backend_filters_out_the_ingestion_lambda_workflow(monkeypatch):
+    """Inverse of the above - backend (the default) must never show
+    deploy-lambda.yml, even when it ran on the very same commit."""
+    fake_github = _FakeGitHubActionsClient(
+        latest_sha="shared1234",
+        runs=[
+            {
+                "id": 1, "run_number": 240, "workflow_file": "ci.yml", "status": "completed", "conclusion": "success",
+                "head_commit_message": "c", "head_branch": "develop", "event": "push", "actor_login": "rvsree",
+                "html_url": "https://github.com/.../runs/1", "created_at": "2026-10-19T00:00:00Z",
+            },
+            {
+                "id": 2, "run_number": 23, "workflow_file": "deploy-lambda.yml", "status": "completed", "conclusion": "success",
+                "head_commit_message": "c", "head_branch": "master", "event": "push", "actor_login": "rvsree",
+                "html_url": "https://github.com/.../runs/2", "created_at": "2026-10-19T00:01:00Z",
+            },
+        ],
+        jobs_by_run_id={1: [], 2: []},
+    )
+    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github))
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(eval_run_store=FakeEvalRunStore(runs=[])))
+
+    response = client.get("/v1/admin/ci-status/pipeline", params=ADMIN_PROFILE)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "deploy-lambda.yml" not in [run["workflow_file"] for run in body["runs"]]
+
+
+def test_pipeline_status_lms_mcp_requests_the_separate_repo(monkeypatch):
+    """Phase 233 - lms_mcp is a genuinely separate GitHub repo, confirmed
+    live-accessible with the existing GITHUB_TOKEN before this was built."""
+    requested_repos = []
+    fake_github = _FakeGitHubActionsClient(
+        latest_sha="mcp5678",
+        runs=[
+            {
+                "id": 1, "run_number": 23, "workflow_file": "deploy.yml", "status": "completed", "conclusion": "success",
+                "head_commit_message": "Add HITL admin tooling", "head_branch": "lms_mcp_tools_standardized_v4",
+                "event": "push", "actor_login": "rvsree", "html_url": "https://github.com/.../runs/1",
+                "created_at": "2026-10-19T00:00:00Z",
+            },
+        ],
+        jobs_by_run_id={1: []},
+    )
+    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github, requested_repos))
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(eval_run_store=FakeEvalRunStore(runs=[])))
+
+    response = client.get("/v1/admin/ci-status/pipeline", params={**ADMIN_PROFILE, "application": "lms_mcp"})
+
+    assert response.status_code == 200
+    assert requested_repos == ["rvsree/hrb_lms_mcp"]
+
+
+def test_pipeline_status_eval_gate_only_looked_up_for_backend(monkeypatch):
+    """Phase 233 - eval_run_store only ever holds hrb_chatbot_v2's own
+    golden-dataset runs; showing one for an lms_mcp deploy would be a
+    meaningless coincidence of timing, not a real correlation."""
+    fake_github = _FakeGitHubActionsClient(
+        latest_sha="mcp5678",
+        runs=[
+            {
+                "id": 1, "run_number": 23, "workflow_file": "deploy.yml", "status": "completed", "conclusion": "success",
+                "head_commit_message": "c", "head_branch": "master", "event": "push", "actor_login": "rvsree",
+                "html_url": "https://github.com/.../runs/1", "created_at": "2026-10-19T00:00:00Z",
+            },
+        ],
+        jobs_by_run_id={1: []},
+    )
+    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github))
+    eval_store = FakeEvalRunStore(
+        runs=[{
+            "id": 1, "run_at": "2026-10-18T00:00:00Z", "decision": "PASS", "flags": [],
+            "aggregated_scores": {"recall": 0.9}, "total_cases": 26, "scored_cases": 26,
+            "failed_case_ids": [], "retrieval_k": 5,
+        }]
+    )
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(eval_run_store=eval_store))
+
+    response = client.get("/v1/admin/ci-status/pipeline", params={**ADMIN_PROFILE, "application": "lms_mcp"})
+
+    assert response.status_code == 200
+    assert response.json()["eval_gate"] is None
+
+
+def test_pipeline_status_snapshot_not_persisted_for_non_backend_application(monkeypatch):
+    """Phase 233 - pipeline_runs is keyed by head_sha alone with no
+    application column; persisting a non-backend snapshot there would mix
+    undifferentiated history across applications - deliberately skipped."""
+    fake_github = _FakeGitHubActionsClient(
+        latest_sha="mcp5678",
+        runs=[
+            {
+                "id": 1, "run_number": 23, "workflow_file": "deploy.yml", "status": "completed", "conclusion": "success",
+                "head_commit_message": "c", "head_branch": "master", "event": "push", "actor_login": "rvsree",
+                "html_url": "https://github.com/.../runs/1", "created_at": "2026-10-19T00:00:00Z",
+            },
+        ],
+        jobs_by_run_id={1: []},
+    )
+    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github))
+    pipeline_store = FakePipelineRunStore()
+    monkeypatch.setattr(
+        manage_admin, "get_db_gateway",
+        lambda: FakeDBGateway(eval_run_store=FakeEvalRunStore(runs=[]), pipeline_run_store=pipeline_store),
+    )
+
+    response = client.get("/v1/admin/ci-status/pipeline", params={**ADMIN_PROFILE, "application": "lms_mcp"})
+
+    assert response.status_code == 200
+    assert pipeline_store._by_sha == {}
 
 
 def test_employee_admin_cannot_view_pipeline_history(monkeypatch):

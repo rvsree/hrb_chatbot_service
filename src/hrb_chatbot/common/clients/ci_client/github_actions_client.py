@@ -38,26 +38,30 @@ class GitHubActionsClient:
             "X-GitHub-Api-Version": "2022-11-28",
         }
 
-    def list_workflow_runs(self, workflow_file: str, per_page: int = 5) -> dict:
+    def list_workflow_runs(self, workflow_file: str, per_page: int = 5, page: int = 1) -> dict:
         """Latest runs of one workflow file (e.g. "ci.yml"). Never raises -
-        {"runs": [], "error": "..."} on any failure, including an unset
-        token, matching the client-layer-returns-errors-as-data convention."""
+        {"runs": [], "total_count": 0, "error": "..."} on any failure,
+        including an unset token, matching the client-layer-returns-errors-
+        as-data convention. Phase 235 - `page` (GitHub's own 1-indexed
+        `page` query param) and the real `total_count` from GitHub's own
+        response, so a caller can page through history instead of only
+        ever seeing the newest `per_page` runs."""
         if not self.token:
-            return {"runs": [], "error": "GITHUB_TOKEN not configured"}
+            return {"runs": [], "total_count": 0, "error": "GITHUB_TOKEN not configured"}
 
         url = f"{self.base_url}/repos/{self.repo}/actions/workflows/{workflow_file}/runs"
         try:
             response = requests.get(
                 url,
                 headers=self.build_headers(),
-                params={"per_page": per_page},
+                params={"per_page": per_page, "page": page},
                 timeout=self.DEFAULT_TIMEOUT_SECONDS,
             )
             response.raise_for_status()
             data = response.json()
         except Exception as error:
             logger.warning("[GITHUB_ACTIONS] Could not list runs for %s: %s", workflow_file, error)
-            return {"runs": [], "error": str(error)}
+            return {"runs": [], "total_count": 0, "error": str(error)}
 
         runs = [
             {
@@ -74,7 +78,7 @@ class GitHubActionsClient:
             }
             for run in data.get("workflow_runs", [])
         ]
-        return {"runs": runs, "error": None}
+        return {"runs": runs, "total_count": data.get("total_count", len(runs)), "error": None}
 
     def get_latest_run_sha(self) -> dict:
         """Full (untruncated) head_sha of the single most recent workflow
@@ -92,6 +96,32 @@ class GitHubActionsClient:
             data = response.json()
         except Exception as error:
             logger.warning("[GITHUB_ACTIONS] Could not fetch the latest run: %s", error)
+            return {"sha": None, "error": str(error)}
+
+        runs = data.get("workflow_runs", [])
+        if not runs:
+            return {"sha": None, "error": "No workflow runs found"}
+        return {"sha": runs[0]["head_sha"], "error": None}
+
+    def get_latest_run_sha_for_workflow(self, workflow_file: str) -> dict:
+        """Phase 233 - same shape as get_latest_run_sha(), scoped to one
+        workflow file. Needed when a repo hosts more than one real
+        application (hrb_chatbot_v2's own backend vs. its ingestion
+        Lambda) - get_latest_run_sha()'s "any workflow in the repo" scope
+        could otherwise resolve "latest commit" to a sha the OTHER
+        application's own workflow never actually ran on."""
+        if not self.token:
+            return {"sha": None, "error": "GITHUB_TOKEN not configured"}
+
+        url = f"{self.base_url}/repos/{self.repo}/actions/workflows/{workflow_file}/runs"
+        try:
+            response = requests.get(
+                url, headers=self.build_headers(), params={"per_page": 1}, timeout=self.DEFAULT_TIMEOUT_SECONDS
+            )
+            response.raise_for_status()
+            data = response.json()
+        except Exception as error:
+            logger.warning("[GITHUB_ACTIONS] Could not fetch the latest run for %s: %s", workflow_file, error)
             return {"sha": None, "error": str(error)}
 
         runs = data.get("workflow_runs", [])

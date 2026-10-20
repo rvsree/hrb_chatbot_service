@@ -17,6 +17,20 @@ class MetadataStore(StrEnum):
     POSTGRES = "postgres"
 
 
+class Application(StrEnum):
+    """Phase 233 - which real deployable the CI/CD Pipeline Visibility
+    dashboard is showing. BACKEND/INGESTION_LAMBDA share one GitHub repo
+    (hrb_chatbot_v2) but are different workflow files/deploy targets;
+    LMS_MCP is a genuinely separate repo (rvsree/hrb_lms_mcp); FRONTEND
+    (hrb_chatbot_ui) has no GitHub Actions workflow at all - deployed
+    manually, see its own README."""
+
+    BACKEND = "backend"
+    INGESTION_LAMBDA = "ingestion_lambda"
+    LMS_MCP = "lms_mcp"
+    FRONTEND = "frontend"
+
+
 class LlmProvider(StrEnum):
     """Which chat LLM provider to use - see client_gateway.ClientGateway."""
 
