@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>React UI</title>
 <link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+<style>
+  .mermaid-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin: 16px 0; overflow-x: auto; }
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -16,6 +20,7 @@
 <div class="flag"><strong>Sequencing, confirmed — this is the last milestone.</strong> Starts only after <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=pinecone-standard" target="_blank" rel="noopener noreferrer">Pinecone</a>, <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=redis-cache" target="_blank" rel="noopener noreferrer">Redis</a>, and <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=rag-ingestion-batch" target="_blank" rel="noopener noreferrer">S3+Lambda batch ingestion</a> are all implemented, tested, and deployed to AWS. Don't start scaffolding until all three are done — see <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=milestone-plan" target="_blank" rel="noopener noreferrer">the milestone plan</a> for the full order.</div>
 
 <div class="flag"><strong>Update, 2026-10-06: all three prerequisites are done (Phases 88-90) — this milestone is unblocked.</strong> Before any scaffolding starts: <a href="../ui-wireframes-review.html">wireframes for 5 screens</a> (login, chat, feedback popup, explainability popup, batch upload) are published for review and explicit sign-off — not yet approved, not yet implemented.</div>
+<div class="flag"><strong>Update, 2026-10-19: this whole milestone is done and live.</strong> Everything below this point was written before scaffolding started and still reads that way ("Action items" lists things as not-yet-done that are, in fact, done) - kept as-is since rewriting the planning narrative is a separate, larger task from adding the real deploy diagram below. The real repo is <code>hrb_chatbot_ui</code> (sibling repo, same recommendation as "Same repo or separate repo?" below concluded against, in the end a separate repo was used - its own README explains the actual reasoning), live at <code>hrb-chatbot-ui.rvsree.dev</code>, with its own full page set (chat, documents, admin dashboard, leave approvals, FAQ, interview Q&amp;A, and more) well beyond the single chat screen this page describes as the starting point.</div>
 
 <h2>Same repo or separate repo?</h2>
 <p><strong>Recommendation: same repo, a <code>frontend/</code> folder.</strong> Not the "easier" choice made for convenience — the reasoning:</p>
@@ -60,8 +65,30 @@
 <li>Add TanStack Query for the request/loading/error state (the RxJS-shaped problem you already know how to think about)</li>
 <li>Add a minimal "who am I" selector (name + role dropdown) to populate <code>user_profile</code> — a stand-in for real login, consistent with how Postman testing already works against this API</li>
 <li>Local dev: <code>npm run dev</code> (Vite) talking to <code>uvicorn --reload</code> locally — two processes, two ports, same as Angular dev server + a local Spring Boot API</li>
-<li>Deployment plan (once the UI works locally): a static React build (<code>npm run build</code> &rarr; plain HTML/JS/CSS) is <strong>not</strong> an App Runner container — it deploys to <strong>S3 (static hosting) + CloudFront</strong> instead, the standard AWS pattern for a single-page app. Different pipeline from the backend's Docker/ECR/App Runner one.</li>
+<li>Deployment (real, done): a static React build (<code>npm run build</code> &rarr; plain HTML/JS/CSS) is <strong>not</strong> an App Runner container — it deploys to <strong>S3 (<code>hrb-chatbot-ui-rvsree</code> bucket, static hosting) + CloudFront</strong> instead, the standard AWS pattern for a single-page app. Different pipeline from the backend's Docker/ECR/App Runner one, and - unlike the backend - no GitHub Actions workflow exists for it: every deploy is 3 commands, run by hand.</li>
 </ul>
+
+<h3>The deploy pipeline, as a diagram</h3>
+<p>No CI/CD for this repo yet (a real, acknowledged gap - see the Admin Dashboard's own CI/CD Pipeline tab, which shows an honest "no automated CI/CD" message for this application rather than faking a pipeline view). Every production deploy is these 3 commands, run from a developer's own machine:</p>
+<div class="mermaid-wrap">
+<pre class="mermaid">
+sequenceDiagram
+    actor Dev
+    participant Local as npm run build
+    participant S3 as S3<br/>(hrb-chatbot-ui-rvsree)
+    participant CF as CloudFront<br/>(distribution E1CBYCM65AXV9Y)
+    participant Live as Live URL<br/>hrb-chatbot-ui.rvsree.dev
+
+    Dev->>Local: npm run build
+    Note over Local: tsc -b && vite build<br/>produces dist/ (plain HTML/JS/CSS, no server)
+    Dev->>S3: aws s3 sync dist/ s3://hrb-chatbot-ui-rvsree --delete
+    Note over S3: --delete removes any file from a previous<br/>build no longer present in this one
+    Dev->>CF: aws cloudfront create-invalidation --paths "/*"
+    Note over CF: without this, CloudFront keeps serving the<br/>OLD cached build at the edge for its full TTL
+    CF->>Live: new build now actually served
+</pre>
+</div>
+<script>mermaid.initialize({ startOnLoad: true, theme: "neutral" });</script>
 
 <div class="pager">
 <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=nfr-reliability-resilience" target="_blank" rel="noopener noreferrer">&larr; NFR &amp; Resilience</a>

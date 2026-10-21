@@ -18675,3 +18675,79 @@ Explicitly deferred to a later, separate wave - not part of the above:
       from both the Recommendations logic (aggregate and per-row) and the
       good/warn/poor tile coloring, which now shows a neutral "(capped)"
       info-colored band for those 2 metrics instead of red.
+
+- [x] **Phase 239 - real MCP tool discovery (`session.list_tools()`), replacing
+  the current hardcoded-function-per-tool pattern, structured so a second
+  MCP server could be merged into the same catalog later. User-directed,
+  explicitly grounded in the real IK FDE cohort course code
+  (`github.com/jeev1992/real-estate-negotiation-simulator/m1_mcp/
+  sse_agent_client.py`, re-fetched directly for this phase, not from
+  memory).**
+  - **Spec:**
+    - **Context:** `BACKLOG.md`'s "MCP gaps found by reviewing a cohort-
+      mate's M1 MCP submission" entry (2026-10-15) flagged 2 unimplemented
+      gaps against the course's own `m1_mcp` module. Gap #1 (JSON-unwrap
+      duplication) was already fixed since (see `_call_mcp_tool_json()`'s
+      own docstring). This phase is gap #2's real prerequisite: before
+      investigating while scoping this phase, confirmed live that
+      `ai/rag_pipeline/tools/mcp_tools/__init__.py` has **no
+      `list_tools()`-based discovery at all**, for even the one real MCP
+      server (`hrb_lms_mcp`) this project has today - every tool
+      (`get_leave_balance`, `submit_unpaid_leave_request`, etc.) is its
+      own hardcoded Python function calling `session.call_tool(tool_name,
+      ...)` with a name it already knows, and `genai-rag`'s own routing to
+      them is plain keyword matching (`is_leave_balance_query`), not LLM-
+      driven selection. The course's own multi-server merge pattern
+      (`sse_agent_client.py --both`: call `list_tools()` per server, merge
+      into one combined list, keep a `tool_name -> server` routing table)
+      assumes real discovery exists first - here it doesn't, for 1 server
+      or N. Building the N-server merge directly, with no second real
+      server to prove it against, would be scaffolding - this phase builds
+      the real, immediately useful prerequisite instead: genuine discovery
+      against the one real server that exists, structured so a second
+      server extends the same routing table later without a rewrite.
+    - **Data/API contracts:** new `GET /v1/admin/mcp-tools` - `Role.ADMIN`
+      only, same RBAC pattern as every other admin route. Returns the live
+      discovered tool catalog: `{"tools": [{"name": str, "description":
+      str, "input_schema": dict, "server_id": str}], "error": str | None}`.
+      Never 500s on an MCP-side failure (unset token, server down) -
+      matches the existing error-as-data convention every other MCP call
+      in this module already follows.
+    - **User-visible behavior:** Admin Dashboard gets a way to see the
+      real, live set of tools `hrb_lms_mcp` currently exposes, instead of
+      only inferring it from reading the hardcoded Python wrapper
+      functions. No change to any existing route/behavior - purely
+      additive, read-only introspection.
+    - **Changes:**
+      - `ai/rag_pipeline/tools/mcp_tools/__init__.py`: new
+        `discover_mcp_tools(server_id, url_setting_name)` - opens one MCP
+        session, calls `session.list_tools()`, returns the real catalog
+        (name/description/input_schema/server_id per tool) instead of a
+        hardcoded function existing per tool. New `MCP_SERVERS: dict[str,
+        str]` (`{MCP_SERVER_ID: "HRB_LMS_MCP_URL"}` today, one entry) -
+        the course's own `server_sessions` pattern, generalized: a second
+        real MCP server extends this dict, not a rewrite of how a call
+        gets routed. New `get_mcp_tool_catalog(force_refresh=False)` -
+        merges every configured server's own catalog into one `tool_name
+        -> tool` dict (today, trivially, from the 1 configured server),
+        in-process cached since the catalog rarely changes within a
+        process lifetime.
+      - `api/admin/manage_admin.py`: new `GET /mcp-tools` route calling
+        `get_mcp_tool_catalog()`.
+      - Existing hardcoded tool functions (`get_leave_balance`, etc.) are
+        **not removed or changed** - this phase adds real discovery
+        alongside them, it doesn't replace the working call path.
+    - **Retrieval quality criteria:** N/A - not a retrieval-affecting
+      change.
+    - **Failure modes:** an MCP-side failure (server down, bad token)
+      surfaces via the route's own `error` field, `tools: []` - never a
+      500, same pattern as every other MCP-backed endpoint.
+    - **Out of scope:** the real multi-server merge itself (no second
+      real MCP server exists to merge with - this phase only builds the
+      structure that would support it). MCP Resources/Prompts primitives
+      (`BACKLOG.md`'s gap #3) - deliberately not used, this project's data
+      is tool-shaped, not document-shaped, a separate and still-correct
+      finding from the original cohort-review. A frontend panel showing
+      this catalog in the Admin Dashboard - flagged as a natural follow-up,
+      not bundled into this backend-only phase.
+    - **Open questions:** none.

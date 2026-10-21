@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Module Boundary Plan</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef0f4; --surface: #ffffff; --surface-alt: #f4f5f9; --border: #d9dce4;
+    --text: #191d28; --text-muted: #565f72; --text-faint: #8992a4;
+    --now: #1f8a4c; --now-bg: #e6f5ec; --now-border: #b9e2c9;
+    --logical: #333f9e; --logical-bg: #e8eafc; --logical-border: #c7cdf5;
+    --later: #b8790a; --later-bg: #fbf1dd; --later-border: #edd6a2;
+    --reuse: #0b6f66; --reuse-bg: #e2f6f2; --reuse-border: #b7e4da;
+    --risk: #b23a2f; --risk-bg: #fbebe8; --risk-border: #f0c4bc;
+    --unknown: #6b6f7a; --unknown-bg: #eceef2; --unknown-border: #d4d7e0;
+    --ribbon-bg: #191d28; --ribbon-text: #ffffff;
+    --shadow: 0 2px 4px rgba(20,24,34,0.06), 0 12px 26px rgba(20,24,34,0.08);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1218; --surface: #1a1f29; --surface-alt: #1c212c; --border: #2b3140;
+      --text: #e8eaf0; --text-muted: #a3aac0; --text-faint: #6d7488;
+      --now: #4fbd80; --now-bg: #15281d; --now-border: #23492f;
+      --logical: #7c86e0; --logical-bg: #1c2140; --logical-border: #343d7a;
+      --later: #e0ac48; --later-bg: #2c2311; --later-border: #4a3a17;
+      --reuse: #3fc2a8; --reuse-bg: #12241f; --reuse-border: #1f4237;
+      --risk: #e2776a; --risk-bg: #2c1815; --risk-border: #4a2620;
+      --unknown: #9199ac; --unknown-bg: #20242e; --unknown-border: #363c4a;
+      --ribbon-bg: #e8eaf0; --ribbon-text: #14161e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1218; --surface: #1a1f29; --surface-alt: #1c212c; --border: #2b3140;
+    --text: #e8eaf0; --text-muted: #a3aac0; --text-faint: #6d7488;
+    --now: #4fbd80; --now-bg: #15281d; --now-border: #23492f;
+    --logical: #7c86e0; --logical-bg: #1c2140; --logical-border: #343d7a;
+    --later: #e0ac48; --later-bg: #2c2311; --later-border: #4a3a17;
+    --reuse: #3fc2a8; --reuse-bg: #12241f; --reuse-border: #1f4237;
+    --risk: #e2776a; --risk-bg: #2c1815; --risk-border: #4a2620;
+    --unknown: #9199ac; --unknown-bg: #20242e; --unknown-border: #363c4a;
+    --ribbon-bg: #e8eaf0; --ribbon-text: #14161e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 32px 56px;
+  }
+  .display { font-family: 'Archivo', 'IBM Plex Sans', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-faint); font-weight: 600; }
+  h1 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 900; font-size: clamp(24px, 3.8vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 13.5px; max-width: 74ch; line-height: 1.55; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 9px; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); padding: 5px 10px 5px 8px; border-radius: 999px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot.now { background: var(--now); } .dot.logical { background: var(--logical); } .dot.later { background: var(--later); }
+  .dot.reuse { background: var(--reuse); } .dot.risk { background: var(--risk); } .dot.unknown { background: var(--unknown); }
+
+  h2 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 16.5px; display: flex; align-items: center; gap: 9px; }
+  .h2-num { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 700; background: var(--ribbon-bg); color: var(--ribbon-text); border-radius: 6px; padding: 2px 7px; flex: none; }
+  .h2-sub { font-size: 11.5px; font-weight: 500; color: var(--text-faint); }
+  section { display: flex; flex-direction: column; gap: 11px; }
+
+  .fix-note { display: flex; gap: 8px; align-items: flex-start; background: var(--surface-alt); border: 1px dashed var(--border); border-radius: 8px; padding: 8px 11px; font-size: 11.5px; color: var(--text-muted); line-height: 1.5; }
+  .fix-note b { color: var(--text); }
+
+  /* microservice inventory (section 1) */
+  .service-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+  .service-card { border-radius: 10px; padding: 10px 12px; border: 1.5px solid; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 4px; background: var(--surface); }
+  .service-card.exists { border-color: var(--now-border); background: var(--now-bg); }
+  .service-card.planned { border-color: var(--logical-border); background: var(--logical-bg); }
+  .service-card.conditional { border-color: var(--later-border); background: var(--later-bg); border-style: dashed; }
+  .status-tag { font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 700; letter-spacing: 0.04em; align-self: flex-start; }
+  .service-card.exists .status-tag { color: var(--now); }
+  .service-card.planned .status-tag { color: var(--logical); }
+  .service-card.conditional .status-tag { color: var(--later); }
+  .sname { font-size: 13px; font-weight: 700; }
+  .sdesc { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+  .split-arrow { text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-faint); padding: 2px 0; }
+  .status-chip.exists { background: var(--now-bg); border-color: var(--now-border); color: var(--now); }
+  .status-chip.planned { background: var(--logical-bg); border-color: var(--logical-border); color: var(--logical); }
+  .status-chip.conditional { background: var(--later-bg); border-color: var(--later-border); color: var(--later); }
+
+  /* capability map (section 2) */
+  .cap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 720px) { .cap-grid { grid-template-columns: 1fr; } }
+  .cap-col { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 13px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; }
+  .cap-col .label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
+  .cap-col.built .label { color: var(--now); }
+  .cap-col.planned .label { color: var(--later); }
+  .cap-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-radius: 7px; padding: 7px 9px; font-size: 12px; font-weight: 600; background: var(--surface-alt); border: 1px solid var(--border); }
+  .cap-item .tag { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 600; color: var(--text-faint); }
+
+  /* schema map table (section 3) */
+  .schema-table { width: 100%; border-collapse: collapse; font-size: 12px; background: var(--surface); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); }
+  .schema-table thead th { text-align: left; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-faint); background: var(--surface-alt); padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  .schema-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .schema-table tr:last-child td { border-bottom: none; }
+  .schema-name { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 11.5px; }
+  .schema-wrap { overflow-x: auto; }
+  .status-chip { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+  .status-chip.todo { background: var(--risk-bg); border-color: var(--risk-border); color: var(--risk); }
+  .status-chip.decide { background: var(--unknown-bg); border-color: var(--unknown-border); color: var(--unknown); }
+
+  /* scaling ceiling (section 4) */
+  .ceiling-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .ceiling-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 13px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 6px; }
+  .ceiling-card .ctitle { font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .ceiling-card p { margin: 0; font-size: 11.5px; color: var(--text-muted); line-height: 1.5; }
+  .ceiling-card.solved .ctitle { color: var(--now); }
+  .ceiling-card.unsolved .ctitle { color: var(--risk); }
+
+  /* rename cost (quick-fact) */
+  .quickfact { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 13px 15px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; }
+  .quickfact .qtitle { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
+  .qf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+  .qf-row { display: flex; justify-content: space-between; gap: 8px; align-items: center; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 7px; padding: 6px 9px; font-size: 11.5px; }
+  .qf-row .qf-cost { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 9.5px; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
+  .qf-row .qf-cost.cheap { background: var(--now-bg); color: var(--now); }
+  .qf-row .qf-cost.skip { background: var(--unknown-bg); color: var(--unknown); }
+
+  /* coverage audit (section 5) */
+  .coverage-box { background: var(--unknown-bg); border: 1px solid var(--unknown-border); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .coverage-box .ctitle { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13.5px; color: var(--unknown); }
+  .coverage-box p { margin: 0; font-size: 12.5px; color: var(--text); line-height: 1.55; }
+  .ask-list { display: flex; flex-wrap: wrap; gap: 7px; }
+  .ask-chip { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; }
+
+  .ribbon { display: flex; align-items: center; gap: 10px; justify-content: center; background: var(--ribbon-bg); color: var(--ribbon-text); border-radius: 12px; padding: 11px 16px; font-size: 12.5px; font-weight: 600; text-align: center; box-shadow: var(--shadow); }
+  .ribbon .mono { font-weight: 500; opacity: 0.85; font-size: 11.5px; }
+  footer { font-size: 11px; color: var(--text-faint); text-align: center; padding-top: 4px; }
+  footer code { font-family: 'IBM Plex Mono', monospace; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="eyebrow">hrb_chatbot_v2 · architecture decision · revised 2026-10-20</span>
+  <h1>Module Boundary Plan</h1>
+  <p class="subtitle">v4 — rename cost-checked, each service clearly described, BFF's case re-evaluated as a real API Gateway (not just UI aggregation), tech-neutral naming, and the blind spots this design still has.</p>
+  <div class="legend">
+    <span class="legend-item"><span class="dot now"></span>Exists today</span>
+    <span class="legend-item"><span class="dot logical"></span>Planned</span>
+    <span class="legend-item"><span class="dot later"></span>Conditional (not yet)</span>
+    <span class="legend-item"><span class="dot reuse"></span>Reuse as-is</span>
+    <span class="legend-item"><span class="dot risk"></span>Verified gap</span>
+    <span class="legend-item"><span class="dot unknown"></span>Unverified — needs you</span>
+  </div>
+</header>
+
+<div class="quickfact">
+  <span class="qtitle">Renaming <code class="mono">hrb_chatbot_v2</code> → <code class="mono">hrb_chatbot_service</code> — verified cost, cheaper than it looks</span>
+  <div class="qf-grid">
+    <div class="qf-row"><span>GitHub repo + local folder name</span><span class="qf-cost cheap">cheap</span></div>
+    <div class="qf-row"><span>AWS: ECR repo, App Runner service, IAM user</span><span class="qf-cost cheap">no change needed*</span></div>
+    <div class="qf-row"><span>LangSmith project base_name (1 line, code)</span><span class="qf-cost cheap">cheap</span></div>
+    <div class="qf-row"><span>CI-only test DB name (eval-gate.yml)</span><span class="qf-cost cheap">cosmetic only</span></div>
+  </div>
+  <p style="margin:0;font-size:11.5px;color:var(--text-muted);line-height:1.5;">*Checked directly: your AWS resources are already named <code class="mono">hrb-chatbot</code>, not <code class="mono">hrb-chatbot-v2</code> — the expensive part (App Runner service names are immutable after creation, would otherwise mean delete+recreate) doesn't apply. The rename is genuinely low-risk — mostly repo/folder/docs, not infra.</p>
+</div>
+
+<section>
+  <h2><span class="h2-num">1</span>Microservice inventory <span class="h2-sub">— renamed, each one concretely described</span></h2>
+  <div class="service-grid">
+    <div class="service-card exists"><span class="status-tag">EXISTS</span><span class="sname">hrb_chatbot_service</span><span class="sdesc">today's one process — ingestion + retrieval + support — FastAPI / App Runner</span></div>
+    <div class="service-card exists"><span class="status-tag">EXISTS</span><span class="sname">hrb_chatbot_ui</span><span class="sdesc">Frontend SPA — React / S3 + CloudFront</span></div>
+    <div class="service-card exists"><span class="status-tag">EXISTS*</span><span class="sname">hrb_lms_mcp</span><span class="sdesc">MCP server — built &amp; proven locally; AWS wiring is your still-open plan</span></div>
+  </div>
+  <div class="split-arrow">↓ recommended split of hrb_chatbot_service ↓</div>
+  <div class="service-grid">
+    <div class="service-card planned"><span class="status-tag">PLANNED</span><span class="sname">rag_ingestion_service</span><span class="sdesc">does: extract → chunk → embed → index. Bursty, admin-triggered, Lambda-shaped (doc 5's design)</span></div>
+    <div class="service-card planned"><span class="status-tag">PLANNED</span><span class="sname">rag_retrieval_service</span><span class="sdesc">does: decompose → retrieve → generate, incl. single/multi-agentic-rag + HITL + conversation memory. Always-on, the real 1000s-of-users path</span></div>
+  </div>
+  <div class="fix-note"><span>↳</span><div><b>Support is not its own service.</b> CI/CD dashboard, interview-qa, mcp-tools, admin docs — co-located inside <code class="mono">rag_retrieval_service</code> as a clean internal package, not a separate deployable (low-traffic, no independent scaling need).</div></div>
+  <div class="service-grid">
+    <div class="service-card planned"><span class="status-tag">PROMOTED</span><span class="sname">api_gateway_service <span style="font-weight:500;opacity:.7;">(fka BFF)</span></span><span class="sdesc">Gateway half (session/RBAC/CORS/rate-limit/contract validation) is valid now, even with one backend. Aggregation half still waits for more backends — see §4</span></div>
+    <div class="service-card planned"><span class="status-tag">PLANNED</span><span class="sname">chat_audio_service</span><span class="sdesc">new capability — no code yet</span></div>
+    <div class="service-card planned"><span class="status-tag">PLANNED</span><span class="sname">plan_401k_service</span><span class="sdesc">new capability — hub + sub-agents (loan, withdrawal, transfer, retirement), design docs only</span></div>
+  </div>
+  <div class="schema-wrap">
+  <table class="schema-table">
+    <thead><tr><th>#</th><th>Service</th><th>Status</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td class="schema-name">hrb_chatbot_service</td><td><span class="status-chip exists">exists</span></td><td>today's one deployable — splits into #4 + #5 if you proceed</td></tr>
+      <tr><td>2</td><td class="schema-name">hrb_chatbot_ui</td><td><span class="status-chip exists">exists</span></td><td>frontend, unaffected by this plan</td></tr>
+      <tr><td>3</td><td class="schema-name">hrb_lms_mcp</td><td><span class="status-chip exists">exists*</span></td><td>code built, local-proven; AWS deploy still pending (separate open plan)</td></tr>
+      <tr><td>4</td><td class="schema-name">rag_ingestion_service</td><td><span class="status-chip planned">planned</span></td><td>recommended near-term split of #1</td></tr>
+      <tr><td>5</td><td class="schema-name">rag_retrieval_service</td><td><span class="status-chip planned">planned</span></td><td>recommended near-term split of #1; houses Support internally</td></tr>
+      <tr><td>6</td><td class="schema-name">api_gateway_service</td><td><span class="status-chip planned">promoted</span></td><td>Gateway half recommended soon (§4) — not conditional anymore</td></tr>
+      <tr><td>7</td><td class="schema-name">chat_audio_service</td><td><span class="status-chip planned">planned</span></td><td>future capability, no code yet</td></tr>
+      <tr><td>8</td><td class="schema-name">plan_401k_service</td><td><span class="status-chip planned">planned</span></td><td>future capability, design-only</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="margin:0;font-size:11.5px;color:var(--text-muted);line-height:1.5;">Count: <b>3 exist today</b>; ceiling if everything gets built is still <b>7 real services</b> — same number as before, now with the Gateway service's timeline moved up and every name saying what it does.</p>
+</section>
+
+<section>
+  <h2><span class="h2-num">2</span>Capability map, corrected <span class="h2-sub">— HITL/Conversations were missing, A2A/Audio are the real "future" pair</span></h2>
+  <div class="fix-note"><span>⚠</span><div><b>Direct correction:</b> v1 only named Audio Agent as "future," which implied HITL/Conversations/A2A belonged there too. Checked the code directly — HITL and Conversations are already built and live inside RAG Retrieval today; A2A (401k) is design-only, same bucket as Audio Agent.</div></div>
+  <div class="cap-grid">
+    <div class="cap-col built">
+      <span class="label">Built — inside RAG Retrieval today</span>
+      <div class="cap-item"><span>Conversational Chat (STM)</span><span class="tag">conversation_store.py</span></div>
+      <div class="cap-item"><span>HITL — Unpaid Leave Request</span><span class="tag">agent_thread_store.py + chat_workflow_store.py, Phase 172</span></div>
+      <div class="cap-item"><span>MCP tool calls (hrb_lms_mcp)</span><span class="tag">mcp_tools/, Phase 239</span></div>
+    </div>
+    <div class="cap-col planned">
+      <span class="label">Planned — design only, no tables yet</span>
+      <div class="cap-item"><span>chat_audio_service</span><span class="tag">not started</span></div>
+      <div class="cap-item"><span>plan_401k_service (A2A)</span><span class="tag">design docs only</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="h2-num">3</span>Postgres schema map <span class="h2-sub">— two-word names, verified: every table is in <code class="mono">public</code> today, none are grouped</span></h2>
+  <div class="schema-wrap">
+  <table class="schema-table">
+    <thead><tr><th>Schema</th><th>Tables (real, found in code)</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td class="schema-name">rag_ingestion</td><td>documents, chunks, doc_metadata</td><td><span class="status-chip todo">ungrouped today</span></td></tr>
+      <tr><td class="schema-name">rag_retrieval</td><td>conversation_turns</td><td><span class="status-chip todo">ungrouped today</span></td></tr>
+      <tr><td class="schema-name">chat_hitl</td><td>agent_threads, chat_session_records, chat_turn_records, email_send_events</td><td><span class="status-chip todo">ungrouped today</span></td></tr>
+      <tr><td class="schema-name">chat_audio</td><td>— none yet, design-only</td><td><span class="status-chip decide">nothing to schema yet</span></td></tr>
+      <tr><td class="schema-name">interview_qa</td><td>interview_qa_cards</td><td><span class="status-chip todo">ungrouped today</span></td></tr>
+      <tr><td class="schema-name">build_deployment</td><td>pipeline_runs, eval_runs, eval_run_cases, golden_dataset_cases</td><td><span class="status-chip todo">ungrouped today</span></td></tr>
+      <tr><td class="schema-name">chat_metrics</td><td>request_metrics</td><td><span class="status-chip todo">ungrouped today</span></td></tr>
+      <tr><td class="schema-name">admin_controls</td><td>admin_credentials, faq_submissions</td><td><span class="status-chip todo">ungrouped today</span></td></tr>
+      <tr><td class="schema-name">plan_401k</td><td>— none yet, design-only</td><td><span class="status-chip decide">nothing to schema yet</span></td></tr>
+      <tr><td class="schema-name">mcp_registry</td><td>mcp_registry_client.py's own table</td><td><span class="status-chip decide">CLAUDE.md calls this "reused" — confirm it's actually owned by this DB before grouping it in</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="margin:0;font-size:11.5px;color:var(--text-muted);line-height:1.5;"><code class="mono">rag_retrieval</code> replaces "rag_search" — matches the real, already-live route suffix (<code class="mono">-retrieval</code>, Phase 99) instead of inventing a new term; flag if you'd rather keep "search." <code class="mono">401k_services</code> as you wrote it is invalid — Postgres (and Python) identifiers can't start with a digit — renamed to <code class="mono">plan_401k</code>, reusing the KB's own "Plan Loans" term from the earlier 401k naming discussion. "Chat History" isn't a separate table — <code class="mono">conversation_turns</code> already <em>is</em> the history (append-only).</p>
+
+  <div class="fix-note"><span>⚠</span><div><b>Still missing, schema-creation process itself:</b>
+    <ul style="margin:6px 0 0;padding-left:18px;line-height:1.6;">
+      <li>No migration framework exists — tables are created lazily via <code class="mono">CREATE TABLE IF NOT EXISTS</code> at startup, no Flyway/Liquibase/Alembic. Moving existing tables needs a one-off <code class="mono">CREATE SCHEMA</code> + <code class="mono">ALTER TABLE ... SET SCHEMA</code> script, following the same <code class="mono">resources/db_scripts/*.sql</code> convention <code class="mono">hrb_lms_mcp</code> already uses.</li>
+      <li>Every <code class="mono">*_store.py</code>'s raw SQL references bare table names today, confirmed — no schema prefix anywhere. Splitting into schemas means qualifying every query or setting <code class="mono">search_path</code> per connection: a real <code class="mono">src/</code> change across ~15 files, gated by the SDD spec-first hook.</li>
+      <li>Collision risk: the open <code class="mono">hrb_lms_mcp</code> deployment plan is about to add <code class="mono">hrb_emp_lms</code>/<code class="mono">hrb_lms_mcp_auth</code> schemas to this <em>same</em> Neon database — coordinate so schema DDL runs once, not twice independently.</li>
+      <li><code class="mono">mcp_registry</code>'s real ownership needs confirming before it's folded in — "reused" might mean a genuinely separate shared database, not one of this project's own schemas.</li>
+    </ul>
+  </div></div>
+</section>
+
+<section>
+  <h2><span class="h2-num">4</span>BFF re-evaluated as a real API Gateway <span class="h2-sub">— case got stronger, promoted from "defer"</span></h2>
+  <div class="fix-note"><span>↳</span><div><b>Your framing changes the recommendation.</b> Classic BFF (data-shaping for one frontend) needs multiple backends to aggregate — that's why it was "defer." But Session/State, RBAC, CORS, rate-limiting, and contract validation are <em>Gateway</em> concerns, not aggregation — those are valid with just one backend behind it. Splitting the name in two: <code class="mono">api_gateway_service</code> (promoted, build this sooner) handles the cross-cutting concerns now; the aggregation half stays conditional until rag_ingestion/rag_retrieval/hrb_lms_mcp/chat_audio/plan_401k are all real separate services worth combining for the UI.</div></div>
+  <div class="ceiling-grid">
+    <div class="ceiling-card solved"><span class="ctitle">✓ Decouples backend services</span><p>Backend services stop each owning CORS/RBAC/rate-limit code — they focus on business logic. Each one can lock its own CORS down to only accept traffic from the Gateway, not the public internet.</p></div>
+    <div class="ceiling-card unsolved"><span class="ctitle">⚠ Don't rebuild the statefulness problem</span><p>If the Gateway holds session state in-process, you've just moved the "not horizontally scalable" problem up a layer. Session state needs to live in Postgres/Redis, same as everything else — not in the Gateway's own memory.</p></div>
+    <div class="ceiling-card unsolved"><span class="ctitle">⚠ Naming collision with today's code</span><p><code class="mono">api/gateway/rbac.py</code> already exists and already means "RBAC gateway." A new, separate <code class="mono">api_gateway_service</code> needs an explicit decision: does it replace/absorb <code class="mono">rbac.py</code>'s role, or do the two coexist with different jobs?</p></div>
+    <div class="ceiling-card unsolved"><span class="ctitle">⚠ Placeholder auth vs. real auth</span><p>CLAUDE.md is explicit today's RBAC is a self-asserted placeholder, real OAuth2 deferred. Building a real Gateway is the natural moment to finally implement real human-to-app auth — not just relocate the same placeholder.</p></div>
+  </div>
+  <p style="margin:0;font-size:11.5px;color:var(--text-muted);line-height:1.5;">Rate-limiting at the Gateway needs Redis live in prod to share limit state across replicas — ties directly into the still-open Redis gap below. Scope note: the Gateway fronts browser/UI traffic only — service-to-service calls (hrb_chatbot_service → hrb_lms_mcp) keep their own OAuth2 client-credentials auth and bypass it.</p>
+</section>
+
+<section>
+  <h2><span class="h2-num">5</span>How far does this scale? <span class="h2-sub">— packages/schemas are necessary, not sufficient</span></h2>
+  <div class="ceiling-grid">
+    <div class="ceiling-card solved"><span class="ctitle">✓ Package/schema growth</span><p>A modular monolith holds up to roughly 8–12 cleanly-bounded packages before shared deploy/shared CI starts to hurt. Dozens of Postgres schemas in one database is a non-issue — Neon doesn't care about schema count.</p></div>
+    <div class="ceiling-card unsolved"><span class="ctitle">✗ Real bottleneck: connections</span><p>Each stateless replica keeps its own pool — replica count × pool size can exhaust Neon's max connections before 1000s of users arrive. Needs PgBouncer/pooling, not a package change.</p></div>
+    <div class="ceiling-card unsolved"><span class="ctitle">✗ Real bottleneck: LLM rate limits</span><p>Provider concurrent-request caps (OpenAI etc.) hit first, long before app-server or DB scaling matters — independent of how code is packaged.</p></div>
+    <div class="ceiling-card unsolved"><span class="ctitle">✗ Real bottleneck: Redis</span><p>Already flagged not-live in production. At real concurrency the rate limiter and answer cache need it for real, not as a nice-to-have.</p></div>
+  </div>
+  <p style="margin:0;font-size:11.5px;color:var(--text-muted);line-height:1.5;">Net: clean up the boundaries because it's good engineering and keeps future splits cheap — but don't expect it alone to unlock 1000s-of-users scale. Those three bottlenecks are a separate, already-identified body of work (NFR/Resilience doc).</p>
+</section>
+
+<section>
+  <h2><span class="h2-num">6</span>Interview Q&amp;A coverage audit <span class="h2-sub">— incomplete, honestly</span></h2>
+  <div class="coverage-box">
+    <span class="ctitle">Could not verify the live topic list</span>
+    <p>Tried to query <code class="mono">interview_qa_cards</code> directly (read-only) from this sandbox — general internet egress works, but DNS resolution to the configured Neon host specifically failed, most likely a network allowlist here, not a real outage. The frontend derives its topic list dynamically from live rows (<code class="mono">AdminDashboardPage.tsx:669</code>) — there's no static file to fall back on, by design (Phase 187 deliberately made this live-edited DB content, not a file mirror).</p>
+    <p>The only proxy I found is 4 pre-Phase-187 static <code class="mono">interview-faq.html</code> pages (chunking-strategy, genai-rag-chat, rag-ingestion, retrieval-strategies) — these predate the live-DB migration, so they're not reliable evidence of what's in the table now.</p>
+    <span class="ctitle" style="margin-top:4px;">What I need from you</span>
+    <p>Open Admin Dashboard → Interview Q&amp;A → the "All topics" dropdown, and tell me what's listed (or paste a <code class="mono">GET /v1/admin/interview-qa</code> response). Then I can give you a real yes/no against:</p>
+    <div class="ask-list">
+      <span class="ask-chip">MCP (Server/Client/Host/Registry/Gateway)</span>
+      <span class="ask-chip">A2A</span>
+      <span class="ask-chip">State Management (STM/LTM)</span>
+      <span class="ask-chip">HITL</span>
+      <span class="ask-chip">LangGraph Agents / Registry</span>
+      <span class="ask-chip">Redis Cache</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="h2-num">7</span>Remaining blind spots <span class="h2-sub">— not yet decided, flagging rather than guessing</span></h2>
+  <div class="fix-note"><span>⚠</span><div>
+    <ul style="margin:0;padding-left:18px;line-height:1.6;">
+      <li><b>Schema/service name pairing:</b> <code class="mono">rag_retrieval_service</code> pairs cleanly with schema <code class="mono">rag_retrieval</code> now — confirm you're OK with "retrieval" over "search" project-wide.</li>
+      <li><b>"_service" suffix isn't applied consistently:</b> new names get it (<code class="mono">rag_ingestion_service</code>), existing ones don't (<code class="mono">hrb_chatbot_ui</code>, <code class="mono">hrb_lms_mcp</code>) — decide: grandfather the old names, or rename those too.</li>
+      <li><b>Contract versioning:</b> once Gateway and backend services deploy separately, request/response shapes need a shared, independently-versioned contracts package (or Gateway validates against each backend's live OpenAPI schema) — not yet designed.</li>
+      <li><b>plan_401k_service's internal shape:</b> hub + sub-agents (loan, withdrawal, transfer, retirement) maps directly onto the Planner → domain-agents → Reviewer pattern already built for multi-agentic-rag — reuse that shape rather than inventing a new one.</li>
+      <li><b>Cost, still:</b> the Gateway's case is stronger now, but it's still a new always-on App Runner service with its own recurring cost — the AWS-bill tension from v1 doesn't go away just because the justification improved.</li>
+    </ul>
+  </div></div>
+</section>
+
+<div class="ribbon">Recommendation unchanged: <span class="mono">modular monolith</span> for RAG core, Gateway promoted to near-term, naming tech-neutral throughout, 5 blind spots flagged for your call</div>
+
+<footer>Full discussion in-session · companion to <code>docs/agent-reference/RAG-ROADMAP.md</code> and <code>docs/dev-reference/deployment-guide/</code></footer>
+
+</div>
+</body>
+</html>

@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deployment & AWS Operations</title>
 <link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+<style>
+  .mermaid-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin: 16px 0; overflow-x: auto; }
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -48,6 +52,39 @@
 7. smoke test: curl the live /ping endpoint for a real 200</code></pre>
 
 <div class="flag"><strong>No <code>AutoDeploymentsEnabled</code></strong> — unlike Kubernetes watching a registry tag, App Runner does <em>not</em> auto-redeploy just because a new image landed in ECR. Step 5 above is what actually triggers it; this is deliberate, confirmed during this project's Phase 10.</div>
+
+<h3>The same pipeline, as a diagram</h3>
+<p>This is the exact sequence above, drawn out — the live Pipeline tab in the Admin Dashboard (<a href="https://hrb-chatbot-ui.rvsree.dev/deployments" target="_blank" rel="noopener noreferrer">/deployments</a>) shows the real, current run of this same flow for any commit, not a static picture of it.</p>
+<div class="mermaid-wrap">
+<pre class="mermaid">
+sequenceDiagram
+    actor Dev
+    participant GH as GitHub (master branch)
+    participant CI as ci.yml<br/>(security scan, static analysis, test suite, docker build)
+    participant Deploy as deploy.yml
+    participant ECR as ECR<br/>(hrb-chatbot repo)
+    participant AR as App Runner<br/>(hrb-chatbot service)
+    participant Live as Live URL<br/>hrb-chatbot.rvsree.dev
+
+    Dev->>GH: push to master (direct, or a merged PR)
+    GH->>CI: triggered in parallel, independently
+    GH->>Deploy: triggered in parallel, independently
+    Note over CI,Deploy: ci.yml and deploy.yml do NOT wait on each other -<br/>two separate, independently-triggered workflows
+    Deploy->>Deploy: docker buildx build (3 flags: --provenance=false<br/>--sbom=false, oci-mediatypes=false - all 3 load-bearing,<br/>see Phase 10's 2 real CREATE_FAILED incidents)
+    Deploy->>ECR: push image:latest
+    Deploy->>AR: aws apprunner start-deployment
+    Note over AR: AutoDeploymentsEnabled=false -<br/>this explicit call is what actually triggers it
+    AR->>AR: pull new image, restart container
+    loop poll every 10s, up to 5 min
+        Deploy->>AR: describe-service (Status)
+    end
+    AR-->>Deploy: Status: RUNNING
+    Deploy->>Live: curl /ping
+    Live-->>Deploy: 200 OK
+    Deploy->>GH: step summary: deployment succeeded
+</pre>
+</div>
+<script>mermaid.initialize({ startOnLoad: true, theme: "neutral" });</script>
 
 <h2>Checking health, logs, and deployment status</h2>
 
