@@ -145,3 +145,70 @@ async def test_record_mcp_outcome_never_raises_when_recording_itself_fails(monke
     monkeypatch.setattr(mcp_tools, "_get_mcp_registry_client", lambda: _RaisingRegistryClient())
 
     await mcp_tools._record_mcp_outcome(False, "some error")  # must not raise
+
+
+# Phase 239 - get_mcp_tool_catalog() tests. discover_mcp_tools() itself (the
+# raw session.list_tools() call) is faked out here, same philosophy as
+# get_leave_balance being faked above rather than mocking the raw MCP
+# transport - no precedent exists anywhere in this project for faking
+# streamablehttp_client/ClientSession at that level.
+class TestGetMcpToolCatalog:
+    def setup_method(self):
+        # Module-level cache - reset before every test so one test's
+        # result can't leak into the next.
+        mcp_tools._tool_catalog_cache = None
+
+    async def test_merges_the_one_configured_server_into_a_tools_list(self, monkeypatch):
+        fake_tools = [
+            {"name": "get_leave_balance", "description": "...", "input_schema": {}, "server_id": "hrb_lms_mcp"},
+        ]
+
+        async def _fake_discover(server_id, url_setting_name):
+            return fake_tools
+
+        monkeypatch.setattr(mcp_tools, "discover_mcp_tools", _fake_discover)
+
+        result = await mcp_tools.get_mcp_tool_catalog()
+
+        assert result == {"tools": fake_tools, "error": None}
+
+    async def test_caches_and_does_not_rediscover_on_a_second_call(self, monkeypatch):
+        call_count = 0
+
+        async def _fake_discover(server_id, url_setting_name):
+            nonlocal call_count
+            call_count += 1
+            return [{"name": "get_leave_balance", "description": "", "input_schema": {}, "server_id": server_id}]
+
+        monkeypatch.setattr(mcp_tools, "discover_mcp_tools", _fake_discover)
+
+        await mcp_tools.get_mcp_tool_catalog()
+        await mcp_tools.get_mcp_tool_catalog()
+
+        assert call_count == 1
+
+    async def test_force_refresh_bypasses_the_cache(self, monkeypatch):
+        call_count = 0
+
+        async def _fake_discover(server_id, url_setting_name):
+            nonlocal call_count
+            call_count += 1
+            return [{"name": "get_leave_balance", "description": "", "input_schema": {}, "server_id": server_id}]
+
+        monkeypatch.setattr(mcp_tools, "discover_mcp_tools", _fake_discover)
+
+        await mcp_tools.get_mcp_tool_catalog()
+        await mcp_tools.get_mcp_tool_catalog(force_refresh=True)
+
+        assert call_count == 2
+
+    async def test_a_failed_server_surfaces_as_error_not_a_raise(self, monkeypatch):
+        async def _fake_discover_raising(server_id, url_setting_name):
+            raise ConnectionError("hrb_lms_mcp unreachable")
+
+        monkeypatch.setattr(mcp_tools, "discover_mcp_tools", _fake_discover_raising)
+
+        result = await mcp_tools.get_mcp_tool_catalog()
+
+        assert result["tools"] == []
+        assert "hrb_lms_mcp" in result["error"]

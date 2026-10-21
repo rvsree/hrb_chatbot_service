@@ -167,12 +167,37 @@ url = s3.generate_presigned_url(
 </table>
 <p>See <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=nfr-reliability-resilience" target="_blank" rel="noopener noreferrer">the NFR &amp; Resilience page</a> for the whole-system view — rate limiting, retry/backoff on LLM calls, and load balancing are cross-cutting concerns, not specific to this milestone, so they're covered there rather than duplicated here.</p>
 
-<h2>Implementation plan — status as of Phase 88, 2026-10-06</h2>
-<div class="flag"><strong>Half done, on purpose.</strong> Phase 88 built and verified the S3 → SQS → Lambda trigger half end to end. The presigned-upload endpoint (the row still unchecked below) is Phase 89 — until it lands, the live ingest endpoint is completely untouched and the only way to exercise this path is a direct S3 <code>put-object</code>, not a real client upload.</div>
+<h2>How the Lambda's own code gets deployed (separate from the data flow above)</h2>
+<p>The diagrams above show how <em>one document</em> flows through this system at runtime. This is a different question: how does a <em>code change</em> to <code>index_document_handler.py</code> (or anything it imports, including <code>ai/doc_processing/pipeline.py</code>) actually reach the running Lambda? Its own workflow, <code>.github/workflows/deploy-lambda.yml</code> - separate from the main app's <code>deploy.yml</code>, both triggered independently by the same push to <code>master</code>.</p>
+<div class="mermaid-wrap">
+<pre class="mermaid">
+sequenceDiagram
+    actor Dev
+    participant GH as GitHub (master branch)
+    participant DL as deploy-lambda.yml
+    participant ECR as ECR<br/>(hrb-chatbot-lambda repo)
+    participant L as Lambda<br/>(hrb-chatbot-index-document)
+
+    Dev->>GH: push to master (paths: src/hrb_chatbot/**, Dockerfile.lambda, requirements.txt)
+    GH->>DL: triggered - independent of deploy.yml, which also fires on the same push
+    DL->>DL: docker buildx build -f Dockerfile.lambda<br/>(same 3 App-Runner-safe flags deploy.yml uses)
+    DL->>ECR: push image:latest
+    DL->>L: aws lambda update-function-code --image-uri ...:latest
+    loop poll every 5s, up to 2.5 min
+        DL->>L: get-function-configuration (LastUpdateStatus)
+    end
+    L-->>DL: LastUpdateStatus: Successful
+</pre>
+</div>
+<script>mermaid.initialize({ startOnLoad: true, theme: "neutral" });</script>
+<p>Why this is a separate workflow at all, not folded into <code>deploy.yml</code>: before this existed, every Lambda deploy was a manual <code>docker buildx build</code> + ECR push + <code>aws lambda update-function-code</code> run by hand - and this project already shipped a real backend fix once that the Lambda silently never received, because nothing kept the two in sync. This workflow is what prevents that specific, already-happened failure from recurring.</p>
+
+<h2>Implementation plan — status as of Phase 89, done 2026-10-06 (page text corrected 2026-10-19 - it previously still read "not started" after this already shipped)</h2>
+<div class="flag"><strong>Both halves done and live.</strong> Phase 88 built and verified the S3 → SQS → Lambda trigger end to end; Phase 89 (below) added the real presigned-upload endpoint on top of it, verified live on AWS the same day. A real client upload now exercises this whole path - not just a direct S3 <code>put-object</code> anymore.</div>
 <ul class="checklist">
 <li class="done">Write the Phase spec first (per this project's own spec-first convention) — this page plus <code>docs/agent-reference/S3-ASYNC-UPLOAD-DESIGN.md</code> already cover 90% of it</li>
 <li class="done">Create the S3 bucket (one object per <code>document_id</code>, matching the existing metadata model) — <code>hrb-chatbot-kb-uploads</code>, versioned, public access fully blocked</li>
-<li class="pending">Add a new endpoint (or extend the existing ingest endpoint) to generate a presigned POST URL instead of accepting the file body directly — <strong>Phase 89, not started</strong></li>
+<li class="done"><code>POST /v1/genai-rag/ingest-document/documents/presigned-upload</code> generates the presigned PUT URL instead of accepting the file body directly — <code>api/rag/ingest_document.py</code>, Phase 89, done and verified live on AWS, 2026-10-06</li>
 <li class="done">Write the Lambda handler — thin wrapper calling <code>ai/doc_processing/pipeline.py</code>'s existing chunk/embed/index functions unchanged — <code>src/hrb_chatbot/lambda_handlers/index_document_handler.py</code></li>
 <li class="done">Create the SQS queue, configured as the S3 <code>ObjectCreated</code> event target (not Lambda directly) — <code>hrb-chatbot-ingest-queue</code></li>
 <li class="done">Wire Lambda's SQS trigger (event source mapping) — AWS-managed polling, no custom consumer code to write — batch size 5, <code>ReportBatchItemFailures</code></li>

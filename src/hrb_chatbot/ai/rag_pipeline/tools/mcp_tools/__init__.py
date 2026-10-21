@@ -126,6 +126,77 @@ async def _call_mcp_tool_json(tool_name: str, arguments: dict) -> dict:
     return json.loads(result["content"][0])
 
 
+# Phase 239 - MCP cohort-review gap #2 (BACKLOG.md, 2026-10-15), the real
+# prerequisite for it: the course's own m1_mcp/sse_agent_client.py merges
+# multiple servers' session.list_tools() catalogs into one combined list
+# plus a tool_name -> server routing table (its own server_sessions dict).
+# That pattern needs real discovery to exist first - this project had none
+# at all, for even the one real server it has today; every tool above is
+# its own hardcoded function instead. MCP_SERVERS has one entry today -
+# the course's own multi-server merge is genuinely out of scope until a
+# second real MCP server exists (see RAG-ROADMAP.md Phase 239's own "Out
+# of scope") - but adding one later means extending this dict, not
+# rewriting how a tool call gets routed.
+MCP_SERVERS: dict[str, str] = {MCP_SERVER_ID: "HRB_LMS_MCP_URL"}
+
+_tool_catalog_cache: dict[str, dict] | None = None
+
+
+async def discover_mcp_tools(server_id: str, url_setting_name: str) -> list[dict]:
+    """One server's own real tool catalog via session.list_tools() - name,
+    description, and input_schema exactly as that server advertises them,
+    not inferred from reading this module's own hardcoded wrapper
+    functions. Raises on failure - the caller (get_mcp_tool_catalog)
+    decides how to degrade, matching every other MCP call in this module
+    keeping that decision at the edge, not inside the low-level call."""
+    mcp_url = read_setting(None, url_setting_name, "http://127.0.0.1:8190/mcp")
+    access_token = await get_access_token()
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    async with streamablehttp_client(mcp_url, headers=headers) as (read_stream, write_stream, _):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
+            tools_response = await session.list_tools()
+            return [
+                {
+                    "name": tool.name,
+                    "description": tool.description or "",
+                    "input_schema": tool.inputSchema,
+                    "server_id": server_id,
+                }
+                for tool in tools_response.tools
+            ]
+
+
+async def get_mcp_tool_catalog(force_refresh: bool = False) -> dict:
+    """Every configured server's own catalog (MCP_SERVERS), merged into one
+    tool_name -> tool dict - the course's own server_sessions merge,
+    generalized to N servers even though exactly 1 is configured today.
+    In-process cached (the catalog rarely changes within a process
+    lifetime) - force_refresh bypasses it. Never raises - error-as-data,
+    same convention every other MCP-backed call in this project follows;
+    a failed server's tools are simply absent from the merged catalog,
+    not a partial/corrupt entry."""
+    global _tool_catalog_cache
+    if _tool_catalog_cache is not None and not force_refresh:
+        return {"tools": list(_tool_catalog_cache.values()), "error": None}
+
+    catalog: dict[str, dict] = {}
+    errors: list[str] = []
+    for server_id, url_setting_name in MCP_SERVERS.items():
+        try:
+            tools = await discover_mcp_tools(server_id, url_setting_name)
+        except Exception as error:
+            logger.warning("MCP tool discovery failed for %s: %s", server_id, error)
+            errors.append(f"{server_id}: {error}")
+            continue
+        for tool in tools:
+            catalog[tool["name"]] = tool
+
+    _tool_catalog_cache = catalog
+    return {"tools": list(catalog.values()), "error": "; ".join(errors) if errors else None}
+
+
 async def get_leave_balance(employee_id: str) -> dict:
     return await _call_mcp_tool("get_leave_balance", {"employee_id": employee_id})
 

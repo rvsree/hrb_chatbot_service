@@ -14,7 +14,7 @@ import asyncio
 from fastapi import APIRouter, Depends, Request
 
 from src.hrb_chatbot.ai.pre_processing import conversation_memory
-from src.hrb_chatbot.ai.rag_pipeline.tools.mcp_tools import _call_mcp_tool_json, admin_delete_hitl_request
+from src.hrb_chatbot.ai.rag_pipeline.tools.mcp_tools import _call_mcp_tool_json, admin_delete_hitl_request, get_mcp_tool_catalog
 from src.hrb_chatbot.api.dependencies import json_error
 from src.hrb_chatbot.api.gateway.rbac import identity_from_query_params, require_role
 from src.hrb_chatbot.common import error_codes
@@ -43,6 +43,8 @@ from src.hrb_chatbot.models.admin import (
     EvalRunSummary,
     GoldenDatasetCaseSummary,
     GoldenDatasetListResponse,
+    McpToolCatalogResponse,
+    McpToolSummary,
     PipelineJobDetail,
     PipelineMetricsRow,
     PipelineSnapshotListResponse,
@@ -817,3 +819,15 @@ async def delete_interview_qa_card(card_id: int, identity: IdentityPayload, requ
 
     deleted = await get_db_gateway().interview_qa_store().delete_card(card_id)
     return DeleteInterviewQaResponse(id=card_id, deleted=deleted)
+
+
+@router_manage_admin.get("/mcp-tools", response_model=McpToolCatalogResponse)
+async def get_mcp_tools(user_profile: UserProfile | None = Depends(identity_from_query_params)):
+    """Phase 239 - the real, live MCP tool catalog via session.list_tools(),
+    not inferred from reading this project's own hardcoded wrapper
+    functions. Never 500s on an MCP-side failure - error-as-data, same
+    convention every other MCP-backed call in this project follows."""
+    require_role(user_profile, Role.ADMIN)
+
+    result = await get_mcp_tool_catalog()
+    return McpToolCatalogResponse(tools=[McpToolSummary(**tool) for tool in result["tools"]], error=result["error"])

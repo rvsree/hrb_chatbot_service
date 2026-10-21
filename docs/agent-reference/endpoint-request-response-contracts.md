@@ -1405,3 +1405,28 @@ then polls the existing `GET /v1/genai-rag/ingest-document/documents/{id}`
 above for the real indexing result once Phase 88's S3 → SQS → Lambda
 pipeline picks it up - same response shape that endpoint already returns
 today, no change there either.
+
+## GET /v1/admin/mcp-tools — Finalized (Phase 239)
+
+Identity: query params, same Phase 96 convention. `Role.ADMIN` only. Live
+`session.list_tools()` call against every configured MCP server
+(`MCP_SERVERS` - one entry, `hrb_lms_mcp`, today). Never 500s on an
+MCP-side failure (unset token, server down, timeout) - same error-as-data
+convention every other MCP-backed call in this project already follows.
+
+```json
+{
+  "tools": [
+    {
+      "name": "get_leave_balance",
+      "description": "Returns an employee's current leave balance by type.",
+      "input_schema": { "type": "object", "properties": { "employee_id": { "type": "string" } }, "required": ["employee_id"] },
+      "server_id": "hrb_lms_mcp"
+    }
+  ],
+  "error": null
+}
+```
+`error` is a string when the MCP-side call failed - `tools` is then always
+`[]`, never a partial list. Read-only introspection - this route never
+calls a tool, only discovers what's available.

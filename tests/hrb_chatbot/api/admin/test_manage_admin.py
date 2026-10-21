@@ -1080,3 +1080,42 @@ def test_get_pipeline_snapshot_404_for_unknown_id(monkeypatch):
 
     assert response.status_code == 404
     assert response.json()["code"] == "ADMIN_PIPELINE_SNAPSHOT_NOT_FOUND"
+
+
+def test_employee_admin_cannot_view_mcp_tools():
+    response = client.get("/v1/admin/mcp-tools", params=EMPLOYEE_ADMIN_PROFILE)
+    assert response.status_code == 403
+
+
+def test_get_mcp_tools_returns_the_live_catalog(monkeypatch):
+    async def _fake_get_mcp_tool_catalog():
+        return {
+            "tools": [
+                {"name": "get_leave_balance", "description": "Returns leave balance.", "input_schema": {"type": "object"}, "server_id": "hrb_lms_mcp"},
+            ],
+            "error": None,
+        }
+
+    monkeypatch.setattr(manage_admin, "get_mcp_tool_catalog", _fake_get_mcp_tool_catalog)
+
+    response = client.get("/v1/admin/mcp-tools", params=ADMIN_PROFILE)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["error"] is None
+    assert body["tools"][0]["name"] == "get_leave_balance"
+    assert body["tools"][0]["server_id"] == "hrb_lms_mcp"
+
+
+def test_get_mcp_tools_surfaces_an_error_without_a_500(monkeypatch):
+    async def _fake_get_mcp_tool_catalog_failing():
+        return {"tools": [], "error": "hrb_lms_mcp: Connection refused"}
+
+    monkeypatch.setattr(manage_admin, "get_mcp_tool_catalog", _fake_get_mcp_tool_catalog_failing)
+
+    response = client.get("/v1/admin/mcp-tools", params=ADMIN_PROFILE)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tools"] == []
+    assert "hrb_lms_mcp" in body["error"]

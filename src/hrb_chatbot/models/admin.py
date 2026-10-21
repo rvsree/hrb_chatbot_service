@@ -228,3 +228,19 @@ class PipelineMetricsRow(BaseModel):
 class RequestMetricsResponse(BaseModel):
     window_hours: int
     rows: list[PipelineMetricsRow]
+
+
+class McpToolSummary(BaseModel):
+    """Phase 239 - one tool, exactly as its own MCP server advertises it
+    via session.list_tools() - not inferred from this project's own
+    hardcoded wrapper functions."""
+
+    name: str
+    description: str
+    input_schema: dict
+    server_id: str
+
+
+class McpToolCatalogResponse(BaseModel):
+    tools: list[McpToolSummary]
+    error: str | None
