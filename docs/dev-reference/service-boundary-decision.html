@@ -153,7 +153,7 @@
 <div class="wrap">
 
 <header>
-  <span class="eyebrow">hrb_chatbot_v2 · architecture decision · revised 2026-10-20</span>
+  <span class="eyebrow">hrb_chatbot_service · architecture decision · revised 2026-10-20</span>
   <h1>Module Boundary Plan</h1>
   <p class="subtitle">v4 — rename cost-checked, each service clearly described, BFF's case re-evaluated as a real API Gateway (not just UI aggregation), tech-neutral naming, and the blind spots this design still has.</p>
   <div class="legend">
@@ -167,14 +167,14 @@
 </header>
 
 <div class="quickfact">
-  <span class="qtitle">Renaming <code class="mono">hrb_chatbot_v2</code> → <code class="mono">hrb_chatbot_service</code> — verified cost, cheaper than it looks</span>
+  <span class="qtitle">Renaming <code class="mono">hrb_chatbot_service</code> → <code class="mono">hrb_chatbot_service</code> — verified cost, cheaper than it looks</span>
   <div class="qf-grid">
     <div class="qf-row"><span>GitHub repo + local folder name</span><span class="qf-cost cheap">cheap</span></div>
     <div class="qf-row"><span>AWS: ECR repo, App Runner service, IAM user</span><span class="qf-cost cheap">no change needed*</span></div>
     <div class="qf-row"><span>LangSmith project base_name (1 line, code)</span><span class="qf-cost cheap">cheap</span></div>
     <div class="qf-row"><span>CI-only test DB name (eval-gate.yml)</span><span class="qf-cost cheap">cosmetic only</span></div>
   </div>
-  <p style="margin:0;font-size:11.5px;color:var(--text-muted);line-height:1.5;">*Checked directly: your AWS resources are already named <code class="mono">hrb-chatbot</code>, not <code class="mono">hrb-chatbot-v2</code> — the expensive part (App Runner service names are immutable after creation, would otherwise mean delete+recreate) doesn't apply. The rename is genuinely low-risk — mostly repo/folder/docs, not infra.</p>
+  <p style="margin:0;font-size:11.5px;color:var(--text-muted);line-height:1.5;">*Checked directly: your AWS resources are already named <code class="mono">hrb-chatbot</code>, not <code class="mono">hrb-chatbot-service</code> — the expensive part (App Runner service names are immutable after creation, would otherwise mean delete+recreate) doesn't apply. The rename is genuinely low-risk — mostly repo/folder/docs, not infra.</p>
 </div>
 
 <section>
@@ -193,7 +193,7 @@
   <div class="service-grid">
     <div class="service-card planned"><span class="status-tag">PROMOTED</span><span class="sname">api_gateway_service <span style="font-weight:500;opacity:.7;">(fka BFF)</span></span><span class="sdesc">Gateway half (session/RBAC/CORS/rate-limit/contract validation) is valid now, even with one backend. Aggregation half still waits for more backends — see §4</span></div>
     <div class="service-card planned"><span class="status-tag">PLANNED</span><span class="sname">chat_audio_service</span><span class="sdesc">new capability — no code yet</span></div>
-    <div class="service-card planned"><span class="status-tag">PLANNED</span><span class="sname">plan_401k_service</span><span class="sdesc">new capability — hub + sub-agents (loan, withdrawal, transfer, retirement), design docs only</span></div>
+    <div class="service-card planned"><span class="status-tag">PLANNED</span><span class="sname">employee_401k_service</span><span class="sdesc">new capability — hub + sub-agents (loan, withdrawal, transfer, retirement), design docs only</span></div>
   </div>
   <div class="schema-wrap">
   <table class="schema-table">
@@ -206,7 +206,7 @@
       <tr><td>5</td><td class="schema-name">rag_retrieval_service</td><td><span class="status-chip planned">planned</span></td><td>recommended near-term split of #1; houses Support internally</td></tr>
       <tr><td>6</td><td class="schema-name">api_gateway_service</td><td><span class="status-chip planned">promoted</span></td><td>Gateway half recommended soon (§4) — not conditional anymore</td></tr>
       <tr><td>7</td><td class="schema-name">chat_audio_service</td><td><span class="status-chip planned">planned</span></td><td>future capability, no code yet</td></tr>
-      <tr><td>8</td><td class="schema-name">plan_401k_service</td><td><span class="status-chip planned">planned</span></td><td>future capability, design-only</td></tr>
+      <tr><td>8</td><td class="schema-name">employee_401k_service</td><td><span class="status-chip planned">planned</span></td><td>future capability, design-only</td></tr>
     </tbody>
   </table>
   </div>
@@ -226,7 +226,7 @@
     <div class="cap-col planned">
       <span class="label">Planned — design only, no tables yet</span>
       <div class="cap-item"><span>chat_audio_service</span><span class="tag">not started</span></div>
-      <div class="cap-item"><span>plan_401k_service (A2A)</span><span class="tag">design docs only</span></div>
+      <div class="cap-item"><span>employee_401k_service (A2A)</span><span class="tag">design docs only</span></div>
     </div>
   </div>
 </section>
@@ -245,12 +245,12 @@
       <tr><td class="schema-name">build_deployment</td><td>pipeline_runs, eval_runs, eval_run_cases, golden_dataset_cases</td><td><span class="status-chip todo">ungrouped today</span></td></tr>
       <tr><td class="schema-name">chat_metrics</td><td>request_metrics</td><td><span class="status-chip todo">ungrouped today</span></td></tr>
       <tr><td class="schema-name">admin_controls</td><td>admin_credentials, faq_submissions</td><td><span class="status-chip todo">ungrouped today</span></td></tr>
-      <tr><td class="schema-name">plan_401k</td><td>— none yet, design-only</td><td><span class="status-chip decide">nothing to schema yet</span></td></tr>
+      <tr><td class="schema-name">employee_401k</td><td>— none yet, design-only</td><td><span class="status-chip decide">nothing to schema yet</span></td></tr>
       <tr><td class="schema-name">mcp_registry</td><td>mcp_registry_client.py's own table</td><td><span class="status-chip decide">CLAUDE.md calls this "reused" — confirm it's actually owned by this DB before grouping it in</span></td></tr>
     </tbody>
   </table>
   </div>
-  <p style="margin:0;font-size:11.5px;color:var(--text-muted);line-height:1.5;"><code class="mono">rag_retrieval</code> replaces "rag_search" — matches the real, already-live route suffix (<code class="mono">-retrieval</code>, Phase 99) instead of inventing a new term; flag if you'd rather keep "search." <code class="mono">401k_services</code> as you wrote it is invalid — Postgres (and Python) identifiers can't start with a digit — renamed to <code class="mono">plan_401k</code>, reusing the KB's own "Plan Loans" term from the earlier 401k naming discussion. "Chat History" isn't a separate table — <code class="mono">conversation_turns</code> already <em>is</em> the history (append-only).</p>
+  <p style="margin:0;font-size:11.5px;color:var(--text-muted);line-height:1.5;"><code class="mono">rag_retrieval</code> replaces "rag_search" — matches the real, already-live route suffix (<code class="mono">-retrieval</code>, Phase 99) instead of inventing a new term; flag if you'd rather keep "search." <code class="mono">401k_services</code> as you wrote it is invalid — Postgres (and Python) identifiers can't start with a digit — renamed to <code class="mono">employee_401k</code>, reusing the KB's own "Plan Loans" term from the earlier 401k naming discussion. "Chat History" isn't a separate table — <code class="mono">conversation_turns</code> already <em>is</em> the history (append-only).</p>
 
   <div class="fix-note"><span>⚠</span><div><b>Still missing, schema-creation process itself:</b>
     <ul style="margin:6px 0 0;padding-left:18px;line-height:1.6;">
@@ -264,7 +264,7 @@
 
 <section>
   <h2><span class="h2-num">4</span>BFF re-evaluated as a real API Gateway <span class="h2-sub">— case got stronger, promoted from "defer"</span></h2>
-  <div class="fix-note"><span>↳</span><div><b>Your framing changes the recommendation.</b> Classic BFF (data-shaping for one frontend) needs multiple backends to aggregate — that's why it was "defer." But Session/State, RBAC, CORS, rate-limiting, and contract validation are <em>Gateway</em> concerns, not aggregation — those are valid with just one backend behind it. Splitting the name in two: <code class="mono">api_gateway_service</code> (promoted, build this sooner) handles the cross-cutting concerns now; the aggregation half stays conditional until rag_ingestion/rag_retrieval/hrb_lms_mcp/chat_audio/plan_401k are all real separate services worth combining for the UI.</div></div>
+  <div class="fix-note"><span>↳</span><div><b>Your framing changes the recommendation.</b> Classic BFF (data-shaping for one frontend) needs multiple backends to aggregate — that's why it was "defer." But Session/State, RBAC, CORS, rate-limiting, and contract validation are <em>Gateway</em> concerns, not aggregation — those are valid with just one backend behind it. Splitting the name in two: <code class="mono">api_gateway_service</code> (promoted, build this sooner) handles the cross-cutting concerns now; the aggregation half stays conditional until rag_ingestion/rag_retrieval/hrb_lms_mcp/chat_audio/employee_401k are all real separate services worth combining for the UI.</div></div>
   <div class="ceiling-grid">
     <div class="ceiling-card solved"><span class="ctitle">✓ Decouples backend services</span><p>Backend services stop each owning CORS/RBAC/rate-limit code — they focus on business logic. Each one can lock its own CORS down to only accept traffic from the Gateway, not the public internet.</p></div>
     <div class="ceiling-card unsolved"><span class="ctitle">⚠ Don't rebuild the statefulness problem</span><p>If the Gateway holds session state in-process, you've just moved the "not horizontally scalable" problem up a layer. Session state needs to live in Postgres/Redis, same as everything else — not in the Gateway's own memory.</p></div>
@@ -311,7 +311,7 @@
       <li><b>Schema/service name pairing:</b> <code class="mono">rag_retrieval_service</code> pairs cleanly with schema <code class="mono">rag_retrieval</code> now — confirm you're OK with "retrieval" over "search" project-wide.</li>
       <li><b>"_service" suffix isn't applied consistently:</b> new names get it (<code class="mono">rag_ingestion_service</code>), existing ones don't (<code class="mono">hrb_chatbot_ui</code>, <code class="mono">hrb_lms_mcp</code>) — decide: grandfather the old names, or rename those too.</li>
       <li><b>Contract versioning:</b> once Gateway and backend services deploy separately, request/response shapes need a shared, independently-versioned contracts package (or Gateway validates against each backend's live OpenAPI schema) — not yet designed.</li>
-      <li><b>plan_401k_service's internal shape:</b> hub + sub-agents (loan, withdrawal, transfer, retirement) maps directly onto the Planner → domain-agents → Reviewer pattern already built for multi-agentic-rag — reuse that shape rather than inventing a new one.</li>
+      <li><b>employee_401k_service's internal shape:</b> hub + sub-agents (loan, withdrawal, transfer, retirement) maps directly onto the Planner → domain-agents → Reviewer pattern already built for multi-agentic-rag — reuse that shape rather than inventing a new one.</li>
       <li><b>Cost, still:</b> the Gateway's case is stronger now, but it's still a new always-on App Runner service with its own recurring cost — the AWS-bill tension from v1 doesn't go away just because the justification improved.</li>
     </ul>
   </div></div>

@@ -2,7 +2,7 @@
 name: architecture-review
 description: >
   Review a proposed design, new module, or non-trivial change against
-  hrb_chatbot_v2's established architecture and recorded decisions, before
+  hrb_chatbot_service's established architecture and recorded decisions, before
   implementation. Invoke as /architecture-review <description>, or
   automatically before generating a new module/pipeline stage.
 argument-hint: "<file-path or design description>"

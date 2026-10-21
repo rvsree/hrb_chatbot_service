@@ -168,7 +168,7 @@ reviewed before that phase's code starts.
 | 50 — User-directed: MCP server/tool registry at startup, reusing hr_chatbot's own app_tracking tables | Claude Code | ✅ Done, verified live, 2026-09-22 | ✅ Spec'd and implemented - see detail below |
 | 51 — User-directed: NFR-specific golden dataset + harness for guardrails/validation-gateway | Claude Code | ✅ Done, verified live, 2026-09-22 - found 1 real false-positive bug (documented, not fixed) | ✅ Spec'd and implemented - see detail below |
 | 52 — Planned: analytics MCP server (NL2SQL over aggregate/historical HR data) | Claude Code | ⬜ Not started - parking-lot spec only, 2026-09-22 | 🚧 Parking-lot spec only - real spec deferred until picked up |
-| 53 — User-directed: real OAuth2 client-credentials auth, hrb_chatbot_v2 <-> hrb_lms_mcp, both sides | Claude Code | ✅ Done, verified live both directions, 2026-09-22 | ✅ Spec'd and implemented - see detail below |
+| 53 — User-directed: real OAuth2 client-credentials auth, hrb_chatbot_service <-> hrb_lms_mcp, both sides | Claude Code | ✅ Done, verified live both directions, 2026-09-22 | ✅ Spec'd and implemented - see detail below |
 | 54 — User-directed: extract-method refactor of vector_indexer.py's write_chunks(), no behavior change | Claude Code | ✅ Done, verified, 2026-09-23 | ✅ Spec'd and implemented - see detail below |
 | 55 — User-directed: single-agentic-rag tool-calling endpoint (IK Module 6) + DeepEval release-gate scoring (Module 5 gap) | Claude Code | ✅ Done, verified live both tool paths, 2026-09-24 | ✅ Spec'd and implemented - see detail below |
 | 56 — User-directed: MMR support for single-agentic-rag's SearchKnowledgeBase tool | Claude Code | ✅ Done, verified live both strategies, 2026-09-24 | ✅ Spec'd and implemented - see detail below |
@@ -896,7 +896,7 @@ later, separate wave once this core is solid.
   ECS/App Runner task role will use in Phase 10, so nothing here needs to
   change before deployment. Just worth knowing that "healthy" today reflects
   whatever AWS identity happens to be ambient on this machine, not one
-  scoped to `hrb_chatbot_v2`.
+  scoped to `hrb_chatbot_service`.
 - [x] **Phase 10 (Claude Code) — Docker + AWS deployment via App Runner.**
   Target chosen over ECS Fargate (simpler for one container, no ALB/task-def
   to hand-wire) and over AgentCore Runtime (per the earlier confirmed
@@ -1046,7 +1046,7 @@ later, separate wave once this core is solid.
 
   **CI verified for real, not just committed:** pushed to `hrb_rag_pipelines`
   (commit `00b7be8`) and polled the GitHub Actions API directly -
-  [run 34184448804](https://github.com/rvsree/hrb_chatbot_v2/actions/runs/34184448804)
+  [run 34184448804](https://github.com/rvsree/hrb_chatbot_service/actions/runs/34184448804)
   completed `success` on both jobs (`App imports cleanly`, `Docker image
   builds`).
 
@@ -1145,7 +1145,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   - **`.env`'s Postgres credentials pointed at `hrb_emp_assist`'s own shared
     database** (`hr_chatbot` - confirmed by listing its tables:
     `employees`, `leave_requests`, `chat_history`, etc.). Asked the user
-    before touching it; created a dedicated `hrb_chatbot_v2` database on the
+    before touching it; created a dedicated `hrb_chatbot_service` database on the
     same local Postgres server instead, and updated `POSTGRES_DB_NAME` in
     `.env` to point at it. This project's data can no longer collide with
     or be confused for the other project's.
@@ -1158,7 +1158,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     Windows-only patch.
 
   Verified live: `create_document`, `get_document`, `update_status`,
-  `list_documents` all tested directly against the real `hrb_chatbot_v2`
+  `list_documents` all tested directly against the real `hrb_chatbot_service`
   database (not mocked), including the unknown-id case; `GET
   /health?deep=true` confirmed both `metadata_provider=sqlite` (6 real
   documents) and `=postgres` (0, its own clean database) report healthy
@@ -3977,7 +3977,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   `McpRegistryClient`/the real MCP call, no real Postgres or network call
   in the default run). Then verified live against the real running
   `hrb_lms_mcp` and the real `hr_chatbot` database: started
-  `hrb_chatbot_v2` fresh, confirmed via direct query that
+  `hrb_chatbot_service` fresh, confirmed via direct query that
   `app_tracking.mcp_server_registry` has the real `hrb_lms_mcp` row,
   `mcp_tools_registry` has all 6 real tools (`get_leave_balance`,
   `get_leave_history`, `submit_leave_request`, `get_pending_approvals`,
@@ -4094,7 +4094,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     reinvented per MCP server).
 
 - [x] **Phase 53 (2026-09-22) — User-directed: real OAuth2 client-credentials
-  auth between hrb_chatbot_v2 (client) and hrb_lms_mcp (server) - both
+  auth between hrb_chatbot_service (client) and hrb_lms_mcp (server) - both
   sides, replacing the dead, unenforced X-API-Key found this session.**
 
   **Spec:**
@@ -4107,7 +4107,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   - **Data/API contracts:** `hrb_lms_mcp` gains `POST /oauth/token`
     (client_credentials grant: `client_id`/`client_secret` in, a signed
     JWT with `sub`/`scopes`/`exp` claims out) and Bearer-token enforcement
-    on `POST /mcp` (401 if missing/invalid/expired). `hrb_chatbot_v2`
+    on `POST /mcp` (401 if missing/invalid/expired). `hrb_chatbot_service`
     gains `common/clients/auth_client/oauth_client.py` (the existing
     empty placeholder, filled in) - acquires and caches a token, attaches
     `Authorization: Bearer <token>` to every real MCP call. No change to
@@ -4127,7 +4127,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   - **Out of scope:** scope-based authorization (checking the JWT's
     `scopes` claim against which tool is being called) - Phase 53 is
     authentication only (who's calling), not authorization (what
-    they're allowed to call) - `hrb_chatbot_v2_core.client_scopes`
+    they're allowed to call) - `hrb_chatbot_service_core.client_scopes`
     already models the latter but isn't enforced anywhere yet. Refresh
     tokens, token revocation, a real identity provider instead of
     `hrb_lms_mcp` self-issuing - all bigger scope than a capstone needs.
@@ -4143,16 +4143,16 @@ Explicitly deferred to a later, separate wave - not part of the above:
   unit-tested in isolation:**
   - `hrb_lms_mcp`: new `hrb_lms_mcp_auth.oauth_clients` table (own
     bounded-context schema, no FK, same reasoning as
-    `hrb_chatbot_v2_core`), `POST /oauth/token` (client_credentials
+    `hrb_chatbot_service_core`), `POST /oauth/token` (client_credentials
     grant), `BearerAuthMiddleware` enforcing a valid, unexpired JWT on
     every `POST /mcp` - added *after* the existing request-logging
     middleware so an unauthenticated call is rejected before its body is
     even logged. `pyjwt[crypto]==2.10.1` added explicitly to
     `requirements.txt` (was already an undocumented transitive dep of
-    `mcp` itself). A real client row registered for `hrb-chatbot-v2`
+    `mcp` itself). A real client row registered for `hrb-chatbot-service`
     with a `secrets.token_urlsafe(32)`-generated secret - the plaintext
-    only ever touched `hrb_chatbot_v2`'s own `.env`, never committed.
-  - `hrb_chatbot_v2`: `common/clients/auth_client/oauth_client.py` (the
+    only ever touched `hrb_chatbot_service`'s own `.env`, never committed.
+  - `hrb_chatbot_service`: `common/clients/auth_client/oauth_client.py` (the
     existing empty placeholder, filled in) - fetches and caches a
     token, refreshing 30s before expiry rather than per-call.
     `mcp_tools/__init__.py` and `mcp_registry_startup.py` (Phase 49/50,
@@ -4167,7 +4167,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   - Real credentials -> real signed JWT issued, real `tools/list` call
     succeeds with it.
   - Full end-to-end through this project's own API: fresh
-    `hrb_chatbot_v2` startup acquires a real token
+    `hrb_chatbot_service` startup acquires a real token
     (`oauth_client` log line), registers all 6 tools via the now-secured
     call (Phase 50), and a real `"What is my PTO balance?"` query for
     `EMP052` returns real data (`"available": 11.0`) through the fully
@@ -4294,7 +4294,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   `docs/agent-reference/BACKLOG.md`'s own "DeepEval CI gate not wired up" gap.
 
   **Verified, live, both tool paths - not mocked for this check:**
-  started `hrb_lms_mcp` and `hrb_chatbot_v2` for real, called
+  started `hrb_lms_mcp` and `hrb_chatbot_service` for real, called
   `POST /v1/single-agentic-rag/query` for real:
   - `"What is my PTO balance?"` for `EMP052` -> agent chose `GetLeaveBalance`
     on its own (real LLM tool selection, not a keyword match this time) ->
@@ -9284,14 +9284,14 @@ Explicitly deferred to a later, separate wave - not part of the above:
     server: `hrb_lms_mcp`'s `BearerAuthMiddleware`/`token_service.py`,
     uncommitted) - this phase deploys and wires them up, not builds new
     auth. User-confirmed: new `hrb_emp_lms`/`hrb_lms_mcp_auth` schemas
-    live in the same Neon `HR_Benefits` database `hrb_chatbot_v2`
+    live in the same Neon `HR_Benefits` database `hrb_chatbot_service`
     already uses in production (schema-per-service, not a new DB
     instance) - zero new DB provisioning, reuses the working connection.
   - **Reusability requirement:** none specific to this phase - the
     client-side OAuth2/MCP code already existed and needed no changes,
     only configuration (this repo's own `main.py`/settings untouched;
     all code changes landed in the separate `hrb_lms_mcp` repo).
-  - **Testing plan:** no new `hrb_chatbot_v2` automated test (no code
+  - **Testing plan:** no new `hrb_chatbot_service` automated test (no code
     changed in this repo beyond this doc) - verified live: real OAuth2
     token + real MCP tool call from a direct reproduction script, then
     the actual production endpoint with the same question that
@@ -9311,8 +9311,8 @@ Explicitly deferred to a later, separate wave - not part of the above:
     reachable at `https://munp3zn43b.us-east-1.awsapprunner.com`.
     `hrb_emp_lms` (62 employees incl. EMP051/052/053, leave
     types/balances) and `hrb_lms_mcp_auth` (real OAuth2 client row for
-    `hrb-chatbot-v2-prod`, a fresh secret never reused from local dev)
-    applied directly to the production Neon database. `hrb_chatbot_v2`'s
+    `hrb-chatbot-service-prod`, a fresh secret never reused from local dev)
+    applied directly to the production Neon database. `hrb_chatbot_service`'s
     own App Runner service updated with the 4 new settings
     (`HRB_LMS_MCP_URL`/`_OAUTH_TOKEN_URL`/`_OAUTH_CLIENT_ID` as plain env
     vars, `_OAUTH_CLIENT_SECRET` as a Secrets Manager secret) and
@@ -9358,7 +9358,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   applications (dead code, stale data/files, requirements.txt,
   Postman, docs/diagrams, READMEs).**
   - **Spec:** Three parallel read-only survey agents (one per repo -
-    `hrb_chatbot_v2`, `hrb_chatbot_ui`, `hrb_lms_mcp`) confirmed real
+    `hrb_chatbot_service`, `hrb_chatbot_ui`, `hrb_lms_mcp`) confirmed real
     cleanup candidates via grep-verified zero-reference checks, not
     guesses. This repo's own findings: 4 empty dead packages
     (`repo/`, `ai/doc_processing/helper/`, `ai/rag_pipeline/prompts/`,
@@ -10776,7 +10776,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 4. `POST /rag/query` → same stubbed-but-clear behavior, naming
    `ai/rag_pipeline/`.
 
-- **Frontend-only follow-ups, same day, `hrb_chatbot_v2` backend unchanged:**
+- **Frontend-only follow-ups, same day, `hrb_chatbot_service` backend unchanged:**
   - `DocumentsPage.tsx`: multi-select checkboxes (header select-all +
     per-row, pruned automatically when `documents` refreshes so a stale
     selection can't outlive a deleted/no-longer-polled row) + a "Delete
@@ -10813,7 +10813,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     `tsc --noEmit`/`oxlint` clean throughout.
 - **MCP employee-data "mismatch" investigated, not a real data-sync bug:**
   user's MCP server console log showed `get_leave_balance` failing with
-  "Employee not found with ID: E200," asking whether hrb_chatbot_v2's own
+  "Employee not found with ID: E200," asking whether hrb_chatbot_service's own
   employee data is out of sync with hrb_lms_mcp's. Checked directly:
   `E200` does not appear anywhere in `src/hrb_chatbot/` (a real grep
   across the whole source tree - matches were only unrelated third-party
@@ -10826,7 +10826,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   signed in before Phase 106's roster gate existed can keep presenting a
   now-invalid identity indefinitely. Fix for the user: sign out and back
   in with a real known persona - not a database-sync issue between
-  hrb_chatbot_v2 and hrb_lms_mcp. Real follow-up flagged, not done this
+  hrb_chatbot_service and hrb_lms_mcp. Real follow-up flagged, not done this
   pass: re-validate a stored identity against the roster on app load, not
   just at sign-in time.
 
@@ -11767,7 +11767,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     wait for review the way a code deploy does. Checked the rest of the
     local schema (only `documents.uploaded_by` has an employee-id
     column) and the shared production Neon database (no
-    `hrb_chatbot_v2`-owned schema exists there yet) for the same stale
+    `hrb_chatbot_service`-owned schema exists there yet) for the same stale
     value - found nothing else to reconcile. Verified live via `GET
     /documents`: all 6 records now correctly show `"uploaded_by":
     "EMP051"`.
@@ -13016,7 +13016,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
         creates the `LeaveRequest` (`status=PENDING_HITL`) and a
         `HitlRequest` (`request_type="UNPAID_LEAVE_REQUEST"`) together.
         `is_repeat_within_12_months` is computed by the caller (the
-        `hrb_chatbot_v2` agent checks `get_leave_history` itself) and
+        `hrb_chatbot_service` agent checks `get_leave_history` itself) and
         carried through as context/priority (`HIGH` if repeat, `MEDIUM`
         otherwise) - never re-derived server-side, so there's one source
         of truth for what the specialist was actually told.
@@ -13027,7 +13027,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       - No new tables, no new columns - reuses `hitl_requests`'
         existing `context` JSON column for the document reference and
         repeat flag, exactly as the design doc proposed.
-    - **`hrb_chatbot_v2`**:
+    - **`hrb_chatbot_service`**:
       - New MCP tool wrappers (`ai/rag_pipeline/tools/mcp_tools/`) for
         `submit_unpaid_leave_request` and `resolve_hitl_request`, same
         `_call_mcp_tool()` + `json.loads(content[0])` pattern as the
@@ -13081,12 +13081,12 @@ Explicitly deferred to a later, separate wave - not part of the above:
     through the real MCP wire protocol (not just the Python service
     layer), against the user's own already-running local `hrb_lms_mcp`
     instance - confirms the content-block JSON-parsing assumption
-    `hrb_chatbot_v2`'s new wrappers depend on, not just that the service
-    method works. `hrb_chatbot_v2` - unit tests for the new agent/graph
+    `hrb_chatbot_service`'s new wrappers depend on, not just that the service
+    method works. `hrb_chatbot_service` - unit tests for the new agent/graph
     and routes (fakes for the MCP calls, matching every other test in
     this project), full suite green, then a live call against a local
     backend exercising the real new MCP tools end to end.
-  - **Built and verified, `hrb_lms_mcp` + `hrb_chatbot_v2` halves - NOT
+  - **Built and verified, `hrb_lms_mcp` + `hrb_chatbot_service` halves - NOT
     pushed/deployed** (same standing instruction; `hrb_chatbot_ui`
     continues as a later slice of this same phase, not done in this pass):
     - **`hrb_lms_mcp`**: `resolve_hitl_request`/`submit_unpaid_leave_request`
@@ -13120,8 +13120,8 @@ Explicitly deferred to a later, separate wave - not part of the above:
         the reload caught up. (3) Confirmed FastMCP's real content-block
         format directly (one pretty-printed JSON text block per call) by
         inspecting a live `get_leave_history` response - the exact
-        assumption `hrb_chatbot_v2`'s new wrappers below are built on.
-    - **`hrb_chatbot_v2`**: `ai/rag_pipeline/tools/mcp_tools/__init__.py`
+        assumption `hrb_chatbot_service`'s new wrappers below are built on.
+    - **`hrb_chatbot_service`**: `ai/rag_pipeline/tools/mcp_tools/__init__.py`
       gained `get_leave_history_parsed`/`submit_unpaid_leave_request`/
       `resolve_hitl_request` wrappers; new
       `ai/agents/workflow_agents/unpaid_leave_agent.py` (the 2-node
@@ -13611,11 +13611,11 @@ Explicitly deferred to a later, separate wave - not part of the above:
       `STD`, `LTD`) and 1 new column (`requires_specialist_review`,
       separate from the existing manager-approval `requires_approval`).
       `resolve_hitl_request` extended to also write the new review table
-      and return the employee's email (so `hrb_chatbot_v2` doesn't need a
+      and return the employee's email (so `hrb_chatbot_service` doesn't need a
       2nd round trip to send the notification). New MCP tools: a
       presigned-download-URL helper (mirrors the existing upload one) and
       a "list my own leave requests" tool for the employee-side view.
-    - **`hrb_chatbot_v2`**: `unpaid_leave_agent.py` (renamed concept, not
+    - **`hrb_chatbot_service`**: `unpaid_leave_agent.py` (renamed concept, not
       necessarily the file) accepts a `leave_type` parameter instead of
       the hardcoded `"UNPAID"`; its eligibility check compares same-
       leave-type-only (flagged default, §10). New route for the
@@ -13698,7 +13698,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
         repo (confirmed, not assumed) - direct verification against real
         Postgres is this project's own established pattern, not a gap
         introduced here.
-    - **`hrb_chatbot_v2`**: `common/enums.py` gained `LeaveTypeCode`
+    - **`hrb_chatbot_service`**: `common/enums.py` gained `LeaveTypeCode`
       (`UNPAID`/`CRITICAL_CAREGIVER`/`STD`/`LTD`) - a `StrEnum`, matching
       this project's own "unknown value -> clean 422" convention, not a
       plain `str`. `mcp_tools/__init__.py` gained wrappers for the 3 new
@@ -13891,7 +13891,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     `uvicorn` process (no `--reload`), restarted explicitly after every
     code change, verified against port- and route-specific behavior
     before trusting it - not left running across edits.
-  - **`hrb_chatbot_v2/.env` and `hrb_chatbot_ui/.env` both updated**:
+  - **`hrb_chatbot_service/.env` and `hrb_chatbot_ui/.env` both updated**:
     backend now runs on port 8100 (not 8093), `VITE_API_BASE_URL` updated
     to match - the user's own normal `--reload` dev-server command is
     unaffected by any of this (it only ever broke under this session's
@@ -14040,10 +14040,10 @@ Explicitly deferred to a later, separate wave - not part of the above:
       `SpecialistLeaveReview` row (if any) -> `UnpaidLeaveDocument` rows
       linked to the same `leave_request_id` (returning their `s3_key`s,
       since this repo has no AWS/S3 client of its own - actual object
-      deletion happens in `hrb_chatbot_v2`, which already has one) ->
+      deletion happens in `hrb_chatbot_service`, which already has one) ->
       the `LeaveRequest` row -> the `HitlRequest` row itself. One new
       MCP tool wrapping it.
-    - **`hrb_chatbot_v2`**: new `ConversationStore`/`FeedbackStore`
+    - **`hrb_chatbot_service`**: new `ConversationStore`/`FeedbackStore`
       methods for unscoped list/delete; new `api/admin/manage_admin.py`
       router, `ADMIN`-only throughout:
       - `GET /v1/admin/conversations`, `DELETE /v1/admin/conversations/{id}`
@@ -14081,7 +14081,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
         thing via the new method, then directly query all 4 tables to
         confirm every row is actually gone (not just that delete returned
         without error).
-    - **`hrb_chatbot_v2`**: `Role` gained `ADMIN`; 1 new persona
+    - **`hrb_chatbot_service`**: `Role` gained `ADMIN`; 1 new persona
       (`ADM001`, deliberately not a real `hrb_emp_lms.employees` row - see
       spec above). KB documents: zero new routes, 4 existing
       `ingest_document.py` routes widened to also accept `ADMIN`.
@@ -14160,7 +14160,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       - **Live-verified** directly against real Postgres - returned the
         user's own real `EMP001`/John Doe PENDING request (#41, "son's
         health treatment") correctly alongside already-COMPLETED ones.
-    - **`hrb_chatbot_v2`**: new `list_all_leave_requests()` wrapper, new
+    - **`hrb_chatbot_service`**: new `list_all_leave_requests()` wrapper, new
       `HrLeaveRequestSummary`/`HrLeaveRequestsResponse` models, new
       `GET /v1/unpaid-leave/all` route (`HR_SUPPORT`-only, query-param
       identity). 3 new tests (RBAC rejection, every-status-not-just-
@@ -14193,7 +14193,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     Conversations tab's popup show the full transcript, or just the
     grid's own summary fields) - answered "full transcript," which this
     round built.
-    - **`hrb_chatbot_v2`**: `conversation_store.py` gained
+    - **`hrb_chatbot_service`**: `conversation_store.py` gained
       `get_conversation_turns_any()` (admin-only, unscoped - same
       "separate method, not an optional-employee_id variant" reasoning as
       `delete_conversation_any()`/`list_all_conversations()` already
@@ -14497,7 +14497,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     calls, the A2A vocabulary/schema changes) doesn't depend on this
     choice and can proceed either way.
   - **Spec, gap 2 (restore the 2 dropped LLM calls)**:
-    - **`hrb_chatbot_v2/ai/agents/workflow_agents/unpaid_leave_agent.py`**:
+    - **`hrb_chatbot_service/ai/agents/workflow_agents/unpaid_leave_agent.py`**:
       new `intake_node` (LLM call) inserted before `eligibility_check_node`
       - takes the raw submitted fields (dates/purpose/leave_type/
       document_reference) and produces a structured, validated intake
@@ -14540,7 +14540,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       (`[{"type": "email", "recipient": "...", "sent_at": "..."}]`) on
       the same row - an Artifact the Task produced, queryable, not just
       a side-effecting function call with no record of what it made.
-    - **`hrb_chatbot_v2`**: `HrLeaveRequestSummary`/`MyLeaveRequestSummary`
+    - **`hrb_chatbot_service`**: `HrLeaveRequestSummary`/`MyLeaveRequestSummary`
       gain `task_state`, `review_brief`, and `produced_artifacts` fields
       surfacing the above; `status`/`decision`/`hr_comments` stay as they
       are too (additive, not a breaking rename of the existing contract).
@@ -14588,7 +14588,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       of the route since that's genuinely the resumed Task's own work).
     - **New `common/clients/db_client/agent_thread_store.py`**: maps
       `hitl_request_context_id` -> the LangGraph `thread_id`, in
-      `hrb_chatbot_v2`'s own Postgres (new `agent_threads` table) - pure
+      `hrb_chatbot_service`'s own Postgres (new `agent_threads` table) - pure
       orchestration metadata this project owns itself, `hrb_lms_mcp` has
       no reason to know about LangGraph thread ids.
     - **`hrb_lms_mcp`**: `specialist_leave_reviews` gained `task_state`,
@@ -14657,7 +14657,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     gap, explicitly prioritized by the user over the other open items
     this same turn.
   - **Spec**:
-    - **`hrb_chatbot_v2`**: new `AdminTab = "docs"` in
+    - **`hrb_chatbot_service`**: new `AdminTab = "docs"` in
       `AdminDashboardPage.tsx`, reusing the already-built
       `listAdminDocs`/`getAdminDocContent` endpoints (Phase 170) - a row
       click opens the doc in a new tab via the existing presigned-URL flow.
@@ -17063,7 +17063,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 216 (EX-2l) - surface which retrieval strategy actually ran,
   single-agentic-rag's own agent-chosen one included; a frontend-only
-  chunking-strategy-per-source addition alongside it. `hrb_chatbot_v2` +
+  chunking-strategy-per-source addition alongside it. `hrb_chatbot_service` +
   `hrb_chatbot_ui`.**
   - **Built/verified 2026-10-18:** `models/common.py`'s `ToolCallInfo`
     gained `search_strategy`; `orchestration_agent.py` now captures
@@ -17146,7 +17146,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     - **Open questions:** none.
 
 - [ ] **Phase 217 (EX-2m) - make the vector store's distance metric
-  configurable, with a real re-indexing flow. `hrb_chatbot_v2` +
+  configurable, with a real re-indexing flow. `hrb_chatbot_service` +
   `hrb_chatbot_ui`. Status: 📋 Planned, not started.**
   - **Spec:**
     - **Context:** user asked for a "Search Distance: KNN/ANN/HNSW"
@@ -17195,7 +17195,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
         for the whole knowledge base.
 
 - [x] **Phase 218 (EX-2n) - real, exact-KNN search_strategy, after
-  re-investigating Phase 216/217's own finding. `hrb_chatbot_v2` +
+  re-investigating Phase 216/217's own finding. `hrb_chatbot_service` +
   `hrb_chatbot_ui`.**
   - **Built/verified 2026-10-18:** `common/enums.py`'s `SearchStrategy`
     gained `KNN = "knn"`. `BaseVectorDBClient.get_all_chunks()`'s contract
@@ -17301,7 +17301,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       no per-backend branching needed beyond the cost-tradeoff note.
 
 - [x] **Phase 219 (EX-2o) - live recall/F1 estimate for genai-rag, against
-  a wider exact-KNN pool. `hrb_chatbot_v2` + `hrb_chatbot_ui`.**
+  a wider exact-KNN pool. `hrb_chatbot_service` + `hrb_chatbot_ui`.**
   - **Built/verified 2026-10-18:**
     `ai/rag_pipeline/evaluations/golden_dataset_harness.py::evaluate_retrieval_relevance()`
     gained an optional `wider_pool_texts` param - when given, judges that
@@ -17365,7 +17365,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 220 (EX-2p) - extend Phase 219's live recall/F1 estimate to
   single/multi-agentic-rag, fixing a real scoping bug the live UI
-  surfaced along the way. `hrb_chatbot_v2`.**
+  surfaced along the way. `hrb_chatbot_service`.**
   - **Built/verified 2026-10-18:**
     `orchestration_agent.py`/`multi_agent_pipeline.py`'s own separate
     `_score_live_answer()` copies each gained their own
@@ -17418,7 +17418,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 221 (EX-2q) - hybrid search's real dense/sparse contribution
   per chunk, after confirming there's no actual "weight" in this project's
-  RRF implementation. `hrb_chatbot_v2` + `hrb_chatbot_ui`.**
+  RRF implementation. `hrb_chatbot_service` + `hrb_chatbot_ui`.**
   - **Built/verified 2026-10-18:**
     `bm25_search.py::_reciprocal_rank_fusion()` now takes labeled lists
     (`{"sparse": ..., "dense": ...}` instead of a plain list) and tags
@@ -17501,7 +17501,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 223 (EX-2s) - real tuning recommendations when a live score
   misses its threshold, plus a real cache-hit bug this surfaced.
-  `hrb_chatbot_v2` + `hrb_chatbot_ui`.**
+  `hrb_chatbot_service` + `hrb_chatbot_ui`.**
   - **Built/verified 2026-10-18:**
     `pipeline.py`'s cache-hit branch now recomputes
     `below_threshold`/`below_threshold_metrics` against the CURRENT
@@ -17565,8 +17565,8 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 224 (EX-2t) - real input/output guardrail status reaching the
   Explainability panel, plus a real silent-swap bug this surfaced.
-  `hrb_chatbot_v2` + `hrb_chatbot_ui`. Backend built/verified -
-  `hrb_chatbot_v2`'s full suite green (720 passed), `bandit -ll` clean;
+  `hrb_chatbot_service` + `hrb_chatbot_ui`. Backend built/verified -
+  `hrb_chatbot_service`'s full suite green (720 passed), `bandit -ll` clean;
   `hrb_chatbot_ui`'s own Guardrails tab not yet built.**
   - **Spec:**
     - **Context:** user asked for a Guardrails tab (Input/Output
@@ -17636,7 +17636,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 225 (EX-2u) - the real recall-estimate denominator, so the
   Explainability panel can show the actual arithmetic behind Precision/
-  Recall/F1, not just the final numbers. `hrb_chatbot_v2` +
+  Recall/F1, not just the final numbers. `hrb_chatbot_service` +
   `hrb_chatbot_ui`. Built/verified both sides - backend: full suite green
   (720 passed), `bandit -ll` clean; frontend: Retrieval/Response Eval
   Score tabs now show the real formula with real numbers, `npm run
@@ -17702,7 +17702,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 226 - a real corrective retry: retrieve again, once, when
   retrieval precision is below the caller's own eval_score_threshold.
-  `hrb_chatbot_v2` + `hrb_chatbot_ui`. genai-rag only. Built/verified
+  `hrb_chatbot_service` + `hrb_chatbot_ui`. genai-rag only. Built/verified
   both sides - backend: full suite green (725 passed), `bandit -ll`
   clean; frontend: new "Retry Once on Low Retrieval Score" checkbox in
   Settings' RAG Config tab, Retrieval Eval Score tab shows when a retry
@@ -17824,7 +17824,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     - **Open questions:** none.
 
 - [x] **Phase 228 - a real Retrieval Strategy control for Single-Agent RAG
-  and Multi-Agent RAG, not just Reflex RAG. `hrb_chatbot_v2` +
+  and Multi-Agent RAG, not just Reflex RAG. `hrb_chatbot_service` +
   `hrb_chatbot_ui`. Built/verified both sides - backend: full suite green
   (729 passed), `bandit -ll` clean; frontend: Retrieval Strategy dropdown
   now shows for all 3 modes (2-option list for Single/Multi-Agent RAG),
@@ -17900,7 +17900,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 229 - real per-rail guardrail logs: which specific NeMo
   validations ran for this answer, not just the aggregate pass/modified/
-  blocked status. `hrb_chatbot_v2` + `hrb_chatbot_ui`. Built/verified
+  blocked status. `hrb_chatbot_service` + `hrb_chatbot_ui`. Built/verified
   both sides - backend: full suite green (729 passed), `bandit -ll`
   clean, live-verified against real NeMo calls (3 scenarios: pass,
   masked, blocked); frontend: Guardrails tab shows a real per-rail table
@@ -17968,7 +17968,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 230 - fix Self-Query's `doc_description` exact-match failure
   (BACKLOG.md's own documented gap) by resolving the LLM's parsed guess
-  to the closest REAL indexed value before querying. `hrb_chatbot_v2`
+  to the closest REAL indexed value before querying. `hrb_chatbot_service`
   only - internal retrieval-quality fix, no request/response shape
   change.**
   - **Spec:**
@@ -18234,16 +18234,16 @@ Explicitly deferred to a later, separate wave - not part of the above:
   instead of one repo's workflows all shown mixed together, plus a
   honest "no CI/CD" state for the one real deployable that has none.
   User-requested, after live-deploying this session's own work surfaced
-  that the dashboard only ever reflected `hrb_chatbot_v2`'s own repo.**
+  that the dashboard only ever reflected `hrb_chatbot_service`'s own repo.**
   - **Spec:**
     - **Context:** this project has 4 real deployables across 2 GitHub
-      repos: `hrb_chatbot_v2`'s own App Runner backend (`ci.yml`/
+      repos: `hrb_chatbot_service`'s own App Runner backend (`ci.yml`/
       `deploy.yml`) and its ingestion Lambda (`deploy-lambda.yml`, same
       repo, different target) - both already queried but shown
       undifferentiated in one view; `hrb_lms_mcp`'s own App Runner-hosted
       MCP server (`deploy.yml`, a genuinely separate GitHub repo) - zero
       visibility today, the dashboard's backend only ever talks to
-      `hrb_chatbot_v2`'s repo; and `hrb_chatbot_ui`'s frontend - no
+      `hrb_chatbot_service`'s repo; and `hrb_chatbot_ui`'s frontend - no
       GitHub Actions workflow exists for it at all (confirmed: no
       `.github/workflows/` directory), deployed manually
       (`npm run build` -> `aws s3 sync` -> CloudFront invalidation,
@@ -18276,7 +18276,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
         gains an optional `repo` param, cached per-repo (a dict, not a
         single shared instance) - lets `lms_mcp` reuse the existing
         `GITHUB_TOKEN` against `rvsree/hrb_lms_mcp` instead of
-        `rvsree/hrb_chatbot_v2`. **Live-verified before writing this
+        `rvsree/hrb_chatbot_service`. **Live-verified before writing this
         spec**: the existing token already has real read access to
         `hrb_lms_mcp`'s repo (a direct API call returned real workflow
         run data, not a 403) - no new credential needed.
@@ -18521,7 +18521,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   endpoint), collapsible frames, a dynamic query-count-aware calculation
   explanation, removed a useless "Pipeline" label, and a real pagination
   bug fix for "Full run history" (stale page persisting across tab
-  visits) + page size reduced to 5. `hrb_chatbot_v2` gets one 1-line
+  visits) + page size reduced to 5. `hrb_chatbot_service` gets one 1-line
   constant change (`_CI_STATUS_PER_PAGE` 10 -> 5); everything else is
   `hrb_chatbot_ui` only.**
   - **Spec:**
@@ -18750,4 +18750,77 @@ Explicitly deferred to a later, separate wave - not part of the above:
       finding from the original cohort-review. A frontend panel showing
       this catalog in the Admin Dashboard - flagged as a natural follow-up,
       not bundled into this backend-only phase.
+    - **Open questions:** none.
+
+- [ ] **Phase 240 (planned) — Auto-routed agentic RAG mode (query-complexity routing).**
+  - **Spec:**
+    - **Context:** 2026-10-21 UI/UX discussion - today the caller manually
+      picks `single-agentic-rag` vs. `multi-agentic-rag`, a distinction
+      most real users have no basis to judge (most questions are simple
+      lookups; picking multi-agent for one wastes a Planner+Reviewer
+      round-trip for nothing). This phase adds a classification step that
+      picks for them, while keeping both existing modes forced-selectable
+      (for demos/interviews - this project's whole purpose) and leaving
+      "Direct RAG" (`genai-rag`) untouched and outside the router entirely.
+    - **Data/API contracts:** `docs/agent-reference/endpoint-request-response-contracts.md`'s
+      new `POST /v1/rag-retrieval/query` section (Proposed,
+      awaiting confirmation) - confirm it before implementation starts.
+    - **User-visible behavior:** a new "Auto" option in the UI's mode
+      selector (alongside the existing "Reflex Agent"/"Agentic Workflow"
+      forced options, 2026-10-21 label rename) that silently resolves to
+      one of the two per question. The Explainability modal's existing
+      "Retrieval Strategy" tab (`Gate 3 · Retrieval Strategy`) gets a new
+      field showing which one was actually picked for this turn - reusing
+      an existing tab, not a new UI surface.
+    - **Failure modes:** classification step itself failing (timeout, bad
+      output) falls back to `single-agentic-rag` (the cheaper, safer
+      default) rather than blocking the request - same "a safety/routing
+      mechanism must never become the reason every request fails"
+      principle already applied to the Resiliency work in
+      `hrb-common-libs`. `single-agentic-rag` resolving with a low-
+      confidence/empty result does NOT auto-escalate to
+      `multi-agentic-rag` in this first version - flagged as a real
+      open question below, not silently decided.
+    - **Out of scope:** changing `single-agentic-rag-retrieval`/
+      `multi-agentic-rag-retrieval`'s own contracts (both stay exactly as
+      they are, forced-mode). Folding `genai-rag`/Direct RAG into the
+      router (stays separate, including the adhoc-upload use case).
+    - **Open questions (not decided, need confirmation before implementation):**
+      1. What the classifier actually is - a cheap/fast dedicated LLM
+         call (e.g. a small model, one short prompt: "does this need one
+         tool or several domains?"), or a heuristic on question
+         shape/keyword overlap with known multi-domain patterns, or
+         something embedding-based. Cost/latency/accuracy tradeoff
+         between these isn't analyzed yet.
+      2. Whether a low-confidence/empty `single-agentic-rag` result should
+         escalate to `multi-agentic-rag` automatically (a real cascade,
+         more correct but more complex) or just return as-is (simpler,
+         matches this phase's stated out-of-scope line above, but means
+         a misclassified complex question gets a worse answer with no
+         recovery).
+      3. Where this classification step actually runs once the
+         microservices split happens - `rag_retrieval_service` per the
+         Interface Matrix's own boundary rules (business logic, not
+         Gateway), noted here so the eventual split doesn't have to
+         re-derive this.
+
+- [x] **Phase 241 (done) — Rename ai/pre_processing/ to ai/search_pre_processing/.** 770/770 tests pass unmodified after the rename.
+  - **Spec:**
+    - **Context:** 2026-10-21, user-directed - this package is about to
+      become the real home for query-intent classification and CAG-vs-RAG-
+      vs-Agent routing (Phase 240's router, the new Search Pre-Processing
+      Layer design), not just query decomposition/guardrails/memory as
+      today's name implies. Renamed before that new logic lands, not after.
+    - **Source:** mechanical rename only, zero behavior change - confirmed
+      via grep: 28 files reference `ai.pre_processing`/`ai/pre_processing`
+      (15 under `src/`, 13 under `tests/`), all import-path references,
+      no string/config value anywhere depends on the literal folder name.
+    - **API/contracts:** none - internal package path only, no wire-facing
+      name changes.
+    - **Behavior parity:** every existing test must pass unmodified after
+      the rename (same test logic, just a moved import path).
+    - **Out of scope:** the actual new routing/classification logic, the
+      real STM/LTM split, `search_filter.py` (still a genuine empty
+      placeholder) - all separate, later phases once the design doc this
+      phase enables is confirmed.
     - **Open questions:** none.

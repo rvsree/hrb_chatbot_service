@@ -1,0 +1,148 @@
+<title>Search Pre-Processing Layer - Overview</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --accent: #4a6fa5; --accent-bg: #e8eef6; --accent-border: #c3d2e5;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(26px, 4.2vw, 36px); letter-spacing: -0.01em; text-wrap: balance; }
+  .lede { margin: 0; color: var(--text-muted); font-size: 15px; max-width: 72ch; line-height: 1.6; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+  section.panel { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel h2 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 15px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.03em; }
+  .panel p { margin: 0; font-size: 14px; color: var(--text-muted); line-height: 1.7; }
+  .panel p + p { margin-top: 2px; }
+  .workflow { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .workflow li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; color: var(--text-muted); line-height: 1.55; }
+  .workflow .step-num { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); display: flex; align-items: center; justify-content: center; font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 12px; margin-top: 1px; }
+  .workflow .step-text { flex: 1; min-width: 0; }
+  .workflow strong { color: var(--text); }
+  .hub-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .hub-card { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--surface-alt); text-decoration: none; color: inherit; transition: border-color 0.15s; }
+  .hub-card:hover { border-color: var(--accent-border); }
+  .hub-card .label { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 14px; color: var(--accent); }
+  .hub-card .desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
+  footer { border-top: 1px solid var(--border); padding-top: 14px; font-size: 11.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">overview · ai/search_pre_processing/</div>
+    <h1 class="display">Search Pre-Processing Layer</h1>
+    <p class="lede">The thin layer between the Gateway and RAG/CAG/Agent pipelines - intent classification, CAG-vs-RAG-vs-Agent routing, and context assembly (user profile, STM/LTM, feedback). Formalizes six files that already existed as scattered pieces into one coherent layer with a clear boundary.</p>
+    <div class="doc-nav">
+      <span class="doc-nav-item current">Overview</span>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=search-pre-processing-layer&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=search-pre-processing-layer&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=search-pre-processing-layer&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=search-pre-processing-layer&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <h2>Purpose</h2>
+    <p>Today, a query arriving at the Gateway goes straight to whichever pipeline the caller explicitly named - the caller does the classification work itself by picking a dropdown option. This layer takes that job away from the caller: one entry point that reads the query, decides whether a cached answer already exists (CAG), which pipeline should handle it if not (Reflex Agent vs. Agentic Workflow - Phase 240), and assembles everything that pipeline needs to know about this request (who's asking, what they've said before, how they felt about the last answer) before handing off.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Scope</h2>
+    <p>Covers three responsibilities, each already partly built as its own file under <span class="mono">ai/search_pre_processing/</span> (renamed 2026-10-21 from <span class="mono">ai/pre_processing/</span> - the old name undersold what it's becoming): <b>intent classification</b> (<span class="mono">query_decompose.py</span>, feeds Phase 240's router), <b>CAG-vs-RAG decision</b> (new - the cache-check logic currently inlined in <span class="mono">pipeline.py</span>, extracted here), <b>context assembly</b> (<span class="mono">conversation_memory.py</span>, <span class="mono">context_builder.py</span> - STM/LTM, user profile, feedback signals, real split detailed in Design).</p>
+    <p>Does not cover guardrails' own pass/fail logic (<span class="mono">guardrails_input.py</span> stays a sibling file, called by this layer, not merged into it - its job is safety, not routing) or the generation pipelines themselves (RAG/CAG/Agentic Workflow stay exactly as they are, just invoked by this layer instead of invoked directly by the Gateway's forward).</p>
+  </section>
+
+  <section class="panel">
+    <h2>High-level workflow</h2>
+    <ol class="workflow">
+      <li><span class="step-num">1</span><span class="step-text"><strong>Query arrives</strong> from the Gateway, forwarded unchanged (identity, conversation_id, query text).</span></li>
+      <li><span class="step-num">2</span><span class="step-text"><strong>Context assembly</strong> - fetch STM (this conversation's recent turns, fast), check for a recent feedback signal, read the user profile.</span></li>
+      <li><span class="step-num">3</span><span class="step-text"><strong>Intent classification</strong> - decompose/normalize the query, decide its shape (simple lookup vs. multi-domain).</span></li>
+      <li><span class="step-num">4</span><span class="step-text"><strong>CAG check</strong> - exact-match cache lookup; a hit returns immediately, skipping steps 5-6 entirely.</span></li>
+      <li><span class="step-num">5</span><span class="step-text"><strong>Routing decision</strong> - on a cache miss, pick Reflex Agent or Agentic Workflow (Phase 240) using the classification from step 3.</span></li>
+      <li><span class="step-num">6</span><span class="step-text"><strong>Hand off</strong> to the chosen pipeline with the assembled context attached - the pipeline itself doesn't re-fetch any of this.</span></li>
+    </ol>
+  </section>
+
+  <section class="panel">
+    <h2>Where this fits</h2>
+    <p>Lives inside today's <span class="mono">hrb_chatbot_service</span>, and - per the Interface Matrix's own boundary rules - stays inside <span class="mono">rag_retrieval_service</span> once the microservices split happens. It's business logic (routing decisions need RAG-domain knowledge), so it was never a Gateway candidate.</p>
+  </section>
+
+  <div class="hub-grid">
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=search-pre-processing-layer&type=spec" target="_blank" rel="noopener noreferrer">
+      <span class="label">Spec</span>
+      <span class="desc">Requirements, personas, acceptance criteria, constraints.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=search-pre-processing-layer&type=architecture" target="_blank" rel="noopener noreferrer">
+      <span class="label">Architecture</span>
+      <span class="desc">Layer diagram, STM/LTM data flow, component list.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=search-pre-processing-layer&type=design" target="_blank" rel="noopener noreferrer">
+      <span class="label">Design</span>
+      <span class="desc">STM/LTM schema, module interface, session/feedback design.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=search-pre-processing-layer&type=decisions" target="_blank" rel="noopener noreferrer">
+      <span class="label">Decisions</span>
+      <span class="desc">Why cache-aside STM, why not cross-conversation LTM yet.</span>
+    </a>
+  </div>
+
+  <footer>Search Pre-Processing Layer — overview.html, spec.html, architecture.html, design.html, decisions.html</footer>
+</div>
+<!-- local-nav-fallback -->
+<script>
+(function () {
+  if (location.protocol !== "file:") return;
+  var LOCAL_DOCS = {
+    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/search-pre-processing-layer/overview.html",
+    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/search-pre-processing-layer/spec.html",
+    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/search-pre-processing-layer/architecture.html",
+    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/search-pre-processing-layer/design.html",
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/search-pre-processing-layer/decisions.html"
+  };
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    var match = a.href.match(/[?&]type=([^&]+)/);
+    if (!match) return;
+    var localPath = LOCAL_DOCS[match[1]];
+    if (localPath) { a.href = localPath; a.removeAttribute("target"); }
+  });
+})();
+</script>
+<!-- app-base-nav -->
+<script>
+(function () {
+  if (location.protocol === "file:") return;
+  var hashMatch = location.hash.match(/app_base=([^&]+)/);
+  if (!hashMatch) return;
+  var appBase = decodeURIComponent(hashMatch[1]).replace(/\/$/, "");
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      a.href = appBase + url.pathname + url.search + "#app_base=" + encodeURIComponent(appBase);
+    } catch (e) {}
+  });
+})();
+</script>

@@ -4,10 +4,10 @@ import asyncio
 import time
 
 from src.hrb_chatbot.ai.agents.workflow_agents import reviewer_agent
-from src.hrb_chatbot.ai.pre_processing import conversation_memory
-from src.hrb_chatbot.ai.pre_processing.guardrails_input import check_input
-from src.hrb_chatbot.ai.pre_processing.query_decompose import decompose
-from src.hrb_chatbot.ai.pre_processing.query_normalize import normalize_query
+from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
+from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import check_input
+from src.hrb_chatbot.ai.search_pre_processing.query_decompose import decompose
+from src.hrb_chatbot.ai.search_pre_processing.query_normalize import normalize_query
 from src.hrb_chatbot.ai.rag_core.eval_threshold import check_eval_threshold
 from src.hrb_chatbot.ai.rag_core.guarded_pipeline import run_guarded_pipeline
 from src.hrb_chatbot.ai.rag_core.tool_classification import classify_tool

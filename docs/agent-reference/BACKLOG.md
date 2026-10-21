@@ -479,7 +479,7 @@ explicit earlier decision to keep as-is for later, not a new finding.
   (`C:\workspace\poc\2026\hrb_emp_assist`) is the real "Status: Production"
   MCP client `hrb_lms_mcp`'s own README names as its primary consumer -
   Python/FastAPI, ReAct Multi-Agent, MCP Integration already built,
-  version 2.0. This looks like the mature version of what `hrb_chatbot_v2`
+  version 2.0. This looks like the mature version of what `hrb_chatbot_service`
   is a from-scratch educational rebuild of. Worth treating as a reference
   for "how was this actually built the first time" during future
   ReAct/agentic-rag phases, not just for schema comparison.
@@ -499,7 +499,7 @@ explicit earlier decision to keep as-is for later, not a new finding.
   gap to close, flagged here only because it surfaced while checking.
 - **The "shared database" design is not abandoned - it's live.** Corrected
   2026-09-22: the local Postgres server hosts 4 real databases -
-  `hrb_chatbot_v2` (this project's own, 1 table), `hr_chatbot`, `coco`,
+  `hrb_chatbot_service` (this project's own, 1 table), `hr_chatbot`, `coco`,
   and `postgres`. `hr_chatbot` has a `hrb_emp_lms` schema (61 employees -
   the 58 original plus the 3 this session added) and a `public` schema
   with real chat history (1,500 rows), sessions (109), HITL escalations
@@ -570,7 +570,7 @@ not simulated:
 1. **DB model diagram** (`docs/dev-reference/db-model-overview.html`) - built first, to
    design against, then kept accurate to the final state below.
 2. **OAuth2 schema redesigned** to reuse real data instead of duplicating
-   it: new `hrb_chatbot_v2_auth` Postgres schema, living inside the
+   it: new `hrb_chatbot_service_auth` Postgres schema, living inside the
    shared `hr_chatbot` database (not a new database, not this project's
    own). `employee_roles.employee_id` is a real FK into
    `hrb_emp_lms.employees` - Postgres schemas in the same database CAN
@@ -612,7 +612,7 @@ Full suite: 161 passed (2 new unit tests for the registry). Both
 eval-marked harnesses (`pytest -m eval`): 2 passed live, including the
 new NFR one, real LLM/guardrail calls both times.
 
-**Follow-up, same day: all 3 foreign keys removed from `hrb_chatbot_v2_auth`**
+**Follow-up, same day: all 3 foreign keys removed from `hrb_chatbot_service_auth`**
 (`employee_roles.employee_id` -> `hrb_emp_lms.employees`, `employee_roles.role_id`
 -> `roles`, `client_scopes.client_id` -> `oauth_clients`) - user-directed,
 real-world reasoning: a DB-enforced FK across schemas owned by different
@@ -631,14 +631,14 @@ infrastructure this project doesn't own, not this project's call to
 redesign.
 
 **Follow-up, same day: schema-per-service bounded-context isolation,
-user-directed.** `hrb_chatbot_v2_auth` renamed to `hrb_chatbot_v2_core`
+user-directed.** `hrb_chatbot_service_auth` renamed to `hrb_chatbot_service_core`
 (a more accurate name - it's this project's own identity/RBAC data, not
-just auth), and a new, deliberately empty `hrb_chatbot_v2_sessions`
+just auth), and a new, deliberately empty `hrb_chatbot_service_sessions`
 schema created for future conversation/session-state tables - created
 ahead of any table, not retrofitted after one lands somewhere less
 isolated. Three bounded-context schemas in the one shared `hr_chatbot`
-database: `hrb_chatbot_v2_core` (this project, identity),
-`hrb_chatbot_v2_sessions` (this project, reserved for session state),
+database: `hrb_chatbot_service_core` (this project, identity),
+`hrb_chatbot_service_sessions` (this project, reserved for session state),
 `hrb_emp_lms` (hrb_lms_mcp's own, untouched) - each schema owned by
 exactly one service, matching DDD bounded-context conventions even while
 physically sharing one Postgres instance. Applied live (`ALTER SCHEMA
@@ -653,7 +653,7 @@ but the actual current source code has **zero enforcement of it
 anywhere** (checked the whole `src/` tree; only a stale compiled `.pyc`
 from an apparently-deleted `mcp_controller.py` still references the
 header). The key is configured but dead - not wired into any request
-path today. `hrb_chatbot_v2`'s own `HRB_LMS_MCP_API_KEY` is empty in
+path today. `hrb_chatbot_service`'s own `HRB_LMS_MCP_API_KEY` is empty in
 `.env`, so this project's real calls send no `X-API-Key` header at all,
 which is why Phase 49/50's live calls worked without one. Not this
 project's bug to fix (a different repo), flagged here since it's
@@ -662,7 +662,7 @@ directly relevant to "is this call actually authenticated" - it isn't.
 **Superseded, same day (Phase 53): the dead X-API-Key gap above is
 closed for real.** Real OAuth2 client-credentials now runs both sides -
 `hrb_lms_mcp` issues and enforces signed JWTs (`POST /oauth/token`,
-`BearerAuthMiddleware` on `/mcp`), `hrb_chatbot_v2` acquires and caches
+`BearerAuthMiddleware` on `/mcp`), `hrb_chatbot_service` acquires and caches
 one. Verified live both directions: no token -> real 401, wrong secret ->
 real 401, valid credentials -> real signed JWT -> real authenticated
 call succeeds. Full detail, including the two real repos' worth of new
@@ -1464,7 +1464,7 @@ return the connection-issue fallback now returns a real PTO balance.
 
 ## MCP gaps found by reviewing a cohort-mate's M1 MCP submission (2026-10-15)
 
-Compared `hrb_chatbot_v2`'s MCP client (`ai/rag_pipeline/tools/mcp_tools/
+Compared `hrb_chatbot_service`'s MCP client (`ai/rag_pipeline/tools/mcp_tools/
 __init__.py`) and `hrb_lms_mcp`'s MCP server against the FDE cohort's M1
 MCP module as submitted by a cohort-mate (`jeev1992/real-estate-
 negotiation-simulator`, `m1_mcp/` - two `FastMCP` servers, a stdio client,

@@ -1,0 +1,159 @@
+<title>NFR Components - Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --accent: #4a6fa5; --accent-bg: #e8eef6; --accent-border: #c3d2e5;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0b2b25;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1060px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+  section.panel { display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; }
+  .panel-num { width: 28px; height: 28px; border-radius: 8px; background: var(--band-dark); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 12.5px; }
+  .panel-title { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 15.5px; }
+  .panel p { margin: 0; font-size: 13.5px; color: var(--text-muted); line-height: 1.6; }
+
+  .diagram { display: flex; flex-direction: column; gap: 8px; }
+  .stack-row { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
+  .stack-box { flex: 1 1 200px; border: 1px solid var(--accent-border); background: var(--accent-bg); color: var(--accent); border-radius: 10px; padding: 10px 12px; font-size: 12.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; text-align: center; }
+  .stack-box.base { background: var(--band-dark); color: #fff; border-color: var(--band-dark); font-size: 12px; }
+  .stack-arrow { text-align: center; font-family: 'IBM Plex Mono', monospace; color: var(--text-faint); font-size: 13px; }
+
+  .comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .comp-card { border: 1px solid var(--border); border-radius: 12px; padding: 13px 15px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 6px; }
+  .comp-card .name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13.5px; color: var(--accent); }
+  .comp-card .desc { font-size: 12px; color: var(--text-muted); line-height: 1.55; }
+  .comp-card .precedent { font-size: 10.5px; font-family: 'IBM Plex Mono', monospace; color: var(--text-faint); }
+  footer { border-top: 1px solid var(--border); padding-top: 14px; font-size: 11.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">architecture</div>
+    <h1 class="display">NFR Components — Architecture</h1>
+    <p class="subtitle">Four components, one layer, sitting beneath every microservice - never the other way around.</p>
+    <div class="doc-nav">
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=nfr-platform-components&type=overview" target="_blank" rel="noopener noreferrer">Overview</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=nfr-platform-components&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <span class="doc-nav-item current">Architecture</span>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=nfr-platform-components&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=nfr-platform-components&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head"><span class="panel-num">1</span><span class="panel-title">Layer diagram</span></div>
+    <div class="diagram">
+      <div class="stack-row">
+        <div class="stack-box">api_gateway_service</div>
+        <div class="stack-box">rag_ingestion_service</div>
+        <div class="stack-box">rag_retrieval_service</div>
+        <div class="stack-box">chat_audio_service</div>
+        <div class="stack-box">employee_401k_service</div>
+      </div>
+      <div class="stack-arrow">↓ every service depends on ↓</div>
+      <div class="stack-row">
+        <div class="stack-box base">Observability</div>
+        <div class="stack-box base">Resiliency</div>
+        <div class="stack-box base">Security baseline</div>
+        <div class="stack-box base">Caching primitives</div>
+      </div>
+    </div>
+    <p>The dependency arrow only ever points one way - this layer never calls back up into a service, and never knows which services exist.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><span class="panel-num">2</span><span class="panel-title">The four components</span></div>
+    <div class="comp-grid">
+      <div class="comp-card">
+        <span class="name">Observability</span>
+        <span class="desc">request_id/response_id generation and propagation, structured JSON logging matching <span class="mono">call_logger.py</span>'s existing shape, LangSmith trace tagging.</span>
+        <span class="precedent">precedent: Phase EX-1, call_logger.py</span>
+      </div>
+      <div class="comp-card">
+        <span class="name">Resiliency</span>
+        <span class="desc">Retry/backoff decorator with per-call-site overrides; a consecutive-failure-count + cooldown pre-flight check (not a formal 3-state machine), generalized from the MCP-specific one.</span>
+        <span class="precedent">precedent: Phase 185, mcp_registry_client.py</span>
+      </div>
+      <div class="comp-card">
+        <span class="name">Security baseline</span>
+        <span class="desc">One settings helper resolving secrets only from Secrets Manager/env; an identity-validation contract every service applies to whatever the Gateway forwards.</span>
+        <span class="precedent">precedent: existing Secrets Manager convention</span>
+      </div>
+      <div class="comp-card">
+        <span class="name">Caching primitives</span>
+        <span class="desc">Redis connection helper and a shared key-naming convention (<span class="mono">{service}:{purpose}:{hash}</span>) so independent services' cache keys never collide.</span>
+        <span class="precedent">precedent: answer_cache.py, embedding_cache.py</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><span class="panel-num">3</span><span class="panel-title">Request flow with this layer active</span></div>
+    <p>A request enters <span class="mono">api_gateway_service</span> → Observability assigns a request_id → the Gateway forwards to <span class="mono">rag_retrieval_service</span> with that id in a header → Resiliency wraps its calls to Postgres/vector store/LLM provider, each wrapped call logged with the same request_id → if the LLM provider times out repeatedly, Resiliency's circuit breaker opens and the service returns a typed degraded-service error instead of hanging → the whole trace is one LangSmith run, filterable by request_id, regardless of how many services it crossed.</p>
+  </section>
+
+  <footer>NFR Components — overview.html, spec.html, architecture.html, design.html, decisions.html</footer>
+</div>
+<!-- local-nav-fallback -->
+<script>
+(function () {
+  if (location.protocol !== "file:") return;
+  var LOCAL_DOCS = {
+    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/nfr-platform-components/overview.html",
+    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/nfr-platform-components/spec.html",
+    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/nfr-platform-components/architecture.html",
+    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/nfr-platform-components/design.html",
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/nfr-platform-components/decisions.html"
+  };
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    var match = a.href.match(/[?&]type=([^&]+)/);
+    if (!match) return;
+    var localPath = LOCAL_DOCS[match[1]];
+    if (localPath) { a.href = localPath; a.removeAttribute("target"); }
+  });
+})();
+</script>
+<!-- app-base-nav -->
+<script>
+(function () {
+  if (location.protocol === "file:") return;
+  var hashMatch = location.hash.match(/app_base=([^&]+)/);
+  if (!hashMatch) return;
+  var appBase = decodeURIComponent(hashMatch[1]).replace(/\/$/, "");
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      a.href = appBase + url.pathname + url.search + "#app_base=" + encodeURIComponent(appBase);
+    } catch (e) {}
+  });
+})();
+</script>

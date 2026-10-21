@@ -1,0 +1,147 @@
+<title>Common-Libs Connectors - Overview</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --accent: #4a6fa5; --accent-bg: #e8eef6; --accent-border: #c3d2e5;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(26px, 4.2vw, 36px); letter-spacing: -0.01em; text-wrap: balance; }
+  .lede { margin: 0; color: var(--text-muted); font-size: 15px; max-width: 72ch; line-height: 1.6; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+  section.panel { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel h2 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 15px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.03em; }
+  .panel p { margin: 0; font-size: 14px; color: var(--text-muted); line-height: 1.7; }
+  .panel p + p { margin-top: 2px; }
+  .workflow { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .workflow li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; color: var(--text-muted); line-height: 1.55; }
+  .workflow .step-num { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); display: flex; align-items: center; justify-content: center; font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 12px; margin-top: 1px; }
+  .workflow .step-text { flex: 1; min-width: 0; }
+  .workflow strong { color: var(--text); }
+  .hub-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .hub-card { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--surface-alt); text-decoration: none; color: inherit; transition: border-color 0.15s; }
+  .hub-card:hover { border-color: var(--accent-border); }
+  .hub-card .label { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 14px; color: var(--accent); }
+  .hub-card .desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
+  footer { border-top: 1px solid var(--border); padding-top: 14px; font-size: 11.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">overview</div>
+    <h1 class="display">Common-Libs Connectors</h1>
+    <p class="lede">One package, ten logically-grouped installable extras - mapped directly onto hrb_chatbot_service's existing common/clients/ folders - so a service like api_gateway_service never pulls in an LLM or MCP connector it has no business touching.</p>
+    <div class="doc-nav">
+      <span class="doc-nav-item current">Overview</span>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=common-libs-connectors&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=common-libs-connectors&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=common-libs-connectors&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=common-libs-connectors&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <h2>Purpose</h2>
+    <p>Every microservice in the split needs some subset of: a Postgres connector, a vector-store connector, an LLM provider gateway, an MCP client, S3 access, Tavily web search, OAuth2/auth, SES email, a Redis connector, or a CI/CD (GitHub Actions) client - but no service needs all ten. <span class="mono">hrb_common_libs</span> exists so each connector is written once and versioned once, while each service only installs the slice it actually uses.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Scope</h2>
+    <p>Covers extraction of the existing <span class="mono">Base*Client</span>/Gateway pattern already proven in <span class="mono">src/hrb_chatbot/common/clients/</span> into ten installable extras of one package: <span class="mono">observability</span> (new), <span class="mono">db</span>, <span class="mono">cache</span>, <span class="mono">llm</span>, <span class="mono">mcp</span>, <span class="mono">storage</span>, <span class="mono">web</span>, <span class="mono">auth</span>, <span class="mono">email</span>, <span class="mono">ci</span>. Each extra is independently installable; <span class="mono">observability</span> is the one every other extra depends on.</p>
+    <p>Does not cover business logic of any kind - chunking strategy, HITL workflow rules, 401k domain rules stay inside the service that owns them. A connector only knows how to talk to a backend, never what the data means.</p>
+  </section>
+
+  <section class="panel">
+    <h2>High-level workflow</h2>
+    <ol class="workflow">
+      <li><span class="step-num">1</span><span class="step-text"><strong>Extract</strong> each of the 9 existing <span class="mono">common/clients/*_client/</span> folders into its own extra inside one new repo.</span></li>
+      <li><span class="step-num">2</span><span class="step-text"><strong>Add</strong> a 10th, new <span class="mono">observability</span> extra (logging/request_id/retry/circuit-breaker - see the NFR Components doc).</span></li>
+      <li><span class="step-num">3</span><span class="step-text"><strong>Tag</strong> a version (<span class="mono">v0.1.0</span>); every consuming service pins to a tag, never a floating branch.</span></li>
+      <li><span class="step-num">4</span><span class="step-text"><strong>Each service</strong> declares only the extras it needs in its own <span class="mono">requirements.txt</span> - see the per-service dependency matrix in Design.</span></li>
+      <li><span class="step-num">5</span><span class="step-text"><strong>A version bump</strong> is deliberate - no service silently inherits a breaking change from another service's reason to upgrade.</span></li>
+    </ol>
+  </section>
+
+  <section class="panel">
+    <h2>Where this fits in the microservices rollout</h2>
+    <p>Phase 0 work, alongside the Postgres schema migration and the NFR Components layer (see <span class="mono">microservices-rollout-plan.html</span>) - every service built afterward is written against this from its first commit.</p>
+  </section>
+
+  <div class="hub-grid">
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=common-libs-connectors&type=spec" target="_blank" rel="noopener noreferrer">
+      <span class="label">Spec</span>
+      <span class="desc">Requirements, constraints, acceptance criteria.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=common-libs-connectors&type=architecture" target="_blank" rel="noopener noreferrer">
+      <span class="label">Architecture</span>
+      <span class="desc">The 10 extras and which services depend on which.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=common-libs-connectors&type=design" target="_blank" rel="noopener noreferrer">
+      <span class="label">Design</span>
+      <span class="desc">pyproject.toml layout, per-service requirements.txt.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=common-libs-connectors&type=decisions" target="_blank" rel="noopener noreferrer">
+      <span class="label">Decisions</span>
+      <span class="desc">Why one package with extras, not 10 repos. KPIs.</span>
+    </a>
+  </div>
+
+  <footer>Common-Libs Connectors — overview.html, spec.html, architecture.html, design.html, decisions.html</footer>
+</div>
+<!-- local-nav-fallback -->
+<script>
+(function () {
+  if (location.protocol !== "file:") return;
+  var LOCAL_DOCS = {
+    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/common-libs-connectors/overview.html",
+    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/common-libs-connectors/spec.html",
+    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/common-libs-connectors/architecture.html",
+    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/common-libs-connectors/design.html",
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/common-libs-connectors/decisions.html"
+  };
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    var match = a.href.match(/[?&]type=([^&]+)/);
+    if (!match) return;
+    var localPath = LOCAL_DOCS[match[1]];
+    if (localPath) { a.href = localPath; a.removeAttribute("target"); }
+  });
+})();
+</script>
+<!-- app-base-nav -->
+<script>
+(function () {
+  if (location.protocol === "file:") return;
+  var hashMatch = location.hash.match(/app_base=([^&]+)/);
+  if (!hashMatch) return;
+  var appBase = decodeURIComponent(hashMatch[1]).replace(/\/$/, "");
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      a.href = appBase + url.pathname + url.search + "#app_base=" + encodeURIComponent(appBase);
+    } catch (e) {}
+  });
+})();
+</script>

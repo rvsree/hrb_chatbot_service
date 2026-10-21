@@ -7,8 +7,8 @@ from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 
 from src.hrb_chatbot.ai.agents._llm_helpers import AGENT_LLM_TIMEOUT_SECONDS, build_agent_llm
-from src.hrb_chatbot.ai.pre_processing import conversation_memory
-from src.hrb_chatbot.ai.pre_processing.query_normalize import normalize_query
+from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
+from src.hrb_chatbot.ai.search_pre_processing.query_normalize import normalize_query
 from src.hrb_chatbot.ai.prompts.agent_prompts import ORCHESTRATION_SYSTEM_PROMPT
 from src.hrb_chatbot.ai.rag_core.eval_threshold import check_eval_threshold
 from src.hrb_chatbot.ai.rag_core.guarded_pipeline import run_guarded_pipeline

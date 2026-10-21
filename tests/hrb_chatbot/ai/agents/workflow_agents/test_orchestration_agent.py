@@ -13,7 +13,7 @@ own tests (test_multi_agent_pipeline.py)."""
 import pytest
 
 from src.hrb_chatbot.ai.agents.workflow_agents import orchestration_agent
-from src.hrb_chatbot.ai.pre_processing import conversation_memory
+from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
 from src.hrb_chatbot.ai.rag_core import guarded_pipeline
 from tests.conftest import FakeConversationStore, FakeDBGateway
 
@@ -450,7 +450,7 @@ async def test_guardrail_blocked_input_raises_so_the_route_can_catch_it(monkeypa
     the fake LLM is never actually invoked. Missing this masked a real
     CI failure (openai.OpenAIError: Missing credentials) that a real
     OPENAI_API_KEY in a local .env silently papered over - found live."""
-    from src.hrb_chatbot.ai.pre_processing.guardrails_input import GuardrailBlockedError
+    from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import GuardrailBlockedError
 
     _patch_llm(monkeypatch, [])
 

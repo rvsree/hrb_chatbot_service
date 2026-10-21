@@ -1,4 +1,4 @@
-"""PreToolUse hook for hrb_chatbot_v2 - blocks a Write/Edit under
+"""PreToolUse hook for hrb_chatbot_service - blocks a Write/Edit under
 src/hrb_chatbot/** unless at least one phase in
 docs/agent-reference/RAG-ROADMAP.md has a written, not-yet-done spec.
 

@@ -1,7 +1,7 @@
 """Checks a generated answer against NeMo Guardrails' output rails (Gate 6) - faithfulness is DeepEval's job."""
 
-from src.hrb_chatbot.ai.pre_processing.guardrails_input import activated_rails_to_dicts, get_rails
-from src.hrb_chatbot.ai.pre_processing.safe_terms import protect_known_safe_terms
+from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import activated_rails_to_dicts, get_rails
+from src.hrb_chatbot.ai.search_pre_processing.safe_terms import protect_known_safe_terms
 from src.hrb_chatbot.common.logging.logger import get_logger
 
 logger = get_logger("guardrails_output")

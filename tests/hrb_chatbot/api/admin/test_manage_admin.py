@@ -4,7 +4,7 @@ in this project."""
 
 from fastapi.testclient import TestClient
 
-from src.hrb_chatbot.ai.pre_processing import conversation_memory as conversation_memory_module
+from src.hrb_chatbot.ai.search_pre_processing import conversation_memory as conversation_memory_module
 from src.hrb_chatbot.api.admin import manage_admin
 from src.hrb_chatbot.main import app
 from tests.conftest import (
@@ -603,7 +603,7 @@ def _fake_workflow_run(run_id, run_number):
         "conclusion": "success",
         "head_sha": "d870681",
         "head_commit_message": "A real commit",
-        "html_url": f"https://github.com/rvsree/hrb_chatbot_v2/actions/runs/{run_id}",
+        "html_url": f"https://github.com/rvsree/hrb_chatbot_service/actions/runs/{run_id}",
         "created_at": "2026-10-19T03:58:22Z",
     }
 
@@ -730,7 +730,7 @@ def test_pipeline_status_defaults_to_the_latest_sha_and_stitches_workflows(monke
                 "head_branch": "develop",
                 "event": "push",
                 "actor_login": "rvsree",
-                "html_url": "https://github.com/rvsree/hrb_chatbot_v2/actions/runs/1",
+                "html_url": "https://github.com/rvsree/hrb_chatbot_service/actions/runs/1",
                 "created_at": "2026-10-16T02:52:00Z",
             },
             {
@@ -743,7 +743,7 @@ def test_pipeline_status_defaults_to_the_latest_sha_and_stitches_workflows(monke
                 "head_branch": "master",
                 "event": "push",
                 "actor_login": "rvsree",
-                "html_url": "https://github.com/rvsree/hrb_chatbot_v2/actions/runs/2",
+                "html_url": "https://github.com/rvsree/hrb_chatbot_service/actions/runs/2",
                 "created_at": "2026-10-16T02:53:20Z",
             },
         ],
@@ -972,7 +972,7 @@ def test_pipeline_status_lms_mcp_requests_the_separate_repo(monkeypatch):
 
 
 def test_pipeline_status_eval_gate_only_looked_up_for_backend(monkeypatch):
-    """Phase 233 - eval_run_store only ever holds hrb_chatbot_v2's own
+    """Phase 233 - eval_run_store only ever holds hrb_chatbot_service's own
     golden-dataset runs; showing one for an lms_mcp deploy would be a
     meaningless coincidence of timing, not a real correlation."""
     fake_github = _FakeGitHubActionsClient(

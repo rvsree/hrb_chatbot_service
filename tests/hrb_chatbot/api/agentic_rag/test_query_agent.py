@@ -5,7 +5,7 @@ user_profile sub-object, same pattern as genai-rag's query endpoint."""
 
 from fastapi.testclient import TestClient
 
-from src.hrb_chatbot.ai.pre_processing.guardrails_input import GuardrailBlockedError
+from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import GuardrailBlockedError
 from src.hrb_chatbot.api.agentic_rag import query_agent
 from src.hrb_chatbot.main import app
 

@@ -5,8 +5,8 @@ that let single-agentic-rag ship with none of this). check_input/
 check_output are faked here - no real API call, matching every other test
 in this project."""
 
-from src.hrb_chatbot.ai.pre_processing import conversation_memory
-from src.hrb_chatbot.ai.pre_processing.guardrails_input import GuardrailBlockedError
+from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
+from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import GuardrailBlockedError
 from src.hrb_chatbot.ai.rag_core import guarded_pipeline
 from tests.conftest import FakeConversationStore, FakeDBGateway
 

@@ -5,7 +5,7 @@ guardrail call is faked; only the graph wiring itself is real."""
 import pytest
 
 from src.hrb_chatbot.ai.agents.workflow_agents import multi_agent_pipeline
-from src.hrb_chatbot.ai.pre_processing import conversation_memory
+from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
 from tests.conftest import FakeConversationStore, FakeDBGateway
 
 
@@ -215,7 +215,7 @@ async def test_enabling_memory_without_an_id_generates_one_and_saves_the_turn(mo
 
 
 async def test_guardrail_blocked_input_raises_so_the_route_can_catch_it(monkeypatch):
-    from src.hrb_chatbot.ai.pre_processing.guardrails_input import GuardrailBlockedError
+    from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import GuardrailBlockedError
 
     async def _blocked_check_input(query):
         raise GuardrailBlockedError("blocked")

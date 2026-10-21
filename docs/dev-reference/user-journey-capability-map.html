@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>User Journey Capability Map</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef0f4; --surface: #ffffff; --surface-alt: #f4f5f9; --border: #d9dce4;
+    --text: #191d28; --text-muted: #565f72; --text-faint: #8992a4;
+    --accent: #4a6fa5; --accent-bg: #e8eef6; --accent-border: #c3d2e5;
+    --now: #1f8a4c; --now-bg: #e6f5ec; --now-border: #b9e2c9;
+    --later: #b8790a; --later-bg: #fbf1dd; --later-border: #edd6a2;
+    --shadow: 0 2px 4px rgba(20,24,34,0.06), 0 12px 26px rgba(20,24,34,0.08);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1218; --surface: #1a1f29; --surface-alt: #1c212c; --border: #2b3140;
+      --text: #e8eaf0; --text-muted: #a3aac0; --text-faint: #6d7488;
+      --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+      --now: #4fbd80; --now-bg: #15281d; --now-border: #23492f;
+      --later: #e0ac48; --later-bg: #2c2311; --later-border: #4a3a17;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1218; --surface: #1a1f29; --surface-alt: #1c212c; --border: #2b3140;
+    --text: #e8eaf0; --text-muted: #a3aac0; --text-faint: #6d7488;
+    --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+    --now: #4fbd80; --now-bg: #15281d; --now-border: #23492f;
+    --later: #e0ac48; --later-bg: #2c2311; --later-border: #4a3a17;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 32px 56px; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-faint); font-weight: 600; }
+  h1 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 900; font-size: clamp(24px, 3.8vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 13.5px; max-width: 78ch; line-height: 1.55; }
+  h2 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 16px; display: flex; align-items: center; gap: 9px; }
+  .jnum { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 700; background: var(--accent); color: #fff; border-radius: 6px; padding: 2px 7px; flex: none; }
+  .jtag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid; margin-left: auto; }
+  .jtag.built { background: var(--now-bg); border-color: var(--now-border); color: var(--now); }
+  .jtag.future { background: var(--later-bg); border-color: var(--later-border); color: var(--later); }
+  .journey { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; background: var(--surface); box-shadow: var(--shadow); }
+  .trigger { font-size: 12.5px; color: var(--text-muted); font-style: italic; }
+  .hops { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+  .hop { background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); border-radius: 8px; padding: 6px 10px; font-size: 11.5px; font-weight: 600; }
+  .hop .comm { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 500; opacity: 0.75; margin-top: 2px; }
+  .arrow { color: var(--text-faint); font-size: 13px; }
+  .outcome { font-size: 12px; color: var(--text-muted); }
+  .outcome b { color: var(--text); }
+  .synth { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); }
+  .cap-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+  .cap-table th { text-align: left; font-family: 'IBM Plex Mono', monospace; font-size: 10px; text-transform: uppercase; color: var(--text-faint); padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .cap-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); color: var(--text-muted); }
+  .cap-table .key { font-family: 'IBM Plex Mono', monospace; font-weight: 700; color: var(--text); }
+  footer { font-size: 11px; color: var(--text-faint); text-align: center; padding-top: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="eyebrow">hrb_chatbot_service · user-journey analysis · 2026-10-21</span>
+  <h1>User Journey Capability Map</h1>
+  <p class="subtitle">Microservices from the user's side first, components second: 7 real journeys through this system, each traced hop by hop, with the capability each journey actually demands derived from the trace - not assumed up front.</p>
+</header>
+
+<section class="journey">
+  <h2><span class="jnum">1</span>Employee asks a benefits question<span class="jtag built">built</span></h2>
+  <div class="trigger">"How much is the dental copay?" typed in chat.</div>
+  <div class="hops">
+    <div class="hop">UI<span class="comm">HTTPS</span></div><div class="arrow">→</div>
+    <div class="hop">api_gateway_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
+    <div class="hop">rag_retrieval_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
+    <div class="hop">Vector DB + LLM Gateway<span class="comm">SDK calls</span></div>
+  </div>
+  <div class="outcome"><b>Demands:</b> RAG retrieval, LLM Gateway connector, vector-store connector, answer cache.</div>
+</section>
+
+<section class="journey">
+  <h2><span class="jnum">2</span>Employee asks "what's my leave balance"<span class="jtag built">built</span></h2>
+  <div class="trigger">A live-data question, not a static KB lookup.</div>
+  <div class="hops">
+    <div class="hop">UI<span class="comm">HTTPS</span></div><div class="arrow">→</div>
+    <div class="hop">api_gateway_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
+    <div class="hop">rag_retrieval_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
+    <div class="hop">MCP client<span class="comm">MCP protocol</span></div><div class="arrow">→</div>
+    <div class="hop">hrb_lms_mcp<span class="comm">OAuth2 client-creds</span></div><div class="arrow">→</div>
+    <div class="hop">hrb_emp_lms (own DB)<span class="comm">SQL</span></div>
+  </div>
+  <div class="outcome"><b>Demands:</b> MCP client connector, OAuth2 auth connector, live-data cache exclusion (already built - this path never hits the answer cache).</div>
+</section>
+
+<section class="journey">
+  <h2><span class="jnum">3</span>Employee requests unpaid leave<span class="jtag built">built</span></h2>
+  <div class="trigger">A real approval workflow, not a question-answer turn.</div>
+  <div class="hops">
+    <div class="hop">UI<span class="comm">HTTPS</span></div><div class="arrow">→</div>
+    <div class="hop">api_gateway_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
+    <div class="hop">rag_retrieval_service / HITL graph<span class="comm">LangGraph interrupt()</span></div><div class="arrow">→</div>
+    <div class="hop">SES<span class="comm">email, async</span></div><div class="arrow">→</div>
+    <div class="hop"><em>manager approves, days later</em></div><div class="arrow">→</div>
+    <div class="hop">resume via thread_id<span class="comm">Command(resume=...)</span></div>
+  </div>
+  <div class="outcome"><b>Demands:</b> durable async state (Postgres checkpointer, not in-memory), email connector, a request/resume contract that survives days, not just one HTTP round-trip.</div>
+</section>
+
+<section class="journey">
+  <h2><span class="jnum">4</span>Admin uploads a new benefits PDF<span class="jtag built">built</span></h2>
+  <div class="trigger">HR adds a policy document to the knowledge base.</div>
+  <div class="hops">
+    <div class="hop">Admin UI<span class="comm">HTTPS, multipart</span></div><div class="arrow">→</div>
+    <div class="hop">api_gateway_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
+    <div class="hop">rag_ingestion_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
+    <div class="hop">S3 + chunk/embed<span class="comm">SDK + batch</span></div><div class="arrow">→</div>
+    <div class="hop">Vector DB + Postgres<span class="comm">write</span></div>
+  </div>
+  <div class="outcome"><b>Demands:</b> S3 connector, embedding-only LLM Gateway usage, content-hash dedup (already built) - a completely different traffic shape from journeys 1-3: bursty, admin-only, write-heavy.</div>
+</section>
+
+<section class="journey">
+  <h2><span class="jnum">5</span>Admin checks CI/CD status or edits Interview Q&amp;A<span class="jtag built">built</span></h2>
+  <div class="trigger">Operational/admin work, not an employee-facing capability.</div>
+  <div class="hops">
+    <div class="hop">Admin UI<span class="comm">HTTPS</span></div><div class="arrow">→</div>
+    <div class="hop">api_gateway_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
+    <div class="hop">platform package (co-located)<span class="comm">REST, sync</span></div><div class="arrow">→</div>
+    <div class="hop">GitHub Actions API / Postgres<span class="comm">REST / SQL</span></div>
+  </div>
+  <div class="outcome"><b>Demands:</b> CI connector (GitHub Actions client), its own Postgres schemas - and notably, nothing this journey touches is an LLM call at all. Confirms platform capabilities are a genuinely separate concern from every RAG journey above.</div>
+</section>
+
+<section class="journey">
+  <h2><span class="jnum">6</span>Employee asks about a 401(k) loan<span class="jtag future">future</span></h2>
+  <div class="trigger">"Can I take a loan against my 401k to cover a repair?"</div>
+  <div class="hops">
+    <div class="hop">UI<span class="comm">HTTPS</span></div><div class="arrow">→</div>
+    <div class="hop">api_gateway_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
+    <div class="hop">employee_401k_service hub<span class="comm">A2A routing</span></div><div class="arrow">→</div>
+    <div class="hop">loan sub-agent<span class="comm">internal dispatch</span></div><div class="arrow">→</div>
+    <div class="hop">LLM Gateway + Postgres<span class="comm">SDK + SQL</span></div>
+  </div>
+  <div class="outcome"><b>Demands:</b> a hub/orchestrator that routes to one of several specialized sub-agents (loan, withdrawal, transfer, retirement) - reuses the Planner→domain-agents pattern already proven in multi-agentic-rag, not a new pattern.</div>
+</section>
+
+<section class="journey">
+  <h2><span class="jnum">7</span>Employee speaks instead of types<span class="jtag future">future</span></h2>
+  <div class="trigger">A voice-first interaction with the same underlying capabilities.</div>
+  <div class="hops">
+    <div class="hop">UI (mic)<span class="comm">WebRTC/upload</span></div><div class="arrow">→</div>
+    <div class="hop">api_gateway_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
+    <div class="hop">chat_audio_service<span class="comm">speech-to-text</span></div><div class="arrow">→</div>
+    <div class="hop">rag_retrieval_service or employee_401k_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
+    <div class="hop">chat_audio_service<span class="comm">text-to-speech</span></div>
+  </div>
+  <div class="outcome"><b>Demands:</b> audio is a <em>front door</em>, not a new answer-generation path - it transcribes in, then hands off to an existing capability, and synthesizes speech out. Confirms chat_audio_service doesn't duplicate rag_retrieval_service's logic, it wraps it.</div>
+</section>
+
+<div class="synth">
+  <h2 style="margin-bottom:10px;"><span class="jnum">Σ</span>What the journeys actually demand, not assumed up front</h2>
+  <p style="margin:0;font-size:13px;color:var(--text-muted);line-height:1.6;">Reading top to bottom: journeys 1-2 justify <b>rag_retrieval_service</b> as one capability (static + live data, same conversational path). Journey 3 proves it needs <b>durable, days-long async state</b>, not just request/response. Journey 4 proves <b>rag_ingestion_service</b> is a genuinely different traffic shape and deserves its own service. Journey 5 proves <b>platform/admin</b> is its own concern with zero LLM involvement. Journeys 6-7 prove the future services (<b>employee_401k_service</b>, <b>chat_audio_service</b>) extend the system by composing with what exists, not by duplicating it.</p>
+  <table class="cap-table">
+    <thead><tr><th>Journey</th><th>Capability it justifies</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td class="key">1, 2</td><td>RAG retrieval (static + live data, one conversational path)</td><td>built</td></tr>
+      <tr><td class="key">3</td><td>Durable async workflow state (HITL)</td><td>built</td></tr>
+      <tr><td class="key">4</td><td>RAG ingestion as its own traffic shape</td><td>built</td></tr>
+      <tr><td class="key">5</td><td>Platform/admin, zero LLM involvement</td><td>built</td></tr>
+      <tr><td class="key">6</td><td>Hub/sub-agent A2A routing (401k)</td><td>design-only</td></tr>
+      <tr><td class="key">7</td><td>Audio as a front door, not a new path</td><td>not started</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<footer>Companion to <code>service-boundary-decision.html</code>, <code>microservices-rollout-plan.html</code>, <code>microservices-interface-matrix.html</code></footer>
+
+</div>
+</body>
+</html>

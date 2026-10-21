@@ -23,9 +23,9 @@ class GitHubActionsClient:
 
     def __init__(self, token: str | None = None, repo: str | None = None, base_url: str | None = None):
         self.token = read_setting(token, "GITHUB_TOKEN")
-        # "owner/repo", e.g. "rvsree/hrb_chatbot_v2" - this project's own
+        # "owner/repo", e.g. "rvsree/hrb_chatbot_service" - this project's own
         # repo by default, never guessed for a different one.
-        self.repo = read_setting(repo, "GITHUB_REPO", "rvsree/hrb_chatbot_v2")
+        self.repo = read_setting(repo, "GITHUB_REPO", "rvsree/hrb_chatbot_service")
         self.base_url = read_url_setting(base_url, "GITHUB_API_BASE_URL", self.DEFAULT_BASE_URL)
 
         if not self.token:
@@ -106,7 +106,7 @@ class GitHubActionsClient:
     def get_latest_run_sha_for_workflow(self, workflow_file: str) -> dict:
         """Phase 233 - same shape as get_latest_run_sha(), scoped to one
         workflow file. Needed when a repo hosts more than one real
-        application (hrb_chatbot_v2's own backend vs. its ingestion
+        application (hrb_chatbot_service's own backend vs. its ingestion
         Lambda) - get_latest_run_sha()'s "any workflow in the repo" scope
         could otherwise resolve "latest commit" to a sha the OTHER
         application's own workflow never actually ran on."""

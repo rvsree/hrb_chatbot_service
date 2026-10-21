@@ -1,10 +1,10 @@
 """Tests for Phase 76's Postgres-backed conversation history
-(ai/pre_processing/conversation_memory.py) - the real ConversationStore is
+(ai/search_pre_processing/conversation_memory.py) - the real ConversationStore is
 faked (FakeConversationStore), no real database involved."""
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from src.hrb_chatbot.ai.pre_processing import conversation_memory
+from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
 from tests.conftest import FakeConversationStore, FakeDBGateway
 
 

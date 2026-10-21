@@ -986,6 +986,54 @@ Phase 231 already gave for keeping the ACL filter out of that field:
 `applied_filter` represents Self-Query's own parsed filter, and mixing in
 a security control would misrepresent what it shows.
 
+## POST /v1/rag-retrieval/query (Phase 240) — Proposed, awaiting confirmation
+
+New, additive endpoint - `single-agentic-rag-retrieval`/`multi-agentic-rag-retrieval`
+stay exactly as they are today (forced-mode, unchanged contracts) so a demo
+can still reliably force either path on purpose. This one adds the
+auto-routing UI direction discussed 2026-10-21: a lightweight
+classification step decides single-agent vs. multi-agent per question,
+instead of the caller picking. "Direct RAG" (`genai-rag`) is deliberately
+not part of this router - it stays a separate, explicitly-selected mode
+(including the adhoc-upload-and-ask use case), per the same discussion.
+
+Request - identical shape to `single-agentic-rag-retrieval`'s own (the
+router's job is picking a pipeline, not a new request shape):
+
+```json
+{
+  "user_profile": { "employee_id": "EMP052", "full_name": "Eddy Employee", "role": "employee" },
+  "query": "What is my PTO balance?",
+  "enable_conversation_memory": false,
+  "conversation_id": null
+}
+```
+
+Response - whichever shape the resolved pipeline actually returns
+(`single-agentic-rag`'s `tools_used`/`iterations` shape, or
+`multi-agentic-rag`'s own), plus one new field naming which one was
+picked, so the UI's existing per-mode rendering logic can key off it
+without new frontend response-shape handling, and so the Explainability
+modal's existing "Retrieval Strategy" tab can show it:
+
+```json
+{
+  "resolved_mode": "single-agentic-rag",
+  "query": "What is my PTO balance?",
+  "answer": "Your current Paid Time Off (PTO) balance is 11 days available.",
+  "tools_used": [{ "tool_name": "GetLeaveBalance", "tool_input": "" }],
+  "iterations": 2,
+  "conversation_id": null
+}
+```
+
+`resolved_mode`: `"single-agentic-rag" | "multi-agentic-rag"` - always
+present, even on failure/escalation paths. Open question carried into the
+phase spec below: what the classification step actually is (a cheap LLM
+call, or a heuristic on question shape/conversation length) and what it
+falls back to if `single-agentic-rag` comes back low-confidence/empty -
+not decided here, decided in the phase spec.
+
 ## GET /v1/genai-rag/ingest-document/documents, GET .../{id} — Finalized
 
 Identity: query params (`?employee_id=...&full_name=...&role=...`), not a
@@ -1152,7 +1200,7 @@ carries that instead of a crashed request.
 pair only ever fit `backend`'s own 2 workflow files. Phase 233 gave the
 *pipeline* endpoint (`/ci-status/pipeline`) an `application` selector but
 never touched this one (`/ci-status`, the older "Full run history" grid
-below it) - it still only ever showed `hrb_chatbot_v2`'s own `ci.yml`/
+below it) - it still only ever showed `hrb_chatbot_service`'s own `ci.yml`/
 `deploy.yml`, regardless of which application the Application dropdown had
 selected. This redesign gives it the same `application` param, plus new
 `page`/pagination (user-reported: the grid would otherwise grow
@@ -1191,7 +1239,7 @@ order, unchanged).
           "conclusion": "success",
           "head_sha": "d870681",
           "head_commit_message": "Add golden dataset Postgres mirror",
-          "html_url": "https://github.com/rvsree/hrb_chatbot_v2/actions/runs/123456",
+          "html_url": "https://github.com/rvsree/hrb_chatbot_service/actions/runs/123456",
           "created_at": "2026-10-15T03:58:22Z"
         }
       ],
@@ -1231,7 +1279,7 @@ GET /v1/admin/ci-status/pipeline?application=ingestion_lambda&employee_id=...&fu
 ```
 
 `Application` (new `StrEnum`, `common/enums.py`): `backend` (this
-project's own `ci.yml`/`deploy.yml`, `rvsree/hrb_chatbot_v2`),
+project's own `ci.yml`/`deploy.yml`, `rvsree/hrb_chatbot_service`),
 `ingestion_lambda` (`deploy-lambda.yml`, same repo as `backend` but a
 different deployable, filtered out of `backend`'s own view and vice
 versa - they used to be shown mixed together, confirmed confusing in

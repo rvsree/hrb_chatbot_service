@@ -5,7 +5,7 @@ test in this project (e.g. single-agentic-rag's own test_query_agent.py)."""
 from fastapi.testclient import TestClient
 
 from src.hrb_chatbot.api.multi_agentic_rag import query_agent
-from src.hrb_chatbot.ai.pre_processing.guardrails_input import GuardrailBlockedError
+from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import GuardrailBlockedError
 from src.hrb_chatbot.main import app
 
 client = TestClient(app)

@@ -7,7 +7,7 @@ resolution branching."""
 
 import pytest
 
-from src.hrb_chatbot.ai.pre_processing import conversation_memory
+from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
 from src.hrb_chatbot.ai.rag_core import guarded_pipeline
 from src.hrb_chatbot.ai.rag_pipeline import pipeline
 from src.hrb_chatbot.common.rag_query_params import RagQueryParams

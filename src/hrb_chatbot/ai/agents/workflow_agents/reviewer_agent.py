@@ -8,7 +8,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from src.hrb_chatbot.ai.agents._llm_helpers import AGENT_LLM_TIMEOUT_SECONDS, build_agent_llm
-from src.hrb_chatbot.ai.pre_processing.context_builder import build_context_from_agent_results
+from src.hrb_chatbot.ai.search_pre_processing.context_builder import build_context_from_agent_results
 from src.hrb_chatbot.ai.prompts.agent_prompts import FOLLOW_UP_QUESTIONS_SYSTEM_PROMPT, REVIEWER_SYSTEM_PROMPT
 from src.hrb_chatbot.ai.rag_core.response_format import TABULAR_FORMAT_INSTRUCTION, should_use_tabular_format
 from src.hrb_chatbot.common.logging.call_logger import log_backend_call

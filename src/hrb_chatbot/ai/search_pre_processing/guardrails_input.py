@@ -5,7 +5,7 @@ from pathlib import Path
 
 from nemoguardrails import LLMRails, RailsConfig
 
-from src.hrb_chatbot.ai.pre_processing.safe_terms import protect_known_safe_terms
+from src.hrb_chatbot.ai.search_pre_processing.safe_terms import protect_known_safe_terms
 from src.hrb_chatbot.common.logging.logger import get_logger
 
 logger = get_logger("guardrails_input")

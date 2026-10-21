@@ -1,4 +1,4 @@
-"""PostToolUse hook for hrb_chatbot_v2 - runs the test suite after a
+"""PostToolUse hook for hrb_chatbot_service - runs the test suite after a
 Write/Edit under src/hrb_chatbot or tests/, and surfaces failures only.
 
 Reads the hook's JSON payload on stdin (see Claude Code's hooks reference

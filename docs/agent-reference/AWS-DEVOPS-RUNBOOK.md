@@ -28,7 +28,7 @@ runbook doesn't imply something is deployed when it isn't:
 | **Postgres** | **Not live in the deployment** | code fully implemented (Phase 2.5); deployed service still runs `RAG_METADATA_STORE=sqlite` because a hosted Postgres (Neon) hasn't been provisioned yet - blocked on the user, not on infrastructure |
 | **S3** | **Not implemented at all** | a *design only* doc exists at `docs/agent-reference/S3-ASYNC-UPLOAD-DESIGN.md` for a future presigned-upload + event-driven-Lambda-indexing architecture - nothing to validate today |
 | **Lambda** | **Not implemented at all** | same design doc; the current architecture uses App Runner running the whole FastAPI app continuously, not a Lambda per request |
-| **GitHub Actions CI** | Live, verified | [run 34184448804](https://github.com/rvsree/hrb_chatbot_v2/actions/runs/34184448804) passed both jobs |
+| **GitHub Actions CI** | Live, verified | [run 34184448804](https://github.com/rvsree/hrb_chatbot_service/actions/runs/34184448804) passed both jobs |
 | **GitHub Actions Deploy** | Written, **not yet exercised** | triggers only on `master` (renamed from `main` on 2026-09-08 - see [`CICD-BRANCHING-STRATEGY.md`](CICD-BRANCHING-STRATEGY.md)), which has no new commits yet; two GitHub Secrets still need to be added manually (see [CI/CD](#cicd-github-actions)) |
 
 ## Resource identifiers
@@ -132,7 +132,7 @@ or a line break in it.
 git push origin hrb_rag_pipelines
 
 # no gh CLI or GitHub token needed - Actions on a public repo are readable anonymously
-curl -s "https://api.github.com/repos/rvsree/hrb_chatbot_v2/actions/runs?branch=hrb_rag_pipelines&per_page=1" \
+curl -s "https://api.github.com/repos/rvsree/hrb_chatbot_service/actions/runs?branch=hrb_rag_pipelines&per_page=1" \
   | python -c "import json,sys; r=json.load(sys.stdin)['workflow_runs'][0]; print(r['status'], r['conclusion'])"
 ```
 Poll that second command every 10-15 seconds until it prints
@@ -414,7 +414,7 @@ waits for the new App Runner deployment to reach `RUNNING` and runs a real
 
 To validate CI/CD wiring without waiting for a real merge to `main`:
 ```bash
-curl -s "https://api.github.com/repos/rvsree/hrb_chatbot_v2/actions/runs?branch=<branch>&per_page=3"
+curl -s "https://api.github.com/repos/rvsree/hrb_chatbot_service/actions/runs?branch=<branch>&per_page=3"
 ```
 No auth needed for a public repo's Actions API.
 

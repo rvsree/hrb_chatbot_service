@@ -201,7 +201,7 @@
       <div class="lane-title display">Tools and Knowledgebase</div>
       <div class="box done">Vector Store<span class="b-sub">ChromaDB (active) / Pinecone (alt)</span></div>
       <div class="box future">Web Search<span class="b-sub">Tavily - KB-miss fallback, not built</span></div>
-      <div class="box done">Postgres &mdash; hr_chatbot<span class="b-sub">shared DB: hrb_chatbot_v2_core (OAuth2), MCP registry, hrb_emp_lms (external, MCP-only)</span></div>
+      <div class="box done">Postgres &mdash; hr_chatbot<span class="b-sub">shared DB: hrb_chatbot_service_core (OAuth2), MCP registry, hrb_emp_lms (external, MCP-only)</span></div>
       <div class="box tool">hrb_lms_mcp_v2<span class="b-sub">OAuth 2.0, 2 of 6 tools wired (get_leave_balance, get_leave_history)</span></div>
       <div class="box future">Redis<span class="b-sub">your target image's answer/embedding cache store - no Redis anywhere in this project today</span></div>
       <div class="callout">
@@ -222,11 +222,11 @@
 (function () {
   if (location.protocol !== "file:") return;
   var LOCAL_DOCS = {
-    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/single-agentic-rag/overview.html",
-    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/single-agentic-rag/spec.html",
-    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/rag-retrieval/rag-pipeline-current-state.html",
-    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/single-agentic-rag/design.html",
-    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/single-agentic-rag/decisions.html"
+    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/single-agentic-rag/overview.html",
+    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/single-agentic-rag/spec.html",
+    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/rag-retrieval/rag-pipeline-current-state.html",
+    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/single-agentic-rag/design.html",
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/single-agentic-rag/decisions.html"
   };
   document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
     var match = a.href.match(/[?&]type=([^&]+)/);

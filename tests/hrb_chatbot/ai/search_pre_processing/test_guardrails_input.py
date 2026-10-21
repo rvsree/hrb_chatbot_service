@@ -1,4 +1,4 @@
-"""Tests for check_input() (ai/pre_processing/guardrails_input.py) - Gate 1.
+"""Tests for check_input() (ai/search_pre_processing/guardrails_input.py) - Gate 1.
 get_rails() is faked, so no real LLM call and no API key needed.
 
 Phase 229 - check_input() now calls generate_async() directly (not NeMo's
@@ -8,8 +8,8 @@ why), so these fakes stand in for generate_async()'s real response shape
 
 import pytest
 
-from src.hrb_chatbot.ai.pre_processing import guardrails_input
-from src.hrb_chatbot.ai.pre_processing.guardrails_input import GuardrailBlockedError, check_input
+from src.hrb_chatbot.ai.search_pre_processing import guardrails_input
+from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import GuardrailBlockedError, check_input
 
 
 class FakeActivatedRail:

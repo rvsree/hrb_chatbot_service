@@ -17,7 +17,7 @@ from pydantic import ValidationError
 
 from src.hrb_chatbot.ai.agents.workflow_agents import adhoc_document_agent
 from src.hrb_chatbot.ai.doc_processing.adhoc_extraction import extract_text
-from src.hrb_chatbot.ai.pre_processing.guardrails_input import GuardrailBlockedError, check_input
+from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import GuardrailBlockedError, check_input
 from src.hrb_chatbot.ai.rag_pipeline.response_generation.guardrails_output import check_output
 from src.hrb_chatbot.api.dependencies import json_error
 from src.hrb_chatbot.api.gateway.rbac import identity_from_query_params, require_role

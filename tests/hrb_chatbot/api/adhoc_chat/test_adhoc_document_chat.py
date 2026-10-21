@@ -139,7 +139,7 @@ def test_all_three_roles_are_allowed(monkeypatch):
 
 
 def test_a_file_whose_content_trips_the_input_guardrail_is_rejected_with_422(monkeypatch):
-    from src.hrb_chatbot.ai.pre_processing.guardrails_input import GuardrailBlockedError
+    from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import GuardrailBlockedError
 
     async def _blocking_check_input(query):
         if "DANGEROUS" in query:

@@ -114,7 +114,7 @@ footer.doc-foot { text-align: center; color: var(--fg-muted); font-size: 12px; p
 <div class="page">
 
 <header class="doc-head">
-  <span class="eyebrow">hrb_chatbot_v2 + hrb_lms_mcp &middot; design proposal</span>
+  <span class="eyebrow">hrb_chatbot_service + hrb_lms_mcp &middot; design proposal</span>
   <h1>Leave Approval A2A</h1>
   <p class="subtitle">Critical-care / STD / LTD / unpaid leave requests, routed through a specialist HR review step, as a second A2A/HITL showcase alongside the leave-balance MCP integration.</p>
   <div class="status-row">
@@ -151,7 +151,7 @@ footer.doc-foot { text-align: center; color: var(--fg-muted); font-size: 12px; p
     <li><code class="inline">hrb_emp_lms.leave_requests</code> already has a <code class="inline">PENDING_HITL</code> status and auto-fires <code class="inline">create_hitl_request_for_leave_exception()</code> when a request exceeds the employee's balance (<code class="inline">leave_request_service.py</code>'s <code class="inline">submit_leave_request()</code>).</li>
     <li><code class="inline">leave_types</code> already has a <code class="inline">requires_approval</code> boolean and an <code class="inline">approver_id</code> on <code class="inline">leave_requests</code> pointing at the employee's manager.</li>
   </ul>
-  <p>None of this was reachable from <code class="inline">hrb_chatbot_v2</code> before today - its own MCP tool wrapper (<code class="inline">ai/rag_pipeline/tools/mcp_tools/__init__.py</code>) only ever calls <code class="inline">get_leave_balance</code>/<code class="inline">get_leave_history</code>. The HITL machinery exists; nothing on this side has ever used it.</p>
+  <p>None of this was reachable from <code class="inline">hrb_chatbot_service</code> before today - its own MCP tool wrapper (<code class="inline">ai/rag_pipeline/tools/mcp_tools/__init__.py</code>) only ever calls <code class="inline">get_leave_balance</code>/<code class="inline">get_leave_history</code>. The HITL machinery exists; nothing on this side has ever used it.</p>
 </section>
 
 <section>
@@ -219,7 +219,7 @@ flowchart TD
     <span class="callout-label">Not a close call</span>
     <p><strong>Postgres, full stop.</strong> This is real transactional business-process data that must survive hours-to-days of waiting on a human, must never silently vanish, and must be consistent across however many App Runner instances are running. That's a strictly stronger durability requirement than the GenAI Chat Workflow memory proposal, where SQLite-vs-Postgres was a genuine judgment call. Here it isn't.</p>
   </div>
-  <p>The sharper question is actually <strong>"does <code class="inline">hrb_chatbot_v2</code> need a new table of its own at all?"</strong> - and the honest answer is probably no:</p>
+  <p>The sharper question is actually <strong>"does <code class="inline">hrb_chatbot_service</code> need a new table of its own at all?"</strong> - and the honest answer is probably no:</p>
   <div class="repo-split">
     <div class="repo-col">
       <span class="repo-label">hrb_lms_mcp (existing Postgres schema)</span>
@@ -231,7 +231,7 @@ flowchart TD
       </ul>
     </div>
     <div class="repo-col">
-      <span class="repo-label">hrb_chatbot_v2 (no new table proposed)</span>
+      <span class="repo-label">hrb_chatbot_service (no new table proposed)</span>
       <ul class="spec-list">
         <li>New MCP tool wrappers (client-side) for <code class="inline">create_leave_request</code>, <code class="inline">create_hitl_request</code>, <code class="inline">get_hitl_status</code>, the new <code class="inline">resolve_hitl_request</code>.</li>
         <li>"My leave requests" / the specialist queue both query live via MCP each time - no local cache table duplicating data <code class="inline">hrb_lms_mcp</code> already owns.</li>
@@ -262,9 +262,9 @@ flowchart TD
   <div class="section-head"><span class="section-num">07</span><h2>Build order - the dependency is real, not a formality</h2></div>
   <ol class="seq-list">
     <li class="blocked"><strong>In <code class="inline">hrb_lms_mcp</code> (prerequisite, outside this repo):</strong> build <code class="inline">resolve_hitl_request</code>, add the specialist-review leave-type column, seed STD/LTD/CRITICAL_CARE. Nothing downstream is worth building before this exists.</li>
-    <li>In <code class="inline">hrb_chatbot_v2</code>: MCP tool wrappers for all 4 tools, the private S3 document bucket, the Intake agent.</li>
+    <li>In <code class="inline">hrb_chatbot_service</code>: MCP tool wrappers for all 4 tools, the private S3 document bucket, the Intake agent.</li>
     <li>In <code class="inline">hrb_chatbot_ui</code>: the "Request Leave" form.</li>
-    <li>In <code class="inline">hrb_chatbot_v2</code>: the Review-support agent (summarization only).</li>
+    <li>In <code class="inline">hrb_chatbot_service</code>: the Review-support agent (summarization only).</li>
     <li>In <code class="inline">hrb_chatbot_ui</code>: the "Leave Approvals" specialist queue.</li>
     <li>Live round-trip verification: submit a real request with a document, resolve it as the specialist, confirm the employee gets a real notification - not a unit test standing in for it.</li>
   </ol>
@@ -293,7 +293,7 @@ flowchart TD
 
 <section>
   <div class="section-head"><span class="section-num">09</span><h2>Phase 162 reality check - what actually shipped, verified directly against the running code and schema, not assumed from this proposal</h2></div>
-  <p class="lede">This section exists because the user asked, after trying it locally: where is this stored, how many tables, how does the employee find out, who does a request go to? The honest answers below came from reading <code class="inline">hrb_lms_mcp/src/app/models/models.py</code>, <code class="inline">hitl_service.py</code>, and <code class="inline">hrb_chatbot_v2</code>'s routes directly - not from this proposal, which predates the real implementation and drifted from it in 3 places.</p>
+  <p class="lede">This section exists because the user asked, after trying it locally: where is this stored, how many tables, how does the employee find out, who does a request go to? The honest answers below came from reading <code class="inline">hrb_lms_mcp/src/app/models/models.py</code>, <code class="inline">hitl_service.py</code>, and <code class="inline">hrb_chatbot_service</code>'s routes directly - not from this proposal, which predates the real implementation and drifted from it in 3 places.</p>
   <h3>Storage - confirmed, 2 tables, zero new ones added for this feature</h3>
   <ul class="spec-list">
     <li><code class="inline">hrb_emp_lms.leave_requests</code> - the leave record itself (<code class="inline">employee_id</code>, <code class="inline">leave_type_id</code>, dates, <code class="inline">days</code>, <code class="inline">reason</code>, <code class="inline">status</code>, <code class="inline">approver_id</code>, <code class="inline">approved_at</code>, <code class="inline">rejection_reason</code>) - already existed for the balance-driven leave flow, reused as-is.</li>
@@ -373,7 +373,7 @@ flowchart TD
   </div>
 
   <h3>Email notification</h3>
-  <p>Sent at the moment a specialist resolves a request (approve or reject), reusing the existing <code class="inline">send_email</code> client, to the employee's own address (<code class="inline">employees.email</code>, looked up in <code class="inline">hrb_lms_mcp</code> and returned as part of <code class="inline">resolve_hitl_request</code>'s response so <code class="inline">hrb_chatbot_v2</code> doesn't need a second round trip to fetch it).</p>
+  <p>Sent at the moment a specialist resolves a request (approve or reject), reusing the existing <code class="inline">send_email</code> client, to the employee's own address (<code class="inline">employees.email</code>, looked up in <code class="inline">hrb_lms_mcp</code> and returned as part of <code class="inline">resolve_hitl_request</code>'s response so <code class="inline">hrb_chatbot_service</code> doesn't need a second round trip to fetch it).</p>
 
   <h3>"My Requests" view (employee side)</h3>
   <p>A new page/section listing the logged-in employee's own past requests - leave type, dates, status, the specialist's comments once decided, submitted/decided timestamps. New MCP tool (list a specific employee's own <code class="inline">specialist_leave_reviews</code> joined to <code class="inline">leave_requests</code>), a wrapper, a route, and a UI page - same shape as the existing <code class="inline">LeaveApprovalsPage</code> but scoped to <code class="inline">employee_id</code> instead of showing everyone's pending queue.</p>
@@ -399,7 +399,7 @@ flowchart TD
   </div>
 </section>
 
-<footer class="doc-foot">hrb_chatbot_v2 + hrb_lms_mcp + hrb_chatbot_ui &middot; Phase 162 + Phase 165 built &amp; live-verified, NOT pushed/committed anywhere &middot; 1 pre-existing S3 config gap open (&sect;11)</footer>
+<footer class="doc-foot">hrb_chatbot_service + hrb_lms_mcp + hrb_chatbot_ui &middot; Phase 162 + Phase 165 built &amp; live-verified, NOT pushed/committed anywhere &middot; 1 pre-existing S3 config gap open (&sect;11)</footer>
 
 </div>
 <script>mermaid.initialize({ startOnLoad: true, theme: "neutral" });</script>
