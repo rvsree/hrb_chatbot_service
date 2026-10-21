@@ -4,7 +4,7 @@ import asyncio
 import time
 
 from src.hrb_chatbot.ai.agents.workflow_agents import reviewer_agent
-from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
+from src.hrb_chatbot.ai.search_pre_processing import cache_layer, conversation_memory
 from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import check_input
 from src.hrb_chatbot.ai.search_pre_processing.query_decompose import decompose
 from src.hrb_chatbot.ai.search_pre_processing.query_normalize import normalize_query
@@ -28,17 +28,6 @@ from src.hrb_chatbot.common.logging.logger import get_logger
 from src.hrb_chatbot.common.rag_query_params import RagQueryParams
 
 logger = get_logger("rag_pipeline.pipeline")
-
-# Phase 140: a decomposed sub-question that used live MCP data must not
-# have the overall result cached - a multi-sub-question query's MERGED
-# result was being cached unconditionally even when one sub-question's
-# answer came from here (Phase 151 removed the separate top-level MCP
-# shortcut this comment used to also cover; every MCP call now goes
-# through this same per-sub-question path, so this is the only guard
-# needed). snake_case to match try_route_to_mcp()'s own tool_name
-# convention (mcp_tools/__init__.py), distinct from orchestration_agent.py's
-# PascalCase LIVE_DATA_TOOLS.
-LIVE_DATA_MCP_TOOLS = {"get_leave_balance", "get_leave_history"}
 
 
 def _elapsed_ms(started_at: float) -> float:
@@ -348,54 +337,15 @@ async def answer_query(params: RagQueryParams, request_id: str | None = None) ->
         role=params.role,
         department=params.department,
     )
-    cached_result = await get_db_gateway().answer_cache().get(cache_key)
-    if cached_result is not None:
-        logger.info("Answer cache hit for %r", checked_query)
-        # Never reuse the cached result's own conversation_id - it could be
-        # a different caller's conversation entirely. This caller gets its
-        # own (possibly freshly-generated) id, and the turn is saved under
-        # it, so a follow-up still has this in its history.
-        result = dict(cached_result)
-        result["conversation_id"] = resolved_conversation_id
-        if resolved_conversation_id:
-            await conversation_memory.save_turn(
-                resolved_conversation_id, params.employee_id, checked_query, result["answer"]
-            )
-            # Phase 112: this conversation's history now depends on this
-            # cache entry - deleting the conversation can purge it later.
-            await get_db_gateway().answer_cache().tag_conversation(resolved_conversation_id, cache_key)
-        # Phase 107/109: this call made zero LLM/retrieval/eval-judge
-        # calls - overwrite whatever latency_ms/token_usage the cached
-        # dict carried from when it was FIRST generated, since those
-        # describe that earlier call, not this one. The eval SCORES
-        # themselves are the one exception - left as-is, reused rather
-        # than recomputed, since they're a property of the (question,
-        # context, answer) triple, which is identical for an exact cache
-        # hit (re-running the judge LLM would cost a real call for a
-        # result that should already match, modulo LLM nondeterminism).
-        #
-        # Phase 223: below_threshold/below_threshold_metrics are NOT part
-        # of that "identical" set, though, and were a real bug before this
-        # fix - they're a property of THIS call's eval_score_threshold,
-        # not the cached one from whenever this entry was first written.
-        # A caller who raises their threshold in Settings and re-asks the
-        # exact same question (same retrieval/generation config, so same
-        # cache key) must see the re-evaluated flag, not a stale one from
-        # a looser (or absent) threshold set the first time.
-        if result.get("eval_scores") is not None:
-            result["eval_scores"] = dict(result["eval_scores"])
-            result["eval_scores"]["below_threshold"], result["eval_scores"]["below_threshold_metrics"] = (
-                check_eval_threshold(result["eval_scores"], params.eval_score_threshold)
-            )
-        result["served_from_cache"] = True
-        result["llm_call_count"] = 0
-        result["token_usage"] = None
-        result["latency_ms"] = {"total": _elapsed_ms(started_at), "retrieval": None, "generation": None, "eval": None}
-        # Phase 132: the cached llm_context describes the ORIGINAL call that
-        # populated this cache entry, not this one - nothing was actually
-        # sent to anything this call, so this must not carry it forward.
-        result["llm_context"] = None
-        return result
+    # 2026-10-21 - CAG check/write extracted into its own layer
+    # (ai/search_pre_processing/cache_layer.py), out of this function -
+    # same behavior, see that module for the hit-path/write-eligibility
+    # logic this used to carry inline (Phase 242).
+    cache_hit = await cache_layer.check_cache(
+        cache_key, checked_query, resolved_conversation_id, params.employee_id, params.eval_score_threshold, started_at
+    )
+    if cache_hit is not None:
+        return cache_hit
 
     logger.info(
         "Answering query %r (top_k=%s, vector_db=%s, search_strategy=%s, use_multi_query=%s, "
@@ -560,12 +510,9 @@ async def answer_query(params: RagQueryParams, request_id: str | None = None) ->
     # individually.
     result["latency_ms"]["total"] = _elapsed_ms(started_at)
 
-    # Phase 140: don't cache a result where any sub-question's answer came
-    # from live MCP data - see LIVE_DATA_MCP_TOOLS above.
-    cache_eligible = not any(call["tool_name"] in LIVE_DATA_MCP_TOOLS for call in result["tools_used"])
-    if cache_eligible:
-        await get_db_gateway().answer_cache().set(cache_key, checked_query, result)
-        if result.get("conversation_id"):
-            await get_db_gateway().answer_cache().tag_conversation(result["conversation_id"], cache_key)
+    # 2026-10-21 - same extraction as the hit path above (Phase 242) -
+    # cache_layer.write_cache() applies the live-data-tool eligibility
+    # check before writing, same rule as before.
+    await cache_layer.write_cache(cache_key, checked_query, result)
 
     return result

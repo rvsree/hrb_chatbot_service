@@ -18824,3 +18824,12 @@ Explicitly deferred to a later, separate wave - not part of the above:
       placeholder) - all separate, later phases once the design doc this
       phase enables is confirmed.
     - **Open questions:** none.
+
+- [x] **Phase 242 (done) — Extract CAG (answer cache) check/write into its own layer, out of pipeline.py.**
+  - **Spec:**
+    - **Context:** 2026-10-21, user-directed (CAG as a separate layer, not inter-mixed with RAG) - `pipeline.py`'s cache-hit handling (~80 lines: get, conversation-memory save, eval-threshold recompute, result reshaping) and cache-write eligibility check were inlined directly in the main answer function. Pure extraction, zero behavior change.
+    - **Source:** `ai/rag_pipeline/pipeline.py` lines ~320-398 (hit path) and ~563-569 (write path), moved into new `ai/search_pre_processing/cache_layer.py` - the home this session's Search Pre-Processing Layer design doc already named for it.
+    - **API surface:** `check_cache(cache_key, checked_query, resolved_conversation_id, employee_id, eval_score_threshold, started_at) -> dict | None` (returns the shaped hit result, or `None` on a miss); `write_cache(cache_key, checked_query, result) -> None` (applies the existing live-data-tool eligibility check before writing); `LIVE_DATA_MCP_TOOLS` moves here too - genuinely a cache-eligibility concept, not core pipeline logic. `pipeline.py` still builds `cache_key` itself (via the existing `build_cache_key()`) and calls these two functions as explicit bookend steps.
+    - **Behavior parity:** identical - every existing `test_pipeline.py` cache-hit/cache-write test must pass unmodified; only the module a reader needs to open to see this logic changes.
+    - **Out of scope:** `genai-rag`-only scope is unchanged (still never called from `single-/multi-agentic-rag`). The CAG-vs-RAG *routing decision* (Phase 240) - this phase only extracts the existing check/write, it doesn't add new routing logic.
+    - **Open questions:** none.

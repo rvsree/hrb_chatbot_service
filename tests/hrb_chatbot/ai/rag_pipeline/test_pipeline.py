@@ -7,7 +7,7 @@ resolution branching."""
 
 import pytest
 
-from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
+from src.hrb_chatbot.ai.search_pre_processing import cache_layer, conversation_memory
 from src.hrb_chatbot.ai.rag_core import guarded_pipeline
 from src.hrb_chatbot.ai.rag_pipeline import pipeline
 from src.hrb_chatbot.common.rag_query_params import RagQueryParams
@@ -23,6 +23,10 @@ def _fake_answer_cache(monkeypatch):
     the very resolution logic this file exists to test)."""
     gateway = FakeDBGateway()
     monkeypatch.setattr(pipeline, "get_db_gateway", lambda: gateway)
+    # Phase 242: check/write logic moved into cache_layer.py, which imports
+    # its own get_db_gateway - same reason conversation_memory below needs
+    # its own patch, this needs one too, or it falls through to the real thing.
+    monkeypatch.setattr(cache_layer, "get_db_gateway", lambda: gateway)
 
 
 @pytest.fixture(autouse=True)
