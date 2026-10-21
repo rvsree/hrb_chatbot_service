@@ -33,7 +33,7 @@ doc convention (e.g. `multi-agentic-rag/`, `request-unpaid-leave/`).
 | Repo | Contains | Status |
 |---|---|---|
 | [hrb-common-libs](https://github.com/rvsree/hrb-common-libs) | 11-extra connector package (an eleventh, `vectorstore`, was added after finding a real scope gap) | **All phases done**, 53/53 tests passing, tagged `v0.3.0` |
-| [hrb-api_gateway_service](https://github.com/rvsree/hrb-api_gateway_service) | RBAC/CORS/rate-limit/contract-validation Gateway | Phase 1 (CORS + rate limit) done, 9/9 tests passing |
+| [hrb_api_gateway_service](https://github.com/rvsree/hrb_api_gateway_service) | RBAC/CORS/rate-limit/contract-validation Gateway | Phase 1 (CORS + rate limit) done, 9/9 tests passing |
 | [hrb-platform-components](https://github.com/rvsree/hrb-platform-components) | interview_qa, build_deployment, mcp_catalog | scaffolded, pushed — deployment model (standalone vs. mounted) still open, flagged in its own CLAUDE.md |
 
 Each has its own `CLAUDE.md`, `ROADMAP.md` (empty of specs, phases listed), and `.claude/` (skills, agents, `spec_gate.py` hook) — independently workable by a fresh Claude Code session against any one of them.
