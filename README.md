@@ -11,7 +11,7 @@ README doesn't repeat it).
 
 | App | Local | AWS (production) |
 | --- | --- | --- |
-| Backend (this repo, `hrb_chatbot_v2`) | `http://127.0.0.1:8093` | `https://hrb-chatbot.rvsree.dev` |
+| Backend (this repo, `hrb_chatbot_service`) | `http://127.0.0.1:8093` | `https://hrb-chatbot.rvsree.dev` |
 | Frontend (`hrb_chatbot_ui`, separate repo) | `http://localhost:5173` (`npm run dev`) | `https://hrb-chatbot-ui.rvsree.dev` |
 | MCP server (`hrb_lms_mcp`, separate repo - leave balance/history tools) | `http://127.0.0.1:8190` | `https://hrb-lms-mcp.rvsree.dev` |
 
@@ -67,7 +67,7 @@ built in).
 
 1. **Point the project at the venv.** *File → Project Structure → SDKs → +
    → Add Python SDK → Existing environment*, then choose
-   `...\hrb_chatbot_v2\.venv\Scripts\python.exe`. Assign that SDK to the
+   `...\hrb_chatbot_service\.venv\Scripts\python.exe`. Assign that SDK to the
    module.
 2. **Mark the repository root as the Sources Root** (not `src/`). Right-click
    the repo root → *Mark Directory as → Sources Root*. This is what makes

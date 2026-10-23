@@ -357,7 +357,7 @@
     <div class="grid two">
       <div class="card">
         <div class="card-head"><span class="card-label">Postgres (Neon) - metadata + sessions</span><span class="status-pill live">live</span></div>
-        <p class="card-desc">Production now runs <span class="mono">RAG_METADATA_STORE=postgres</span> against a real Neon database (<span class="mono">HR_Benefits</span>), not SQLite - schema-per-bounded-context (<span class="mono">hrb_chatbot_v2_core</span>/<span class="mono">_sessions</span>, <span class="mono">hrb_emp_lms</span>, <span class="mono">hrb_lms_mcp_auth</span>), no cross-schema FKs, matching this project's gateway-per-backend pattern. Real gotcha already hit and fixed: Neon's pooled connection endpoint (PgBouncer, transaction mode) can silently remap a logical connection to a different backend process between transactions - session state set once on connect doesn't survive that remap. At real concurrent-user scale, the next lever is read replicas for the query-heavy conversation/feedback tables, not re-architecting the schema split.</p>
+        <p class="card-desc">Production now runs <span class="mono">RAG_METADATA_STORE=postgres</span> against a real Neon database (<span class="mono">HR_Benefits</span>), not SQLite - schema-per-bounded-context (<span class="mono">hrb_chatbot_service_core</span>/<span class="mono">_sessions</span>, <span class="mono">hrb_emp_lms</span>, <span class="mono">hrb_lms_mcp_auth</span>), no cross-schema FKs, matching this project's gateway-per-backend pattern. Real gotcha already hit and fixed: Neon's pooled connection endpoint (PgBouncer, transaction mode) can silently remap a logical connection to a different backend process between transactions - session state set once on connect doesn't survive that remap. At real concurrent-user scale, the next lever is read replicas for the query-heavy conversation/feedback tables, not re-architecting the schema split.</p>
       </div>
       <div class="card">
         <div class="card-head"><span class="card-label">Secrets management</span><span class="status-pill live">live</span></div>
@@ -394,7 +394,7 @@
         <span class="sub">one service today runs everything - what independent scaling actually requires</span>
       </div>
     </div>
-    <p class="card-desc" style="margin:0;">Today, <span class="mono">hrb_chatbot_v2</span>'s single Docker image serves every route - chat queries, document upload/ingestion, admin, leave workflow - as one App Runner service, scaling as one unit even though these workloads have nothing in common: a large PDF batch upload is CPU/IO-bound and bursty, a chat query is LLM-latency-bound and steady. <span class="mono">hrb_lms_mcp</span> already proves the alternative works in this project: it's its own separate App Runner service (Phase 118, live at <span class="mono">hrb-lms-mcp.rvsree.dev</span>), scaling independently of the chat API that calls it over real OAuth2 client-credentials auth, not in-process.</p>
+    <p class="card-desc" style="margin:0;">Today, <span class="mono">hrb_chatbot_service</span>'s single Docker image serves every route - chat queries, document upload/ingestion, admin, leave workflow - as one App Runner service, scaling as one unit even though these workloads have nothing in common: a large PDF batch upload is CPU/IO-bound and bursty, a chat query is LLM-latency-bound and steady. <span class="mono">hrb_lms_mcp</span> already proves the alternative works in this project: it's its own separate App Runner service (Phase 118, live at <span class="mono">hrb-lms-mcp.rvsree.dev</span>), scaling independently of the chat API that calls it over real OAuth2 client-credentials auth, not in-process.</p>
     <div class="pipe-strip">
       <div class="pipe-node live">hrb-chatbot (API)<span class="mono">App Runner, today</span></div>
       <div class="pipe-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
@@ -415,7 +415,7 @@
       </div>
       <div class="card">
         <div class="card-head"><span class="card-label">MCP server as proof of the pattern</span><span class="status-pill live">live</span></div>
-        <p class="card-desc"><span class="mono">hrb_lms_mcp</span> is already deployed, containerized, and scaled separately from this project's own API - the Dockerfile mirrors <span class="mono">hrb_chatbot_v2</span>'s own two-stage build (see <span class="mono">AWS-DEVOPS-RUNBOOK.md</span>-style pipeline), proving the per-service container approach isn't hypothetical here.</p>
+        <p class="card-desc"><span class="mono">hrb_lms_mcp</span> is already deployed, containerized, and scaled separately from this project's own API - the Dockerfile mirrors <span class="mono">hrb_chatbot_service</span>'s own two-stage build (see <span class="mono">AWS-DEVOPS-RUNBOOK.md</span>-style pipeline), proving the per-service container approach isn't hypothetical here.</p>
       </div>
       <div class="card">
         <div class="card-head"><span class="card-label">Frontend needs no container at all</span><span class="status-pill live">live</span></div>
@@ -434,7 +434,7 @@
 (function () {
   if (location.protocol !== "file:") return;
   var LOCAL_DOCS = {
-    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/design/scaling-latency-design.html"
+    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/design/scaling-latency-design.html"
   };
   document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
     var match = a.href.match(/[?&]type=([^&]+)/);

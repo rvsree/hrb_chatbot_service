@@ -108,7 +108,7 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">for anyone operating hrb_chatbot_v2's deployed service day to day</div>
+    <div class="eyebrow">for anyone operating hrb_chatbot_service's deployed service day to day</div>
     <h1 class="display">Production Monitoring Guide</h1>
     <p class="subtitle">How to read this project's real App Runner dashboard, tail its CloudWatch logs, read a LangSmith trace, and tell a real secret apart from a plain env var - grounded in the actual code and runbooks, not a generic AWS tutorial. Every file path, command, and threshold below was read out of the real source or the real runbooks - where something couldn't be confirmed, that's said outright instead of guessed. Split out of <span class="mono">docs/dev-reference/developer-onboarding/</span> on 2026-10-15; the Spring-mapping table stayed there, and the build/deploy pipeline itself now lives in <span class="mono">docs/dev-reference/build-guide/</span> and <span class="mono">docs/dev-reference/deployment-verification-guide/</span>.</p>
     <div class="legend">
@@ -176,8 +176,8 @@ aws logs get-log-events --log-group-name "/aws/apprunner/hrb-chatbot/&lt;service
       </div>
       <div class="card">
         <div class="card-label">Local vs. prod project split</div>
-        <div class="card-desc"><span class="mono">_resolve_project_name()</span> appends <span class="mono">_local</span> or <span class="mono">_prod</span> to the base <span class="mono">hrb_chatbot_v2</span> project name, read from <span class="mono">HRB_CHATBOT_LOCAL</span>/<span class="mono">HRB_CHATBOT_PROD</span> flags - every checked-out <span class="mono">.env</span> defaults to <span class="mono">LOCAL=true</span>/<span class="mono">PROD=false</span>, production's own App Runner env vars set the opposite. If both are somehow true, <span class="mono">_prod</span> wins - a misconfigured prod deploy still gets labeled correctly rather than silently polluting the local project's traces.</div>
-        <div class="chip-row"><span class="chip">hrb_chatbot_v2_local</span><span class="chip">hrb_chatbot_v2_prod</span></div>
+        <div class="card-desc"><span class="mono">_resolve_project_name()</span> appends <span class="mono">_local</span> or <span class="mono">_prod</span> to the base <span class="mono">hrb_chatbot_service</span> project name, read from <span class="mono">HRB_CHATBOT_LOCAL</span>/<span class="mono">HRB_CHATBOT_PROD</span> flags - every checked-out <span class="mono">.env</span> defaults to <span class="mono">LOCAL=true</span>/<span class="mono">PROD=false</span>, production's own App Runner env vars set the opposite. If both are somehow true, <span class="mono">_prod</span> wins - a misconfigured prod deploy still gets labeled correctly rather than silently polluting the local project's traces.</div>
+        <div class="chip-row"><span class="chip">hrb_chatbot_service_local</span><span class="chip">hrb_chatbot_service_prod</span></div>
       </div>
       <div class="card">
         <div class="card-label">What a trace shows for one query</div>

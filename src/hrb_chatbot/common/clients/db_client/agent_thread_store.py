@@ -16,6 +16,9 @@ from src.hrb_chatbot.common.logging.logger import get_logger
 
 logger = get_logger("agent_thread_store")
 
+# Phase 251 - schema-per-domain migration, see resources/db_scripts/schema_migration.sql.
+_SCHEMA = "hrb_chat_hitl"
+
 CREATE_AGENT_THREADS_TABLE = """
 CREATE TABLE IF NOT EXISTS agent_threads (
     hitl_request_context_id INTEGER PRIMARY KEY,
@@ -52,7 +55,8 @@ class AgentThreadStore:
 
     def _connect(self) -> psycopg.Connection:
         return psycopg.connect(
-            host=self.host, port=self.port, dbname=self.db_name, user=self.user, password=self.password
+            host=self.host, port=self.port, dbname=self.db_name, user=self.user, password=self.password,
+            options=f"-c search_path={_SCHEMA},public",
         )
 
     def _ensure_table_sync(self) -> None:

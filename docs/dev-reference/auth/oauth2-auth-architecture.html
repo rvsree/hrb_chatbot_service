@@ -116,7 +116,7 @@
   <header>
     <div class="eyebrow">two personas, two different real states - one is live and verified, one is still a design</div>
     <h1 class="display">OAuth2 Authentication Architecture</h1>
-    <p class="subtitle">Who's calling this project's endpoints, and who this project calls in turn. Human-to-app (a person logging into <span class="mono">hrb_chatbot_v2</span>) is still a design, unchanged since the original feasibility pass. App-to-app (<span class="mono">hrb_chatbot_v2</span> calling <span class="mono">hrb_lms_mcp</span> as itself) went from a dead, unenforced API key to a real, live-verified OAuth2 client-credentials flow in the same session.</p>
+    <p class="subtitle">Who's calling this project's endpoints, and who this project calls in turn. Human-to-app (a person logging into <span class="mono">hrb_chatbot_service</span>) is still a design, unchanged since the original feasibility pass. App-to-app (<span class="mono">hrb_chatbot_service</span> calling <span class="mono">hrb_lms_mcp</span> as itself) went from a dead, unenforced API key to a real, live-verified OAuth2 client-credentials flow in the same session.</p>
     <div class="legend">
       <span class="legend-item"><span class="dot live"></span>Live, verified end to end</span>
       <span class="legend-item"><span class="dot planned"></span>Design only</span>
@@ -127,11 +127,11 @@
   <div class="persona-tabs">
     <div class="persona human">
       <div class="persona-head"><div class="persona-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/></svg></div><span class="persona-name display">Human-to-app</span></div>
-      <span class="persona-verdict">A person logging into hrb_chatbot_v2 itself - password grant. Design only, unchanged this session.</span>
+      <span class="persona-verdict">A person logging into hrb_chatbot_service itself - password grant. Design only, unchanged this session.</span>
     </div>
     <div class="persona app">
       <div class="persona-head"><div class="persona-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div><span class="persona-name display">App-to-app</span></div>
-      <span class="persona-verdict">hrb_chatbot_v2 calling hrb_lms_mcp as itself, no human involved - client_credentials grant. Real, live, verified.</span>
+      <span class="persona-verdict">hrb_chatbot_service calling hrb_lms_mcp as itself, no human involved - client_credentials grant. Real, live, verified.</span>
     </div>
   </div>
 
@@ -142,7 +142,7 @@
     </div>
 
     <div class="flow-strip">
-      <div class="flow-node actor">hrb_chatbot_v2<span class="mono">oauth_client.py</span></div>
+      <div class="flow-node actor">hrb_chatbot_service<span class="mono">oauth_client.py</span></div>
       <div class="flow-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
       <div class="flow-node step">POST /oauth/token<span class="mono">client_id + client_secret</span></div>
       <div class="flow-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
@@ -184,10 +184,10 @@
     <div class="table-grid">
       <div class="table-card">
         <div class="t-name">hrb_lms_mcp_auth.oauth_clients (hrb_lms_mcp's own)</div>
-        <div class="t-cols"><span>client_id: hrb-chatbot-v2</span><span>client_secret_hash: SHA-256</span><span>scopes: [get_leave_balance, get_leave_history]</span></div>
+        <div class="t-cols"><span>client_id: hrb-chatbot-service</span><span>client_secret_hash: SHA-256</span><span>scopes: [get_leave_balance, get_leave_history]</span></div>
       </div>
       <div class="table-card">
-        <div class="t-name">hrb_chatbot_v2's own credential</div>
+        <div class="t-name">hrb_chatbot_service's own credential</div>
         <div class="t-cols"><span>.env: HRB_LMS_MCP_OAUTH_CLIENT_ID/SECRET</span><span>plaintext secret, handed over once</span><span>never committed - gitignored .env only</span></div>
       </div>
     </div>
@@ -211,17 +211,17 @@
       </div>
       <div class="compare-card">
         <span class="ct-label">Proposed</span>
-        <span class="mono">POST /oauth/token</span> (password grant) checks credentials against real rows in <span class="mono">hrb_chatbot_v2_core.employee_roles</span> (already real, live, populated - see <span class="mono">docs/dev-reference/db-model-overview.html</span>), issues a JWT; routes verify the signature instead of trusting the payload.
+        <span class="mono">POST /oauth/token</span> (password grant) checks credentials against real rows in <span class="mono">hrb_chatbot_service_core.employee_roles</span> (already real, live, populated - see <span class="mono">docs/dev-reference/db-model-overview.html</span>), issues a JWT; routes verify the signature instead of trusting the payload.
       </div>
     </div>
 
     <div class="table-grid">
       <div class="table-card">
-        <div class="t-name">hrb_chatbot_v2_core.roles</div>
+        <div class="t-name">hrb_chatbot_service_core.roles</div>
         <div class="t-cols"><span>employee / manager / hr_support</span></div>
       </div>
       <div class="table-card">
-        <div class="t-name">hrb_chatbot_v2_core.employee_roles</div>
+        <div class="t-name">hrb_chatbot_service_core.employee_roles</div>
         <div class="t-cols"><span>employee_id (matches hrb_emp_lms.employees.id)</span><span>role_id, password_hash</span></div>
         <div style="padding:0 10px 8px; font-size:10.5px; color:var(--text-faint);">Real, live data: EMP051/EMP052/MGR006 already have real roles assigned - the data is ahead of the code that would use it, on purpose.</div>
       </div>

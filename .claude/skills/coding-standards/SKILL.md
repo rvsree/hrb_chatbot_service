@@ -1,7 +1,7 @@
 ---
 name: coding-standards
 description: >
-  Apply hrb_chatbot_v2's existing coding standards to a file being generated
+  Apply hrb_chatbot_service's existing coding standards to a file being generated
   or reviewed. Invoke automatically when writing or editing Python source
   under src/ or tests/, or explicitly as /coding-standards <file-path>.
 argument-hint: "[file-path]"

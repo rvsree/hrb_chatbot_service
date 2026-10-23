@@ -173,7 +173,7 @@ redesigned schema above (`doc_catalog.doc_type`).
   diagram plus a short Q&A underneath it. Your 3 named examples map here
   directly:
   - **A2A** (agent-to-agent): the real OAuth2 client-credentials call from
-    `hrb_chatbot_v2` to `hrb_lms_mcp` (Phase 53) - diagram the token
+    `hrb_chatbot_service` to `hrb_lms_mcp` (Phase 53) - diagram the token
     exchange + the actual MCP tool call, not a generic A2A explainer.
   - **HITL** (human-in-the-loop): the LangGraph checkpoint/pause/resume
     used by the unpaid-leave approval flow - diagram the graph pausing at

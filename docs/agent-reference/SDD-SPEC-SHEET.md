@@ -1,4 +1,4 @@
-# Spec Sheet — Spec-Driven Development for hrb_chatbot_v2
+# Spec Sheet — Spec-Driven Development for hrb_chatbot_service
 
 *rev. 2026-09-15 — written for a Python/FastAPI beginner coming from a Java/Spring background.*
 
@@ -137,4 +137,4 @@ For a Spring/Java background — the nearest familiar shape, not an exact match.
 | **Gate hook** | a required status check on a PR | `spec_gate.py` — refuses the write outright, not just a warning, if no phase has an open spec. Scoped to `src/hrb_chatbot/` only, so it can never block fixing the tooling itself. |
 
 ---
-*hrb_chatbot_v2 · adapted from Joshua McDonald's SDD pattern · see `CLAUDE.md` → "Spec-Driven Development (SDD)"*
+*hrb_chatbot_service · adapted from Joshua McDonald's SDD pattern · see `CLAUDE.md` → "Spec-Driven Development (SDD)"*

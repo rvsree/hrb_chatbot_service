@@ -11,6 +11,7 @@ from typing import Annotated, TypedDict
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
 
+from src.hrb_chatbot.ai.agents._llm_helpers import resolve_agent_model
 from src.hrb_chatbot.ai.agents.domain_agents import (
     lms_analytics_agent,
     lms_ops_agent,
@@ -19,18 +20,13 @@ from src.hrb_chatbot.ai.agents.domain_agents import (
     web_search_agent,
 )
 from src.hrb_chatbot.ai.agents.workflow_agents import planner_agent, reviewer_agent
-from src.hrb_chatbot.ai.pre_processing import conversation_memory
-from src.hrb_chatbot.ai.pre_processing.guardrails_input import check_input
-from src.hrb_chatbot.ai.pre_processing.query_normalize import normalize_query
-from src.hrb_chatbot.ai.rag_core.eval_threshold import check_eval_threshold
+from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
+from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import check_input
+from src.hrb_chatbot.ai.search_pre_processing.query_normalize import normalize_query
+from src.hrb_chatbot.ai.rag_core.eval_threshold import build_eval_scores, retrieval_relevance_enabled, run_enabled_eval_judges
+from src.hrb_chatbot.ai.rag_core.guarded_pipeline import run_guarded_pipeline
 from src.hrb_chatbot.ai.rag_core.tool_classification import classify_tool
-from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import (
-    evaluate_completeness,
-    evaluate_groundedness,
-    evaluate_retrieval_relevance,
-)
 from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.exact_knn_search import search_knn
-from src.hrb_chatbot.ai.rag_pipeline.response_generation.guardrails_output import check_output
 from src.hrb_chatbot.common.clients.cache_client.answer_cache import build_cache_key
 from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 from src.hrb_chatbot.common.logging.logger import get_logger
@@ -90,41 +86,22 @@ async def _score_live_answer(
     Phase 220: sources (real KB chunks, may be empty even when
     context_texts isn't - e.g. an LMS/web-only answer) drives
     retrieval_precision/recall_estimate/f1_estimate now, instead of
-    context_texts - see the module comment above _fetch_wider_pool_texts."""
+    context_texts - see the module comment above _fetch_wider_pool_texts.
+    Phase 246: EVAL_*_ENABLED switches - see pipeline.py's own docstring
+    note, same reasoning applies here."""
     if not context_texts:
         return None, None
 
     kb_chunk_texts = [chunk["text"] for chunk in sources] if sources else []
-    wider_pool_texts = await _fetch_wider_pool_texts(query, sources) if sources else None
+    wider_pool_texts = (
+        await _fetch_wider_pool_texts(query, sources) if sources and retrieval_relevance_enabled() else None
+    )
 
     eval_started_at = time.perf_counter()
-    groundedness, completeness, retrieval = await asyncio.gather(
-        asyncio.to_thread(evaluate_groundedness, answer, context_texts, judge_model),
-        asyncio.to_thread(evaluate_completeness, query, answer, None, judge_model),
-        asyncio.to_thread(evaluate_retrieval_relevance, query, kb_chunk_texts, judge_model, wider_pool_texts),
+    groundedness, completeness, retrieval, answer_relevancy = await run_enabled_eval_judges(
+        query, answer, context_texts, kb_chunk_texts, judge_model, wider_pool_texts
     )
-    eval_scores = {
-        "groundedness": groundedness["score"],
-        "groundedness_verdict": groundedness["verdict"],
-        "groundedness_explanation": groundedness["explanation"],
-        "groundedness_prompt": groundedness["prompt"],
-        "completeness": completeness["score"],
-        "completeness_verdict": completeness["verdict"],
-        "completeness_explanation": completeness["explanation"],
-        "completeness_prompt": completeness["prompt"],
-        "retrieval_precision": retrieval["precision"],
-        "retrieval_relevant_chunk_indices": retrieval["relevant_chunk_indices"],
-        "retrieval_precision_explanation": retrieval["explanation"],
-        "retrieval_precision_prompt": retrieval["prompt"],
-        "retrieval_recall_estimate": retrieval["recall_estimate"],
-        "retrieval_f1_estimate": retrieval["f1_estimate"],
-        "retrieval_recall_pool_size": retrieval["pool_size"],
-        "retrieval_recall_relevant_count": retrieval["relevant_pool_count"],
-        "judge_model_used": groundedness["model_used"],
-    }
-    eval_scores["below_threshold"], eval_scores["below_threshold_metrics"] = check_eval_threshold(
-        eval_scores, eval_score_threshold
-    )
+    eval_scores = build_eval_scores(groundedness, completeness, retrieval, eval_score_threshold, answer_relevancy)
     return eval_scores, _elapsed_ms(eval_started_at)
 
 DOMAIN_AGENT_NODES = [
@@ -147,6 +124,8 @@ class MultiAgentState(TypedDict):
     # only vector_kb_agent_node uses these, harmless to thread uniformly.
     role: str | None
     department: str | None
+    # Phase 243 - per-request override for the Planner's own model.
+    planner_model: str | None
     tasks: list[dict]
     agent_results: Annotated[list[dict], operator.add]
     answer: str
@@ -157,7 +136,9 @@ class MultiAgentState(TypedDict):
 
 
 async def planner_node(state: MultiAgentState) -> dict:
-    tasks, turn = await planner_agent.plan(state["query"], request_id=state.get("request_id"))
+    tasks, turn = await planner_agent.plan(
+        state["query"], request_id=state.get("request_id"), planner_model=state.get("planner_model")
+    )
     return {"tasks": tasks, "planner_turn": turn}
 
 
@@ -305,6 +286,8 @@ async def run_multi_agent(
     search_strategy: str | None = None,
     role: str | None = None,
     department: str | None = None,
+    planner_model: str | None = None,
+    guardrails_model: str | None = None,
 ) -> dict:
     """Runs the Planner -> Orchestration -> domain agents -> Reviewer graph for one query.
     Guardrails run here, same layer as genai-rag's pipeline.answer_query() - the route
@@ -324,7 +307,7 @@ async def run_multi_agent(
     this is the only lever."""
     started_at = time.perf_counter()
     normalized_query = await normalize_query(query)
-    checked_query, input_guardrail_status = await check_input(normalized_query)
+    checked_query, input_guardrail_status = await check_input(normalized_query, guardrails_model=guardrails_model)
 
     resolved_conversation_id = None
     if enable_conversation_memory:
@@ -353,94 +336,110 @@ async def run_multi_agent(
         # sent to the LLM this call, same discipline genai-rag's own
         # cache-hit path already applies to its own llm_context.
         result["llm_context"] = None
+        # Phase 243: the Planner didn't run this call either - same reasoning.
+        result["planner_model_used"] = None
         # Phase 173 - the cache key is itself normalized-query-based, so a
         # hit always implies this same normalized text, regardless of
         # whether the cached entry predates this field.
         result["query"] = checked_query
         return result
 
-    graph = get_graph()
-    # Phase 201: request_id in both the graph's own state (so planner_node/
-    # reviewer_node can thread it to their own LLM calls) and this config -
-    # tags the whole graph run's own LangSmith trace, if tracing is on.
-    graph_config = {"metadata": {"request_id": request_id}} if request_id else None
-    final_state = await graph.ainvoke(
-        {
-            "query": checked_query,
-            "employee_id": employee_id,
-            "request_id": request_id,
-            "search_strategy": search_strategy,
-            "role": role,
-            "department": department,
-            "tasks": [],
-            "agent_results": [],
-            "answer": "",
-            "follow_up_questions": [],
-            "planner_turn": None,
-            "reviewer_turn": None,
-        },
-        config=graph_config,
-    )
+    # Phase 245 - the graph-invoke-through-result-shaping block below is now
+    # this closure, run through the shared Phase 98 core (ai/rag_core/
+    # guarded_pipeline.py) instead of calling check_input()/check_output()
+    # directly - removes the direct-call exception CLAUDE.md used to
+    # document for this file. chat_history is accepted (required by the
+    # shared GenerateFn signature) but deliberately unused - preserves
+    # today's real behavior (confirmed by grep before this phase: no
+    # chat_history reference anywhere in this file previously) rather than
+    # silently wiring conversation-context-aware answers as a side effect.
+    async def generate(generate_query: str, chat_history: list | None) -> dict:
+        graph = get_graph()
+        # Phase 201: request_id in both the graph's own state (so planner_node/
+        # reviewer_node can thread it to their own LLM calls) and this config -
+        # tags the whole graph run's own LangSmith trace, if tracing is on.
+        graph_config = {"metadata": {"request_id": request_id}} if request_id else None
+        final_state = await graph.ainvoke(
+            {
+                "query": generate_query,
+                "employee_id": employee_id,
+                "request_id": request_id,
+                "search_strategy": search_strategy,
+                "role": role,
+                "department": department,
+                "planner_model": planner_model,
+                "tasks": [],
+                "agent_results": [],
+                "answer": "",
+                "follow_up_questions": [],
+                "planner_turn": None,
+                "reviewer_turn": None,
+            },
+            config=graph_config,
+        )
 
-    answer, output_guardrail_status = await check_output(checked_query, final_state["answer"])
-    if resolved_conversation_id:
-        await conversation_memory.save_turn(resolved_conversation_id, employee_id, checked_query, answer)
+        agent_results = final_state["agent_results"]
+        tools_used = [
+            {
+                "tool_name": agent_result["agent"],
+                "tool_input": agent_result["focus"],
+                "tool_type": classify_tool(agent_result["agent"]),
+                "latency_ms": agent_result.get("latency_ms"),
+                "success": not agent_result["result"].startswith("Error:"),
+            }
+            for agent_result in agent_results
+        ]
+        # Raw per-domain-agent result text, kept alongside tools_used - needed to eval
+        # groundedness against what was actually retrieved (Phase 69), not just the final answer.
+        agent_result_texts = [agent_result["result"] for agent_result in agent_results]
+        # Real citations (Phase 115/120) - always [] except vector_kb_agent/lms_ops_agent.
+        sources = [chunk for agent_result in agent_results for chunk in agent_result.get("sources", [])]
 
-    agent_results = final_state["agent_results"]
-    tools_used = [
-        {
-            "tool_name": result["agent"],
-            "tool_input": result["focus"],
-            "tool_type": classify_tool(result["agent"]),
-            "latency_ms": result.get("latency_ms"),
-            "success": not result["result"].startswith("Error:"),
+        # Phase 160 - only planner/reviewer make a real LLM call; every domain
+        # agent is LLM-free (retrieval/MCP/web-search calls, or a stub) - their
+        # own activity already surfaces via tools_used, not duplicated here.
+        turns = [turn for turn in (final_state.get("planner_turn"), final_state.get("reviewer_turn")) if turn]
+        llm_context = {"turns": turns, "mcp_tool_calls": []} if turns else None
+
+        return {
+            "answer": final_state["answer"],
+            "tasks": final_state["tasks"],
+            "follow_up_questions": final_state["follow_up_questions"],
+            "tools_used": tools_used,
+            "agent_result_texts": agent_result_texts,
+            "sources": sources,
+            # Domain agents dispatched in this one-shot fan-out, not reasoning rounds -
+            # multi-agentic-rag has no retry loop.
+            "iterations": len(agent_results),
+            "served_from_cache": False,
+            # Only planner_turn/reviewer_turn are real LLM calls (see the comment
+            # above `turns`) - domain agents are LLM-free, so this must not count them.
+            "llm_call_count": len(turns),
+            "token_usage": None,
+            "planner_model_used": resolve_agent_model("OPENAI_PLANNER_MODEL", planner_model),
+            "llm_context": llm_context,
+            "latency_ms": {"total": None, "retrieval": None, "generation": None, "eval": None},
         }
-        for result in agent_results
-    ]
-    # Raw per-domain-agent result text, kept alongside tools_used - needed to eval
-    # groundedness against what was actually retrieved (Phase 69), not just the final answer.
-    agent_result_texts = [result["result"] for result in agent_results]
-    # Real citations (Phase 115/120) - always [] except vector_kb_agent/lms_ops_agent.
-    sources = [chunk for result in agent_results for chunk in result.get("sources", [])]
+
+    result = await run_guarded_pipeline(
+        checked_query, employee_id, enable_conversation_memory, conversation_id, generate,
+        pre_checked_query=checked_query, pre_checked_input_status=input_guardrail_status,
+        guardrails_model=guardrails_model,
+    )
+    result["query"] = checked_query
 
     eval_scores, eval_ms = await _score_live_answer(
-        checked_query, answer, agent_result_texts, sources=sources,
+        checked_query, result["answer"], result["agent_result_texts"], sources=result["sources"],
         judge_model=judge_model, eval_score_threshold=eval_score_threshold,
     )
+    result["eval_scores"] = eval_scores
+    result["latency_ms"]["eval"] = eval_ms
+    result["latency_ms"]["total"] = _elapsed_ms(started_at)
 
-    # Phase 160 - only planner/reviewer make a real LLM call; every domain
-    # agent is LLM-free (retrieval/MCP/web-search calls, or a stub) - their
-    # own activity already surfaces via tools_used, not duplicated here.
-    turns = [turn for turn in (final_state.get("planner_turn"), final_state.get("reviewer_turn")) if turn]
-    llm_context = {"turns": turns, "mcp_tool_calls": []} if turns else None
-
-    result = {
-        "query": checked_query,
-        "answer": answer,
-        "tasks": final_state["tasks"],
-        "follow_up_questions": final_state["follow_up_questions"],
-        "tools_used": tools_used,
-        "agent_result_texts": agent_result_texts,
-        "sources": sources,
-        # Domain agents dispatched in this one-shot fan-out, not reasoning rounds -
-        # multi-agentic-rag has no retry loop.
-        "iterations": len(agent_results),
-        "conversation_id": resolved_conversation_id,
-        "served_from_cache": False,
-        # Only planner_turn/reviewer_turn are real LLM calls (see the comment
-        # above `turns`) - domain agents are LLM-free, so this must not count them.
-        "llm_call_count": len(turns),
-        "token_usage": None,
-        "llm_context": llm_context,
-        "eval_scores": eval_scores,
-        "latency_ms": {"total": _elapsed_ms(started_at), "retrieval": None, "generation": None, "eval": eval_ms},
-        "guardrails": {"input": input_guardrail_status, "output": output_guardrail_status},
-    }
-
-    cache_eligible = not any(task["agent"] in LIVE_DATA_AGENTS for task in final_state["tasks"])
+    cache_eligible = not any(task["agent"] in LIVE_DATA_AGENTS for task in result["tasks"])
     if cache_eligible:
         await get_db_gateway().answer_cache().set(cache_key, checked_query, result)
-        if resolved_conversation_id:
-            await get_db_gateway().answer_cache().tag_conversation(resolved_conversation_id, cache_key)
+        if result.get("conversation_id"):
+            await get_db_gateway().answer_cache().tag_conversation(result["conversation_id"], cache_key)
 
     return result

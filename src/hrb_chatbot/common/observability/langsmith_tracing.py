@@ -21,7 +21,7 @@ def _resolve_project_name() -> str:
     config sets the opposite. Prod wins if both are somehow true - a
     misconfigured prod deploy should still get correctly labeled, not
     silently mistaken for local traffic."""
-    base_name = read_setting(None, "LANGSMITH_PROJECT", "hrb_chatbot_v2")
+    base_name = read_setting(None, "LANGSMITH_PROJECT", "hrb_chatbot_service")
     is_prod = _setting_is_true(read_setting(None, "HRB_CHATBOT_PROD", "false"))
     is_local = _setting_is_true(read_setting(None, "HRB_CHATBOT_LOCAL", "true"))
 

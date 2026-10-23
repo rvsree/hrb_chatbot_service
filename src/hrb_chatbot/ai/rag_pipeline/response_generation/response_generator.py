@@ -6,7 +6,7 @@ from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnableLambda
 
-from src.hrb_chatbot.ai.pre_processing.context_builder import build_context_from_chunks
+from src.hrb_chatbot.ai.search_pre_processing.context_builder import build_context_from_chunks
 from src.hrb_chatbot.ai.rag_core.response_format import TABULAR_FORMAT_INSTRUCTION, should_use_tabular_format
 from src.hrb_chatbot.common.clients.llm_client.client_gateway import get_client_gateway
 from src.hrb_chatbot.common.clients.llm_client.langchain_chat_model import GatewayChatModel

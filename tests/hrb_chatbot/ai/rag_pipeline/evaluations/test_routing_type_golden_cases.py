@@ -32,7 +32,7 @@ async def test_agent_call_cases_bypass_the_llm_entirely(monkeypatch):
     # check_input() itself calls NeMo's "self check input" rail, a real LLM call -
     # faked here so this stays a genuinely zero-cost default-suite test, same
     # project rule every other default-suite test already follows.
-    async def _passthrough_check_input(query):
+    async def _passthrough_check_input(query, guardrails_model=None):
         return query, {"status": "pass", "rail": None}
 
     async def _fake_get_leave_balance(employee_id):
@@ -43,7 +43,7 @@ async def test_agent_call_cases_bypass_the_llm_entirely(monkeypatch):
 
     # Phase 151 - decompose() now always runs (see module docstring); faked
     # as a passthrough, same as its own real behavior for an atomic query.
-    async def _passthrough_decompose(query):
+    async def _passthrough_decompose(query, decompose_model=None):
         return [query]
 
     # Phase 173 - normalize_query() now runs before check_input() on every
@@ -55,7 +55,7 @@ async def test_agent_call_cases_bypass_the_llm_entirely(monkeypatch):
     # guarded_pipeline core too (it used to bypass that core entirely),
     # which calls check_output() on the final answer - faked as a
     # passthrough for the same zero-real-call reason as check_input above.
-    async def _passthrough_check_output(query, answer):
+    async def _passthrough_check_output(query, answer, guardrails_model=None):
         return answer, {"status": "pass", "rail": None}
 
     monkeypatch.setattr(pipeline, "check_input", _passthrough_check_input)

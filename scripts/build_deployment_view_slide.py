@@ -99,7 +99,7 @@ def build_deployment_view(prs):
         (xs[1], bw, EXTERNAL_FILL, EXTERNAL_LINE, "\u2466 Neon Postgres (hr_chatbot db)", "shared w/ hrb_lms_mcp/hrb_emp_assist \u2013 this project's own schemas + hrb_lms_mcp's hrb_emp_lms/hrb_lms_mcp_auth (Phase 118). RAG document metadata itself is still sqlite in prod \u2013 a separate thing.", SLATE_DARK, SLATE_MED),
         (xs[2], bw, EXTERNAL_FILL, EXTERNAL_LINE, "\u2467 Upstash Redis", "rediss:// \u2013 answer cache, embedding cache, rate limiter (Phase 84); Upstash over ElastiCache since App Runner isn't VPC-peered", SLATE_DARK, SLATE_MED),
         (xs[3], bw, EXTERNAL_FILL, EXTERNAL_LINE, "\u2468 OpenAI / Anthropic / OpenRouter", "LLM + embedding providers, selected via the LlmProvider enum", SLATE_DARK, SLATE_MED),
-        (xs[4], bw, EXTERNAL_FILL, EXTERNAL_LINE, "LangSmith", "optional tracing, hrb_chatbot_v2_prod project, on when LANGSMITH_ENABLED=true", SLATE_DARK, SLATE_MED),
+        (xs[4], bw, EXTERNAL_FILL, EXTERNAL_LINE, "LangSmith", "optional tracing, hrb_chatbot_service_prod project, on when LANGSMITH_ENABLED=true", SLATE_DARK, SLATE_MED),
     ]
     y = zone_band(slide, "External Services \u2013 managed, outside AWS, reached over the open internet", y, external, panel_h=840000) + 120000
 

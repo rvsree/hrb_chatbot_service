@@ -7,18 +7,13 @@ from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 
 from src.hrb_chatbot.ai.agents._llm_helpers import AGENT_LLM_TIMEOUT_SECONDS, build_agent_llm
-from src.hrb_chatbot.ai.pre_processing import conversation_memory
-from src.hrb_chatbot.ai.pre_processing.query_normalize import normalize_query
+from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
+from src.hrb_chatbot.ai.search_pre_processing.query_normalize import normalize_query
 from src.hrb_chatbot.ai.prompts.agent_prompts import ORCHESTRATION_SYSTEM_PROMPT
-from src.hrb_chatbot.ai.rag_core.eval_threshold import check_eval_threshold
+from src.hrb_chatbot.ai.rag_core.eval_threshold import build_eval_scores, retrieval_relevance_enabled, run_enabled_eval_judges
 from src.hrb_chatbot.ai.rag_core.guarded_pipeline import run_guarded_pipeline
 from src.hrb_chatbot.ai.rag_core.response_format import TABULAR_FORMAT_INSTRUCTION, should_use_tabular_format
 from src.hrb_chatbot.ai.rag_core.tool_classification import classify_tool
-from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import (
-    evaluate_completeness,
-    evaluate_groundedness,
-    evaluate_retrieval_relevance,
-)
 from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.exact_knn_search import search_knn
 from src.hrb_chatbot.ai.rag_pipeline.tools.agentic_tools import (
     AGENTIC_TOOL_DEFINITIONS,
@@ -110,46 +105,27 @@ async def _score_live_answer(
 ) -> tuple[dict | None, float | None]:
     """Same approach as pipeline.py's own _score_live_answer() (Phase 109) -
     skipped when there's no tool-retrieved context to check groundedness
-    against, both judge calls run in parallel via asyncio.to_thread().
+    against, judges run in parallel via asyncio.to_thread().
     Phase 215: judge_model/eval_score_threshold - see ai/rag_core/eval_threshold.py.
     Phase 220: sources (real KB chunks, may be empty even when context_texts
     isn't - e.g. an MCP-only or web-only answer) drives retrieval_precision/
     recall_estimate/f1_estimate now, instead of context_texts - see the
-    module comment above _fetch_wider_pool_texts for why."""
+    module comment above _fetch_wider_pool_texts for why.
+    Phase 246: EVAL_*_ENABLED switches - see pipeline.py's own docstring note,
+    same reasoning applies here."""
     if not context_texts:
         return None, None
 
     kb_chunk_texts = [chunk["text"] for chunk in sources] if sources else []
-    wider_pool_texts = await _fetch_wider_pool_texts(query, sources) if sources else None
+    wider_pool_texts = (
+        await _fetch_wider_pool_texts(query, sources) if sources and retrieval_relevance_enabled() else None
+    )
 
     eval_started_at = time.perf_counter()
-    groundedness, completeness, retrieval = await asyncio.gather(
-        asyncio.to_thread(evaluate_groundedness, answer, context_texts, judge_model),
-        asyncio.to_thread(evaluate_completeness, query, answer, None, judge_model),
-        asyncio.to_thread(evaluate_retrieval_relevance, query, kb_chunk_texts, judge_model, wider_pool_texts),
+    groundedness, completeness, retrieval, answer_relevancy = await run_enabled_eval_judges(
+        query, answer, context_texts, kb_chunk_texts, judge_model, wider_pool_texts
     )
-    eval_scores = {
-        "groundedness": groundedness["score"],
-        "groundedness_verdict": groundedness["verdict"],
-        "groundedness_explanation": groundedness["explanation"],
-        "groundedness_prompt": groundedness["prompt"],
-        "completeness": completeness["score"],
-        "completeness_verdict": completeness["verdict"],
-        "completeness_explanation": completeness["explanation"],
-        "completeness_prompt": completeness["prompt"],
-        "retrieval_precision": retrieval["precision"],
-        "retrieval_relevant_chunk_indices": retrieval["relevant_chunk_indices"],
-        "retrieval_precision_explanation": retrieval["explanation"],
-        "retrieval_precision_prompt": retrieval["prompt"],
-        "retrieval_recall_estimate": retrieval["recall_estimate"],
-        "retrieval_f1_estimate": retrieval["f1_estimate"],
-        "retrieval_recall_pool_size": retrieval["pool_size"],
-        "retrieval_recall_relevant_count": retrieval["relevant_pool_count"],
-        "judge_model_used": groundedness["model_used"],
-    }
-    eval_scores["below_threshold"], eval_scores["below_threshold_metrics"] = check_eval_threshold(
-        eval_scores, eval_score_threshold
-    )
+    eval_scores = build_eval_scores(groundedness, completeness, retrieval, eval_score_threshold, answer_relevancy)
     return eval_scores, _elapsed_ms(eval_started_at)
 
 # Phase 71: moved into ai/prompts/agent_prompts.py - kept as a module-level
@@ -184,6 +160,7 @@ async def run_agent(
     search_strategy: str | None = None,
     role: str | None = None,
     department: str | None = None,
+    guardrails_model: str | None = None,
 ) -> dict:
     """Runs the tool-calling loop for one query - guardrailed and memory-
     tracked via the Phase 98 shared core (previously had neither: no
@@ -351,7 +328,8 @@ async def run_agent(
         }
 
     result = await run_guarded_pipeline(
-        normalized_query, employee_id, enable_conversation_memory, conversation_id, generate
+        normalized_query, employee_id, enable_conversation_memory, conversation_id, generate,
+        guardrails_model=guardrails_model,
     )
 
     # Phase 173 - so a caller can show what was actually processed (post-

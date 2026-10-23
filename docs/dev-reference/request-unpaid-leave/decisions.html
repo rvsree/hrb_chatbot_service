@@ -87,7 +87,7 @@
     <tbody>
       <tr><td class="id-cell">RUL-1</td><td><a href="#d1">A new entry point, not the GenAI Chat Workflow popup</a></td><td class="source-cell">Pre-build gap analysis</td></tr>
       <tr><td class="id-cell">RUL-2</td><td><a href="#d2">Postgres checkpointing, not an in-memory wait</a></td><td class="source-cell">Phase 162</td></tr>
-      <tr><td class="id-cell">RUL-3</td><td><a href="#d3">No new table in hrb_chatbot_v2</a></td><td class="source-cell">Pre-build gap analysis</td></tr>
+      <tr><td class="id-cell">RUL-3</td><td><a href="#d3">No new table in hrb_chatbot_service</a></td><td class="source-cell">Pre-build gap analysis</td></tr>
       <tr><td class="id-cell">RUL-4</td><td><a href="#d4">A separate private S3 bucket, not the KB ingestion path</a></td><td class="source-cell">Pre-build gap analysis</td></tr>
       <tr><td class="id-cell">RUL-5</td><td><a href="#d5">HR_SUPPORT excluded from submitting its own requests</a></td><td class="source-cell">Phase 165 (round 2)</td></tr>
       <tr><td class="id-cell">RUL-6</td><td><a href="#d6">ADMIN can clean up data, cannot resolve a decision</a></td><td class="source-cell">Phase 178 - open tension</td></tr>
@@ -113,7 +113,7 @@
   </section>
 
   <section class="decision" id="d3">
-    <div class="decision-head"><span class="decision-id">RUL-3</span><span class="decision-title display">No new table in hrb_chatbot_v2</span></div>
+    <div class="decision-head"><span class="decision-id">RUL-3</span><span class="decision-title display">No new table in hrb_chatbot_service</span></div>
     <dl class="decision-grid">
       <dt>Context</dt><dd>The natural instinct when adding a feature is often a new local table to track its state.</dd>
       <dt>Decision</dt><dd>All request/review state lives in <span class="mono">hrb_lms_mcp</span>'s own Postgres schema (<span class="mono">leave_requests</span>, <span class="mono">hitl_requests</span>, <span class="mono">specialist_leave_reviews</span>) - this project's own side queries live via MCP each time, with no local cache table duplicating data the other service already owns.</dd>
@@ -157,11 +157,11 @@
 (function () {
   if (location.protocol !== "file:") return;
   var LOCAL_DOCS = {
-    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/request-unpaid-leave/overview.html",
-    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/request-unpaid-leave/spec.html",
-    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/request-unpaid-leave/architecture.html",
-    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/request-unpaid-leave/design.html",
-    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/request-unpaid-leave/decisions.html"
+    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/request-unpaid-leave/overview.html",
+    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/request-unpaid-leave/spec.html",
+    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/request-unpaid-leave/architecture.html",
+    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/request-unpaid-leave/design.html",
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/request-unpaid-leave/decisions.html"
   };
   document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
     var match = a.href.match(/[?&]type=([^&]+)/);

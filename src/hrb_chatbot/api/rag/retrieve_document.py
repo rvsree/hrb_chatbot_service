@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Request
 
-from src.hrb_chatbot.ai.pre_processing.guardrails_input import GuardrailBlockedError
+from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import GuardrailBlockedError
 from src.hrb_chatbot.ai.rag_pipeline import pipeline
 from src.hrb_chatbot.api.dependencies import json_error
 from src.hrb_chatbot.api.gateway.rbac import require_role
@@ -37,6 +37,7 @@ def _params_from_request(
     search_options = payload.search_options
     generation_options = payload.generation_options
     eval_options = payload.eval_options
+    classification_options = payload.classification_options
     return RagQueryParams(
         query=payload.query,
         top_k=search_options.top_k if search_options else None,
@@ -57,6 +58,8 @@ def _params_from_request(
         conversation_id=payload.conversation_id,
         judge_model=eval_options.judge_model if eval_options else None,
         eval_score_threshold=eval_options.eval_score_threshold if eval_options else None,
+        decompose_model=classification_options.decompose_model if classification_options else None,
+        guardrails_model=payload.guardrails_model,
     )
 
 
@@ -106,6 +109,8 @@ async def _answer_query(
             temperature=result.get("temperature"),
             llm_context=LlmContextInfo(**result["llm_context"]) if result.get("llm_context") else None,
             guardrails=result["guardrails"],
+            decompose_model_used=result.get("decompose_model_used"),
+            guardrails_model_used=result.get("guardrails_model_used"),
         ),
         tools_used=[ToolCallInfo(**call) for call in result.get("tools_used", [])],
         conversation_id=result.get("conversation_id"),

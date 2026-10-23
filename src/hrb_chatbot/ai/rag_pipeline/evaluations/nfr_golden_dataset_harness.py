@@ -2,7 +2,7 @@
 
 import json
 
-from src.hrb_chatbot.ai.pre_processing.guardrails_input import GuardrailBlockedError, check_input
+from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import GuardrailBlockedError, check_input
 
 NFR_GOLDEN_DATASET_PATH = "resources/golden_dataset/nfr_golden_dataset.json"
 

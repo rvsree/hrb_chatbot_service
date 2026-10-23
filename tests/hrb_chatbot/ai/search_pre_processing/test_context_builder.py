@@ -1,7 +1,7 @@
 """Context Builder (Phase 72) - pure string assembly, moved from
 response_generator.py/reviewer_agent.py, same shape as before."""
 
-from src.hrb_chatbot.ai.pre_processing.context_builder import (
+from src.hrb_chatbot.ai.search_pre_processing.context_builder import (
     build_context_from_agent_results,
     build_context_from_chunks,
 )

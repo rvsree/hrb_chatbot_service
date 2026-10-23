@@ -12,6 +12,9 @@ from src.hrb_chatbot.common.logging.logger import get_logger
 
 logger = get_logger("postgres_client")
 
+# Phase 251 - schema-per-domain migration, see resources/db_scripts/schema_migration.sql.
+_SCHEMA = "hrb_rag_ingestion"
+
 CREATE_DOCUMENTS_TABLE = """
 CREATE TABLE IF NOT EXISTS documents (
     id TEXT PRIMARY KEY,
@@ -124,6 +127,7 @@ class PostgresClient(BaseMetadataClient):
             dbname=self.db_name,
             user=self.user,
             password=self.password,
+            options=f"-c search_path={_SCHEMA},public",
         )
 
     def _ensure_table_sync(self) -> None:

@@ -23,6 +23,12 @@ class AgenticRagRequest(BaseModel):
         "understands these 2 values.",
     )
     eval_options: EvalOptions | None = None
+    guardrails_model: str | None = Field(
+        None,
+        max_length=100,
+        description="Phase 244 - override the model running NeMo Guardrails' input/output safety checks. "
+        "Validated against GUARDRAILS_SUPPORTED_MODELS - 422 if given but not listed.",
+    )
     enable_conversation_memory: bool = Field(
         False, description="Carry conversation history across calls, server-side, keyed by conversation_id."
     )
@@ -49,4 +55,9 @@ class AgenticRagResponse(BaseModel):
         None,
         description="Echoed/generated when enable_conversation_memory was true - pass it back on the next "
         "call to continue this conversation. Null when memory wasn't enabled.",
+    )
+    resolved_mode: str | None = Field(
+        None,
+        description="Phase 240 - set only when this model is returned from POST /v1/rag-retrieval/query "
+        "(the auto-router). Null on this endpoint's own direct, forced-mode calls.",
     )

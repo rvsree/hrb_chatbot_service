@@ -50,6 +50,9 @@ class _FakeCursor:
     def fetchall(self):
         return self._rows
 
+    def fetchone(self):
+        return self._rows[0] if self._rows else None
+
 
 class _FakeListConnection:
     """Stands in for the connection used by _list_feedback_sync(), which
@@ -129,3 +132,51 @@ async def test_list_feedback_converts_timestamptz_datetime_to_isoformat_string(m
     assert len(rows) == 1
     assert rows[0]["created_at"] == "2026-10-06T12:00:00+00:00"
     assert rows[0]["reason_tags"] == ["accurate"]
+
+
+async def test_get_latest_feedback_for_conversation_with_no_conversation_id_skips_the_connection(monkeypatch):
+    """Phase 248 - None is returned before _ensure_table()/_connect() are
+    ever called, same short-circuit stm_cache.py's own callers rely on."""
+    store = FeedbackStore(host="fake-host", port="5432", db_name="fake_db", user="fake_user", password="fake_pw")
+
+    def _should_not_connect():
+        raise AssertionError("_connect() must not be called when conversation_id is falsy")
+
+    monkeypatch.setattr(store, "_connect", _should_not_connect)
+
+    result = await store.get_latest_feedback_for_conversation(None)
+
+    assert result is None
+
+
+async def test_get_latest_feedback_for_conversation_converts_timestamptz_and_reason_tags(monkeypatch):
+    store = FeedbackStore(host="fake-host", port="5432", db_name="fake_db", user="fake_user", password="fake_pw")
+    store._table_ready = True
+    row = {
+        "id": 2,
+        "employee_id": "EMP052",
+        "conversation_id": "conv-1",
+        "message_id": "msg-2",
+        "vote": "helpful",
+        "reason_tags": "[\"accurate\"]",
+        "notes": None,
+        "question": "What dental plans are offered?",
+        "answer": "Two dental plan options.",
+        "created_at": datetime(2026, 10, 6, 12, 0, 0, tzinfo=timezone.utc),
+    }
+    monkeypatch.setattr(store, "_connect", lambda: _FakeListConnection([row]))
+
+    result = await store.get_latest_feedback_for_conversation("conv-1")
+
+    assert result["created_at"] == "2026-10-06T12:00:00+00:00"
+    assert result["reason_tags"] == ["accurate"]
+
+
+async def test_get_latest_feedback_for_conversation_with_no_rows_returns_none(monkeypatch):
+    store = FeedbackStore(host="fake-host", port="5432", db_name="fake_db", user="fake_user", password="fake_pw")
+    store._table_ready = True
+    monkeypatch.setattr(store, "_connect", lambda: _FakeListConnection([]))
+
+    result = await store.get_latest_feedback_for_conversation("conv-1")
+
+    assert result is None

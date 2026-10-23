@@ -209,7 +209,7 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">hrb_chatbot_v2 &middot; not part of the IK FDE course &mdash; this project's own review framework</div>
+    <div class="eyebrow">hrb_chatbot_service &middot; not part of the IK FDE course &mdash; this project's own review framework</div>
     <h1 class="display">Six Gates of RAG Validation</h1>
     <p class="subtitle">Every real stage <code class="mono">POST /v1/genai-rag/retrieve-document/query</code> passes through, mapped onto the six-layer validation gateway pattern, colored by what's actually built and tested.</p>
     <div class="doc-nav">
@@ -449,11 +449,11 @@
 (function () {
   if (location.protocol !== "file:") return;
   var LOCAL_DOCS = {
-    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/retrieval-strategies/overview.html",
-    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/retrieval-strategies/spec.html",
-    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/rag-validation-gates.html",
-    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/retrieval-strategies/design.html",
-    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/retrieval-strategies/decisions.html"
+    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/retrieval-strategies/overview.html",
+    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/retrieval-strategies/spec.html",
+    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/rag-validation-gates.html",
+    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/retrieval-strategies/design.html",
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/retrieval-strategies/decisions.html"
   };
   document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
     var match = a.href.match(/[?&]type=([^&]+)/);

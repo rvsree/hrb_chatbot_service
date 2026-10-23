@@ -113,7 +113,7 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">hrb_chatbot_v2 &middot; component/layer view (companion to Six Gates of RAG Validation, which is the governance view of the same request)</div>
+    <div class="eyebrow">hrb_chatbot_service &middot; component/layer view (companion to Six Gates of RAG Validation, which is the governance view of the same request)</div>
     <h1 class="display">RAG Request Architecture</h1>
     <p class="subtitle">The same <code class="mono">POST /v1/genai-rag/retrieve-document/query</code> request, this time organized by <strong>system layer</strong> instead of validation gate &mdash; which framework/library and which model actually runs at each step.</p>
     <div class="doc-nav">
@@ -323,11 +323,11 @@
 (function () {
   if (location.protocol !== "file:") return;
   var LOCAL_DOCS = {
-    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/overview.html",
-    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/spec.html",
-    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/rag-architecture-layers.html",
-    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/design.html",
-    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/genai-rag-chat/decisions.html"
+    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/genai-rag-chat/overview.html",
+    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/genai-rag-chat/spec.html",
+    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/rag-architecture-layers.html",
+    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/genai-rag-chat/design.html",
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/genai-rag-chat/decisions.html"
   };
   document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
     var match = a.href.match(/[?&]type=([^&]+)/);

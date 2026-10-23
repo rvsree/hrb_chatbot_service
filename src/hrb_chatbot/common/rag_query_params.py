@@ -24,3 +24,5 @@ class RagQueryParams:
     judge_model: str | None = None  # Phase 215
     eval_score_threshold: float | None = None  # Phase 215
     enable_corrective_retry: bool = False  # Phase 226
+    decompose_model: str | None = None  # Phase 243
+    guardrails_model: str | None = None  # Phase 244

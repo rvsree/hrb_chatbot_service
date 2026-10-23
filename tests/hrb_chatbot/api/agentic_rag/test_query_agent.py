@@ -5,7 +5,7 @@ user_profile sub-object, same pattern as genai-rag's query endpoint."""
 
 from fastapi.testclient import TestClient
 
-from src.hrb_chatbot.ai.pre_processing.guardrails_input import GuardrailBlockedError
+from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import GuardrailBlockedError
 from src.hrb_chatbot.api.agentic_rag import query_agent
 from src.hrb_chatbot.main import app
 
@@ -21,6 +21,7 @@ def _body(query: str = "What's the 401k match?", user_profile=None) -> dict:
 async def _fake_run_agent(
     query, employee_id, max_iterations, enable_conversation_memory=False, conversation_id=None, request_id=None,
     judge_model=None, eval_score_threshold=None, search_strategy=None, role=None, department=None,
+    guardrails_model=None,
 ):
     return {
         "answer": "The match is 100% up to 5%.",
@@ -77,6 +78,7 @@ def test_guardrail_blocked_input_is_422(monkeypatch):
     async def _blocked(
         query, employee_id, max_iterations, enable_conversation_memory=False, conversation_id=None, request_id=None,
         judge_model=None, eval_score_threshold=None, search_strategy=None, role=None, department=None,
+        guardrails_model=None,
     ):
         raise GuardrailBlockedError("This request was blocked by a safety check.")
 

@@ -1,7 +1,7 @@
 ---
 name: delivery-note
 description: >
-  Generate a concise delivery note after finishing a task on hrb_chatbot_v2.
+  Generate a concise delivery note after finishing a task on hrb_chatbot_service.
   Invoke automatically at the end of a task, or explicitly as /delivery-note.
   Keeps the summary short and cost-conscious instead of padded prose.
 allowed-tools: Bash(git diff --stat *) Bash(git status --short *)

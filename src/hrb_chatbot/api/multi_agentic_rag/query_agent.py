@@ -5,7 +5,7 @@ ai/agents/workflow_agents/multi_agent_pipeline.py and RAG-ROADMAP.md Phase 64.""
 from fastapi import APIRouter, Request
 
 from src.hrb_chatbot.ai.agents.workflow_agents import multi_agent_pipeline
-from src.hrb_chatbot.ai.pre_processing.guardrails_input import GuardrailBlockedError
+from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import GuardrailBlockedError
 from src.hrb_chatbot.api.dependencies import json_error
 from src.hrb_chatbot.api.gateway.rbac import require_role
 from src.hrb_chatbot.common import error_codes
@@ -46,11 +46,15 @@ async def query(payload: MultiAgenticRagRequest, request: Request):
                 search_strategy=payload.search_strategy,
                 role=userProfile.role,
                 department=userProfile.department,
+                planner_model=payload.classification_options.planner_model if payload.classification_options else None,
+                guardrails_model=payload.guardrails_model,
             ),
             lambda r: None,
         )
     except GuardrailBlockedError as error:
         return json_error(422, str(error), code=error_codes.INPUT_GUARDRAIL_BLOCKED)
+    except ValueError as error:
+        return json_error(422, str(error), code=error_codes.VALIDATION_ERROR)
 
     eval_scores = result.get("eval_scores")
     llm_context = result.get("llm_context")
@@ -72,6 +76,8 @@ async def query(payload: MultiAgenticRagRequest, request: Request):
             routed_to=None,
             eval_scores=EvalScores(**eval_scores) if eval_scores else None,
             guardrails=result["guardrails"],
+            planner_model_used=result.get("planner_model_used"),
+            guardrails_model_used=result.get("guardrails_model_used"),
         ),
         conversation_id=result.get("conversation_id"),
     )

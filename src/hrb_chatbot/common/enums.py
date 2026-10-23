@@ -20,7 +20,7 @@ class MetadataStore(StrEnum):
 class Application(StrEnum):
     """Phase 233 - which real deployable the CI/CD Pipeline Visibility
     dashboard is showing. BACKEND/INGESTION_LAMBDA share one GitHub repo
-    (hrb_chatbot_v2) but are different workflow files/deploy targets;
+    (hrb_chatbot_service) but are different workflow files/deploy targets;
     LMS_MCP is a genuinely separate repo (rvsree/hrb_lms_mcp); FRONTEND
     (hrb_chatbot_ui) has no GitHub Actions workflow at all - deployed
     manually, see its own README."""
@@ -60,6 +60,10 @@ class SearchStrategy(StrEnum):
     KEYWORD = "keyword"
     HYBRID = "hybrid"
     KNN = "knn"
+    # Phase 252 - auto-picks a real strategy per query via
+    # dynamic_strategy_selector.py; never reaches SEARCH_STRATEGIES itself,
+    # resolved to a concrete value before retrieval runs.
+    DYNAMIC = "dynamic"
 
 
 class Role(StrEnum):

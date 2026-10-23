@@ -30,7 +30,7 @@ class FakeLlm:
 
 
 def _patch_llm(monkeypatch, parsed):
-    monkeypatch.setattr(planner_agent, "_build_llm", lambda: FakeLlm(parsed))
+    monkeypatch.setattr(planner_agent, "_build_llm", lambda planner_model=None: FakeLlm(parsed))
 
 
 async def test_single_task_routes_to_one_agent(monkeypatch):

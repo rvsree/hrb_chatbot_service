@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Request
 
 from src.hrb_chatbot.ai.agents.workflow_agents.orchestration_agent import run_agent
-from src.hrb_chatbot.ai.pre_processing.guardrails_input import GuardrailBlockedError
+from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import GuardrailBlockedError
 from src.hrb_chatbot.api.dependencies import json_error
 from src.hrb_chatbot.api.gateway.rbac import require_role
 from src.hrb_chatbot.common import error_codes
@@ -41,11 +41,14 @@ async def query(payload: AgenticRagRequest, request: Request):
                 search_strategy=payload.search_strategy,
                 role=userProfile.role,
                 department=userProfile.department,
+                guardrails_model=payload.guardrails_model,
             ),
             lambda r: (r.get("token_usage") or {}).get("total_tokens"),
         )
     except GuardrailBlockedError as error:
         return json_error(422, str(error), code=error_codes.INPUT_GUARDRAIL_BLOCKED)
+    except ValueError as error:
+        return json_error(422, str(error), code=error_codes.VALIDATION_ERROR)
 
     token_usage = result.get("token_usage")
     eval_scores = result.get("eval_scores")
@@ -66,6 +69,7 @@ async def query(payload: AgenticRagRequest, request: Request):
             routed_to=None,
             eval_scores=EvalScores(**eval_scores) if eval_scores else None,
             guardrails=result["guardrails"],
+            guardrails_model_used=result.get("guardrails_model_used"),
         ),
         conversation_id=result.get("conversation_id"),
     )

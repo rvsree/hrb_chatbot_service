@@ -168,7 +168,7 @@ reviewed before that phase's code starts.
 | 50 — User-directed: MCP server/tool registry at startup, reusing hr_chatbot's own app_tracking tables | Claude Code | ✅ Done, verified live, 2026-09-22 | ✅ Spec'd and implemented - see detail below |
 | 51 — User-directed: NFR-specific golden dataset + harness for guardrails/validation-gateway | Claude Code | ✅ Done, verified live, 2026-09-22 - found 1 real false-positive bug (documented, not fixed) | ✅ Spec'd and implemented - see detail below |
 | 52 — Planned: analytics MCP server (NL2SQL over aggregate/historical HR data) | Claude Code | ⬜ Not started - parking-lot spec only, 2026-09-22 | 🚧 Parking-lot spec only - real spec deferred until picked up |
-| 53 — User-directed: real OAuth2 client-credentials auth, hrb_chatbot_v2 <-> hrb_lms_mcp, both sides | Claude Code | ✅ Done, verified live both directions, 2026-09-22 | ✅ Spec'd and implemented - see detail below |
+| 53 — User-directed: real OAuth2 client-credentials auth, hrb_chatbot_service <-> hrb_lms_mcp, both sides | Claude Code | ✅ Done, verified live both directions, 2026-09-22 | ✅ Spec'd and implemented - see detail below |
 | 54 — User-directed: extract-method refactor of vector_indexer.py's write_chunks(), no behavior change | Claude Code | ✅ Done, verified, 2026-09-23 | ✅ Spec'd and implemented - see detail below |
 | 55 — User-directed: single-agentic-rag tool-calling endpoint (IK Module 6) + DeepEval release-gate scoring (Module 5 gap) | Claude Code | ✅ Done, verified live both tool paths, 2026-09-24 | ✅ Spec'd and implemented - see detail below |
 | 56 — User-directed: MMR support for single-agentic-rag's SearchKnowledgeBase tool | Claude Code | ✅ Done, verified live both strategies, 2026-09-24 | ✅ Spec'd and implemented - see detail below |
@@ -896,7 +896,7 @@ later, separate wave once this core is solid.
   ECS/App Runner task role will use in Phase 10, so nothing here needs to
   change before deployment. Just worth knowing that "healthy" today reflects
   whatever AWS identity happens to be ambient on this machine, not one
-  scoped to `hrb_chatbot_v2`.
+  scoped to `hrb_chatbot_service`.
 - [x] **Phase 10 (Claude Code) — Docker + AWS deployment via App Runner.**
   Target chosen over ECS Fargate (simpler for one container, no ALB/task-def
   to hand-wire) and over AgentCore Runtime (per the earlier confirmed
@@ -1046,7 +1046,7 @@ later, separate wave once this core is solid.
 
   **CI verified for real, not just committed:** pushed to `hrb_rag_pipelines`
   (commit `00b7be8`) and polled the GitHub Actions API directly -
-  [run 34184448804](https://github.com/rvsree/hrb_chatbot_v2/actions/runs/34184448804)
+  [run 34184448804](https://github.com/rvsree/hrb_chatbot_service/actions/runs/34184448804)
   completed `success` on both jobs (`App imports cleanly`, `Docker image
   builds`).
 
@@ -1145,7 +1145,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   - **`.env`'s Postgres credentials pointed at `hrb_emp_assist`'s own shared
     database** (`hr_chatbot` - confirmed by listing its tables:
     `employees`, `leave_requests`, `chat_history`, etc.). Asked the user
-    before touching it; created a dedicated `hrb_chatbot_v2` database on the
+    before touching it; created a dedicated `hrb_chatbot_service` database on the
     same local Postgres server instead, and updated `POSTGRES_DB_NAME` in
     `.env` to point at it. This project's data can no longer collide with
     or be confused for the other project's.
@@ -1158,7 +1158,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     Windows-only patch.
 
   Verified live: `create_document`, `get_document`, `update_status`,
-  `list_documents` all tested directly against the real `hrb_chatbot_v2`
+  `list_documents` all tested directly against the real `hrb_chatbot_service`
   database (not mocked), including the unknown-id case; `GET
   /health?deep=true` confirmed both `metadata_provider=sqlite` (6 real
   documents) and `=postgres` (0, its own clean database) report healthy
@@ -3977,7 +3977,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   `McpRegistryClient`/the real MCP call, no real Postgres or network call
   in the default run). Then verified live against the real running
   `hrb_lms_mcp` and the real `hr_chatbot` database: started
-  `hrb_chatbot_v2` fresh, confirmed via direct query that
+  `hrb_chatbot_service` fresh, confirmed via direct query that
   `app_tracking.mcp_server_registry` has the real `hrb_lms_mcp` row,
   `mcp_tools_registry` has all 6 real tools (`get_leave_balance`,
   `get_leave_history`, `submit_leave_request`, `get_pending_approvals`,
@@ -4094,7 +4094,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     reinvented per MCP server).
 
 - [x] **Phase 53 (2026-09-22) — User-directed: real OAuth2 client-credentials
-  auth between hrb_chatbot_v2 (client) and hrb_lms_mcp (server) - both
+  auth between hrb_chatbot_service (client) and hrb_lms_mcp (server) - both
   sides, replacing the dead, unenforced X-API-Key found this session.**
 
   **Spec:**
@@ -4107,7 +4107,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   - **Data/API contracts:** `hrb_lms_mcp` gains `POST /oauth/token`
     (client_credentials grant: `client_id`/`client_secret` in, a signed
     JWT with `sub`/`scopes`/`exp` claims out) and Bearer-token enforcement
-    on `POST /mcp` (401 if missing/invalid/expired). `hrb_chatbot_v2`
+    on `POST /mcp` (401 if missing/invalid/expired). `hrb_chatbot_service`
     gains `common/clients/auth_client/oauth_client.py` (the existing
     empty placeholder, filled in) - acquires and caches a token, attaches
     `Authorization: Bearer <token>` to every real MCP call. No change to
@@ -4127,7 +4127,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   - **Out of scope:** scope-based authorization (checking the JWT's
     `scopes` claim against which tool is being called) - Phase 53 is
     authentication only (who's calling), not authorization (what
-    they're allowed to call) - `hrb_chatbot_v2_core.client_scopes`
+    they're allowed to call) - `hrb_chatbot_service_core.client_scopes`
     already models the latter but isn't enforced anywhere yet. Refresh
     tokens, token revocation, a real identity provider instead of
     `hrb_lms_mcp` self-issuing - all bigger scope than a capstone needs.
@@ -4143,16 +4143,16 @@ Explicitly deferred to a later, separate wave - not part of the above:
   unit-tested in isolation:**
   - `hrb_lms_mcp`: new `hrb_lms_mcp_auth.oauth_clients` table (own
     bounded-context schema, no FK, same reasoning as
-    `hrb_chatbot_v2_core`), `POST /oauth/token` (client_credentials
+    `hrb_chatbot_service_core`), `POST /oauth/token` (client_credentials
     grant), `BearerAuthMiddleware` enforcing a valid, unexpired JWT on
     every `POST /mcp` - added *after* the existing request-logging
     middleware so an unauthenticated call is rejected before its body is
     even logged. `pyjwt[crypto]==2.10.1` added explicitly to
     `requirements.txt` (was already an undocumented transitive dep of
-    `mcp` itself). A real client row registered for `hrb-chatbot-v2`
+    `mcp` itself). A real client row registered for `hrb-chatbot-service`
     with a `secrets.token_urlsafe(32)`-generated secret - the plaintext
-    only ever touched `hrb_chatbot_v2`'s own `.env`, never committed.
-  - `hrb_chatbot_v2`: `common/clients/auth_client/oauth_client.py` (the
+    only ever touched `hrb_chatbot_service`'s own `.env`, never committed.
+  - `hrb_chatbot_service`: `common/clients/auth_client/oauth_client.py` (the
     existing empty placeholder, filled in) - fetches and caches a
     token, refreshing 30s before expiry rather than per-call.
     `mcp_tools/__init__.py` and `mcp_registry_startup.py` (Phase 49/50,
@@ -4167,7 +4167,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   - Real credentials -> real signed JWT issued, real `tools/list` call
     succeeds with it.
   - Full end-to-end through this project's own API: fresh
-    `hrb_chatbot_v2` startup acquires a real token
+    `hrb_chatbot_service` startup acquires a real token
     (`oauth_client` log line), registers all 6 tools via the now-secured
     call (Phase 50), and a real `"What is my PTO balance?"` query for
     `EMP052` returns real data (`"available": 11.0`) through the fully
@@ -4294,7 +4294,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   `docs/agent-reference/BACKLOG.md`'s own "DeepEval CI gate not wired up" gap.
 
   **Verified, live, both tool paths - not mocked for this check:**
-  started `hrb_lms_mcp` and `hrb_chatbot_v2` for real, called
+  started `hrb_lms_mcp` and `hrb_chatbot_service` for real, called
   `POST /v1/single-agentic-rag/query` for real:
   - `"What is my PTO balance?"` for `EMP052` -> agent chose `GetLeaveBalance`
     on its own (real LLM tool selection, not a keyword match this time) ->
@@ -9284,14 +9284,14 @@ Explicitly deferred to a later, separate wave - not part of the above:
     server: `hrb_lms_mcp`'s `BearerAuthMiddleware`/`token_service.py`,
     uncommitted) - this phase deploys and wires them up, not builds new
     auth. User-confirmed: new `hrb_emp_lms`/`hrb_lms_mcp_auth` schemas
-    live in the same Neon `HR_Benefits` database `hrb_chatbot_v2`
+    live in the same Neon `HR_Benefits` database `hrb_chatbot_service`
     already uses in production (schema-per-service, not a new DB
     instance) - zero new DB provisioning, reuses the working connection.
   - **Reusability requirement:** none specific to this phase - the
     client-side OAuth2/MCP code already existed and needed no changes,
     only configuration (this repo's own `main.py`/settings untouched;
     all code changes landed in the separate `hrb_lms_mcp` repo).
-  - **Testing plan:** no new `hrb_chatbot_v2` automated test (no code
+  - **Testing plan:** no new `hrb_chatbot_service` automated test (no code
     changed in this repo beyond this doc) - verified live: real OAuth2
     token + real MCP tool call from a direct reproduction script, then
     the actual production endpoint with the same question that
@@ -9311,8 +9311,8 @@ Explicitly deferred to a later, separate wave - not part of the above:
     reachable at `https://munp3zn43b.us-east-1.awsapprunner.com`.
     `hrb_emp_lms` (62 employees incl. EMP051/052/053, leave
     types/balances) and `hrb_lms_mcp_auth` (real OAuth2 client row for
-    `hrb-chatbot-v2-prod`, a fresh secret never reused from local dev)
-    applied directly to the production Neon database. `hrb_chatbot_v2`'s
+    `hrb-chatbot-service-prod`, a fresh secret never reused from local dev)
+    applied directly to the production Neon database. `hrb_chatbot_service`'s
     own App Runner service updated with the 4 new settings
     (`HRB_LMS_MCP_URL`/`_OAUTH_TOKEN_URL`/`_OAUTH_CLIENT_ID` as plain env
     vars, `_OAUTH_CLIENT_SECRET` as a Secrets Manager secret) and
@@ -9358,7 +9358,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   applications (dead code, stale data/files, requirements.txt,
   Postman, docs/diagrams, READMEs).**
   - **Spec:** Three parallel read-only survey agents (one per repo -
-    `hrb_chatbot_v2`, `hrb_chatbot_ui`, `hrb_lms_mcp`) confirmed real
+    `hrb_chatbot_service`, `hrb_chatbot_ui`, `hrb_lms_mcp`) confirmed real
     cleanup candidates via grep-verified zero-reference checks, not
     guesses. This repo's own findings: 4 empty dead packages
     (`repo/`, `ai/doc_processing/helper/`, `ai/rag_pipeline/prompts/`,
@@ -10776,7 +10776,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 4. `POST /rag/query` → same stubbed-but-clear behavior, naming
    `ai/rag_pipeline/`.
 
-- **Frontend-only follow-ups, same day, `hrb_chatbot_v2` backend unchanged:**
+- **Frontend-only follow-ups, same day, `hrb_chatbot_service` backend unchanged:**
   - `DocumentsPage.tsx`: multi-select checkboxes (header select-all +
     per-row, pruned automatically when `documents` refreshes so a stale
     selection can't outlive a deleted/no-longer-polled row) + a "Delete
@@ -10813,7 +10813,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     `tsc --noEmit`/`oxlint` clean throughout.
 - **MCP employee-data "mismatch" investigated, not a real data-sync bug:**
   user's MCP server console log showed `get_leave_balance` failing with
-  "Employee not found with ID: E200," asking whether hrb_chatbot_v2's own
+  "Employee not found with ID: E200," asking whether hrb_chatbot_service's own
   employee data is out of sync with hrb_lms_mcp's. Checked directly:
   `E200` does not appear anywhere in `src/hrb_chatbot/` (a real grep
   across the whole source tree - matches were only unrelated third-party
@@ -10826,7 +10826,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   signed in before Phase 106's roster gate existed can keep presenting a
   now-invalid identity indefinitely. Fix for the user: sign out and back
   in with a real known persona - not a database-sync issue between
-  hrb_chatbot_v2 and hrb_lms_mcp. Real follow-up flagged, not done this
+  hrb_chatbot_service and hrb_lms_mcp. Real follow-up flagged, not done this
   pass: re-validate a stored identity against the roster on app load, not
   just at sign-in time.
 
@@ -11767,7 +11767,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     wait for review the way a code deploy does. Checked the rest of the
     local schema (only `documents.uploaded_by` has an employee-id
     column) and the shared production Neon database (no
-    `hrb_chatbot_v2`-owned schema exists there yet) for the same stale
+    `hrb_chatbot_service`-owned schema exists there yet) for the same stale
     value - found nothing else to reconcile. Verified live via `GET
     /documents`: all 6 records now correctly show `"uploaded_by":
     "EMP051"`.
@@ -13016,7 +13016,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
         creates the `LeaveRequest` (`status=PENDING_HITL`) and a
         `HitlRequest` (`request_type="UNPAID_LEAVE_REQUEST"`) together.
         `is_repeat_within_12_months` is computed by the caller (the
-        `hrb_chatbot_v2` agent checks `get_leave_history` itself) and
+        `hrb_chatbot_service` agent checks `get_leave_history` itself) and
         carried through as context/priority (`HIGH` if repeat, `MEDIUM`
         otherwise) - never re-derived server-side, so there's one source
         of truth for what the specialist was actually told.
@@ -13027,7 +13027,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       - No new tables, no new columns - reuses `hitl_requests`'
         existing `context` JSON column for the document reference and
         repeat flag, exactly as the design doc proposed.
-    - **`hrb_chatbot_v2`**:
+    - **`hrb_chatbot_service`**:
       - New MCP tool wrappers (`ai/rag_pipeline/tools/mcp_tools/`) for
         `submit_unpaid_leave_request` and `resolve_hitl_request`, same
         `_call_mcp_tool()` + `json.loads(content[0])` pattern as the
@@ -13081,12 +13081,12 @@ Explicitly deferred to a later, separate wave - not part of the above:
     through the real MCP wire protocol (not just the Python service
     layer), against the user's own already-running local `hrb_lms_mcp`
     instance - confirms the content-block JSON-parsing assumption
-    `hrb_chatbot_v2`'s new wrappers depend on, not just that the service
-    method works. `hrb_chatbot_v2` - unit tests for the new agent/graph
+    `hrb_chatbot_service`'s new wrappers depend on, not just that the service
+    method works. `hrb_chatbot_service` - unit tests for the new agent/graph
     and routes (fakes for the MCP calls, matching every other test in
     this project), full suite green, then a live call against a local
     backend exercising the real new MCP tools end to end.
-  - **Built and verified, `hrb_lms_mcp` + `hrb_chatbot_v2` halves - NOT
+  - **Built and verified, `hrb_lms_mcp` + `hrb_chatbot_service` halves - NOT
     pushed/deployed** (same standing instruction; `hrb_chatbot_ui`
     continues as a later slice of this same phase, not done in this pass):
     - **`hrb_lms_mcp`**: `resolve_hitl_request`/`submit_unpaid_leave_request`
@@ -13120,8 +13120,8 @@ Explicitly deferred to a later, separate wave - not part of the above:
         the reload caught up. (3) Confirmed FastMCP's real content-block
         format directly (one pretty-printed JSON text block per call) by
         inspecting a live `get_leave_history` response - the exact
-        assumption `hrb_chatbot_v2`'s new wrappers below are built on.
-    - **`hrb_chatbot_v2`**: `ai/rag_pipeline/tools/mcp_tools/__init__.py`
+        assumption `hrb_chatbot_service`'s new wrappers below are built on.
+    - **`hrb_chatbot_service`**: `ai/rag_pipeline/tools/mcp_tools/__init__.py`
       gained `get_leave_history_parsed`/`submit_unpaid_leave_request`/
       `resolve_hitl_request` wrappers; new
       `ai/agents/workflow_agents/unpaid_leave_agent.py` (the 2-node
@@ -13611,11 +13611,11 @@ Explicitly deferred to a later, separate wave - not part of the above:
       `STD`, `LTD`) and 1 new column (`requires_specialist_review`,
       separate from the existing manager-approval `requires_approval`).
       `resolve_hitl_request` extended to also write the new review table
-      and return the employee's email (so `hrb_chatbot_v2` doesn't need a
+      and return the employee's email (so `hrb_chatbot_service` doesn't need a
       2nd round trip to send the notification). New MCP tools: a
       presigned-download-URL helper (mirrors the existing upload one) and
       a "list my own leave requests" tool for the employee-side view.
-    - **`hrb_chatbot_v2`**: `unpaid_leave_agent.py` (renamed concept, not
+    - **`hrb_chatbot_service`**: `unpaid_leave_agent.py` (renamed concept, not
       necessarily the file) accepts a `leave_type` parameter instead of
       the hardcoded `"UNPAID"`; its eligibility check compares same-
       leave-type-only (flagged default, §10). New route for the
@@ -13698,7 +13698,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
         repo (confirmed, not assumed) - direct verification against real
         Postgres is this project's own established pattern, not a gap
         introduced here.
-    - **`hrb_chatbot_v2`**: `common/enums.py` gained `LeaveTypeCode`
+    - **`hrb_chatbot_service`**: `common/enums.py` gained `LeaveTypeCode`
       (`UNPAID`/`CRITICAL_CAREGIVER`/`STD`/`LTD`) - a `StrEnum`, matching
       this project's own "unknown value -> clean 422" convention, not a
       plain `str`. `mcp_tools/__init__.py` gained wrappers for the 3 new
@@ -13891,7 +13891,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     `uvicorn` process (no `--reload`), restarted explicitly after every
     code change, verified against port- and route-specific behavior
     before trusting it - not left running across edits.
-  - **`hrb_chatbot_v2/.env` and `hrb_chatbot_ui/.env` both updated**:
+  - **`hrb_chatbot_service/.env` and `hrb_chatbot_ui/.env` both updated**:
     backend now runs on port 8100 (not 8093), `VITE_API_BASE_URL` updated
     to match - the user's own normal `--reload` dev-server command is
     unaffected by any of this (it only ever broke under this session's
@@ -14040,10 +14040,10 @@ Explicitly deferred to a later, separate wave - not part of the above:
       `SpecialistLeaveReview` row (if any) -> `UnpaidLeaveDocument` rows
       linked to the same `leave_request_id` (returning their `s3_key`s,
       since this repo has no AWS/S3 client of its own - actual object
-      deletion happens in `hrb_chatbot_v2`, which already has one) ->
+      deletion happens in `hrb_chatbot_service`, which already has one) ->
       the `LeaveRequest` row -> the `HitlRequest` row itself. One new
       MCP tool wrapping it.
-    - **`hrb_chatbot_v2`**: new `ConversationStore`/`FeedbackStore`
+    - **`hrb_chatbot_service`**: new `ConversationStore`/`FeedbackStore`
       methods for unscoped list/delete; new `api/admin/manage_admin.py`
       router, `ADMIN`-only throughout:
       - `GET /v1/admin/conversations`, `DELETE /v1/admin/conversations/{id}`
@@ -14081,7 +14081,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
         thing via the new method, then directly query all 4 tables to
         confirm every row is actually gone (not just that delete returned
         without error).
-    - **`hrb_chatbot_v2`**: `Role` gained `ADMIN`; 1 new persona
+    - **`hrb_chatbot_service`**: `Role` gained `ADMIN`; 1 new persona
       (`ADM001`, deliberately not a real `hrb_emp_lms.employees` row - see
       spec above). KB documents: zero new routes, 4 existing
       `ingest_document.py` routes widened to also accept `ADMIN`.
@@ -14160,7 +14160,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       - **Live-verified** directly against real Postgres - returned the
         user's own real `EMP001`/John Doe PENDING request (#41, "son's
         health treatment") correctly alongside already-COMPLETED ones.
-    - **`hrb_chatbot_v2`**: new `list_all_leave_requests()` wrapper, new
+    - **`hrb_chatbot_service`**: new `list_all_leave_requests()` wrapper, new
       `HrLeaveRequestSummary`/`HrLeaveRequestsResponse` models, new
       `GET /v1/unpaid-leave/all` route (`HR_SUPPORT`-only, query-param
       identity). 3 new tests (RBAC rejection, every-status-not-just-
@@ -14193,7 +14193,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     Conversations tab's popup show the full transcript, or just the
     grid's own summary fields) - answered "full transcript," which this
     round built.
-    - **`hrb_chatbot_v2`**: `conversation_store.py` gained
+    - **`hrb_chatbot_service`**: `conversation_store.py` gained
       `get_conversation_turns_any()` (admin-only, unscoped - same
       "separate method, not an optional-employee_id variant" reasoning as
       `delete_conversation_any()`/`list_all_conversations()` already
@@ -14497,7 +14497,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     calls, the A2A vocabulary/schema changes) doesn't depend on this
     choice and can proceed either way.
   - **Spec, gap 2 (restore the 2 dropped LLM calls)**:
-    - **`hrb_chatbot_v2/ai/agents/workflow_agents/unpaid_leave_agent.py`**:
+    - **`hrb_chatbot_service/ai/agents/workflow_agents/unpaid_leave_agent.py`**:
       new `intake_node` (LLM call) inserted before `eligibility_check_node`
       - takes the raw submitted fields (dates/purpose/leave_type/
       document_reference) and produces a structured, validated intake
@@ -14540,7 +14540,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       (`[{"type": "email", "recipient": "...", "sent_at": "..."}]`) on
       the same row - an Artifact the Task produced, queryable, not just
       a side-effecting function call with no record of what it made.
-    - **`hrb_chatbot_v2`**: `HrLeaveRequestSummary`/`MyLeaveRequestSummary`
+    - **`hrb_chatbot_service`**: `HrLeaveRequestSummary`/`MyLeaveRequestSummary`
       gain `task_state`, `review_brief`, and `produced_artifacts` fields
       surfacing the above; `status`/`decision`/`hr_comments` stay as they
       are too (additive, not a breaking rename of the existing contract).
@@ -14588,7 +14588,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       of the route since that's genuinely the resumed Task's own work).
     - **New `common/clients/db_client/agent_thread_store.py`**: maps
       `hitl_request_context_id` -> the LangGraph `thread_id`, in
-      `hrb_chatbot_v2`'s own Postgres (new `agent_threads` table) - pure
+      `hrb_chatbot_service`'s own Postgres (new `agent_threads` table) - pure
       orchestration metadata this project owns itself, `hrb_lms_mcp` has
       no reason to know about LangGraph thread ids.
     - **`hrb_lms_mcp`**: `specialist_leave_reviews` gained `task_state`,
@@ -14657,7 +14657,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     gap, explicitly prioritized by the user over the other open items
     this same turn.
   - **Spec**:
-    - **`hrb_chatbot_v2`**: new `AdminTab = "docs"` in
+    - **`hrb_chatbot_service`**: new `AdminTab = "docs"` in
       `AdminDashboardPage.tsx`, reusing the already-built
       `listAdminDocs`/`getAdminDocContent` endpoints (Phase 170) - a row
       click opens the doc in a new tab via the existing presigned-URL flow.
@@ -17063,7 +17063,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 216 (EX-2l) - surface which retrieval strategy actually ran,
   single-agentic-rag's own agent-chosen one included; a frontend-only
-  chunking-strategy-per-source addition alongside it. `hrb_chatbot_v2` +
+  chunking-strategy-per-source addition alongside it. `hrb_chatbot_service` +
   `hrb_chatbot_ui`.**
   - **Built/verified 2026-10-18:** `models/common.py`'s `ToolCallInfo`
     gained `search_strategy`; `orchestration_agent.py` now captures
@@ -17146,7 +17146,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     - **Open questions:** none.
 
 - [ ] **Phase 217 (EX-2m) - make the vector store's distance metric
-  configurable, with a real re-indexing flow. `hrb_chatbot_v2` +
+  configurable, with a real re-indexing flow. `hrb_chatbot_service` +
   `hrb_chatbot_ui`. Status: 📋 Planned, not started.**
   - **Spec:**
     - **Context:** user asked for a "Search Distance: KNN/ANN/HNSW"
@@ -17195,7 +17195,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
         for the whole knowledge base.
 
 - [x] **Phase 218 (EX-2n) - real, exact-KNN search_strategy, after
-  re-investigating Phase 216/217's own finding. `hrb_chatbot_v2` +
+  re-investigating Phase 216/217's own finding. `hrb_chatbot_service` +
   `hrb_chatbot_ui`.**
   - **Built/verified 2026-10-18:** `common/enums.py`'s `SearchStrategy`
     gained `KNN = "knn"`. `BaseVectorDBClient.get_all_chunks()`'s contract
@@ -17301,7 +17301,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       no per-backend branching needed beyond the cost-tradeoff note.
 
 - [x] **Phase 219 (EX-2o) - live recall/F1 estimate for genai-rag, against
-  a wider exact-KNN pool. `hrb_chatbot_v2` + `hrb_chatbot_ui`.**
+  a wider exact-KNN pool. `hrb_chatbot_service` + `hrb_chatbot_ui`.**
   - **Built/verified 2026-10-18:**
     `ai/rag_pipeline/evaluations/golden_dataset_harness.py::evaluate_retrieval_relevance()`
     gained an optional `wider_pool_texts` param - when given, judges that
@@ -17365,7 +17365,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 220 (EX-2p) - extend Phase 219's live recall/F1 estimate to
   single/multi-agentic-rag, fixing a real scoping bug the live UI
-  surfaced along the way. `hrb_chatbot_v2`.**
+  surfaced along the way. `hrb_chatbot_service`.**
   - **Built/verified 2026-10-18:**
     `orchestration_agent.py`/`multi_agent_pipeline.py`'s own separate
     `_score_live_answer()` copies each gained their own
@@ -17418,7 +17418,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 221 (EX-2q) - hybrid search's real dense/sparse contribution
   per chunk, after confirming there's no actual "weight" in this project's
-  RRF implementation. `hrb_chatbot_v2` + `hrb_chatbot_ui`.**
+  RRF implementation. `hrb_chatbot_service` + `hrb_chatbot_ui`.**
   - **Built/verified 2026-10-18:**
     `bm25_search.py::_reciprocal_rank_fusion()` now takes labeled lists
     (`{"sparse": ..., "dense": ...}` instead of a plain list) and tags
@@ -17501,7 +17501,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 223 (EX-2s) - real tuning recommendations when a live score
   misses its threshold, plus a real cache-hit bug this surfaced.
-  `hrb_chatbot_v2` + `hrb_chatbot_ui`.**
+  `hrb_chatbot_service` + `hrb_chatbot_ui`.**
   - **Built/verified 2026-10-18:**
     `pipeline.py`'s cache-hit branch now recomputes
     `below_threshold`/`below_threshold_metrics` against the CURRENT
@@ -17565,8 +17565,8 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 224 (EX-2t) - real input/output guardrail status reaching the
   Explainability panel, plus a real silent-swap bug this surfaced.
-  `hrb_chatbot_v2` + `hrb_chatbot_ui`. Backend built/verified -
-  `hrb_chatbot_v2`'s full suite green (720 passed), `bandit -ll` clean;
+  `hrb_chatbot_service` + `hrb_chatbot_ui`. Backend built/verified -
+  `hrb_chatbot_service`'s full suite green (720 passed), `bandit -ll` clean;
   `hrb_chatbot_ui`'s own Guardrails tab not yet built.**
   - **Spec:**
     - **Context:** user asked for a Guardrails tab (Input/Output
@@ -17636,7 +17636,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 225 (EX-2u) - the real recall-estimate denominator, so the
   Explainability panel can show the actual arithmetic behind Precision/
-  Recall/F1, not just the final numbers. `hrb_chatbot_v2` +
+  Recall/F1, not just the final numbers. `hrb_chatbot_service` +
   `hrb_chatbot_ui`. Built/verified both sides - backend: full suite green
   (720 passed), `bandit -ll` clean; frontend: Retrieval/Response Eval
   Score tabs now show the real formula with real numbers, `npm run
@@ -17702,7 +17702,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 226 - a real corrective retry: retrieve again, once, when
   retrieval precision is below the caller's own eval_score_threshold.
-  `hrb_chatbot_v2` + `hrb_chatbot_ui`. genai-rag only. Built/verified
+  `hrb_chatbot_service` + `hrb_chatbot_ui`. genai-rag only. Built/verified
   both sides - backend: full suite green (725 passed), `bandit -ll`
   clean; frontend: new "Retry Once on Low Retrieval Score" checkbox in
   Settings' RAG Config tab, Retrieval Eval Score tab shows when a retry
@@ -17824,7 +17824,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     - **Open questions:** none.
 
 - [x] **Phase 228 - a real Retrieval Strategy control for Single-Agent RAG
-  and Multi-Agent RAG, not just Reflex RAG. `hrb_chatbot_v2` +
+  and Multi-Agent RAG, not just Reflex RAG. `hrb_chatbot_service` +
   `hrb_chatbot_ui`. Built/verified both sides - backend: full suite green
   (729 passed), `bandit -ll` clean; frontend: Retrieval Strategy dropdown
   now shows for all 3 modes (2-option list for Single/Multi-Agent RAG),
@@ -17900,7 +17900,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 229 - real per-rail guardrail logs: which specific NeMo
   validations ran for this answer, not just the aggregate pass/modified/
-  blocked status. `hrb_chatbot_v2` + `hrb_chatbot_ui`. Built/verified
+  blocked status. `hrb_chatbot_service` + `hrb_chatbot_ui`. Built/verified
   both sides - backend: full suite green (729 passed), `bandit -ll`
   clean, live-verified against real NeMo calls (3 scenarios: pass,
   masked, blocked); frontend: Guardrails tab shows a real per-rail table
@@ -17968,7 +17968,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 230 - fix Self-Query's `doc_description` exact-match failure
   (BACKLOG.md's own documented gap) by resolving the LLM's parsed guess
-  to the closest REAL indexed value before querying. `hrb_chatbot_v2`
+  to the closest REAL indexed value before querying. `hrb_chatbot_service`
   only - internal retrieval-quality fix, no request/response shape
   change.**
   - **Spec:**
@@ -18234,16 +18234,16 @@ Explicitly deferred to a later, separate wave - not part of the above:
   instead of one repo's workflows all shown mixed together, plus a
   honest "no CI/CD" state for the one real deployable that has none.
   User-requested, after live-deploying this session's own work surfaced
-  that the dashboard only ever reflected `hrb_chatbot_v2`'s own repo.**
+  that the dashboard only ever reflected `hrb_chatbot_service`'s own repo.**
   - **Spec:**
     - **Context:** this project has 4 real deployables across 2 GitHub
-      repos: `hrb_chatbot_v2`'s own App Runner backend (`ci.yml`/
+      repos: `hrb_chatbot_service`'s own App Runner backend (`ci.yml`/
       `deploy.yml`) and its ingestion Lambda (`deploy-lambda.yml`, same
       repo, different target) - both already queried but shown
       undifferentiated in one view; `hrb_lms_mcp`'s own App Runner-hosted
       MCP server (`deploy.yml`, a genuinely separate GitHub repo) - zero
       visibility today, the dashboard's backend only ever talks to
-      `hrb_chatbot_v2`'s repo; and `hrb_chatbot_ui`'s frontend - no
+      `hrb_chatbot_service`'s repo; and `hrb_chatbot_ui`'s frontend - no
       GitHub Actions workflow exists for it at all (confirmed: no
       `.github/workflows/` directory), deployed manually
       (`npm run build` -> `aws s3 sync` -> CloudFront invalidation,
@@ -18276,7 +18276,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
         gains an optional `repo` param, cached per-repo (a dict, not a
         single shared instance) - lets `lms_mcp` reuse the existing
         `GITHUB_TOKEN` against `rvsree/hrb_lms_mcp` instead of
-        `rvsree/hrb_chatbot_v2`. **Live-verified before writing this
+        `rvsree/hrb_chatbot_service`. **Live-verified before writing this
         spec**: the existing token already has real read access to
         `hrb_lms_mcp`'s repo (a direct API call returned real workflow
         run data, not a 403) - no new credential needed.
@@ -18521,7 +18521,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   endpoint), collapsible frames, a dynamic query-count-aware calculation
   explanation, removed a useless "Pipeline" label, and a real pagination
   bug fix for "Full run history" (stale page persisting across tab
-  visits) + page size reduced to 5. `hrb_chatbot_v2` gets one 1-line
+  visits) + page size reduced to 5. `hrb_chatbot_service` gets one 1-line
   constant change (`_CI_STATUS_PER_PAGE` 10 -> 5); everything else is
   `hrb_chatbot_ui` only.**
   - **Spec:**
@@ -18751,3 +18751,198 @@ Explicitly deferred to a later, separate wave - not part of the above:
       this catalog in the Admin Dashboard - flagged as a natural follow-up,
       not bundled into this backend-only phase.
     - **Open questions:** none.
+
+- [x] **Phase 240 (done) — Auto-routed agentic RAG mode (query-complexity routing).** 786/786 backend tests pass (11 new: 4 classifier, 7 route-level including escalation paths), `tsc -b` clean, HMR confirmed live. New `POST /v1/rag-retrieval/query`, new "Auto" UI option, `resolved_mode` surfaced in the Explainability modal's existing Retrieval Strategy tab. **Live end-to-end verification blocked**: the real OpenAI account has run out of credits (`insufficient_quota`) - confirmed this affects ALL 4 query endpoints identically (including the already-shipped 3), not something this phase introduced. Logic verified via the full mocked test suite only; real-browser/live-LLM verification pending credits being restored.
+  - **Spec:**
+    - **Context:** 2026-10-21 UI/UX discussion - today the caller manually
+      picks `single-agentic-rag` vs. `multi-agentic-rag`, a distinction
+      most real users have no basis to judge (most questions are simple
+      lookups; picking multi-agent for one wastes a Planner+Reviewer
+      round-trip for nothing). This phase adds a classification step that
+      picks for them, while keeping both existing modes forced-selectable
+      (for demos/interviews - this project's whole purpose) and leaving
+      "Direct RAG" (`genai-rag`) untouched and outside the router entirely.
+    - **Data/API contracts:** `docs/agent-reference/endpoint-request-response-contracts.md`'s
+      `POST /v1/rag-retrieval/query` section (Finalized 2026-10-21, all 3
+      open questions resolved - see that section for the decisions).
+    - **User-visible behavior:** a new "Auto" option in the UI's mode
+      selector (alongside the existing "Reflex Agent"/"Agentic Workflow"
+      forced options, 2026-10-21 label rename) that silently resolves to
+      one of the two per question - including a possible escalation from
+      single- to multi-agentic-rag, see Failure modes. The Explainability
+      modal's existing "Retrieval Strategy" tab (`Gate 3 · Retrieval
+      Strategy`) gets a new field showing which one was actually picked
+      for this turn (and whether it was an escalation) - reusing an
+      existing tab, not a new UI surface.
+    - **Failure modes:** classification step itself failing (timeout, bad
+      output) falls back to `single-agentic-rag` (the cheaper, safer
+      default) rather than blocking the request - same "a safety/routing
+      mechanism must never become the reason every request fails"
+      principle already applied to the Resiliency work in
+      `hrb-common-libs`. A `single-agentic-rag` result with no
+      sources/tool calls at all, or a live groundedness/completeness
+      score below `AUTO_ROUTER_ESCALATION_THRESHOLD` (new env var,
+      default `0.5` - deliberately a separate setting from
+      `eval_options.eval_score_threshold`, which is a caller-facing flag,
+      not an internal routing trigger), re-runs the same query through
+      `multi-agentic-rag` and returns THAT result instead. User-confirmed
+      tradeoff: a misclassified question can cost both calls, not just
+      one - accepted for better answer quality over strict cost
+      predictability.
+    - **Out of scope:** changing `single-agentic-rag-retrieval`/
+      `multi-agentic-rag-retrieval`'s own contracts (both stay exactly as
+      they are, forced-mode, unescalated). Folding `genai-rag`/Direct RAG
+      into the router (stays separate, including the adhoc-upload use
+      case). A confidence signal for the ESCALATED multi-agentic-rag
+      result itself - if that one is also weak, it's still returned
+      as-is, no further cascade.
+    - **Open questions:** none - all 3 resolved 2026-10-21 (classifier:
+      real `gpt-4.1-nano` LLM call, not a heuristic; escalation: yes,
+      real cascade; service home: `hrb_chatbot_service` now, documented
+      future move to `rag_retrieval_service`).
+
+- [x] **Phase 241 (done) — Rename ai/pre_processing/ to ai/search_pre_processing/.** 770/770 tests pass unmodified after the rename.
+  - **Spec:**
+    - **Context:** 2026-10-21, user-directed - this package is about to
+      become the real home for query-intent classification and CAG-vs-RAG-
+      vs-Agent routing (Phase 240's router, the new Search Pre-Processing
+      Layer design), not just query decomposition/guardrails/memory as
+      today's name implies. Renamed before that new logic lands, not after.
+    - **Source:** mechanical rename only, zero behavior change - confirmed
+      via grep: 28 files reference `ai.pre_processing`/`ai/pre_processing`
+      (15 under `src/`, 13 under `tests/`), all import-path references,
+      no string/config value anywhere depends on the literal folder name.
+    - **API/contracts:** none - internal package path only, no wire-facing
+      name changes.
+    - **Behavior parity:** every existing test must pass unmodified after
+      the rename (same test logic, just a moved import path).
+    - **Out of scope:** the actual new routing/classification logic, the
+      real STM/LTM split, `search_filter.py` (still a genuine empty
+      placeholder) - all separate, later phases once the design doc this
+      phase enables is confirmed.
+    - **Open questions:** none.
+
+- [x] **Phase 242 (done) — Extract CAG (answer cache) check/write into its own layer, out of pipeline.py.**
+  - **Spec:**
+    - **Context:** 2026-10-21, user-directed (CAG as a separate layer, not inter-mixed with RAG) - `pipeline.py`'s cache-hit handling (~80 lines: get, conversation-memory save, eval-threshold recompute, result reshaping) and cache-write eligibility check were inlined directly in the main answer function. Pure extraction, zero behavior change.
+    - **Source:** `ai/rag_pipeline/pipeline.py` lines ~320-398 (hit path) and ~563-569 (write path), moved into new `ai/search_pre_processing/cache_layer.py` - the home this session's Search Pre-Processing Layer design doc already named for it.
+    - **API surface:** `check_cache(cache_key, checked_query, resolved_conversation_id, employee_id, eval_score_threshold, started_at) -> dict | None` (returns the shaped hit result, or `None` on a miss); `write_cache(cache_key, checked_query, result) -> None` (applies the existing live-data-tool eligibility check before writing); `LIVE_DATA_MCP_TOOLS` moves here too - genuinely a cache-eligibility concept, not core pipeline logic. `pipeline.py` still builds `cache_key` itself (via the existing `build_cache_key()`) and calls these two functions as explicit bookend steps.
+    - **Behavior parity:** identical - every existing `test_pipeline.py` cache-hit/cache-write test must pass unmodified; only the module a reader needs to open to see this logic changes.
+    - **Out of scope:** `genai-rag`-only scope is unchanged (still never called from `single-/multi-agentic-rag`). The CAG-vs-RAG *routing decision* (Phase 240) - this phase only extracts the existing check/write, it doesn't add new routing logic.
+    - **Open questions:** none.
+
+- [x] **Phase 243 (done) — Model tiering: real cheap-tier defaults + request-level overrides for classification-tier calls.** 770/770 tests pass (6 test files updated for the new `decompose()`/`plan()` kwargs; 3 contract snapshots regenerated for the new `ExplainabilityInfo` fields). Frontend Settings → Model tab wiring (`hrb_chatbot_ui`) done as a same-day follow-on: `types.ts`/`client.ts`/`ChatPage.tsx` now send `classification_options.decompose_model` (genai-rag) and `.planner_model` (multi-agentic-rag), mode-gated in the UI the same way Retrieval Strategy/Retry Once already are; Guardrails Model shown read-only (no override exists to edit). `tsc -b` clean, HMR confirmed live against the running dev server.
+  - **Spec:**
+    - **Context:** 2026-10-21, user-directed cost-optimization request - different model tiers for different use-cases, confirmed approach: tier the two existing classification-only LLM calls (Phase 65's Planner, Phase 130's query-decompose) onto a cheap model, leave Reviewer (`reviewer_agent.py`) and the ReAct answer-generation loop (`orchestration_agent.py`) untouched since those aren't simple classification. User's hard requirement: edits made in Settings → Model tab must take effect at **request time**, not just via env var + redeploy - this phase builds that, mirroring Phase 215's already-shipped `EvalOptions.judge_model` request-override pattern exactly (same free-text field, same fallback chain, same `*_model_used` verifiability field in the response).
+    - **Data/API contracts:** `docs/agent-reference/endpoint-request-response-contracts.md`'s new "`classification_options` request field + `*_model_used` on `ExplainabilityInfo`" section (Proposed, awaiting confirmation - flips to Finalized once reviewed). New `ClassificationOptions` Pydantic model in `src/hrb_chatbot/models/rag.py` (`decompose_model: str | None`, `planner_model: str | None`), added as `classification_options: ClassificationOptions | None` to `RagQueryRequest` (`models/rag.py`) and `MultiAgenticRagRequest` (`models/multi_agentic_rag.py`). Not added to `AgenticRagRequest` (single-agentic-rag) - no classification step exists there to override.
+    - **Real defaults (new):** `OPENAI_PLANNER_MODEL` (currently commented out/unset in `.env`) and new `OPENAI_DECOMPOSE_MODEL` both set to `gpt-4.1-nano` - this is the actual cost-saving change; the override plumbing alone saves nothing if nobody sets a cheap default.
+    - **User-visible behavior:** a caller can pass `classification_options.decompose_model`/`planner_model` per-request to override the classification-tier model for that one call, exactly like `eval_options.judge_model` today. `ExplainabilityInfo.decompose_model_used`/`planner_model_used` report which model actually ran (override if given, else the real default), null when that stage didn't run for this call. Settings → Model tab (frontend, separate follow-on) reads/writes these same fields so an edit there changes the next request's behavior immediately, no backend redeploy.
+    - **Failure modes:** an invalid/unavailable model name is not pre-validated (same as `judge_model`/`GenerationOptions.model_name` today) - surfaces as whatever error OpenAI's API itself returns for that call, unchanged failure-handling path.
+    - **Out of scope:** NeMo Guardrails' input/output model (`ai/guardrails_config/config.yml`, hardcoded `gpt-4.1-mini`) - this phase changes its hardcoded default to `gpt-4.1-nano` directly (same cost tier, zero risk) but does **not** add a request-level override for it. Real reason: `RailsConfig.from_path()` loads a static YAML file into a module-level cached `LLMRails` singleton (`guardrails_input.py`'s `get_rails()`) - making that request-overridable means rebuilding the rails object per-call (defeats the cache) or templating the YAML at runtime, a materially bigger change than the Planner/decompose pattern. DeepEval model-selection display and the dead `OPENAI_RAG_MODEL` cleanup are tracked separately, not this phase. Frontend Settings → Model tab wiring is a follow-on, not built in this phase.
+    - **Open questions:** none - 3-way scope (Planner/decompose in, guardrails default-only, Reviewer/ReAct untouched) already confirmed with the user.
+
+- [x] **Phase 244 (done) — Guardrails model: real per-request override, reversing Phase 243's "out of scope" call.** 775/775 tests pass (12 test files updated for the new `check_input()`/`check_output()`/`get_rails()` kwargs; 3 contract snapshots regenerated; new tests added for `resolve_guardrails_model()`'s validation and `get_rails()`'s per-model cache). Frontend (`hrb_chatbot_ui`) done same-day: `types.ts`/`client.ts` send top-level `guardrails_model`; `ChatPage.tsx`'s Guardrails Model field is now a real `<select>` sourced from `GET /health`'s new `guardrails_supported_models`, never free text. Live-verified end to end through the Gateway's Phase 7 nesting. Embedding Model stays read-only/system-wide, confirmed with the user as a real correctness risk, not revisited. User-directed, 2026-10-21: make the Guardrails Model field in Settings → Model editable and wired for real, with two explicit constraints confirmed first - Embedding Model stays read-only/system-wide (per-request override there is a real correctness risk, not just scope - query/document vector-space mismatch), and the editable field must be a dropdown sourced from a real backend allow-list, never free text a user could mistype into an unsupported model.
+  - **Spec:**
+    - **Context:** Phase 243 explicitly deferred this, reasoning that `get_rails()`'s cached `LLMRails` singleton (built once from the static YAML) made a per-call override "a materially bigger change than the Planner/decompose pattern." That's still true, but the user asked for it directly after seeing Guardrails Model as the one remaining read-only field with no explanation - this phase pays that cost deliberately.
+    - **Data/API contracts:** `docs/agent-reference/endpoint-request-response-contracts.md`'s new "`guardrails_model` request field + `guardrails_model_used`/`guardrails_supported_models`" section (Finalized). New top-level `guardrails_model: str | None` field (not nested - unlike `classification_options`, this applies identically to all 3 modes) on `RagQueryRequest`, `AgenticRagRequest`, `MultiAgenticRagRequest`. `ExplainabilityInfo` gains `guardrails_model_used: str`. `GET /health`'s response gains `guardrails_supported_models: list[str]`.
+    - **API surface:** `guardrails_input.py` - `SUPPORTED_GUARDRAILS_MODELS` (parsed from new `GUARDRAILS_SUPPORTED_MODELS` env var, comma-separated, falls back to `["gpt-4.1-nano", "gpt-4.1-mini"]` if unset), `resolve_guardrails_model(override) -> str` (validates `override` against the allow-list, raises `ValueError` if given but not listed; returns the configured default - `gpt-4.1-nano`, matching `config.yml` - when `override` is `None`), `get_rails(model: str | None = None) -> LLMRails` (per-model cache dict, not a single `_rails` singleton - loads the YAML once into a base `RailsConfig`, then for each distinct resolved model, deep-copies that config, overwrites `config.models[0].model`, and builds+caches one `LLMRails` per distinct model actually requested - bounded by the allow-list size, never unbounded). `check_input(query, guardrails_model=None)`/`check_output(query, answer, guardrails_model=None)` thread the override through. `run_guarded_pipeline(..., guardrails_model=None)` (covers genai-rag + single-agentic-rag, Phase 98's shared core) and `multi_agent_pipeline.py::run_multi_agent(..., guardrails_model=None)` (multi-agentic-rag's own direct `check_input`/`check_output` calls, per CLAUDE.md's documented exception) both thread it to the bottom.
+    - **User-visible behavior:** a caller passes `guardrails_model` per-request; an unlisted value is a clean `422 VALIDATION_ERROR`, never silently ignored or silently accepted. `ExplainabilityInfo.guardrails_model_used` always reports which model actually ran. Settings → Model tab renders Guardrails Model as a `<select>` populated from `GET /health`'s new `guardrails_supported_models`, not a text input - nothing invalid can be typed in the first place.
+    - **Failure modes:** an unlisted `guardrails_model` raises `ValueError` in `guardrails_input.py`, caught at each of the 3 route layers (`retrieve_document.py`/`query_agent.py` x2) alongside their existing `ValueError` handling (`retrieve_document.py` already has this; the 2 agentic routes gain a new `except ValueError` block) → `422` with `error_codes.VALIDATION_ERROR`, same shape as every other validation failure in this project.
+    - **Out of scope:** Embedding Model stays exactly as today - read-only, system-wide, sourced from `.env`'s `OPENAI_EMBED_MODEL` - confirmed with the user as a real correctness risk (query/document embedding mismatch), not revisited here. DeepEval model field stays UI-only/unwired (separate, already-flagged decision). No caching eviction policy for the per-model `LLMRails` cache - bounded by the allow-list's own size (expected to stay small, 2-4 models), not worth adding yet.
+    - **Open questions:** none - scope confirmed with the user via explicit options before this spec was written.
+
+- [x] **Phase 245 (done) — Guardrails consolidation: migrate multi-agentic-rag onto the shared run_guarded_pipeline() core.** 775/775 tests pass (2 test files updated: `check_output` fakes now patched on `rag_core.guarded_pipeline` instead of `multi_agent_pipeline` directly, matching `test_orchestration_agent.py`'s existing convention; one test renamed/updated since its old docstring/premise - "this direct, non-shared-core path" - was the exact thing this phase removed). `CLAUDE.md`'s own Phase 98 description updated to match the new reality. CLAUDE.md itself names this as a known, scoped gap (Phase 98's own entry): `multi_agent_pipeline.py::run_multi_agent()` still calls `check_input()`/`check_output()` directly instead of through `ai/rag_core/guarded_pipeline.py::run_guarded_pipeline()`, the shared core genai-rag and single-agentic-rag already use. Pure refactor, no behavior change - the user asked to finish this since it's unblocked (no open design question, just precedented restructuring).
+  - **Spec:**
+    - **Context:** found by re-reading `pipeline.py::answer_query()`'s real control flow while scoping this phase (not assumed): genai-rag's own cache check happens BEFORE and OUTSIDE `run_guarded_pipeline()` entirely, with an early `return` on a hit (own `conversation_memory.save_turn()`, own result shaping) - `run_guarded_pipeline()` is only reached on a cache MISS, called with `pre_checked_query`/`pre_checked_input_status` (check_input already ran once, not repeated). `multi_agent_pipeline.py`'s current code already follows this exact same shape by hand (check_input -> cache check with early return -> graph invoke -> check_output -> conversation-save) - this phase doesn't change that shape, it just routes the non-cache-hit half through the shared function instead of duplicating its logic inline. Also confirmed by tracing the code: eval scoring in both existing implementations runs AFTER `run_guarded_pipeline()` returns, scored against the POST-output-guardrail answer (`result["answer"]`), not the raw generation - this phase matches that exactly, not the pre-guardrail `final_state["answer"]`.
+    - **Source:** `src/hrb_chatbot/ai/agents/workflow_agents/multi_agent_pipeline.py::run_multi_agent()`, restructured (not rewritten) - the cache-hit early-return block is untouched; the graph-invoke-through-result-shaping block becomes a `generate(checked_query, chat_history) -> dict` closure passed to `run_guarded_pipeline(checked_query, employee_id, enable_conversation_memory, conversation_id, generate, pre_checked_query=checked_query, pre_checked_input_status=input_guardrail_status, guardrails_model=guardrails_model)`, mirroring `pipeline.py`'s own call shape field-for-field.
+    - **API surface:** no new public functions - `run_multi_agent()`'s own signature is unchanged. Internally: `check_input()`/`check_output()` are no longer called directly from this file (removes the direct-call exception CLAUDE.md currently documents) - `run_guarded_pipeline()` now owns both, plus the conversation-memory save for the non-cache-hit path. `generate()`'s own return dict carries `tasks`/`follow_up_questions`/`tools_used`/`agent_result_texts`/`sources`/`iterations`/`llm_call_count`/`token_usage`/`planner_model_used`/`llm_context`/partial `latency_ms` (no `eval`/`total` yet, same as `pipeline.py`'s own `generate()`) - `eval_scores`, `latency_ms.eval`, `latency_ms.total`, and the cache WRITE (eligibility check against `result["tasks"]`, same `LIVE_DATA_AGENTS` rule, unchanged) all move to after `run_guarded_pipeline()` returns, matching `pipeline.py`'s own ordering exactly.
+    - **Behavior parity:** byte-for-byte same request/response shape and same real behavior - this is a control-flow refactor only. One explicitly preserved (not introduced) gap: `chat_history` is not fed into the graph today (confirmed by grep - no `chat_history` reference anywhere in the current file, unlike `pipeline.py`'s own `generate()` which does use it) - `run_guarded_pipeline()` will now load it via `conversation_memory.load_history()` and pass it into `generate()`'s second argument same as every other caller, but this phase's own `generate()` closure deliberately ignores it, same as today - not silently wiring up conversation-context-aware multi-agent answers as a side effect of this refactor.
+    - **Out of scope:** actually feeding `chat_history` into the Planner/graph state (the gap noted above) - a real, separate feature, not touched here. The cache-hit early-return path's own shape (unchanged, matches `pipeline.py`'s own `cache_layer.check_cache()` pattern at the architecture level, though `multi_agent_pipeline.py` keeps its inline cache dict access rather than a `cache_layer`-style extraction - that extraction is also not this phase's scope).
+    - **Open questions:** none blocking.
+
+- [x] **Phase 246 (done) — Per-judge eval toggles (EVAL_GROUNDEDNESS_ENABLED/EVAL_COMPLETENESS_ENABLED/EVAL_RETRIEVAL_RELEVANCE_ENABLED), a real cost-control switch.** 794/794 tests pass (23 new/updated: 8 new in `test_eval_threshold.py` for the toggles/dict-building themselves, the rest existing `_score_live_answer()` tests across all 3 pipelines re-pointed at the new shared `eval_threshold` patch target). All 3 default `true` in `.env`/`.env.example` - zero behavior change unless explicitly set to `false`. Live cost-savings verification deferred - the real OpenAI account is still out of credits (see Phase 240's own note); logic fully verified via the mocked suite, which proves a disabled judge is never called at all (not just scored as null). User-directed, 2026-10-21, after a live cost investigation: every real query with retrieved sources makes at least 3 extra LLM judge calls on top of generation (groundedness/completeness/retrieval-relevance), and the retrieval-relevance call alone sends up to `top_k * WIDER_POOL_MULTIPLIER` (capped `WIDER_POOL_MAX=20`) chunks - a real, already-confirmed (2026-10-18) cost/latency tradeoff, but one the user wants a kill switch for, not a removal.
+  - **Spec:**
+    - **Context:** all 3 query pipelines independently implement a near-identical `_score_live_answer()` (`pipeline.py`, `orchestration_agent.py`, `multi_agent_pipeline.py`) - same 3 judge calls, same `eval_scores` dict construction, same `asyncio.gather()` shape, confirmed by reading all 3 side by side rather than assumed. The offline/CI golden-dataset harness (`.github/workflows/eval-gate.yml`, `golden_dataset_harness.py`'s own direct callers) must NOT be gated by these switches - this is a live-query cost control, not a change to what the eval-gate CI check measures - so the toggle lives in each `_score_live_answer()` call site, never inside `evaluate_groundedness`/`evaluate_completeness`/`evaluate_retrieval_relevance` themselves.
+    - **Source:** new shared helper in `ai/rag_core/eval_threshold.py` (already the shared home for `check_eval_threshold()`, used identically by all 3 pipelines) - `groundedness_enabled()`/`completeness_enabled()`/`retrieval_relevance_enabled()` (each `read_setting(None, "EVAL_*_ENABLED", "true")`, so nothing changes unless explicitly set to `false` - exact backward compatibility), `run_enabled_eval_judges(query, answer, groundedness_context, retrieval_context, judge_model, wider_pool_texts)` (runs only the enabled subset via `asyncio.gather()`, returns `(groundedness, completeness, retrieval)` with `None` for any disabled/skipped judge), `build_eval_scores(groundedness, completeness, retrieval, eval_score_threshold)` (the shared `eval_scores` dict construction, `None`-safe per field now, `judge_model_used` falls back across whichever judge actually ran).
+    - **API surface:** all 3 pipelines' own `_score_live_answer()` keep their exact existing signatures - internally, each replaces its direct `asyncio.gather(evaluate_groundedness(...), evaluate_completeness(...), evaluate_retrieval_relevance(...))` + inline `eval_scores = {...}` with a call to the 2 new shared functions. The expensive wider-pool fetch (`_fetch_wider_pool_texts()`, a real exact-KNN call) becomes conditional on `retrieval_relevance_enabled()` too - skipped entirely, not just the judge call, when that switch is off. 3 new `.env`/`.env.example` entries, default `true` each.
+    - **User-visible behavior:** `EvalScores`'s own fields for a disabled judge come back `null` (e.g. `groundedness: null, groundedness_verdict: null, ...`) instead of a real score - same "null means this didn't run" convention `decompose_model_used`/`planner_model_used` already use. `below_threshold`/`below_threshold_metrics` (via the unchanged `check_eval_threshold()`, already `None`-safe per metric) simply has nothing to flag for a disabled metric. No new request field - this is operator/deployment config (`.env`), not a per-call override; a per-request override wasn't asked for and isn't built here.
+    - **Failure modes:** none new - a disabled judge is a deliberate skip, not a failure path. All 3 disabled at once still returns a real (if entirely-`null`) `eval_scores` dict, not `None` - keeps the "`eval_scores` is present whenever there were sources" contract intact for API consumers, rather than making its very presence conditional on config.
+    - **Out of scope:** lowering `WIDER_POOL_MULTIPLIER`/`WIDER_POOL_MAX` themselves (a separate, smaller lever, not asked for here - this phase is the on/off switch). A per-request override of these toggles (operator-level `.env` config only, per above). Changing `golden_dataset_harness.py`'s own direct eval-gate CI usage - untouched, always runs all 3 regardless of these env vars.
+    - **Open questions:** none blocking.
+
+- [x] **Phase 247 (done) — STM/LTM Redis split: a real cache-aside Redis layer in front of conversation_memory.py's Postgres reads.** Full suite: 809 passed, 6 deselected (12 new tests in `test_stm_cache.py` for the client itself, 5 new STM-cache-aside tests in `test_conversation_memory.py`, its 7 pre-existing tests pass unmodified against the new default `FakeStmCache`). Live Redis connectivity not yet re-verified against the real Upstash instance this session (this phase makes no OpenAI calls at all, so it's lower-risk than Phase 240/246's own credits-blocked verification, but a real end-to-end check against the live backend is still worth doing before calling it fully verified). **Live-verified same session, after a credits/connectivity recheck**: a real 2-turn conversation through `single-agentic-rag-retrieval/query` round-tripped correctly (turn 2 correctly recalled turn 1's question), confirming the Redis-backed STM cache-aside path works end to end against production credentials.
+
+- [x] **Phase 248 (done) — Search Pre-Processing Layer: context_assembly.py's assemble_context(), wired into the Phase 240 auto-router.** 817/817 tests pass (18 new: 5 in `test_context_assembly.py`, 3 new in `test_feedback_store.py` for the new `get_latest_feedback_for_conversation()`, 6 existing `test_auto_route_query.py` tests re-pointed at the new `context_assembly.classify_query_complexity` patch target since it's no longer imported into `auto_route_query.py` directly, plus 4 unmodified). `bandit -ll` clean on all 3 touched/new files. Live verification pending - both local backends were stopped for the local-folder-rename cleanup done earlier this same session; not yet re-verified against a running instance.
+  - **Spec:**
+    - **Context:** the Search Pre-Processing Layer design doc set (`docs/dev-reference/search-pre-processing-layer/{overview,spec,architecture,design,decisions}.html`) names this as the layer's other half, deferred by Phase 247 ("the rest of the Search Pre-Processing Layer design... is their own later phases, not this phase's scope"). The design's `assemble_context(user_profile, conversation_id, query) -> RequestContext` sketch bundles STM, the latest feedback signal, and intent classification into one call - "the one file/package that owns 'what do we know before we start answering'" (the design's own Spec doc, Personas section). `POST /v1/rag-retrieval/query` (`api/rag/auto_route_query.py`, Phase 240) is the one real caller today that needs this bundling - it currently calls `mode_router.classify_query_complexity()` directly and nothing else.
+    - **Data/API contracts:** no wire-facing change - `RequestContext` is an internal object, never serialized to a response. N/A for `docs/agent-reference/endpoint-request-response-contracts.md`.
+    - **Source:** new `ai/search_pre_processing/context_assembly.py` - `RequestContext` (plain class: `user_profile`, `conversation_id`, `query`, `stm: list[BaseMessage]`, `feedback: dict | None`, `classification: Literal["single", "multi"]`), `async def assemble_context(user_profile, conversation_id, query, router_model=None) -> RequestContext` - fetches STM via the existing `conversation_memory.load_history()` (Phase 247's cache-aside path, `[]` when `conversation_id` is falsy - matches `run_guarded_pipeline()`'s own `if resolved_conversation_id else None` pattern), the latest feedback signal via a new `FeedbackStore.get_latest_feedback_for_conversation()`, and classification via the existing `mode_router.classify_query_complexity()` - unchanged, just called from here instead of from the router directly. New method on `common/clients/db_client/feedback_store.py`'s `FeedbackStore`: `get_latest_feedback_for_conversation(conversation_id) -> dict | None` (`SELECT ... FROM feedback WHERE conversation_id = %s ORDER BY created_at DESC LIMIT 1`, `None` if no rows or `conversation_id` is falsy - never raises, same convention as every other store method here). `api/rag/auto_route_query.py`'s own `mode = await classify_query_complexity(payload.query)` line becomes `context = await assemble_context(userProfile, payload.conversation_id, payload.query)` / `mode = context.classification`.
+    - **User-visible behavior:** none directly - `/v1/rag-retrieval/query`'s routing decision is unchanged (same classifier, same escalation rule), this phase only changes where the classification call happens from and adds STM/feedback alongside it for a future phase to use.
+    - **Failure modes:** none new - `assemble_context()` itself never raises (STM fetch already never-raises per Phase 247; feedback fetch wraps its own query the same way every other store method does; classification already falls back to `"single"` on any failure per Phase 240).
+    - **Out of scope (explicitly, matching Phase 247's own precedent):** threading the pre-fetched STM into `run_agent()`/`run_multi_agent()`'s own call so the chosen pipeline skips its *own* `conversation_memory.load_history()` call - that would mean changing both pipelines' signatures and `run_guarded_pipeline()`'s own fetch-or-accept-a-value logic, a materially bigger, riskier change than building the assembly layer itself; today's duplicate fetch is cheap (Redis-cached, Phase 247) and not a correctness issue, just a minor redundancy. Acting on the feedback signal (escalate-on-negative-feedback) - surfaced on `RequestContext` only, per the design's own Decisions doc ("surfaced, not acted on - yet"). `genai-rag`/`single-agentic-rag-retrieval`/`multi-agentic-rag-retrieval`'s own endpoints - only the auto-router calls `assemble_context()`, the 3 forced-mode endpoints are untouched.
+    - **Open questions:** none blocking - the design doc set is already confirmed; the STM-duplication scope call above is stated, not left open.
+  - **Spec:**
+    - **Context:** the Search Pre-Processing Layer design doc set (`docs/dev-reference/search-pre-processing-layer/{overview,spec,architecture,design,decisions}.html`, already confirmed with the user) names this as its own first buildable slice - `conversation_memory.py`'s own docstring today says "STM and LTM are the same durable store, not two tiers" (Phase 76); this phase makes that literally true no longer, without changing what Postgres holds. Picked as the next concrete step off the status board ahead of `context_assembly.py` (the layer's other half) because it's the one piece the design already fully specifies with no open questions, and every pipeline already funnels through `conversation_memory.load_history()`/`save_turn()` - a single choke point, not 3 call sites to touch.
+    - **Data/API contracts:** no wire-facing change - `load_history()`/`save_turn()`/`delete_conversation()`/`delete_conversation_any()` keep their exact existing signatures and return shapes. N/A for `docs/agent-reference/endpoint-request-response-contracts.md`.
+    - **Source:** new `common/clients/cache_client/stm_cache.py::StmCache` - same shape as `answer_cache.py` (never-raise, best-effort, `redis.asyncio`, `log_backend_call`): `get_turns(conversation_id) -> list[dict] | None` (LRANGE; `None` on a miss or Redis error, never `[]` for a real miss - an STM key is never legitimately empty once written, so an empty read is treated as a miss), `append_turn(conversation_id, role, content) -> None` (RPUSH the new turn, re-`EXPIRE` the TTL - best-effort), `backfill(conversation_id, turns) -> None` (bulk RPUSH after a Postgres fallback read, so the next read is a hit), `clear(conversation_id) -> None` (on conversation delete). Key shape `stm:{conversation_id}` (matches the existing `answer_cache:`/`answer_cache_convo:` flat-prefix convention already in this codebase, not the `{service}:{purpose}:{id}` form the design doc sketches as a future `rag_retrieval_service`-era convention - that prefix doesn't exist anywhere else in this project today, so it isn't introduced here just for this one key). New `REDIS_STM_TTL_SECONDS` env var (`.env`/`.env.example`), default `7200` (2h), same `read_setting()` pattern as `REDIS_ANSWER_CACHE_TTL_SECONDS`. Wired into `db_gateway.py` as `DBGateway.stm_cache()`, same lazy-singleton pattern as `answer_cache()`.
+    - **User-visible behavior:** none directly - this is a transparent performance layer. Indirectly: a repeat turn in an active conversation no longer costs a Postgres round-trip for chat history on every pipeline call; a cold/idle conversation (past the 2h TTL) or a Redis outage transparently falls back to the existing Postgres read, same answer either way.
+    - **Behavior parity (the hard constraint):** `load_history()` returns the exact same full turn list it does today - **no "last N" truncation in this phase**, even though the design doc's own module sketch shows a bounded list. Reasoning: capping now would silently shrink the chat_history every pipeline passes to its LLM call, a real behavior/quality change bundled into what should be a pure caching phase - flagged here rather than silently decided. A bounded N is a separate, later tuning phase if conversations ever grow large enough for it to matter.
+    - **Failure modes:** identical to `answer_cache.py`'s own convention - any Redis error on read/write/backfill is caught, logged as a warning, and treated as a cache miss/no-op; the request always falls through to Postgres and never fails because of this layer. `delete_conversation()`/`delete_conversation_any()` also clear the STM key for that conversation (best-effort) so a deleted conversation never serves stale cached turns from Redis after its Postgres rows are gone.
+    - **Out of scope:** the rest of the Search Pre-Processing Layer design (`context_assembly.py`'s `assemble_context()`, surfacing the latest feedback signal, intent classification tying into routing) - this phase is STM caching only, the design's other pieces are their own later phases. True cross-conversation LTM (explicitly out of scope per the design's own Decisions doc). A bounded "last N turns" cap (see Behavior parity above).
+    - **Open questions:** none blocking - the design doc set is already confirmed; the only judgment call (no N-cap this phase) is stated above, not left open.
+
+- [x] **Phase 249 (done) — Real DeepEval integration, part 1: swap evaluate_groundedness()/evaluate_completeness()'s internals onto DeepEval, same signatures.** 827/827 tests pass (16 new: 7 for `GatewayDeepEvalModel`, 9 for the new `evaluate_groundedness`/`evaluate_completeness` logic against faked DeepEval metric classes; 6 obsolete hand-rolled-prompt tests removed from `test_llm_judge_scoring.py`, which now covers only the untouched `evaluate_retrieval_relevance`). `bandit -ll` clean. Live-verified against the real OpenAI API (not just faked) - both functions return correct, sensible scores/verdicts/explanations. **Real finding from that live verification, correcting this spec's own "Conservative = same live cost" assumption**: DeepEval's `FaithfulnessMetric` makes 4 real LLM calls per invocation (truths extraction, claims extraction, verdict generation, reason generation), not 1 - `GEval`/Completeness makes 2. Total live judge-call volume for just these 2 metrics went from 2 calls (today's hand-rolled, 1 each) to 6 calls - a 3x increase, not the "no live cost increase" this phase's own spec assumed before measuring. Flagged directly to the user as a correction, not buried - this phase's `EVAL_GROUNDEDNESS_ENABLED`/`EVAL_COMPLETENESS_ENABLED` toggles (Phase 246) still work identically to disable either if the new cost isn't acceptable.
+  - **Spec:**
+    - **Context:** `docs/dev-reference/deepeval-standardization-design.html` - a deliberate, user-approved deviation from the IK FDE Module 5 courseware's hand-rolled LLM-as-judge prompts (`golden_dataset_harness.py`'s own docstring already says so). User-directed, 2026-10-22: proceed with install + implementation; the §05 cost/scope decision defaulted to the design doc's own "Conservative" option (not explicitly re-confirmed in this exact session turn, but the lower-risk, flagged default) - live query judge calls stay at 2 (same as today), no live cost increase. AnswerRelevancy/ContextualPrecision/ContextualRecall/golden-dataset F1-via-DeepEval are explicitly deferred to a follow-on phase, not built here - this phase's entire scope is "same 2 live judges, DeepEval-powered instead of hand-rolled."
+    - **Real dependency conflicts found and resolved before any code** (not assumed clean): `deepeval` hard-requires `posthog>=7.0.0` on Python 3.12; `chromadb==1.3.5` required `posthog<6.0.0` - a genuine, non-resolver-glitch conflict. Fixed by bumping `chromadb` 1.3.5 -> 1.5.9 (drops the `posthog` dependency entirely in that release - confirmed by downloading and inspecting its wheel METADATA directly, not assumed). That bump pulled a newer `huggingface-hub` (1.30.0, not imported anywhere in `src/`, purely transitive via `tokenizers`) requiring `click>=8.4.2`, conflicting with `deepeval`'s own `click<8.4.0` - fixed by pinning `huggingface-hub==1.0.0` (no `click` dependency at all) and `click==8.3.3`. `pip check` clean, full 817-test suite + a real `chromadb.EphemeralClient()` add/get round-trip + a full `FastAPI` app import all verified passing after the bump, before any DeepEval code was written.
+    - **A second real bug found via direct smoke-testing, not assumed working**: `deepeval` itself crashed on import with a `pydantic_core.ValidationError` on `OPENROUTER_BASE_URL` - `deepeval`'s own internal `pydantic-settings`-based `Settings` class happens to define a field with the exact same name as this project's own `.env` var, typed `Optional[AnyUrl]`; this project's `.env` had it set to an empty string (the OpenRouter provider isn't actively used), which `AnyUrl` rejects as invalid even though the field is Optional. Fixed by setting `OPENROUTER_BASE_URL` to its real value (`https://openrouter.ai/api/v1`, the same default `open_router_client.py`'s own `DEFAULT_BASE_URL` already falls back to when empty) in both `.env`/`.env.example` - zero behavior change for this project's own OpenRouter client, which already treated empty the same way. `DEEPEVAL_TELEMETRY_OPT_OUT=YES` was already present in both env files (pre-seeded by an earlier session), confirmed correct, no change needed.
+    - **Data/API contracts:** none - `evaluate_groundedness()`/`evaluate_completeness()` keep their exact existing signatures and return dict shapes (`score`, `verdict`, `explanation`, `prompt`, `model_used`), so every call site (`eval_threshold.py`'s `run_enabled_eval_judges()`, `pipeline.py`'s corrective-retry path, the golden-dataset harness's own `score_case()`) needs zero changes. N/A for `docs/agent-reference/endpoint-request-response-contracts.md`.
+    - **Source:** new `ai/rag_core/deepeval_judge_model.py::GatewayDeepEvalModel(DeepEvalBaseLLM)` - `generate(prompt) -> str` (no `schema` kwarg accepted, so `DeepEvalBaseLLM.generate_with_schema()`'s own `try/except TypeError` fallback calls it plain - DeepEval's own prompt templates already embed "return JSON" instructions as plain text, confirmed by reading `faithfulness/templates/generate_verdicts.txt` directly, not assumed; a non-native custom model is expected to just return that raw text for DeepEval's own `trimAndLoadJson()` to parse), `a_generate(prompt) -> str` (via `asyncio.to_thread(self.generate, prompt)` - mirrors this project's own `GatewayChatModel`'s existing "no real async HTTP, offload the sync call" pattern, not a new one; real/non-blocking per the design doc's §02 requirement since `FaithfulnessMetric.measure()`/`GEval.measure()` default to `async_mode=True`, which internally always calls `a_generate()` via `loop.run_until_complete()`, confirmed by reading `faithfulness.py`'s own `measure()` source, not assumed from the library's docs), `load_model()`/`get_model_name()` (thin, no real model object to load - `ask()` is called fresh per call via the existing gateway). Wraps `get_client_gateway().openai_chat()`, the same client `evaluate_groundedness`/`evaluate_completeness` already use directly today - `model_name_override` threads `judge_model` through, matching Phase 215's existing override convention.
+    - **`evaluate_groundedness()`'s new internals:** builds an `LLMTestCase(input=<not used by Faithfulness>, actual_output=answer, retrieval_context=context_texts)`, runs `FaithfulnessMetric(model=GatewayDeepEvalModel(judge_model), threshold=0.0, include_reason=True).measure(test_case)` (threshold 0.0 so `measure()` never raises on a low score - this function's own contract has always been "return a score dict," never "raise below some bar"), reads back `metric.score`/`metric.reason`, re-derives this project's own `verdict` labels (GROUNDED/PARTIAL/HALLUCINATED, same 0.7/0.4 cutoffs as today) from the 0-1 score DeepEval returns - DeepEval's own verdict vocabulary isn't reused, keeping the public contract identical.
+    - **`evaluate_completeness()`'s new internals:** `GEval(name="Completeness", criteria="Does the answer fully address every part of the question, without leaving anything unanswered?", evaluation_params=[SingleTurnParams.INPUT, SingleTurnParams.ACTUAL_OUTPUT], model=GatewayDeepEvalModel(judge_model), threshold=0.0)` against an `LLMTestCase(input=question, actual_output=answer)` - the `reference_answer` parameter is kept in the function signature (unchanged, per the no-signature-change contract) but DeepEval's stock `GEval` has no clean way to weigh a reference answer without a custom rubric; this phase keeps today's exact behavior of using it when given by folding it into the `input` text itself (`f"{question}\n\nReference answer: {reference_answer}"` when present), not a new rubric - a deliberate, smaller-scope choice, not a silent drop of the feature.
+    - **Failure modes:** unchanged from today - any exception during the DeepEval call (judge-model error, JSON parse failure inside DeepEval's own `trimAndLoadJson()`) is caught at the same `except Exception as error` boundary these 2 functions already have, returning the same `{"score": 0.5, "verdict": "ERROR", ...}` shape.
+    - **Out of scope:** `evaluate_retrieval_relevance()` (live per-query retrieval judge) and `calculate_retrieval_metrics()` (golden-dataset exact-ID-match precision/recall/F1) - both untouched this phase. AnswerRelevancy (new metric, doesn't exist today), ContextualPrecision/ContextualRecall (would change golden-dataset retrieval scoring's own methodology from exact-ID-match to LLM-judged relevance - a real, consequential semantic change to what the CI eval-gate's `RELEASE_GATE_THRESHOLDS` actually measure, not a drop-in swap, needs its own confirmed decision), live-F1-estimate - all explicitly deferred to a follow-on "part 2" phase, matching the design doc's own §07 build order (golden-dataset swap, then live, one at a time) and this session's own established pattern of shipping the smallest safe slice first (Phase 247/248 did the same).
+    - **Open questions:** none blocking for this narrow slice - the broader §05 live-scope decision (Conservative vs. Full-live vs. Everything-live) was flagged to the user but not explicitly re-confirmed before "proceed" was given; this phase's own scope (2 calls, same as today) is the safe default regardless of which tier the user eventually picks for a future phase, so it isn't blocking.
+
+- [x] **Phase 250 (done) — Real DeepEval integration, part 2: AnswerRelevancy (live+golden) and ContextualPrecision/Recall (golden, additive).** 842/842 tests pass (27 new: 9 in `test_golden_dataset_harness_judges.py` for the 3 new judge functions + 3 for `score_case()`'s own wiring, 7 in `test_eval_threshold.py` for the new toggle/dict-building coverage, 2 existing full-dict-equality tests updated with the 4 new null fields, 3 contract snapshots regenerated). `bandit -r src/hrb_chatbot -ll` clean. Live-verified all 3 new judges against the real OpenAI API - correct, sensible scores/explanations. One unrelated pre-existing flaky test (`test_rechunk_accepts_an_overlap_at_exactly_half_the_chunk_size`, document-chunking, nothing to do with eval scoring) failed once under the full suite but passed cleanly both in isolation and on a second full run - not a regression from this phase.
+  - **Spec:**
+    - **Context:** user-directed, 2026-10-22 - "do not defer part 2, implement now if feasible," reversing Phase 249's own deferral. Covers 2 of Phase 249's 3 deferred items; the 3rd (live-F1-estimate) is **not built here** because it's already delivered - `evaluate_retrieval_relevance()`'s existing `recall_estimate`/`f1_estimate` fields (Phase 219/225, hand-rolled, untouched) already compute exactly what the design doc's §04 describes (a live, wider-pool-judged recall/F1 estimate) - a second, DeepEval-powered implementation of the identical capability would be pure duplication, not new value, so it's flagged here rather than built redundantly.
+    - **Data/API contracts:** `docs/agent-reference/endpoint-request-response-contracts.md` not updated with a new section (AnswerRelevancy's 4 new fields are additive optional fields on the already-Finalized `EvalScores` shape, same pattern Phase 246's own per-judge null fields already established, not a new endpoint/contract negotiation). New `EvalScores` fields (all `| None`, default `None`): `answer_relevancy`, `answer_relevancy_verdict`, `answer_relevancy_explanation`, `answer_relevancy_prompt`.
+    - **AnswerRelevancy - live + golden, cost-aware default:** new `evaluate_answer_relevancy(question, answer, judge_model=None) -> dict` in `golden_dataset_harness.py`, using DeepEval's `AnswerRelevancyMetric` (same `GatewayDeepEvalModel` judge, same try/except-error-shape convention as groundedness/completeness). Wired into the shared `ai/rag_core/eval_threshold.py` core (`answer_relevancy_enabled()`, `run_enabled_eval_judges()` gains a 4th conditional task, `build_eval_scores()` gains the 4 new fields) - propagates to all 3 pipelines' `_score_live_answer()` through the same shared call already in place, no pipeline-specific wiring needed. **New `EVAL_ANSWER_RELEVANCY_ENABLED` env var defaults to `false`, not `true`** - a deliberate difference from Phase 246's 3 existing toggles (which defaulted `true` only because groundedness/completeness/retrieval-relevance were *already running* before the toggle existed, so `true` preserved current behavior with zero cost change). AnswerRelevancy is brand new - it has never run before, so making it opt-out-by-default would be a silent live-cost increase the user never asked for, especially right after Phase 249's own "2→6 calls, 3x" cost correction. Opt-in instead. Golden-dataset scoring (`score_case()`) is the one place it DOES run unconditionally, matching how groundedness/completeness/retrieval-relevance already run unconditionally there too (the `EVAL_*_ENABLED` switches are live-query-cost controls only, confirmed Phase 246 scope, never applied to the offline harness).
+    - **ContextualPrecision/ContextualRecall - golden dataset only, additive, NOT a replacement:** new `evaluate_contextual_precision(query, chunk_texts, expected_answer, judge_model=None)` / `evaluate_contextual_recall(...)` in `golden_dataset_harness.py`, using `ContextualPrecisionMetric`/`ContextualRecallMetric` (need `retrieval_context` + `expected_output` - only run when a case has a real `expected_answer`, same precondition `evaluate_completeness`'s reference-answer path already uses). `score_case()` adds these as new keys - `contextual_precision`/`contextual_recall` - alongside, never replacing, the existing exact-ID-match `precision`/`recall`/`f1` that `RELEASE_GATE_THRESHOLDS`/the CI eval-gate already key off. Confirmed deliberately: swapping the CI gate's own methodology from exact-match to LLM-judged relevance is a real, consequential semantic change to what "pass"/"review"/"block" mean, not something to fold into an additive metrics phase - stays a separate, explicitly-confirmed future decision if ever wanted.
+    - **User-visible behavior:** `ExplainabilityInfo.eval_scores` gains 4 new, always-present-but-nullable fields across all 3 live query endpoints (`null` unless `EVAL_ANSWER_RELEVANCY_ENABLED=true`). The golden-dataset harness's own per-case `scores` dict gains `answer_relevancy` (always) and `contextual_precision`/`contextual_recall` (when the case has an `expected_answer`) - informational only this phase, not wired into `RELEASE_GATE_THRESHOLDS`/`diagnose_failure_patterns()` (adding new named thresholds/failure patterns for brand-new metrics is its own decision, not assumed here).
+    - **Failure modes:** identical convention to every existing judge - any exception returns the same `{"score": 0.5, "verdict": "ERROR", ...}` shape, never raises into the caller.
+    - **Out of scope:** live-F1-estimate (already delivered, see Context above). Wiring the new golden-dataset `contextual_precision`/`contextual_recall` into `RELEASE_GATE_THRESHOLDS` or `diagnose_failure_patterns()`. Frontend (`hrb_chatbot_ui`) display of the new `answer_relevancy` fields - backend-only this phase, same "flag the UI gap, don't build it unprompted into an unrelated repo" boundary every other backend-only phase this session has kept.
+    - **Open questions:** none blocking - the `EVAL_ANSWER_RELEVANCY_ENABLED` default-false judgment call is stated above with its reasoning, not left open.
+
+- [x] **Phase 251 (done) — Postgres schema-per-domain migration, local-only this phase.** Migration applied to the real local Postgres and verified by direct query - all 13 tables landed in their correct `hrb_`-prefixed schema, `public` left with only the 6 deliberately-excluded tables (`answer_cache`/`embedding_cache` orphaned, 4 `checkpoint_*` LangGraph-managed). Full suite: 842/842 pass (fakes unaffected, as expected). Real, non-faked smoke test: a full save/load/delete round-trip through `ConversationStore` against the migrated `hrb_rag_retrieval.conversation_turns` table, proving `search_path` resolution genuinely works, not just assumed from reading `psycopg`'s docs. `bandit -r` on all 13 touched files clean. 2 real corrections made during implementation, not assumed from the planning doc: `doc_metadata_store.py` reassigned from `rag_ingestion` to `admin_controls` (it tracks admin docs-sync-to-S3 status, unrelated to RAG content despite the name); every schema name `hrb_`-prefixed (user-directed mid-implementation, distinguishing this project's own schemas from any other service's in the same shared database).
+  - **Spec:**
+    - **Context:** `docs/dev-reference/service-boundary-decision.html` §3 names this as a Phase 0 prerequisite for the eventual `rag_ingestion_service`/`rag_retrieval_service` split - every table today lives unqualified in `public`. User-directed, 2026-10-22, as the first of 3 prerequisites to resolve before the RAG split itself ("resolve prerequisites first"). Scoped to **local Postgres only** - applying this to the real shared production Neon database is a separate, later, deploy-gated step (same no-push-without-go-ahead norm as every AWS action this session), and the doc's own fix-note flags a real coordination risk there (`hrb_lms_mcp`'s own pending schema additions to that same database) that only matters once production is actually touched - not blocking local work now.
+    - **Real inventory, verified against the live local Postgres database directly (`SELECT schemaname, tablename FROM pg_tables`), not assumed from the doc alone - 3 real discrepancies found that the planning doc didn't have:**
+      1. **`feedback` table (feedback_store.py) is missing from the doc's own schema map entirely** - not categorized anywhere. Judgment call, flagged here rather than silently decided: assigned to a new `chat_feedback` schema (two-word convention, matching the doc's own naming style) rather than folded into `rag_retrieval` - feedback is its own bounded concept (vote/reason/notes on a past answer), not conversation history itself.
+      2. **`answer_cache`/`embedding_cache` tables are orphaned** - confirmed via grep that no class or code anywhere in `src/` creates or reads them anymore (both moved to Redis in Phases 77/84; `AnswerCache`/`EmbeddingCache` Postgres classes don't exist in `db_client/` anymore, only stale `.pyc` files remain). **Excluded from this migration** - flagged as a separate, later cleanup (a real `DROP TABLE` decision, not this phase's job) rather than silently migrated into a schema as if still live.
+      3. **`checkpoint_blobs`/`checkpoint_migrations`/`checkpoint_writes`/`checkpoints` are LangGraph's own `AsyncPostgresSaver`-managed tables** (`unpaid_leave_agent.py`'s real HITL pause/resume) - confirmed via direct inspection of `AsyncPostgresSaver.__init__`/`.from_conn_string()`'s real signatures that neither accepts a schema parameter; this library manages its own migrations and schema internally. **Excluded from this migration** - moving third-party-library-managed tables out from under the library is a real risk to a working feature for no benefit (they're infrastructure, not this project's own business data, so a schema-per-business-domain split doesn't conceptually apply to them anyway).
+      4. `mcp_registry` - already excluded, per this session's own earlier investigation (confirmed foreign-owned, lives in the separate shared `hr_chatbot` database, not this project's own `POSTGRES_DB_NAME` database at all).
+      5. `postgres_client.py`'s `documents`/`chunks` tables are real but currently **inactive** (`RAG_METADATA_STORE=sqlite` is the active local setting) - `chunks` doesn't exist yet in the live local DB because `_ensure_table()` was never exercised against Postgres locally. Still included in the migration (the code path is fully supported, just not the active default) - the migration script's `ALTER TABLE ... SET SCHEMA` for `chunks` is written defensively (`IF EXISTS`) so it's a no-op today and takes effect automatically whenever Postgres mode is actually used.
+    - **Final schema map (8 schemas, 13 tables across 13 `*_store.py`/`postgres_client.py` files) - every schema `hrb_`-prefixed (user-directed mid-implementation), distinguishing this project's own schemas from any other service's in the same shared database (e.g. `hrb_lms_mcp`'s own `hrb_emp_lms`/`hrb_lms_mcp_auth`):** `hrb_rag_ingestion` (documents, chunks - via `postgres_client.py`), `hrb_rag_retrieval` (conversation_turns), `hrb_chat_feedback` (feedback - new, see finding 1), `hrb_chat_hitl` (agent_threads, chat_session_records, chat_turn_records, email_send_events), `hrb_interview_qa` (interview_qa_cards), `hrb_build_deployment` (pipeline_runs, eval_runs, eval_run_cases, golden_dataset_cases), `hrb_chat_metrics` (request_metrics), `hrb_admin_controls` (admin_credentials, faq_submissions, **and `doc_metadata`** - a second real correction found during implementation: `doc_metadata_store.py` tracks admin-facing architecture docs synced to S3 for the admin doc viewer, unrelated to RAG ingestion content despite the similarly-named table - the planning doc's own claim that `doc_metadata` belongs under `rag_ingestion` was wrong, confirmed by reading that file's own docstring directly).
+    - **Design decision - `search_path` per connection, not qualifying every SQL statement:** the doc's own fix-note named 2 options ("qualifying every query or setting `search_path` per connection"). Chose `search_path`: each store's `_connect()` passes `options=f"-c search_path={schema},public"` to `psycopg.connect()` - one line changed per file, vs. hand-qualifying every bare table name across what the doc itself estimates as ~15 files' worth of raw SQL (a much larger, more error-prone diff for the same real outcome). Safe here specifically because every table name across all 13 tables is already globally unique in this database (verified - no same-named tables across schemas), so there's no real ambiguity risk `search_path` resolution could hide. `CREATE TABLE IF NOT EXISTS` statements stay unchanged (bare table names) - `search_path` makes a fresh install correctly create each table in its own schema automatically, not just find existing ones.
+    - **Source:** new `resources/db_scripts/schema_migration.sql` (following `hrb_lms_mcp`'s own established `resources/db_scripts/*.sql` convention, per the doc's own recommendation) - `CREATE SCHEMA IF NOT EXISTS` for each of the 8 schemas, then `ALTER TABLE public.<table> SET SCHEMA <schema>` for each of the 13 tables, each guarded (`IF EXISTS` via a `DO $$ ... END $$` block, since a bare `ALTER TABLE` errors on a table that doesn't exist yet locally, e.g. `chunks`). Each of the 13 store files' `_connect()` method gains the `options=` kwarg on its `psycopg.connect(...)` call, hardcoded to that file's own schema name (a module-level constant, e.g. `_SCHEMA = "rag_retrieval"` in `conversation_store.py`).
+    - **User-visible behavior:** none - purely an internal data-layout change. Every store's own public methods, return shapes, and SQL keep working identically (`search_path` makes `SELECT * FROM conversation_turns` still resolve correctly, now against `rag_retrieval.conversation_turns` instead of `public.conversation_turns`).
+    - **Failure modes:** none new - a store whose schema doesn't exist yet (a fresh clone, migration not yet run) would get a normal Postgres "relation does not exist" error on first real query, same failure mode as today if the table itself didn't exist yet; `CREATE TABLE IF NOT EXISTS` already self-heals this on first real use exactly as it does today.
+    - **Testing plan:** existing test suite uses fakes for every store (`_connect()` is monkeypatched in every test), so it stays green unaffected - confirms no regression in the *logic*, not the real schema wiring. Real verification: migration script run against the live local Postgres, followed by a direct query confirming each table actually moved, then the full test suite + a real smoke call through at least one real store (not faked) to confirm `search_path` resolution genuinely works end to end, not just assumed from reading `psycopg`'s docs.
+    - **Out of scope:** applying this migration to the real shared production Neon database (separate, later, deploy-gated step - user's own "resolve prerequisites first" sequencing, not this phase). Coordinating with `hrb_lms_mcp`'s own pending `hrb_emp_lms`/`hrb_lms_mcp_auth` schema additions to that same production database - only relevant once production is actually touched, noted for that future step, not solved here. Dropping the orphaned `answer_cache`/`embedding_cache` tables (flagged, a separate cleanup decision). Renaming `POSTGRES_DB_NAME` itself (still `hrb_chatbot_v2`, confirmed live during this phase's own investigation - already flagged earlier this session as a real database rename needing its own separate confirmation, unrelated to schema-per-domain grouping).
+    - **Open questions:** none blocking - the `chat_feedback` schema placement (finding 1) and the `search_path`-vs-qualify-every-query design decision are both stated above with reasoning, not left open; flagged for the user to redirect if either call should go the other way.
+
+- [ ] **Phase 252 (planned) — "Dynamic" retrieval strategy: auto-picks a real search_strategy per query, genai-rag only.** User-directed, 2026-10-22 - adds a 6th option to the existing 5-option `SearchStrategy` enum, made the UI's own default.
+  - **Spec:**
+    - **Context:** the user asked for a "Dynamic RAG Retrieval" option in `hrb_chatbot_ui`'s Retrieval Strategy dropdown that auto-selects the right underlying strategy per query, as the new default. Real investigation found this codebase already has a richer SEARCH_STRATEGIES set than the user's own stated assumption - 5 real strategies exist today (`similarity`/`mmr`/`keyword`/`hybrid`/`knn`, `common/enums.py::SearchStrategy`), including a working hybrid (BM25 + similarity, fused with Reciprocal Rank Fusion - `query_retrieval/bm25_search.py::search_hybrid()`, Phase 221) - **not** design-only, flagged directly since it changes the premise of the user's own separately-discussed "Hybrid search and ingestion" follow-on work. Dynamic is a router one level below the existing Phase 240 auto-router (which picks single-vs-multi-agentic mode, not search technique).
+    - **Data/API contracts:** `common/enums.py::SearchStrategy` gains `DYNAMIC = "dynamic"` (6th member). `models/rag.py::SearchOptions.search_strategy` (already `SearchStrategy | None`) accepts it without a type change - only its description text updated to mention the new option. `models/rag.py::RetrievalInfo.search_strategy` (`"Which retrieval technique actually ran"`) reports the **resolved concrete** strategy, never the literal string `"dynamic"` - same transparency convention the Phase 240 auto-router already uses for `resolved_mode`. No other request/response field changes - `docs/agent-reference/endpoint-request-response-contracts.md`'s genai-rag section needs its `search_strategy` enum-values list updated to include `dynamic`, nothing structural.
+    - **User-visible behavior:** selecting "Dynamic RAG Retrieval" (now the UI's own default, `hrb_chatbot_ui`) runs the query through `dynamic_strategy_selector.py`'s heuristic once, resolves to one of `similarity`/`mmr`/`keyword`/`hybrid` (not `knn` - see Out of scope), and the response's `retrieval.search_strategy` field shows the strategy that actually ran. `omitting search_strategy entirely` still defaults to `RAG_DEFAULT_SEARCH_STRATEGY`/`similarity` (unchanged) - `dynamic` must be explicitly requested, same as every other named strategy.
+    - **The selector itself (new file, own class/module per the user's own "logically segregate" instruction):** `ai/rag_pipeline/query_retrieval/dynamic_strategy_selector.py`. Heuristic, not an LLM call - deliberately: `mode_router.classify_query_complexity()` (the Phase 240 classifier) is a real paid LLM call, and it classifies single-vs-multi agentic mode, a different axis entirely, not wired into genai-rag's own `pipeline.py` at all today - reusing it here would add a new per-query LLM cost to a cheap retrieval-tuning decision for no proven benefit. Simple, legible rules instead, matching the project's "start simple" convention: short/acronym-heavy/numeric-token-dominated queries lean lexical (`keyword`); queries combining both specific terms and natural language lean `hybrid`; broad "tell me about"/"what are my options"-shaped queries lean `mmr` (diversity); everything else defaults to `similarity`.
+    - **Pipeline wiring:** `ai/rag_pipeline/pipeline.py::answer_query()` - resolved once, immediately after `resolved_search_strategy = params.search_strategy or read_setting(...)`: if the resolved value is `"dynamic"`, call the selector and overwrite `resolved_search_strategy` with its concrete result before it's used anywhere else (cache key, logging, `retrieve_chunks()`, the corrective-retry re-call, the response's own `search_strategy` field). Everything downstream keeps treating it as an ordinary concrete strategy - no other function needs to know `"dynamic"` was ever requested.
+    - **Failure modes:** none new - the selector is pure string heuristics over the query text, no network/LLM call, so it cannot itself fail; always returns a real `SEARCH_STRATEGIES` key.
+    - **Frontend (`hrb_chatbot_ui`):** `src/types.ts::SearchStrategy` gains `"dynamic"`. `src/pages/ChatPage.tsx` - `SEARCH_STRATEGY_LABELS`/`SEARCH_STRATEGY_HELP` gain a `dynamic` entry; `searchStrategy` state's default changes from `"similarity"` to `"dynamic"`. The dropdown itself needs no JSX change - it already renders `Object.entries(SEARCH_STRATEGY_LABELS)`. Scoped to genai-rag's own `SearchStrategy`/`searchStrategy` only - **not** `AgentSearchStrategy` (single/multi-agentic-rag's deliberately-narrower 2-option field, Phase 228 - their shared `search_knowledge_base()` tool only ever understands `similarity`/`mmr`; adding `dynamic` there would silently no-op, the exact bug Phase 228 was written to avoid).
+    - **Out of scope:** `knn` is deliberately excluded from Dynamic's candidate set - its own docstring frames it as an exact-correctness baseline, not a production default (slower, full-corpus walk, especially costly on Pinecone) - not something a "pick the best one automatically" router should ever auto-select. `AgentSearchStrategy`/agentic-mode retrieval (see above). Any ML/embedding-based classifier for strategy selection - heuristic only, this phase. Hybrid search's own underlying implementation (BM25-at-query-time, no persisted sparse index, no Qdrant) - unchanged by this phase; it already exists and Dynamic can route to it as-is.
+    - **Open questions:** none blocking - the heuristic's exact rules are a judgment call, flagged above with reasoning, adjustable later without any wire-shape change.
+
+- [ ] **Phase 253 (planned) — Hybrid search / ingestion refactor per IK FDE Cohort coursework (dense+sparse+Qdrant+RRF+agentic integration).** Not yet spec'd in detail - sequenced after Phase 252 lands and is verified, per the user's own explicit ordering. **Scope correction already found, recorded here before the detailed spec is written:** this project already has a working hybrid strategy (`query_retrieval/bm25_search.py::search_hybrid()`, Phase 221) - BM25 computed live over the full corpus at query time (`rank_bm25`, no persisted sparse index) fused with dense similarity via Reciprocal Rank Fusion, registered in `SEARCH_STRATEGIES["hybrid"]` and already reachable today. The IK FDE course material's own version is a different design: dense AND sparse embeddings generated and persisted at **ingestion** time, stored/queried in **Qdrant** (not Chroma/Pinecone, neither of which this project uses sparse vectors with today), fused with RRF, then integrated into the agentic RAG workflow specifically. Whether this phase (a) replaces the existing live-BM25 hybrid with a persisted-sparse-index design, (b) adds Qdrant as a third vector-store option alongside Chroma/Pinecone, and (c) how ingestion (`rag_ingestion_service`, already split out and live in production as of this session) picks up the new sparse-indexing responsibility, are real open scope questions - not decided here, need the user's own call before implementation starts, same as every other phase in this file.

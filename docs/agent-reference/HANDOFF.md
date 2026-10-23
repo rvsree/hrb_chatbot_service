@@ -243,7 +243,7 @@ Don't re-derive any of this from the code - it's already written down:
 | AWS account / region | `418884736369`, `us-east-1` |
 | App Runner service (final, working) | `arn:aws:apprunner:us-east-1:418884736369:service/hrb-chatbot/f957548202f343aa8ca91f341d71d85a` → `https://mrgysvt6ye.us-east-1.awsapprunner.com` (original URL, still works) / `https://compute.rvsree.dev` (custom domain, Phase 91, 2026-10-06 - both work identically) |
 | ECR repo | `418884736369.dkr.ecr.us-east-1.amazonaws.com/hrb-chatbot` |
-| GitHub repo | `https://github.com/rvsree/hrb_chatbot_v2` - branches: `master` (production, deploys), `develop` (integration), `feature-langchain-rag-pipeline` (this session's work), `hrb_rag_pipelines` (original branch, superseded but still GitHub's *default* - not yet changed in Settings) |
+| GitHub repo | `https://github.com/rvsree/hrb_chatbot_service` - branches: `master` (production, deploys), `develop` (integration), `feature-langchain-rag-pipeline` (this session's work), `hrb_rag_pipelines` (original branch, superseded but still GitHub's *default* - not yet changed in Settings) |
 
 Full list including IAM role ARNs and Secrets Manager entries:
 `AWS-DEVOPS-RUNBOOK.md`'s "Resource identifiers" section.

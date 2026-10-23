@@ -1,7 +1,7 @@
 ---
 name: session-start
 description: >
-  Run at the start of a Claude Code session on hrb_chatbot_v2. Loads current
+  Run at the start of a Claude Code session on hrb_chatbot_service. Loads current
   branch, recent commits, and open work from docs/agent-reference/RAG-ROADMAP.md and
   docs/agent-reference/BACKLOG.md, so a session that starts with no memory of prior ones
   still knows what's in flight. Invoke automatically on session start, or

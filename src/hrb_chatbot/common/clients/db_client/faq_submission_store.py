@@ -12,6 +12,9 @@ from src.hrb_chatbot.common.logging.logger import get_logger
 
 logger = get_logger("faq_submission_store")
 
+# Phase 251 - schema-per-domain migration, see resources/db_scripts/schema_migration.sql.
+_SCHEMA = "hrb_admin_controls"
+
 CREATE_FAQ_SUBMISSIONS_TABLE = """
 CREATE TABLE IF NOT EXISTS faq_submissions (
     id SERIAL PRIMARY KEY,
@@ -56,7 +59,8 @@ class FaqSubmissionStore:
 
     def _connect(self) -> psycopg.Connection:
         return psycopg.connect(
-            host=self.host, port=self.port, dbname=self.db_name, user=self.user, password=self.password
+            host=self.host, port=self.port, dbname=self.db_name, user=self.user, password=self.password,
+            options=f"-c search_path={_SCHEMA},public",
         )
 
     def _ensure_table_sync(self) -> None:

@@ -2,7 +2,7 @@
 name: spec-verify
 description: >
   Map test coverage back to a phase's spec acceptance criteria in
-  hrb_chatbot_v2, after implementation. Invoke as /spec-verify
+  hrb_chatbot_service, after implementation. Invoke as /spec-verify
   <phase-name-or-number>.
 argument-hint: "<phase name or number>"
 allowed-tools: Read Grep Glob Bash(.venv/Scripts/python.exe -m pytest *)

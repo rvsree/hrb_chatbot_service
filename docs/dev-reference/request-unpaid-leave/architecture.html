@@ -207,7 +207,7 @@
       <div class="panel-num">4</div>
       <div class="panel-title">
         <span class="name display">A2A communication protocol</span>
-        <span class="sub">how hrb_chatbot_v2 actually talks to hrb_lms_mcp - OAuth2, not a shared database</span>
+        <span class="sub">how hrb_chatbot_service actually talks to hrb_lms_mcp - OAuth2, not a shared database</span>
       </div>
     </div>
     <p>Every call to <span class="mono">hrb_lms_mcp</span> is a real network call over MCP, authenticated with a Bearer token from a standard <strong>OAuth2 client-credentials grant</strong> (<span class="mono">oauth_client.py :: get_access_token()</span>) - not a shared database connection, not a trusted-network assumption. The token is cached in module state (one client identity, one token) and refreshed automatically 30 seconds before it actually expires, not on every call - confirmed directly in the code, not assumed.</p>
@@ -251,11 +251,11 @@
 (function () {
   if (location.protocol !== "file:") return;
   var LOCAL_DOCS = {
-    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/request-unpaid-leave/overview.html",
-    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/request-unpaid-leave/spec.html",
-    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/request-unpaid-leave/architecture.html",
-    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/request-unpaid-leave/design.html",
-    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/docs/dev-reference/request-unpaid-leave/decisions.html"
+    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/request-unpaid-leave/overview.html",
+    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/request-unpaid-leave/spec.html",
+    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/request-unpaid-leave/architecture.html",
+    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/request-unpaid-leave/design.html",
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/request-unpaid-leave/decisions.html"
   };
   document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
     var match = a.href.match(/[?&]type=([^&]+)/);

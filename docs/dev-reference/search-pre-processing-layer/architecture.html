@@ -1,0 +1,180 @@
+<title>Search Pre-Processing Layer - Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --accent: #4a6fa5; --accent-bg: #e8eef6; --accent-border: #c3d2e5;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #16331f;
+    --stm: #0b6f66; --stm-bg: #e2f6f2; --stm-border: #b7e4da;
+    --ltm: #6c2f96; --ltm-bg: #f2e8fb; --ltm-border: #ddc2f0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0f2416;
+      --stm: #3fc2a8; --stm-bg: #12241f; --stm-border: #1f4237;
+      --ltm: #b084d6; --ltm-bg: #26192f; --ltm-border: #432a52;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0f2416;
+    --stm: #3fc2a8; --stm-bg: #12241f; --stm-border: #1f4237;
+    --ltm: #b084d6; --ltm-bg: #26192f; --ltm-border: #432a52;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+  section.panel { display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; }
+  .panel-num { width: 28px; height: 28px; border-radius: 8px; background: var(--band-dark); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 12.5px; }
+  .panel-title { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 15.5px; }
+  .panel p { margin: 0; font-size: 13.5px; color: var(--text-muted); line-height: 1.6; }
+  .flow { display: flex; flex-direction: column; gap: 6px; }
+  .flow-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .flow-box { border: 1px solid var(--accent-border); background: var(--accent-bg); color: var(--accent); border-radius: 8px; padding: 8px 11px; font-size: 11.5px; font-weight: 700; flex: 1 1 130px; text-align: center; }
+  .flow-box.decision { border-style: dashed; }
+  .flow-arrow { font-family: 'IBM Plex Mono', monospace; color: var(--text-faint); }
+  .comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .comp-card { border: 1px solid var(--border); border-radius: 12px; padding: 13px 15px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 6px; }
+  .comp-card .name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13.5px; color: var(--accent); }
+  .comp-card .desc { font-size: 12px; color: var(--text-muted); line-height: 1.55; }
+  .comp-card .src { font-size: 10.5px; font-family: 'IBM Plex Mono', monospace; color: var(--text-faint); }
+  .mem-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .mem-box { flex: 1 1 220px; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .mem-box.stm { background: var(--stm-bg); border: 1px solid var(--stm-border); }
+  .mem-box.ltm { background: var(--ltm-bg); border: 1px solid var(--ltm-border); }
+  .mem-box .mem-label { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13px; }
+  .mem-box.stm .mem-label { color: var(--stm); }
+  .mem-box.ltm .mem-label { color: var(--ltm); }
+  .mem-box p { margin: 0; font-size: 11.5px; color: var(--text); line-height: 1.5; }
+  footer { border-top: 1px solid var(--border); padding-top: 14px; font-size: 11.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">architecture</div>
+    <h1 class="display">Search Pre-Processing Layer — Architecture</h1>
+    <p class="subtitle">Layer position, request flow, and the STM/LTM split.</p>
+    <div class="doc-nav">
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=search-pre-processing-layer&type=overview" target="_blank" rel="noopener noreferrer">Overview</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=search-pre-processing-layer&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+      <span class="doc-nav-item current">Architecture</span>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=search-pre-processing-layer&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=search-pre-processing-layer&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head"><span class="panel-num">1</span><span class="panel-title">Request flow</span></div>
+    <div class="flow">
+      <div class="flow-row">
+        <div class="flow-box">API Gateway</div><div class="flow-arrow">→</div>
+        <div class="flow-box">Context Assembly</div><div class="flow-arrow">→</div>
+        <div class="flow-box">Intent Classification</div><div class="flow-arrow">→</div>
+        <div class="flow-box decision">CAG check</div>
+      </div>
+      <div class="flow-row" style="padding-left: 40px;">
+        <div class="flow-arrow">hit →</div><div class="flow-box">return cached answer</div>
+      </div>
+      <div class="flow-row" style="padding-left: 40px;">
+        <div class="flow-arrow">miss →</div><div class="flow-box decision">Route: Reflex vs. Agentic</div><div class="flow-arrow">→</div>
+        <div class="flow-box">chosen pipeline</div><div class="flow-arrow">→</div>
+        <div class="flow-box">write-through cache</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><span class="panel-num">2</span><span class="panel-title">Components</span></div>
+    <div class="comp-grid">
+      <div class="comp-card">
+        <span class="name">Context Assembly</span>
+        <span class="desc">Fetches STM, latest feedback signal, user profile - everything the pipeline needs, gathered once.</span>
+        <span class="src">conversation_memory.py, context_builder.py</span>
+      </div>
+      <div class="comp-card">
+        <span class="name">Intent Classification</span>
+        <span class="desc">Decomposes/normalizes the query, feeds both the CAG cache key and the Reflex/Agentic routing decision.</span>
+        <span class="src">query_decompose.py, query_normalize.py</span>
+      </div>
+      <div class="comp-card">
+        <span class="name">CAG Check</span>
+        <span class="desc">Exact-match answer cache lookup - extracted from pipeline.py's own inline logic (this session's refactor).</span>
+        <span class="src">new: cache_layer.py</span>
+      </div>
+      <div class="comp-card">
+        <span class="name">Router</span>
+        <span class="desc">Reflex Agent vs. Agentic Workflow, per Phase 240.</span>
+        <span class="src">new, Phase 240</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><span class="panel-num">3</span><span class="panel-title">STM / LTM split</span></div>
+    <div class="mem-row">
+      <div class="mem-box stm">
+        <span class="mem-label">STM — Redis</span>
+        <p>This conversation's last N turns. Read on every turn, cache-aside: miss falls back to Postgres. TTL'd - an idle conversation ages out of the hot cache, not out of history.</p>
+      </div>
+      <div class="mem-box ltm">
+        <span class="mem-label">LTM — Postgres</span>
+        <p>Full durable history of this conversation (system of record, unchanged - <span class="mono">conversation_turns</span>). True cross-conversation memory (recalling a different conversation) is NOT part of this - see Decisions.</p>
+      </div>
+    </div>
+    <p style="margin-top:6px;font-size:11.5px;color:var(--text-muted);">Write path: every turn writes to Postgres (durable) and Redis (hot cache) together - read path prefers Redis, falls back to Postgres on a miss or Redis outage.</p>
+  </section>
+
+  <footer>Search Pre-Processing Layer — overview.html, spec.html, architecture.html, design.html, decisions.html</footer>
+</div>
+<!-- local-nav-fallback -->
+<script>
+(function () {
+  if (location.protocol !== "file:") return;
+  var LOCAL_DOCS = {
+    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/search-pre-processing-layer/overview.html",
+    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/search-pre-processing-layer/spec.html",
+    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/search-pre-processing-layer/architecture.html",
+    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/search-pre-processing-layer/design.html",
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/search-pre-processing-layer/decisions.html"
+  };
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    var match = a.href.match(/[?&]type=([^&]+)/);
+    if (!match) return;
+    var localPath = LOCAL_DOCS[match[1]];
+    if (localPath) { a.href = localPath; a.removeAttribute("target"); }
+  });
+})();
+</script>
+<!-- app-base-nav -->
+<script>
+(function () {
+  if (location.protocol === "file:") return;
+  var hashMatch = location.hash.match(/app_base=([^&]+)/);
+  if (!hashMatch) return;
+  var appBase = decodeURIComponent(hashMatch[1]).replace(/\/$/, "");
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      a.href = appBase + url.pathname + url.search + "#app_base=" + encodeURIComponent(appBase);
+    } catch (e) {}
+  });
+})();
+</script>

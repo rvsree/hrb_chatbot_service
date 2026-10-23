@@ -1,12 +1,12 @@
 """Conversation history data management (Phase 76/116). Calls
-ai/pre_processing/conversation_memory.py directly, same precedent as
+ai/search_pre_processing/conversation_memory.py directly, same precedent as
 retrieve_document.py - no service layer, since there's no logic beyond
 the one function call each route makes (rag_service.py was removed for
 exactly this reason - a pass-through with no logic of its own)."""
 
 from fastapi import APIRouter, Depends, Request
 
-from src.hrb_chatbot.ai.pre_processing import conversation_memory
+from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
 from src.hrb_chatbot.api.gateway.rbac import identity_from_query_params, require_role
 from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 from src.hrb_chatbot.common.enums import Role
