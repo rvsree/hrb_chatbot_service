@@ -60,7 +60,6 @@ class FaqSubmissionStore:
     def _connect(self) -> psycopg.Connection:
         return psycopg.connect(
             host=self.host, port=self.port, dbname=self.db_name, user=self.user, password=self.password,
-            options=f"-c search_path={_SCHEMA},public",
         )
 
     def _ensure_table_sync(self) -> None:

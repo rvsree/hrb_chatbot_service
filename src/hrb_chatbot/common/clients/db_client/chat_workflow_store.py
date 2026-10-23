@@ -105,7 +105,6 @@ class ChatWorkflowStore:
             dbname=self.db_name,
             user=self.user,
             password=self.password,
-            options=f"-c search_path={_SCHEMA},public",
         )
 
     def _ensure_tables_sync(self) -> None:
