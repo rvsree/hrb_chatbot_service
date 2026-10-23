@@ -31,22 +31,24 @@ class PlannerOutput(BaseModel):
     tasks: list[PlannerTask]
 
 
-def _build_llm() -> ChatOpenAI:
+def _build_llm(planner_model: str | None = None) -> ChatOpenAI:
     # Classification is the simplest of this project's three agent LLM calls - cheap enough
     # to tier onto its own, overridable model (Phase 65) without touching Reviewer/orchestration.
-    return build_agent_llm("OPENAI_PLANNER_MODEL")
+    # Phase 243: planner_model, when given, overrides OPENAI_PLANNER_MODEL for this call only.
+    return build_agent_llm("OPENAI_PLANNER_MODEL", model_override=planner_model)
 
 
-async def plan(query: str, request_id: str | None = None) -> tuple[list[dict], dict]:
+async def plan(query: str, request_id: str | None = None, planner_model: str | None = None) -> tuple[list[dict], dict]:
     """Classifies one query into one or more {agent, focus} tasks. Never returns an empty list.
 
     Phase 160: also returns the real LlmContextTurn-shaped dict for this
     call - the exact system_prompt/query/response actually sent, not a
     re-derived guess. Phase 201: request_id, when given, tags this call's
-    own LangSmith trace metadata."""
+    own LangSmith trace metadata. Phase 243: planner_model overrides which
+    model this call uses."""
     # include_raw=True (verified live) is what exposes the raw AIMessage's
     # usage_metadata - with_structured_output() alone returns only the parsed object.
-    llm = _build_llm().with_structured_output(PlannerOutput, include_raw=True)
+    llm = _build_llm(planner_model).with_structured_output(PlannerOutput, include_raw=True)
     messages = [SystemMessage(content=PLANNER_SYSTEM_PROMPT), HumanMessage(content=query)]
     config = {"metadata": {"request_id": request_id}} if request_id else None
 

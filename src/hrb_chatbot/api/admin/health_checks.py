@@ -1,5 +1,6 @@
 # Checks all backend services are wired up and working correctly?
 
+from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import supported_guardrails_models
 from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 from src.hrb_chatbot.common.clients.llm_client.client_gateway import get_client_gateway
 from src.hrb_chatbot.common.config.settings import SETTINGS_TAKEN_FROM_ENV_FILE
@@ -93,5 +94,8 @@ def check_all_backend_services(
         "app": "HRB Chatbot",
         "settings_taken_from_env_file": SETTINGS_TAKEN_FROM_ENV_FILE,
         "embedding_model": embedding_model,
+        # Phase 244 - the same allow-list guardrails_model is validated against,
+        # so the frontend can render a <select> with no value the backend would reject.
+        "guardrails_supported_models": supported_guardrails_models(),
         "checks": checks,
     }

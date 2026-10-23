@@ -45,7 +45,7 @@ async def test_a_normal_answer_passes_through_unchanged(monkeypatch):
         FakeActivatedRail("self check output", decisions=["execute self_check_output"]),
         FakeActivatedRail("mask sensitive data on output", decisions=["execute mask_sensitive_data"]),
     ]
-    monkeypatch.setattr(guardrails_output, "get_rails", lambda: FakeRails(FakeGenerateResponse(answer, activated)))
+    monkeypatch.setattr(guardrails_output, "get_rails", lambda model=None: FakeRails(FakeGenerateResponse(answer, activated)))
 
     result, status = await check_output("How much leave?", answer)
 
@@ -67,7 +67,7 @@ async def test_a_blocked_answer_returns_the_safe_fallback(monkeypatch):
         )
     ]
     response = FakeGenerateResponse("I'm sorry, I can't respond to that.", activated)
-    monkeypatch.setattr(guardrails_output, "get_rails", lambda: FakeRails(response))
+    monkeypatch.setattr(guardrails_output, "get_rails", lambda model=None: FakeRails(response))
 
     result, status = await check_output("test", "some unsafe answer")
 
@@ -83,7 +83,7 @@ async def test_a_modified_answer_returns_the_masked_text(monkeypatch):
         FakeActivatedRail("mask sensitive data on output", decisions=["execute mask_sensitive_data"]),
     ]
     monkeypatch.setattr(
-        guardrails_output, "get_rails", lambda: FakeRails(FakeGenerateResponse("Contact <MASKED>", activated))
+        guardrails_output, "get_rails", lambda model=None: FakeRails(FakeGenerateResponse("Contact <MASKED>", activated))
     )
 
     result, status = await check_output("test", "Contact john@example.com")
@@ -111,7 +111,7 @@ async def test_a_known_safe_term_is_protected_before_the_guardrail_check(monkeyp
             captured["messages"] = messages
             return FakeGenerateResponse(messages[-1]["content"])
 
-    monkeypatch.setattr(guardrails_output, "get_rails", lambda: SpyRails())
+    monkeypatch.setattr(guardrails_output, "get_rails", lambda model=None: SpyRails())
 
     answer = "You can make Roth contributions."
     await check_output("test", answer)

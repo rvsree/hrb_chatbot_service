@@ -8,6 +8,7 @@ final answer stays coherent - not that the whole graph fails closed."""
 import pytest
 
 from src.hrb_chatbot.ai.agents.workflow_agents import multi_agent_pipeline
+from src.hrb_chatbot.ai.rag_core import eval_threshold, guarded_pipeline
 from tests.conftest import FakeDBGateway
 
 
@@ -25,17 +26,17 @@ def _fake_cache_and_eval_judges(monkeypatch):
 
     monkeypatch.setattr(multi_agent_pipeline.reviewer_agent, "generate_follow_ups", _fake_generate_follow_ups)
     monkeypatch.setattr(
-        multi_agent_pipeline,
+        eval_threshold,
         "evaluate_groundedness",
         lambda answer, context_texts, judge_model=None: {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"},
     )
     monkeypatch.setattr(
-        multi_agent_pipeline,
+        eval_threshold,
         "evaluate_completeness",
         lambda query, answer, reference_answer=None, judge_model=None: {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"},
     )
     monkeypatch.setattr(
-        multi_agent_pipeline,
+        eval_threshold,
         "evaluate_retrieval_relevance",
         lambda query, chunk_texts, judge_model=None, wider_pool_texts=None: {
             "precision": 1.0 if chunk_texts else None,
@@ -63,20 +64,20 @@ def _fake_normalize_query(monkeypatch):
 
 
 def _patch_guardrails(monkeypatch):
-    async def _passthrough_check_input(query):
+    async def _passthrough_check_input(query, guardrails_model=None):
         return query, {"status": "pass", "rail": None}
 
-    async def _passthrough_check_output(query, answer):
+    async def _passthrough_check_output(query, answer, guardrails_model=None):
         return answer, {"status": "pass", "rail": None}
 
     monkeypatch.setattr(multi_agent_pipeline, "check_input", _passthrough_check_input)
-    monkeypatch.setattr(multi_agent_pipeline, "check_output", _passthrough_check_output)
+    monkeypatch.setattr(guarded_pipeline, "check_output", _passthrough_check_output)
 
 
 async def test_one_domain_agent_failing_does_not_crash_the_graph_or_drop_the_others(monkeypatch):
     _patch_guardrails(monkeypatch)
 
-    async def _fake_plan(query, request_id=None):
+    async def _fake_plan(query, request_id=None, planner_model=None):
         return [
             {"agent": "vector_kb_agent", "focus": "parental leave policy"},
             {"agent": "lms_ops_agent", "focus": "my leave balance"},
@@ -117,7 +118,7 @@ async def test_a_domain_agent_node_raising_outright_propagates_rather_than_silen
     and return a half-wrong answer as if nothing happened."""
     _patch_guardrails(monkeypatch)
 
-    async def _fake_plan(query, request_id=None):
+    async def _fake_plan(query, request_id=None, planner_model=None):
         return [{"agent": "vector_kb_agent", "focus": "parental leave policy"}], {"label": "planner"}
 
     async def _raising_vector_kb_run(focus, search_strategy=None, role=None, department=None):

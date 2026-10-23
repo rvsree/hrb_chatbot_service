@@ -14,7 +14,7 @@ import pytest
 
 from src.hrb_chatbot.ai.agents.workflow_agents import orchestration_agent
 from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
-from src.hrb_chatbot.ai.rag_core import guarded_pipeline
+from src.hrb_chatbot.ai.rag_core import eval_threshold, guarded_pipeline
 from tests.conftest import FakeConversationStore, FakeDBGateway
 
 
@@ -29,17 +29,17 @@ def _fake_cache_and_eval_judges(monkeypatch):
     gateway = FakeDBGateway()
     monkeypatch.setattr(orchestration_agent, "get_db_gateway", lambda: gateway)
     monkeypatch.setattr(
-        orchestration_agent,
+        eval_threshold,
         "evaluate_groundedness",
         lambda answer, context_texts, judge_model=None: {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"},
     )
     monkeypatch.setattr(
-        orchestration_agent,
+        eval_threshold,
         "evaluate_completeness",
         lambda query, answer, reference_answer=None, judge_model=None: {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"},
     )
     monkeypatch.setattr(
-        orchestration_agent,
+        eval_threshold,
         "evaluate_retrieval_relevance",
         lambda query, chunk_texts, judge_model=None, wider_pool_texts=None: {
             "precision": 1.0 if chunk_texts else None,
@@ -75,10 +75,10 @@ def _fake_normalize_query(monkeypatch):
 
 
 def _patch_guardrails(monkeypatch):
-    async def _passthrough_check_input(query):
+    async def _passthrough_check_input(query, guardrails_model=None):
         return query, {"status": "pass", "rail": None}
 
-    async def _passthrough_check_output(query, answer):
+    async def _passthrough_check_output(query, answer, guardrails_model=None):
         return answer, {"status": "pass", "rail": None}
 
     monkeypatch.setattr(guarded_pipeline, "check_input", _passthrough_check_input)
@@ -233,7 +233,7 @@ async def test_retrieval_judge_scopes_to_kb_sources_not_the_mixed_tool_output_te
         captured["wider_pool_top_k"] = top_k
         return [{"document_id": "doc-2", "chunk_index": 0, "text": "extra chunk from exact-KNN"}]
 
-    monkeypatch.setattr(orchestration_agent, "evaluate_retrieval_relevance", _capturing_evaluate_retrieval_relevance)
+    monkeypatch.setattr(eval_threshold, "evaluate_retrieval_relevance", _capturing_evaluate_retrieval_relevance)
     monkeypatch.setattr(orchestration_agent, "search_knn", _fake_search_knn)
 
     async def _fake_search(args):
@@ -454,7 +454,7 @@ async def test_guardrail_blocked_input_raises_so_the_route_can_catch_it(monkeypa
 
     _patch_llm(monkeypatch, [])
 
-    async def _blocked_check_input(query):
+    async def _blocked_check_input(query, guardrails_model=None):
         raise GuardrailBlockedError("blocked")
 
     monkeypatch.setattr(guarded_pipeline, "check_input", _blocked_check_input)
@@ -473,10 +473,10 @@ async def test_output_guardrail_can_modify_the_final_answer(monkeypatch):
     guardrail at all to mask anything (e.g. the real "Roth" -> <PERSON>
     false positive found live elsewhere in this project)."""
 
-    async def _passthrough_check_input(query):
+    async def _passthrough_check_input(query, guardrails_model=None):
         return query, {"status": "pass", "rail": None}
 
-    async def _masking_check_output(query, answer):
+    async def _masking_check_output(query, answer, guardrails_model=None):
         return answer.replace("Roth", "<PERSON>"), {"status": "modified", "rail": "pii detection"}
 
     monkeypatch.setattr(guarded_pipeline, "check_input", _passthrough_check_input)
@@ -551,6 +551,10 @@ async def test_token_usage_accumulates_across_multiple_llm_calls(monkeypatch):
         "retrieval_f1_estimate": 1.0,
         "retrieval_recall_pool_size": 1,
         "retrieval_recall_relevant_count": 1,
+        "answer_relevancy": None,
+        "answer_relevancy_verdict": None,
+        "answer_relevancy_explanation": None,
+        "answer_relevancy_prompt": None,
         "judge_model_used": "fake-chat-model",
         "below_threshold": False,
         "below_threshold_metrics": [],

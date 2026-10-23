@@ -30,7 +30,7 @@ class FakeLlm:
 
 
 def _patch_llm(monkeypatch, parsed=None, raise_error=None):
-    monkeypatch.setattr(query_decompose, "_build_llm", lambda: FakeLlm(parsed, raise_error))
+    monkeypatch.setattr(query_decompose, "_build_llm", lambda decompose_model=None: FakeLlm(parsed, raise_error))
 
 
 async def test_atomic_question_returns_one_sub_question(monkeypatch):

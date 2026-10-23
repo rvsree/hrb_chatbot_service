@@ -26,6 +26,7 @@ async def run_guarded_pipeline(
     generate: GenerateFn,
     pre_checked_query: str | None = None,
     pre_checked_input_status: dict | None = None,
+    guardrails_model: str | None = None,
 ) -> dict:
     """Input guardrail -> load history -> generate (mode-specific) -> output
     guardrail -> save turn. `generate` returns at least {"answer": str} -
@@ -45,7 +46,7 @@ async def run_guarded_pipeline(
         checked_query = pre_checked_query
         input_status = pre_checked_input_status or {"status": "pass", "rail": None}
     else:
-        checked_query, input_status = await check_input(query)
+        checked_query, input_status = await check_input(query, guardrails_model=guardrails_model)
 
     resolved_conversation_id = None
     if enable_conversation_memory:
@@ -55,7 +56,7 @@ async def run_guarded_pipeline(
     with log_backend_call(logger, "rag_core", "generate"):
         result = await generate(checked_query, chat_history)
 
-    checked_answer, output_status = await check_output(checked_query, result["answer"])
+    checked_answer, output_status = await check_output(checked_query, result["answer"], guardrails_model=guardrails_model)
 
     if resolved_conversation_id:
         await conversation_memory.save_turn(resolved_conversation_id, employee_id, checked_query, checked_answer)
@@ -63,4 +64,8 @@ async def run_guarded_pipeline(
     result["answer"] = checked_answer
     result["conversation_id"] = resolved_conversation_id
     result["guardrails"] = {"input": input_status, "output": output_status}
+    # Phase 244 - output_status always has a real model_used (check_output ran
+    # unconditionally above); input_status may be the pre_checked_input_status
+    # fallback above, which has no model_used key, so output's is authoritative.
+    result["guardrails_model_used"] = output_status.get("model_used")
     return result

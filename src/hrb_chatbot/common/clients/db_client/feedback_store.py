@@ -12,6 +12,12 @@ from src.hrb_chatbot.common.logging.logger import get_logger
 
 logger = get_logger("feedback_store")
 
+# Phase 251 - schema-per-domain migration, see resources/db_scripts/schema_migration.sql.
+# chat_feedback is new, not in the original planning doc's own schema map -
+# a real gap found during that phase's audit (feedback_store.py wasn't
+# categorized anywhere in it at all).
+_SCHEMA = "hrb_chat_feedback"
+
 CREATE_FEEDBACK_TABLE = """
 CREATE TABLE IF NOT EXISTS feedback (
     id SERIAL PRIMARY KEY,
@@ -67,6 +73,7 @@ class FeedbackStore:
             dbname=self.db_name,
             user=self.user,
             password=self.password,
+            options=f"-c search_path={_SCHEMA},public",
         )
 
     def _ensure_table_sync(self) -> None:
@@ -158,6 +165,30 @@ class FeedbackStore:
         await self._ensure_table()
         with log_backend_call(logger, "postgres", "feedback.list", employee_id=employee_id or "all"):
             return await asyncio.to_thread(self._list_feedback_sync, employee_id)
+
+    def _get_latest_feedback_for_conversation_sync(self, conversation_id: str) -> dict | None:
+        with self._connect() as conn:
+            with conn.cursor(row_factory=self._dict_row_factory) as cur:
+                cur.execute(
+                    "SELECT * FROM feedback WHERE conversation_id = %s ORDER BY created_at DESC LIMIT 1",
+                    (conversation_id,),
+                )
+                row = cur.fetchone()
+        if row is None:
+            return None
+        row["reason_tags"] = json.loads(row["reason_tags"])
+        row["created_at"] = row["created_at"].isoformat()
+        return row
+
+    async def get_latest_feedback_for_conversation(self, conversation_id: str | None) -> dict | None:
+        """Phase 248 - the Search Pre-Processing Layer's own feedback-signal
+        read. None when conversation_id is falsy or no feedback exists yet -
+        never raises, same convention as every other store method here."""
+        if not conversation_id:
+            return None
+        await self._ensure_table()
+        with log_backend_call(logger, "postgres", "feedback.get_latest_for_conversation", conversation_id=conversation_id):
+            return await asyncio.to_thread(self._get_latest_feedback_for_conversation_sync, conversation_id)
 
     def _delete_feedback_sync(self, feedback_id: int) -> int:
         with self._connect() as conn:

@@ -19,7 +19,7 @@
     },
     {
       "key": "kb_docs_dir",
-      "value": "C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_v2/resources/kb_docs"
+      "value": "C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/resources/kb_docs"
     },
     {
       "key": "presigned_upload_url",

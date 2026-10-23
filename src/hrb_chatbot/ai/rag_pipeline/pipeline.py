@@ -3,20 +3,18 @@
 import asyncio
 import time
 
+from src.hrb_chatbot.ai.agents._llm_helpers import resolve_agent_model
 from src.hrb_chatbot.ai.agents.workflow_agents import reviewer_agent
 from src.hrb_chatbot.ai.search_pre_processing import cache_layer, conversation_memory
 from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import check_input
 from src.hrb_chatbot.ai.search_pre_processing.query_decompose import decompose
 from src.hrb_chatbot.ai.search_pre_processing.query_normalize import normalize_query
-from src.hrb_chatbot.ai.rag_core.eval_threshold import check_eval_threshold
+from src.hrb_chatbot.ai.rag_core.eval_threshold import build_eval_scores, retrieval_relevance_enabled, run_enabled_eval_judges
 from src.hrb_chatbot.ai.rag_core.guarded_pipeline import run_guarded_pipeline
 from src.hrb_chatbot.ai.rag_core.tool_classification import classify_tool
-from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import (
-    evaluate_completeness,
-    evaluate_groundedness,
-    evaluate_retrieval_relevance,
-)
+from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import evaluate_retrieval_relevance
 from src.hrb_chatbot.ai.rag_pipeline.helper.access_control import build_acl_filter
+from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.dynamic_strategy_selector import resolve_dynamic_strategy
 from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.exact_knn_search import search_knn
 from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.retriever import retrieve_chunks
 from src.hrb_chatbot.ai.rag_pipeline.response_generation.response_generator import generate_answer
@@ -75,55 +73,37 @@ async def _score_live_answer(
 ) -> tuple[dict | None, float | None]:
     """Phase 109: live eval-judge scoring for one just-generated answer -
     skipped when there's no retrieved context to check groundedness
-    against. Both judge calls are synchronous (evaluate_groundedness/
-    evaluate_completeness make a real blocking HTTP call) - run via
-    asyncio.to_thread() so one slow judge call can't stall the whole
-    event loop, and in parallel via gather() so the two don't add up.
+    against. Judge calls are synchronous (evaluate_groundedness/
+    evaluate_completeness/evaluate_retrieval_relevance make a real blocking
+    HTTP call) - run via asyncio.to_thread() so one slow judge call can't
+    stall the whole event loop, and in parallel via gather() so they don't add up.
 
-    Phase 215: judge_model overrides which model all 3 judge calls use;
+    Phase 215: judge_model overrides which model the judges use;
     eval_score_threshold, when given, flags the result via
     below_threshold/below_threshold_metrics - see ai/rag_core/eval_threshold.py.
 
-    Phase 219: top_k/vector_db are new - used only to fetch the wider
-    candidate pool (_fetch_wider_pool_texts) evaluate_retrieval_relevance()
-    needs for its recall_estimate/f1_estimate. Adds one real retrieval call
-    (exact-KNN) before the 3 parallel judge calls, on every answer that has
-    retrieved context - a real cost/latency increase, confirmed acceptable
-    by the user (2026-10-18) over the alternative of no live recall/F1 at
-    all, given the estimate is clearly labeled as such everywhere it's shown."""
+    Phase 219: top_k/vector_db are used to fetch the wider candidate pool
+    evaluate_retrieval_relevance() needs for its recall_estimate/f1_estimate -
+    a real cost/latency increase, confirmed acceptable by the user
+    (2026-10-18) over the alternative of no live recall/F1 at all.
+
+    Phase 246: EVAL_GROUNDEDNESS_ENABLED/EVAL_COMPLETENESS_ENABLED/
+    EVAL_RETRIEVAL_RELEVANCE_ENABLED (ai/rag_core/eval_threshold.py, default
+    true each) let an operator turn off any of these 3 - the wider-pool
+    fetch itself is skipped too when retrieval-relevance is off, not just
+    its judge call."""
     if not sources:
         return None, None
 
     eval_started_at = time.perf_counter()
     context_texts = [chunk["text"] for chunk in sources]
-    wider_pool_texts = await _fetch_wider_pool_texts(query, sources, top_k, vector_db)
-    groundedness, completeness, retrieval = await asyncio.gather(
-        asyncio.to_thread(evaluate_groundedness, answer, context_texts, judge_model),
-        asyncio.to_thread(evaluate_completeness, query, answer, None, judge_model),
-        asyncio.to_thread(evaluate_retrieval_relevance, query, context_texts, judge_model, wider_pool_texts),
+    wider_pool_texts = (
+        await _fetch_wider_pool_texts(query, sources, top_k, vector_db) if retrieval_relevance_enabled() else None
     )
-    eval_scores = {
-        "groundedness": groundedness["score"],
-        "groundedness_verdict": groundedness["verdict"],
-        "groundedness_explanation": groundedness["explanation"],
-        "groundedness_prompt": groundedness["prompt"],
-        "completeness": completeness["score"],
-        "completeness_verdict": completeness["verdict"],
-        "completeness_explanation": completeness["explanation"],
-        "completeness_prompt": completeness["prompt"],
-        "retrieval_precision": retrieval["precision"],
-        "retrieval_relevant_chunk_indices": retrieval["relevant_chunk_indices"],
-        "retrieval_precision_explanation": retrieval["explanation"],
-        "retrieval_precision_prompt": retrieval["prompt"],
-        "retrieval_recall_estimate": retrieval["recall_estimate"],
-        "retrieval_f1_estimate": retrieval["f1_estimate"],
-        "retrieval_recall_pool_size": retrieval["pool_size"],
-        "retrieval_recall_relevant_count": retrieval["relevant_pool_count"],
-        "judge_model_used": groundedness["model_used"],
-    }
-    eval_scores["below_threshold"], eval_scores["below_threshold_metrics"] = check_eval_threshold(
-        eval_scores, eval_score_threshold
+    groundedness, completeness, retrieval, answer_relevancy = await run_enabled_eval_judges(
+        query, answer, context_texts, context_texts, judge_model, wider_pool_texts
     )
+    eval_scores = build_eval_scores(groundedness, completeness, retrieval, eval_score_threshold, answer_relevancy)
     return eval_scores, _elapsed_ms(eval_started_at)
 
 
@@ -289,7 +269,7 @@ async def answer_query(params: RagQueryParams, request_id: str | None = None) ->
     each part is routed - MCP or RAG - on its own merits."""
     started_at = time.perf_counter()
     normalized_query = await normalize_query(params.query)
-    checked_query, input_guardrail_status = await check_input(normalized_query)
+    checked_query, input_guardrail_status = await check_input(normalized_query, guardrails_model=params.guardrails_model)
 
     resolved_conversation_id = None
     if params.enable_conversation_memory:
@@ -299,6 +279,11 @@ async def answer_query(params: RagQueryParams, request_id: str | None = None) ->
     resolved_search_strategy = params.search_strategy or read_setting(
         None, "RAG_DEFAULT_SEARCH_STRATEGY", "similarity"
     )
+    # Phase 252 - resolved once, here, before the cache key/logging/retrieval
+    # call below all use it - everything downstream treats this exactly like
+    # any other concrete strategy, never knowing "dynamic" was requested.
+    if resolved_search_strategy == "dynamic":
+        resolved_search_strategy = resolve_dynamic_strategy(checked_query)
     resolved_llm_provider = get_active_llm_provider(params.llm_provider)
     resolved_top_k = params.top_k or int(read_setting(None, "RAG_DEFAULT_TOP_K", 5))
     if params.temperature is None:
@@ -361,7 +346,7 @@ async def answer_query(params: RagQueryParams, request_id: str | None = None) ->
 
     async def generate(generate_query: str, chat_history: list) -> dict:
         decomposition_started_at = time.perf_counter()
-        sub_questions = await decompose(generate_query)
+        sub_questions = await decompose(generate_query, decompose_model=params.decompose_model)
         decomposition_ms = _elapsed_ms(decomposition_started_at)
 
         sub_results = []
@@ -473,6 +458,7 @@ async def answer_query(params: RagQueryParams, request_id: str | None = None) ->
             "llm_call_count": llm_call_count,
             "token_usage": token_usage,
             "temperature": resolved_temperature,
+            "decompose_model_used": resolve_agent_model("OPENAI_DECOMPOSE_MODEL", params.decompose_model),
             "tools_used": tools_used,
             "retry_attempted": retry_attempted,
             "llm_context": {"turns": llm_context_turns, "mcp_tool_calls": mcp_tool_calls},
@@ -492,6 +478,7 @@ async def answer_query(params: RagQueryParams, request_id: str | None = None) ->
         generate,
         pre_checked_query=checked_query,
         pre_checked_input_status=input_guardrail_status,
+        guardrails_model=params.guardrails_model,
     )
     result["eval_scores"], result["latency_ms"]["eval"] = await _score_live_answer(
         checked_query, result["answer"], result["sources"],

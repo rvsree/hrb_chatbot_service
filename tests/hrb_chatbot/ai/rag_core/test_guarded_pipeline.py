@@ -12,10 +12,10 @@ from tests.conftest import FakeConversationStore, FakeDBGateway
 
 
 def _patch_guardrails(monkeypatch, check_input=None, check_output=None):
-    async def _default_check_input(query):
+    async def _default_check_input(query, guardrails_model=None):
         return query, {"status": "pass", "rail": None}
 
-    async def _default_check_output(query, answer):
+    async def _default_check_output(query, answer, guardrails_model=None):
         return answer, {"status": "pass", "rail": None}
 
     monkeypatch.setattr(guarded_pipeline, "check_input", check_input or _default_check_input)
@@ -29,7 +29,7 @@ def _patch_conversation_store(monkeypatch, conversation_store=None):
 
 
 async def test_generate_receives_the_checked_query_not_the_raw_one(monkeypatch):
-    async def _upper_check_input(query):
+    async def _upper_check_input(query, guardrails_model=None):
         return query.upper(), {"status": "pass", "rail": None}
 
     _patch_guardrails(monkeypatch, check_input=_upper_check_input)
@@ -45,7 +45,7 @@ async def test_generate_receives_the_checked_query_not_the_raw_one(monkeypatch):
 
 
 async def test_blocked_input_raises_before_generate_is_ever_called(monkeypatch):
-    async def _blocked_check_input(query):
+    async def _blocked_check_input(query, guardrails_model=None):
         raise GuardrailBlockedError("blocked")
 
     _patch_guardrails(monkeypatch, check_input=_blocked_check_input)
@@ -66,7 +66,7 @@ async def test_blocked_input_raises_before_generate_is_ever_called(monkeypatch):
 
 
 async def test_output_guardrail_can_modify_the_answer(monkeypatch):
-    async def _masking_check_output(query, answer):
+    async def _masking_check_output(query, answer, guardrails_model=None):
         return answer.replace("Roth", "<PERSON>"), {"status": "modified", "rail": "pii detection"}
 
     _patch_guardrails(monkeypatch, check_output=_masking_check_output)
@@ -140,7 +140,7 @@ async def test_pre_checked_query_skips_the_internal_check_input_call(monkeypatch
     routing decision - the shared core must not pay for a second call."""
     call_count = {"check_input": 0}
 
-    async def _counting_check_input(query):
+    async def _counting_check_input(query, guardrails_model=None):
         call_count["check_input"] += 1
         return query
 
@@ -176,10 +176,10 @@ async def test_result_carries_the_real_pass_pass_guardrail_status_by_default(mon
 
 
 async def test_result_carries_the_real_modified_status_for_both_input_and_output(monkeypatch):
-    async def _masking_check_input(query):
+    async def _masking_check_input(query, guardrails_model=None):
         return query.replace("123-45-6789", "<SSN>"), {"status": "modified", "rail": "pii detection"}
 
-    async def _masking_check_output(query, answer):
+    async def _masking_check_output(query, answer, guardrails_model=None):
         return answer.replace("Roth", "<PERSON>"), {"status": "modified", "rail": "self check output"}
 
     _patch_guardrails(monkeypatch, check_input=_masking_check_input, check_output=_masking_check_output)
@@ -223,7 +223,7 @@ async def test_a_blocked_output_status_reaches_the_result_alongside_the_safe_fal
     be replaced with the safe fallback text with zero caller-visible signal."""
     from src.hrb_chatbot.ai.rag_pipeline.response_generation.guardrails_output import SAFE_FALLBACK_ANSWER
 
-    async def _blocked_check_output(query, answer):
+    async def _blocked_check_output(query, answer, guardrails_model=None):
         return SAFE_FALLBACK_ANSWER, {"status": "blocked", "rail": "self check output"}
 
     _patch_guardrails(monkeypatch, check_output=_blocked_check_output)

@@ -15,7 +15,7 @@ from src.hrb_chatbot.api.feedback import manage_feedback
 from src.hrb_chatbot.api.leave import unpaid_leave
 from src.hrb_chatbot.api.multi_agentic_rag import query_agent as multi_query_agent
 from src.hrb_chatbot.api.dependencies import json_error
-from src.hrb_chatbot.api.rag import ingest_document, retrieve_document
+from src.hrb_chatbot.api.rag import auto_route_query, ingest_document, retrieve_document
 from src.hrb_chatbot.common import error_codes
 from src.hrb_chatbot.common.logging.logger import get_logger
 from src.hrb_chatbot.common.observability.langsmith_tracing import enable_tracing_if_configured
@@ -81,6 +81,7 @@ app.include_router(ingest_document.router_ingest_document, prefix="/v1/genai-rag
 app.include_router(retrieve_document.router_retrieve_document, prefix="/v1/genai-rag-retrieval")
 app.include_router(query_agent.router_query_agent, prefix="/v1/single-agentic-rag-retrieval")
 app.include_router(multi_query_agent.router_query_agent, prefix="/v1/multi-agentic-rag-retrieval")
+app.include_router(auto_route_query.router_auto_route_query, prefix="/v1/rag-retrieval")
 app.include_router(manage_conversations.router_manage_conversations, prefix="/v1/conversations")
 app.include_router(manage_feedback.router_manage_feedback, prefix="/v1/feedback")
 app.include_router(adhoc_document_chat.router_adhoc_document_chat, prefix="/v1/adhoc-document-chat")

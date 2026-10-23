@@ -254,6 +254,58 @@
           "title": "Retrieval Retry Attempted",
           "type": "boolean"
         },
+        "answer_relevancy": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 250 - does the answer address what was actually asked (distinct from completeness's full-coverage check)? 0.0-1.0. Null unless EVAL_ANSWER_RELEVANCY_ENABLED=true (defaults false - a brand-new metric, opt-in not opt-out).",
+          "title": "Answer Relevancy"
+        },
+        "answer_relevancy_verdict": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 250 - RELEVANT (>=0.7), PARTIAL (>=0.4), or IRRELEVANT. Null when not run.",
+          "title": "Answer Relevancy Verdict"
+        },
+        "answer_relevancy_explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 250 - the judge's reasoning for the answer_relevancy score.",
+          "title": "Answer Relevancy Explanation"
+        },
+        "answer_relevancy_prompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 250 - DeepEval's own verbose_logs for this judge call.",
+          "title": "Answer Relevancy Prompt"
+        },
         "judge_model_used": {
           "anyOf": [
             {
@@ -377,6 +429,45 @@
         "guardrails": {
           "$ref": "#/$defs/GuardrailInfo",
           "description": "Phase 224 - real input/output guardrail status for this answer. Reused as-is on a cache hit, same reasoning as eval_scores."
+        },
+        "decompose_model_used": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 243 - which model ran genai-rag's query decomposition (override if given, else the real default). Null for single-/multi-agentic-rag, or on a cache hit (that step didn't run).",
+          "title": "Decompose Model Used"
+        },
+        "planner_model_used": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 243 - which model ran multi-agentic-rag's Planner routing step (override if given, else the real default). Null for genai-rag/single-agentic-rag, or on a cache hit.",
+          "title": "Planner Model Used"
+        },
+        "guardrails_model_used": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 244 - which model ran the input/output guardrail checks (override if given, else the real default). Always present for a real call, unlike decompose_model_used/planner_model_used - guardrails run on every mode. Reused as-is on a cache hit, same reasoning as eval_scores.",
+          "title": "Guardrails Model Used"
         }
       },
       "required": [
@@ -853,6 +944,19 @@
       "default": null,
       "description": "Echoed/generated when enable_conversation_memory was true - pass it back on the next call to continue this conversation. Null when memory wasn't enabled.",
       "title": "Conversation Id"
+    },
+    "resolved_mode": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Phase 240 - set only when this model is returned from POST /v1/rag-retrieval/query (the auto-router, including an escalation from single-agentic-rag). Null on this endpoint's own direct, forced-mode calls.",
+      "title": "Resolved Mode"
     }
   },
   "required": [

@@ -13,6 +13,7 @@
     --done: #1f8a4c; --done-bg: #e6f5ec; --done-border: #b9e2c9;
     --planned: #333f9e; --planned-bg: #e8eafc; --planned-border: #c7cdf5;
     --blocked: #b23a2f; --blocked-bg: #fbebe8; --blocked-border: #f0c4bc;
+    --active: #a86a00; --active-bg: #fdf0d2; --active-border: #f0cf7e; --active-row: #fff8e8;
     --shadow: 0 2px 4px rgba(20,24,34,0.06), 0 10px 22px rgba(20,24,34,0.08);
     color-scheme: light;
   }
@@ -23,6 +24,7 @@
       --done: #4fbd80; --done-bg: #15281d; --done-border: #23492f;
       --planned: #7c86e0; --planned-bg: #1c2140; --planned-border: #343d7a;
       --blocked: #e2776a; --blocked-bg: #2c1815; --blocked-border: #4a2620;
+      --active: #e0b84d; --active-bg: #332707; --active-border: #5c4713; --active-row: #2a2109;
       --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 12px 26px rgba(0,0,0,0.4);
       color-scheme: dark;
     }
@@ -33,6 +35,7 @@
     --done: #4fbd80; --done-bg: #15281d; --done-border: #23492f;
     --planned: #7c86e0; --planned-bg: #1c2140; --planned-border: #343d7a;
     --blocked: #e2776a; --blocked-bg: #2c1815; --blocked-border: #4a2620;
+    --active: #e0b84d; --active-bg: #332707; --active-border: #5c4713; --active-row: #2a2109;
     --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 12px 26px rgba(0,0,0,0.4);
     color-scheme: dark;
   }
@@ -40,111 +43,180 @@
   body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 48px; }
   .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
-  .wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+  .wrap { max-width: 1480px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
   h1 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 900; font-size: clamp(22px, 3.4vw, 30px); letter-spacing: -0.01em; }
   .legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11.5px; }
   .legend span { display: flex; align-items: center; gap: 6px; }
   .dot { width: 9px; height: 9px; border-radius: 50%; }
-  .dot.done { background: var(--done); } .dot.planned { background: var(--planned); } .dot.blocked { background: var(--blocked); }
+  .dot.done { background: var(--done); } .dot.planned { background: var(--planned); } .dot.blocked { background: var(--blocked); } .dot.gap { background: var(--active); } .dot.na { background: var(--text-faint); }
+  .col-legend { font-size: 11px; color: var(--text-muted); line-height: 1.6; }
+  .col-legend b { color: var(--text); font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; }
 
   .proj { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
   .proj-head { padding: 10px 14px; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13.5px; background: var(--surface-alt); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
   .proj-head .n { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; font-weight: 600; color: var(--text-faint); }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  td { padding: 6px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .tbl-scroll { overflow-x: auto; }
+  table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 12px; }
+  th { padding: 7px 10px; border-bottom: 2px solid var(--border); text-align: left; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-faint); background: var(--surface-alt); white-space: nowrap; }
+  td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
   tr:last-child td { border-bottom: none; }
-  td.item { color: var(--text); width: 40%; }
-  td.status { width: 90px; }
-  td.note { color: var(--text-muted); }
+  td.item { color: var(--text); width: 22%; font-weight: 500; }
+  td.col { width: 9%; white-space: nowrap; }
+  td.note { color: var(--text-muted); width: 30%; }
   .chip { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
   .chip.done { background: var(--done-bg); border-color: var(--done-border); color: var(--done); }
   .chip.planned { background: var(--planned-bg); border-color: var(--planned-border); color: var(--planned); }
   .chip.blocked { background: var(--blocked-bg); border-color: var(--blocked-border); color: var(--blocked); }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+  .chip.gap { background: var(--active-bg); border-color: var(--active-border); color: var(--active); }
+  .chip.na { background: var(--surface-alt); border-color: var(--border); color: var(--text-faint); }
+  .grid1 { display: flex; flex-direction: column; gap: 14px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Reengineering Status Board</h1>
   <div class="legend">
-    <span><span class="dot done"></span>Done</span>
+    <span><span class="dot done"></span>Done / Pushed / Live / Verified</span>
     <span><span class="dot planned"></span>Planned</span>
     <span><span class="dot blocked"></span>Blocked / needs your decision</span>
+    <span><span class="dot gap"></span>Real gap - built but uncommitted / not deployed / not smoke-tested</span>
+    <span><span class="dot na"></span>N/A - not applicable to this row</span>
+  </div>
+  <div class="col-legend">
+    <b>Impl</b> implementation status &nbsp;·&nbsp; <b>Tests</b> local test suite result &nbsp;·&nbsp; <b>Commit/Push</b> real git state, checked directly (2026-10-22) - not assumed from "Done" &nbsp;·&nbsp; <b>Deploy</b> whether this code is actually running on real infra &nbsp;·&nbsp; <b>Smoke</b> whether it's been exercised against something real (live API, live DB), not just local fakes
   </div>
 
-  <div class="grid2">
+  <div class="grid1">
     <div class="proj">
-      <div class="proj-head">hrb_chatbot_service <span class="n">existing, being reengineered</span></div>
-      <table>
-        <tr><td class="item">Phase 239 - MCP tool catalog</td><td class="status"><span class="chip done">Done</span></td><td class="note">Live</td></tr>
-        <tr><td class="item">Doc color-scheme sweep</td><td class="status"><span class="chip done">Done</span></td><td class="note">~59 files</td></tr>
-        <tr><td class="item">ai/search_pre_processing/ rename</td><td class="status"><span class="chip done">Done</span></td><td class="note">770/770 tests</td></tr>
-        <tr><td class="item">Repo rename → hrb_chatbot_service</td><td class="status"><span class="chip done">Done</span></td><td class="note">177 files, 770 tests pass</td></tr>
-        <tr><td class="item">Local folder rename</td><td class="status"><span class="chip blocked">Blocked</span></td><td class="note">OS lock - your running backend</td></tr>
-        <tr><td class="item">Phase 240 - auto-router (Reflex/Agentic)</td><td class="status"><span class="chip blocked">Blocked</span></td><td class="note">3 open questions</td></tr>
-        <tr><td class="item">CAG layer extraction</td><td class="status"><span class="chip planned">Planned</span></td><td class="note">Spec ready</td></tr>
-        <tr><td class="item">Model tiering (real code)</td><td class="status"><span class="chip planned">Planned</span></td><td class="note">Multi-file</td></tr>
-        <tr><td class="item">Search Pre-Processing Layer build</td><td class="status"><span class="chip planned">Planned</span></td><td class="note">Design doc only</td></tr>
-        <tr><td class="item">STM/LTM Redis split</td><td class="status"><span class="chip planned">Planned</span></td><td class="note">Design doc only</td></tr>
-        <tr><td class="item">Guardrails consolidation (known gap)</td><td class="status"><span class="chip planned">Planned</span></td><td class="note">Unprioritized</td></tr>
-        <tr><td class="item">Real human-to-app OAuth2</td><td class="status"><span class="chip planned">Planned</span></td><td class="note">Unprioritized</td></tr>
-        <tr><td class="item">Redis live in production</td><td class="status"><span class="chip planned">Planned</span></td><td class="note">Unprioritized</td></tr>
-      </table>
+      <div class="proj-head">hrb_chatbot_service <span class="n">existing, being reengineered · branch: feature-hrb-chatbot-subdomain</span></div>
+      <div class="tbl-scroll"><table>
+        <tr><th>Item</th><th>Impl</th><th>Tests</th><th>Commit/Push</th><th>Deploy</th><th>Smoke</th><th>Note</th></tr>
+        <tr><td class="item">Phase 239 - MCP tool catalog</td><td class="col"><span class="chip done">Done</span></td><td class="col">✓</td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip done">Live</span></td><td class="col"><span class="chip done">Verified</span></td><td class="note">Committed f15a3de, on origin</td></tr>
+        <tr><td class="item">Doc color-scheme sweep</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">~59 files, docs only. Committed b854a1f</td></tr>
+        <tr><td class="item">ai/search_pre_processing/ rename</td><td class="status"><span class="chip done">Done</span></td><td class="col">770/770</td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">Real: checked git log directly, this change postdates the current HEAD (908eb8b) - sits in the working tree with everything below</td></tr>
+        <tr><td class="item">Repo rename → hrb_chatbot_service</td><td class="col"><span class="chip done">Done</span></td><td class="col">770/770</td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">177 files. Committed d7e3512</td></tr>
+        <tr><td class="item">Local folder rename</td><td class="col"><span class="chip done">Done</span></td><td class="col">809/809</td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Filesystem-only op, not a git action. GITHUB_REPO/LANGSMITH_PROJECT/postman cleanup bundled with it</td></tr>
+        <tr><td class="item">Phase 240 - auto-router (Reflex/Agentic)</td><td class="col"><span class="chip done">Done</span></td><td class="col">786/786</td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip blocked">Blocked</span></td><td class="note">Live verify blocked - OpenAI account was out of credits at the time (since resolved via key rotation, not re-tested)</td></tr>
+        <tr><td class="item">Phase 246 - per-judge eval cost toggles</td><td class="col"><span class="chip done">Done</span></td><td class="col">794/794</td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">EVAL_GROUNDEDNESS/COMPLETENESS/RETRIEVAL_RELEVANCE_ENABLED in .env, default true</td></tr>
+        <tr><td class="item">CAG layer extraction (Phase 242)</td><td class="col"><span class="chip done">Done</span></td><td class="col">770/770</td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">Committed 908eb8b (current HEAD) - pushed to feature branch, not yet merged to master/deployed</td></tr>
+        <tr><td class="item">Model tiering (Phase 243)</td><td class="col"><span class="chip done">Done</span></td><td class="col">770/770</td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">Planner/decompose on gpt-4.1-nano, request-overridable; guardrails cheap default only</td></tr>
+        <tr><td class="item">Search Pre-Processing Layer build (Phase 248)</td><td class="col"><span class="chip done">Done</span></td><td class="col">817/817</td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">context_assembly.py's assemble_context() wired into the auto-router; STM/feedback/classification bundled</td></tr>
+        <tr><td class="item">STM/LTM Redis split (Phase 247)</td><td class="col"><span class="chip done">Done</span></td><td class="col">809/809</td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip done">Verified</span></td><td class="note">Smoke-tested locally: real 2-turn conversation via single-agentic-rag-retrieval</td></tr>
+        <tr><td class="item">Guardrails consolidation (Phase 245)</td><td class="col"><span class="chip done">Done</span></td><td class="col">775/775</td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">multi-agentic-rag now on shared guardrail/memory core</td></tr>
+        <tr><td class="item">Real human-to-app OAuth2</td><td class="col"><span class="chip planned">Deferred</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">2026-10-22: explicitly deferred, user-confirmed decision, no code. Admin keeps real secret_code+lockout; other roles stay self-asserted</td></tr>
+        <tr><td class="item">Redis live in production</td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip done">Live</span></td><td class="col"><span class="chip done">Verified</span></td><td class="note">Finding, not new code - was already live. Confirmed via AWS CLI + a real functional test against prod (miss then hit)</td></tr>
+        <tr><td class="item">Request Unpaid Leave (HITL)</td><td class="col"><span class="chip done">Done</span></td><td class="col">✓</td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip done">Live</span></td><td class="col"><span class="chip done">Verified</span></td><td class="note">Real, pre-existing (Phases 162/165, committed 539ec0e long before this session). 7 live routes under /v1/unpaid-leave. One real gap: LEAVE_DOCS_S3_BUCKET never set locally, so real S3 I/O unexercised</td></tr>
+        <tr><td class="item">Phase 252 - Dynamic RAG Retrieval strategy</td><td class="col"><span class="chip done">Done</span></td><td class="col">849/849</td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">New DynamicStrategySelector (heuristic, no LLM call) picks among similarity/mmr/keyword/hybrid at runtime; now the default dropdown selection</td></tr>
+        <tr><td class="item">Hybrid search: course-accurate rework (Qdrant)</td><td class="col"><span class="chip blocked">Blocked</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Real infra decision (new vector store) held per your own call - no code written</td></tr>
+      </table></div>
     </div>
 
     <div class="proj">
-      <div class="proj-head">hrb_chatbot_ui <span class="n">existing frontend</span></div>
-      <table>
-        <tr><td class="item">Mode labels renamed</td><td class="status"><span class="chip done">Done</span></td><td class="note">Direct/Reflex/Agentic</td></tr>
-        <tr><td class="item">Settings → popup modal, fixed size</td><td class="status"><span class="chip done">Done</span></td><td class="note">560×640</td></tr>
-        <tr><td class="item">Model tab: show + live-edit all tiers</td><td class="status"><span class="chip blocked">Blocked</span></td><td class="note">Needs backend tiering first</td></tr>
-        <tr><td class="item">Retrieval Strategy tab: show resolved_mode</td><td class="status"><span class="chip planned">Planned</span></td><td class="note">Needs Phase 240</td></tr>
-        <tr><td class="item">DeepEval model field</td><td class="status"><span class="chip blocked">Blocked</span></td><td class="note">Your call pending</td></tr>
-      </table>
+      <div class="proj-head">hrb_chatbot_ui <span class="n">existing frontend · all recent work uncommitted</span></div>
+      <div class="tbl-scroll"><table>
+        <tr><th>Item</th><th>Impl</th><th>Tests</th><th>Commit/Push</th><th>Deploy</th><th>Smoke</th><th>Note</th></tr>
+        <tr><td class="item">Mode labels renamed</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">Direct/Reflex/Agentic. HEAD is be0cbb2, predates all of this session's UI work</td></tr>
+        <tr><td class="item">Settings → popup modal, fixed size</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">560×640</td></tr>
+        <tr><td class="item">Model tab: show + live-edit all tiers</td><td class="col"><span class="chip done">Done</span></td><td class="col">tsc clean</td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">decompose/planner/guardrails fields, mode-gated</td></tr>
+        <tr><td class="item">Guardrails model real override (Phase 244)</td><td class="col"><span class="chip done">Done</span></td><td class="col">775/775</td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">&lt;select&gt; from /health allow-list</td></tr>
+        <tr><td class="item">Retrieval Strategy tab: show resolved_mode</td><td class="col"><span class="chip done">Done</span></td><td class="col">tsc clean</td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip done">Verified</span></td><td class="note">HMR live-tested locally</td></tr>
+        <tr><td class="item">DeepEval model field (UI-only)</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">Placeholder only, not wired, your own call</td></tr>
+        <tr><td class="item">Real DeepEval integration, part 1 (Phase 249)</td><td class="col"><span class="chip done">Done</span></td><td class="col">827/827 (backend)</td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">Backend phase, listed here since UI surfaces it. Real cost finding: 2→6 live judge calls (3x)</td></tr>
+        <tr><td class="item">Real DeepEval integration, part 2 (Phase 250)</td><td class="col"><span class="chip done">Done</span></td><td class="col">842/842 (backend)</td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip done">Verified</span></td><td class="note">AnswerRelevancy/ContextualPrecision/Recall added. Live-verified at the time</td></tr>
+        <tr><td class="item">Dynamic RAG Retrieval dropdown (Part 1)</td><td class="col"><span class="chip done">Done</span></td><td class="col">tsc/oxlint clean</td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">New default option, ChatPage.tsx/types.ts. No frontend unit suite exists (Playwright e2e only, not run - needs a live backend)</td></tr>
+      </table></div>
     </div>
 
     <div class="proj">
-      <div class="proj-head">hrb-common-libs <span class="n">new repo</span></div>
-      <table>
-        <tr><td class="item">All 11 extras</td><td class="status"><span class="chip done">Done</span></td><td class="note">53/53 tests, v0.3.0</td></tr>
-        <tr><td class="item">Anthropic/Bedrock LLM adapters</td><td class="status"><span class="chip planned">Planned</span></td><td class="note">Deferred fast-follow</td></tr>
-        <tr><td class="item">Pinecone/LangChain vector adapters</td><td class="status"><span class="chip planned">Planned</span></td><td class="note">Deferred fast-follow</td></tr>
-        <tr><td class="item">CI/CD pipeline</td><td class="status"><span class="chip planned">Planned</span></td><td class="note">None exists yet</td></tr>
-        <tr><td class="item">Dependency version pins</td><td class="status"><span class="chip planned">Planned</span></td><td class="note">Currently unpinned</td></tr>
-      </table>
+      <div class="proj-head">hrb-common-libs <span class="n">new repo · fully committed and pushed</span></div>
+      <div class="tbl-scroll"><table>
+        <tr><th>Item</th><th>Impl</th><th>Tests</th><th>Commit/Push</th><th>Deploy</th><th>Smoke</th><th>Note</th></tr>
+        <tr><td class="item">All 11 extras (Phases 1-11)</td><td class="col"><span class="chip done">Done</span></td><td class="col">53/53</td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Library, no deploy target. Committed 4534a20</td></tr>
+        <tr><td class="item">Anthropic/Bedrock LLM adapters (Phase 12)</td><td class="col"><span class="chip done">Done</span></td><td class="col">73/73</td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Committed ec10156, tagged v0.4.0</td></tr>
+        <tr><td class="item">Pinecone/LangChain vector adapters (Phase 13)</td><td class="col"><span class="chip done">Done</span></td><td class="col">73/73</td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Committed ec10156, tagged v0.4.0</td></tr>
+        <tr><td class="item">Dependency version pins (Phase 14)</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Matched to hrb_chatbot_v2's proven versions</td></tr>
+        <tr><td class="item">CI/CD pipeline (Phase 15)</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">test/bandit/pip-audit on push, no deploy (library)</td></tr>
+        <tr><td class="item">Retry/circuit-breaker wired into every client (Phase 16)</td><td class="col"><span class="chip done">Done</span></td><td class="col">79/79</td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">All 7 client classes. Committed ec10156, tagged v0.4.0</td></tr>
+        <tr><td class="item">Secrets Manager + request_id middleware (Phase 17)</td><td class="col"><span class="chip done">Done</span></td><td class="col">87/87</td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip done">Verified</span></td><td class="note">Now in real use by rag_ingestion_service's own Lambda, confirmed working live in prod</td></tr>
+      </table></div>
     </div>
 
     <div class="proj">
-      <div class="proj-head">hrb_api_gateway_service <span class="n">new repo</span></div>
-      <table>
-        <tr><td class="item">Phase 1 - CORS + rate limit</td><td class="status"><span class="chip done">Done</span></td><td class="note">9 tests</td></tr>
-        <tr><td class="item">Phase 2 - RBAC (absorbed rbac.py)</td><td class="status"><span class="chip done">Done</span></td><td class="note">6 tests</td></tr>
-        <tr><td class="item">Phase 3 - single-backend forwarding</td><td class="status"><span class="chip done">Done</span></td><td class="note">3 tests, 18 total</td></tr>
-        <tr><td class="item">Repo rename → hrb_api_gateway_service</td><td class="status"><span class="chip done">Done</span></td><td class="note">Repo + local folder, 18 tests pass</td></tr>
-        <tr><td class="item">/health endpoint</td><td class="status"><span class="chip planned">Planned</span></td><td class="note">Design gap found</td></tr>
-        <tr><td class="item">Phase 4 - contract validation</td><td class="status"><span class="chip blocked">Blocked</span></td><td class="note">3-way tradeoff unresolved</td></tr>
-        <tr><td class="item">Phase 5 - cutover to prod</td><td class="status"><span class="chip blocked">Blocked</span></td><td class="note">Needs explicit go-ahead</td></tr>
-      </table>
+      <div class="proj-head">hrb_api_gateway_service <span class="n">new repo · Phases 4/6/8 never committed</span></div>
+      <div class="tbl-scroll"><table>
+        <tr><th>Item</th><th>Impl</th><th>Tests</th><th>Commit/Push</th><th>Deploy</th><th>Smoke</th><th>Note</th></tr>
+        <tr><td class="item">Phase 1 - CORS + rate limit</td><td class="col"><span class="chip done">Done</span></td><td class="col">9/9</td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">Committed cf6e9f5</td></tr>
+        <tr><td class="item">Phase 2 - RBAC (absorbed rbac.py)</td><td class="col"><span class="chip done">Done</span></td><td class="col">6/6</td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">Committed 3a42e40</td></tr>
+        <tr><td class="item">Phase 3 - single-backend forwarding</td><td class="col"><span class="chip done">Done</span></td><td class="col">18/18</td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">Committed 9b351e8</td></tr>
+        <tr><td class="item">Repo rename → hrb_api_gateway_service</td><td class="col"><span class="chip done">Done</span></td><td class="col">18/18</td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Committed 306fe48, current HEAD</td></tr>
+        <tr><td class="item">Phase 6 - /health endpoint</td><td class="col"><span class="chip done">Done</span></td><td class="col">27/27</td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip done">Verified</span></td><td class="note">Real finding: health_checks.py is untracked, never committed despite being "Done" - live-verified locally only</td></tr>
+        <tr><td class="item">Phase 4 - contract validation</td><td class="col"><span class="chip done">Done</span></td><td class="col">38/38</td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip done">Verified</span></td><td class="note">Real finding: contracts.py is untracked, never committed. Live-verified locally only (duplicate-schemas approach)</td></tr>
+        <tr><td class="item">Phase 8 - deploy prep (Dockerfile + CI/CD)</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip done">Verified</span></td><td class="note">Dockerfile/.github/ untracked. Real local build+run verified (1 bug found/fixed - wrong import convention). Placeholder ECR/App Runner values, inert until real AWS exists</td></tr>
+        <tr><td class="item">Phase 5 - cutover to prod</td><td class="col"><span class="chip blocked">Blocked</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Needs real AWS provisioning (ECR repo, IAM deploy user, App Runner service) - needs its own separate go-ahead</td></tr>
+      </table></div>
     </div>
 
     <div class="proj">
-      <div class="proj-head">hrb_platform_components <span class="n">new repo</span></div>
-      <table>
-        <tr><td class="item">Scaffolding (CLAUDE.md, ROADMAP, .claude/)</td><td class="status"><span class="chip done">Done</span></td><td class="note">Pushed</td></tr>
-        <tr><td class="item">Phase 0 - standalone vs. mounted decision</td><td class="status"><span class="chip blocked">Blocked</span></td><td class="note">Blocks everything else here</td></tr>
-        <tr><td class="item">Naming → hrb_platform_components</td><td class="status"><span class="chip done">Done</span></td><td class="note">Repo + local folder renamed</td></tr>
-        <tr><td class="item">Phase 1-3 (interview_qa/build_deployment/mcp_catalog)</td><td class="status"><span class="chip planned">Planned</span></td><td class="note">Blocked on Phase 0</td></tr>
-      </table>
+      <div class="proj-head">hrb_platform_components <span class="n">new repo · all 4 real phases never committed</span></div>
+      <div class="tbl-scroll"><table>
+        <tr><th>Item</th><th>Impl</th><th>Tests</th><th>Commit/Push</th><th>Deploy</th><th>Smoke</th><th>Note</th></tr>
+        <tr><td class="item">Scaffolding (CLAUDE.md, ROADMAP, .claude/)</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Committed ac0f9e1</td></tr>
+        <tr><td class="item">Phase 0 - standalone vs. mounted decision</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Decision stands, but CLAUDE.md's own text recording it is currently a locally-modified, uncommitted file</td></tr>
+        <tr><td class="item">Naming → hrb_platform_components</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Committed b0d1f07, current HEAD</td></tr>
+        <tr><td class="item">Phase 1-3 (interview_qa/build_deployment/mcp_catalog)</td><td class="col"><span class="chip done">Done</span></td><td class="col">33/33</td><td class="col"><span class="chip blocked">Uncommitted</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">Real finding: the entire src/platform/ implementation (all 3 phases) is untracked - never committed, despite showing Done this whole time. No real Postgres/GitHub/MCP calls in tests</td></tr>
+        <tr><td class="item">Phase 4 - mcp_catalog real OAuth2</td><td class="col"><span class="chip done">Done</span></td><td class="col">33/33</td><td class="col"><span class="chip blocked">Uncommitted</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">Same untracked files as above. Replaced static-token stub, your call, no silent substitutes</td></tr>
+      </table></div>
+    </div>
+
+    <div class="proj">
+      <div class="proj-head">rag_ingestion_service <span class="n">new repo · live in production, zero commits</span></div>
+      <div class="tbl-scroll"><table>
+        <tr><th>Item</th><th>Impl</th><th>Tests</th><th>Commit/Push</th><th>Deploy</th><th>Smoke</th><th>Note</th></tr>
+        <tr><td class="item">Scaffolding + Phase 0 (deployment model)</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip blocked">0 commits</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Local git init only, confirmed via git log - no commits exist at all in this repo</td></tr>
+        <tr><td class="item">Phase 1 - sync/container pipeline extraction</td><td class="col"><span class="chip done">Done</span></td><td class="col">34/34</td><td class="col"><span class="chip blocked">0 commits</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">Container/App Runner service never provisioned - only the async Lambda path below was deployed</td></tr>
+        <tr><td class="item">Phase 2 - async/Lambda pipeline extraction</td><td class="col"><span class="chip done">Done</span></td><td class="col">47/47</td><td class="col"><span class="chip blocked">0 commits</span></td><td class="col"><span class="chip done">Live</span></td><td class="col"><span class="chip done">Verified</span></td><td class="note">Code uncommitted but the built image IS deployed and live - see AWS provisioning row below</td></tr>
+        <tr><td class="item">Real AWS provisioning (ECR, IAM, Secrets Manager, Lambda)</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip done">Live</span></td><td class="col"><span class="chip done">Verified</span></td><td class="note">rag-ingestion-lambda ECR repo, execution role, 3 Secrets Manager entries, rag-ingestion-index-document Lambda - all real, confirmed via AWS CLI. Reuses the existing S3 bucket/SQS queue</td></tr>
+        <tr><td class="item">Live end-to-end verification</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip done">Verified</span></td><td class="note">2 real bugs found/fixed live. Real S3→Postgres→OpenAI→Pinecone flow confirmed, test artifacts cleaned up</td></tr>
+        <tr><td class="item">Real SQS cutover</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip done">Live</span></td><td class="col"><span class="chip done">Verified</span></td><td class="note">hrb-chatbot-ingest-queue's trigger switched to this repo's own Lambda. Verified via a real S3 upload through the actual trigger. Old Lambda disabled, not deleted - reversible</td></tr>
+      </table></div>
+    </div>
+
+    <div class="proj">
+      <div class="proj-head">rag_retrieval_service <span class="n">new repo · built and tested, zero commits, nothing deployed</span></div>
+      <div class="tbl-scroll"><table>
+        <tr><th>Item</th><th>Impl</th><th>Tests</th><th>Commit/Push</th><th>Deploy</th><th>Smoke</th><th>Note</th></tr>
+        <tr><td class="item">Scaffolding + Phase 0 (scope decisions)</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip blocked">0 commits</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Local git init only, confirmed via git log</td></tr>
+        <tr><td class="item">Phase 1 - genai-rag extraction</td><td class="col"><span class="chip done">Done</span></td><td class="col">34/34</td><td class="col"><span class="chip blocked">0 commits</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">Found hrb_chatbot_service's own CLAUDE.md had a stale "empty placeholder" claim for access_control.py - it's real code, ported it</td></tr>
+        <tr><td class="item">Phase 2 - single-agentic-rag extraction</td><td class="col"><span class="chip done">Done</span></td><td class="col">42/42</td><td class="col"><span class="chip blocked">0 commits</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">Caught a tool-naming mismatch between strategies' own cache-eligibility checks before it could silently break caching</td></tr>
+        <tr><td class="item">Phase 3 - multi-agentic-rag + domain agents</td><td class="col"><span class="chip done">Done</span></td><td class="col">61/61</td><td class="col"><span class="chip blocked">0 commits</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">Caught a real test-only bug (unfaked live OpenAI call) before it could cost money</td></tr>
+        <tr><td class="item">Phase 4 - HITL + conversations/feedback admin views</td><td class="col"><span class="chip done">Done</span></td><td class="col">79/79</td><td class="col"><span class="chip blocked">0 commits</span></td><td class="col"><span class="chip gap">Not deployed</span></td><td class="col"><span class="chip gap">Not verified</span></td><td class="note">Repo feature-complete. Caught a real MCP argument-name bug and a tool-name conflation before either shipped</td></tr>
+        <tr><td class="item">Real cutover</td><td class="col"><span class="chip planned">Planned</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Unlike ingestion, hrb_chatbot_service's own retrieval code stays live/dormant - no AWS resources provisioned for this repo yet, needs explicit go-ahead</td></tr>
+      </table></div>
     </div>
 
     <div class="proj">
       <div class="proj-head">Cross-cutting <span class="n">spans multiple repos</span></div>
-      <table>
-        <tr><td class="item">mcp_registry real ownership</td><td class="status"><span class="chip blocked">Blocked</span></td><td class="note">Confirm shared-DB question</td></tr>
-        <tr><td class="item">rag_retrieval vs. rag_search naming</td><td class="status"><span class="chip done">Done</span></td><td class="note">Resolved to rag_retrieval</td></tr>
-        <tr><td class="item">LangSmith project-naming per service</td><td class="status"><span class="chip planned">Planned</span></td><td class="note">Unprioritized</td></tr>
-      </table>
+      <div class="tbl-scroll"><table>
+        <tr><th>Item</th><th>Impl</th><th>Tests</th><th>Commit/Push</th><th>Deploy</th><th>Smoke</th><th>Note</th></tr>
+        <tr><td class="item">mcp_registry real ownership</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Investigation, no code. Registry is foreign-owned (hr_chatbot db), no real conflict</td></tr>
+        <tr><td class="item">rag_retrieval vs. rag_search naming</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Decision, no code. Resolved to rag_retrieval</td></tr>
+        <tr><td class="item">LangSmith project-naming per service</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Investigation, no code. Nothing to name per-service until a future service actually traces</td></tr>
+        <tr><td class="item">platform_components: standalone vs. co-located</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Resolved by rag_retrieval_service's own Phase 0 scoping. Narrowed to 3 orphan routes still needing a home - small separate follow-up</td></tr>
+        <tr><td class="item">Postgres schema regrouping (Phase 251)</td><td class="col"><span class="chip done">Done</span></td><td class="col">842/842</td><td class="col"><span class="chip gap">Uncommitted</span></td><td class="col"><span class="chip gap">Local DB only</span></td><td class="col"><span class="chip done">Verified</span></td><td class="note">13 tables → 8 hrb_-prefixed schemas. Local Postgres only - production application deferred, separate go-ahead needed. (Confirmed during rag_ingestion_service work: production Neon DB still runs the old public.* schema)</td></tr>
+      </table></div>
+    </div>
+
+    <div class="proj">
+      <div class="proj-head">Identified, not yet started <span class="n">4-6hrs of planning, 2026-10-22 audit</span></div>
+      <div class="tbl-scroll"><table>
+        <tr><th>Item</th><th>Impl</th><th>Tests</th><th>Commit/Push</th><th>Deploy</th><th>Smoke</th><th>Note</th></tr>
+        <tr><td class="item">chat_audio_service</td><td class="col"><span class="chip planned">Planned</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Not started, no code. Future voice front-door (STT in → existing retrieval → TTS out)</td></tr>
+        <tr><td class="item">employee_401k_service (hub + sub-agents)</td><td class="col"><span class="chip planned">Planned</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Design-only. Reuses the Planner→domain-agents pattern</td></tr>
+        <tr><td class="item">401(k) Loan Agent / "HRB 401k Manager" (real A2A)</td><td class="col"><span class="chip planned">Planned</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Design-only, no repo, no code. Real A2A wire protocol + Google ADK</td></tr>
+        <tr><td class="item">hrb_auth_server (human-to-app OAuth2)</td><td class="col"><span class="chip planned">Planned</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Planning only, nothing built</td></tr>
+        <tr><td class="item">NFR/Platform baseline</td><td class="col"><span class="chip done">Done</span></td><td class="col">87/87</td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip done">Verified</span></td><td class="note">All 3 gaps closed in hrb-common-libs (Phases 16/17). Wiring RequestIdMiddleware into any consuming service's own main.py is each service's own later change</td></tr>
+        <tr><td class="item">hrb_common_observability / hrb_common_web / hrb_common_email</td><td class="col"><span class="chip done">Done</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip done">Pushed</span></td><td class="col"><span class="chip na">N/A</span></td><td class="col"><span class="chip na">N/A</span></td><td class="note">Already built as 3 of hrb-common-libs' 11 extras (Phases 1/7/9), not 3 separate repos - the "3 separate packages" framing was an early, superseded draft</td></tr>
+      </table></div>
     </div>
   </div>
 </div>

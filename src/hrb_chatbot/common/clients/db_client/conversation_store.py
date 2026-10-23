@@ -15,6 +15,9 @@ from src.hrb_chatbot.common.logging.logger import get_logger
 
 logger = get_logger("conversation_store")
 
+# Phase 251 - schema-per-domain migration, see resources/db_scripts/schema_migration.sql.
+_SCHEMA = "hrb_rag_retrieval"
+
 CREATE_CONVERSATION_TURNS_TABLE = """
 CREATE TABLE IF NOT EXISTS conversation_turns (
     id SERIAL PRIMARY KEY,
@@ -68,6 +71,7 @@ class ConversationStore:
             dbname=self.db_name,
             user=self.user,
             password=self.password,
+            options=f"-c search_path={_SCHEMA},public",
         )
 
     def _ensure_table_sync(self) -> None:

@@ -8,7 +8,7 @@ resolution branching."""
 import pytest
 
 from src.hrb_chatbot.ai.search_pre_processing import cache_layer, conversation_memory
-from src.hrb_chatbot.ai.rag_core import guarded_pipeline
+from src.hrb_chatbot.ai.rag_core import eval_threshold, guarded_pipeline
 from src.hrb_chatbot.ai.rag_pipeline import pipeline
 from src.hrb_chatbot.common.rag_query_params import RagQueryParams
 from tests.conftest import FakeConversationStore, FakeDBGateway, FakeMetadataStore
@@ -36,32 +36,31 @@ def _fake_eval_judges(monkeypatch):
     a real OpenAI call each - fake both for every test in this file, or a
     test with non-empty fake chunks silently costs money and takes real
     network latency (confirmed: this file's run time went from ~4s to
-    ~40s before this fixture was added)."""
-    monkeypatch.setattr(
-        pipeline,
-        "evaluate_groundedness",
-        lambda answer, context_texts, judge_model=None: {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"},
-    )
-    monkeypatch.setattr(
-        pipeline,
-        "evaluate_completeness",
-        lambda query, answer, reference_answer=None, judge_model=None: {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"},
-    )
-    monkeypatch.setattr(
-        pipeline,
-        "evaluate_retrieval_relevance",
-        lambda query, chunk_texts, judge_model=None, wider_pool_texts=None: {
-            "precision": 1.0,
-            "relevant_chunk_indices": [1],
-            "explanation": "fake",
-            "prompt": "fake",
-            "model_used": judge_model or "fake-chat-model",
-            "recall_estimate": 1.0 if wider_pool_texts else None,
-            "f1_estimate": 1.0 if wider_pool_texts else None,
-            "pool_size": len(wider_pool_texts) if wider_pool_texts else None,
-            "relevant_pool_count": 1 if wider_pool_texts else None,
-        },
-    )
+    ~40s before this fixture was added).
+
+    Phase 246: _score_live_answer()'s own 3 judge calls now run through
+    ai/rag_core/eval_threshold.py's shared run_enabled_eval_judges() - faked
+    there, not on `pipeline` anymore. evaluate_retrieval_relevance is
+    additionally faked on `pipeline` too, since Phase 226's own corrective-
+    retry precision check (a separate call site, out of Phase 246's scope)
+    still imports and calls it directly from this module."""
+    fake_groundedness = lambda answer, context_texts, judge_model=None: {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"}
+    fake_completeness = lambda query, answer, reference_answer=None, judge_model=None: {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"}
+    fake_retrieval_relevance = lambda query, chunk_texts, judge_model=None, wider_pool_texts=None: {
+        "precision": 1.0,
+        "relevant_chunk_indices": [1],
+        "explanation": "fake",
+        "prompt": "fake",
+        "model_used": judge_model or "fake-chat-model",
+        "recall_estimate": 1.0 if wider_pool_texts else None,
+        "f1_estimate": 1.0 if wider_pool_texts else None,
+        "pool_size": len(wider_pool_texts) if wider_pool_texts else None,
+        "relevant_pool_count": 1 if wider_pool_texts else None,
+    }
+    monkeypatch.setattr(eval_threshold, "evaluate_groundedness", fake_groundedness)
+    monkeypatch.setattr(eval_threshold, "evaluate_completeness", fake_completeness)
+    monkeypatch.setattr(eval_threshold, "evaluate_retrieval_relevance", fake_retrieval_relevance)
+    monkeypatch.setattr(pipeline, "evaluate_retrieval_relevance", fake_retrieval_relevance)
 
 
 @pytest.fixture(autouse=True)
@@ -81,7 +80,7 @@ def _fake_decompose(monkeypatch):
     the original query unchanged) for every test in this file except the ones
     that explicitly test decomposition itself, which override this."""
 
-    async def _passthrough_decompose(query):
+    async def _passthrough_decompose(query, decompose_model=None):
         return [query]
 
     monkeypatch.setattr(pipeline, "decompose", _passthrough_decompose)
@@ -126,11 +125,11 @@ def _fake_generate_answer_capturing(captured):
 
 # Guardrails pass the query/answer through unchanged - these tests are about
 # top_k/temperature resolution, not guardrail behavior (see test_pipeline_guardrails.py).
-async def _fake_check_input(query):
+async def _fake_check_input(query, guardrails_model=None):
     return query, {"status": "pass", "rail": None}
 
 
-async def _fake_check_output(query, answer):
+async def _fake_check_output(query, answer, guardrails_model=None):
     return answer, {"status": "pass", "rail": None}
 
 
@@ -165,6 +164,22 @@ async def test_explicit_top_k_and_search_strategy_are_not_overridden(monkeypatch
 
     assert captured["top_k"] == 3
     assert captured["search_strategy"] == "mmr"
+
+
+async def test_dynamic_search_strategy_resolves_to_a_real_strategy_before_retrieval(monkeypatch):
+    """Phase 252 - "dynamic" is never passed through to retrieve_chunks() or
+    reported back in the response; it's always resolved to a concrete
+    SEARCH_STRATEGIES key first."""
+    captured = {}
+    _patch_guardrails(monkeypatch)
+    monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve_chunks_capturing(captured))
+    monkeypatch.setattr(pipeline, "generate_answer", _fake_generate_answer_capturing(captured))
+
+    result = await pipeline.answer_query(RagQueryParams(query="What is COBRA", search_strategy="dynamic"))
+
+    assert captured["search_strategy"] != "dynamic"
+    assert captured["search_strategy"] in ("similarity", "mmr", "keyword", "hybrid")
+    assert result["search_strategy"] == captured["search_strategy"]
 
 
 async def test_omitted_temperature_uses_env_default(monkeypatch):
@@ -562,6 +577,10 @@ async def test_live_generation_with_sources_includes_eval_scores(monkeypatch):
         "retrieval_f1_estimate": 1.0,
         "retrieval_recall_pool_size": 1,
         "retrieval_recall_relevant_count": 1,
+        "answer_relevancy": None,
+        "answer_relevancy_verdict": None,
+        "answer_relevancy_explanation": None,
+        "answer_relevancy_prompt": None,
         "judge_model_used": "fake-chat-model",
         "below_threshold": False,
         "below_threshold_metrics": [],
@@ -604,8 +623,8 @@ async def test_cache_hit_reuses_eval_scores_without_rejudging(monkeypatch):
         judge_call_count["completeness"] += 1
         return {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"}
 
-    monkeypatch.setattr(pipeline, "evaluate_groundedness", _counting_groundedness)
-    monkeypatch.setattr(pipeline, "evaluate_completeness", _counting_completeness)
+    monkeypatch.setattr(eval_threshold, "evaluate_groundedness", _counting_groundedness)
+    monkeypatch.setattr(eval_threshold, "evaluate_completeness", _counting_completeness)
 
     async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
         return ([{"filename": "x", "chunk_index": 0, "text": "y"}], None)
@@ -633,7 +652,7 @@ async def test_cache_hit_recomputes_below_threshold_against_this_calls_own_thres
     _patch_guardrails(monkeypatch)
 
     monkeypatch.setattr(
-        pipeline,
+        eval_threshold,
         "evaluate_groundedness",
         lambda answer, context_texts, judge_model=None: {"score": 0.5, "verdict": "PARTIAL", "explanation": "fake", "prompt": "fake", "model_used": "fake-chat-model"},
     )
@@ -691,7 +710,7 @@ async def test_atomic_question_behaves_exactly_like_before_decomposition(monkeyp
 async def test_compound_kb_question_merges_two_sub_answers(monkeypatch):
     _patch_guardrails(monkeypatch)
 
-    async def _fake_decompose_compound(query):
+    async def _fake_decompose_compound(query, decompose_model=None):
         return ["what is the dental plan?", "what is the vision plan?"]
 
     monkeypatch.setattr(pipeline, "decompose", _fake_decompose_compound)
@@ -725,7 +744,7 @@ async def test_compound_kb_and_mcp_question_gets_both_halves_right(monkeypatch):
     # The actual live failure this phase fixes: a 401k (KB) + PTO balance (MCP) compound question.
     _patch_guardrails(monkeypatch)
 
-    async def _fake_decompose_compound(query):
+    async def _fake_decompose_compound(query, decompose_model=None):
         # Decomposition's own LLM paraphrase normalizes "how many days of PTO I have"
         # into wording that actually matches the real MCP keyword list - the real,
         # deliberate side benefit this phase's spec calls out, not an accident here.
@@ -785,7 +804,7 @@ async def test_a_compound_kb_and_mcp_answer_is_never_cached(monkeypatch):
     _patch_guardrails(monkeypatch)
     call_count = {"mcp": 0, "generate": 0}
 
-    async def _fake_decompose_compound(query):
+    async def _fake_decompose_compound(query, decompose_model=None):
         return ["Is the 401k employer match immediately vested?", "What is my PTO balance?"]
 
     async def _fake_try_route_to_mcp(sub_question, employee_id):
@@ -868,7 +887,7 @@ async def test_wider_pool_size_is_capped_not_unbounded(monkeypatch):
 
 
 async def test_a_modified_input_status_from_the_mcp_fast_path_reaches_result_guardrails(monkeypatch):
-    async def _masking_check_input(query):
+    async def _masking_check_input(query, guardrails_model=None):
         return query.replace("123-45-6789", "<SSN>"), {"status": "modified", "rail": "pii detection"}
 
     monkeypatch.setattr(pipeline, "check_input", _masking_check_input)

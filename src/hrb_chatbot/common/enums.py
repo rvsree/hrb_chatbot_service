@@ -60,6 +60,10 @@ class SearchStrategy(StrEnum):
     KEYWORD = "keyword"
     HYBRID = "hybrid"
     KNN = "knn"
+    # Phase 252 - auto-picks a real strategy per query via
+    # dynamic_strategy_selector.py; never reaches SEARCH_STRATEGIES itself,
+    # resolved to a concrete value before retrieval runs.
+    DYNAMIC = "dynamic"
 
 
 class Role(StrEnum):

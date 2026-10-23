@@ -81,6 +81,8 @@ async def check_cache(
     # Phase 132: the cached llm_context describes the ORIGINAL call that
     # populated this cache entry, not this one.
     result["llm_context"] = None
+    # Phase 243: decompose() didn't run this call either - same reasoning.
+    result["decompose_model_used"] = None
     return result
 
 

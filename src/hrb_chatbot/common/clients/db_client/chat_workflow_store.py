@@ -19,6 +19,9 @@ from src.hrb_chatbot.common.logging.logger import get_logger
 
 logger = get_logger("chat_workflow_store")
 
+# Phase 251 - schema-per-domain migration, see resources/db_scripts/schema_migration.sql.
+_SCHEMA = "hrb_chat_hitl"
+
 CREATE_CHAT_SESSION_RECORDS_TABLE = """
 CREATE TABLE IF NOT EXISTS chat_session_records (
     session_id TEXT PRIMARY KEY,
@@ -102,6 +105,7 @@ class ChatWorkflowStore:
             dbname=self.db_name,
             user=self.user,
             password=self.password,
+            options=f"-c search_path={_SCHEMA},public",
         )
 
     def _ensure_tables_sync(self) -> None:

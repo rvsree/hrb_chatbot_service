@@ -48,6 +48,25 @@ as "What is my leave balance?" - if it's about past leave taken, phrase it exact
 "What is my leave history?" - these two exact phrasings are required, not just similar
 wording, so a downstream keyword match can route them correctly."""
 
+# Phase 240 - the auto-router's own classification step, deciding
+# single-agentic-rag vs. multi-agentic-rag before either one runs. Same
+# domain list PLANNER_SYSTEM_PROMPT above already uses, framed as a binary
+# question one level earlier, so the router's upfront guess stays
+# consistent with what the real Planner would decide if it ran instead.
+ROUTER_SYSTEM_PROMPT = """You are deciding which of two HR assistant workflows should
+handle a question - not answering it.
+
+Say "single" if the question needs only ONE of: policy/benefits documents (401k,
+healthcare, tuition, leave policy text), the caller's own leave balance/history,
+a structured HR database lookup, aggregate/historical analytics, or external web
+search - one domain, even if answering it takes a few steps.
+
+Say "multi" only if the question genuinely combines TWO OR MORE of those domains in
+one ask - e.g. a policy question AND the caller's own leave balance together.
+
+When in doubt, say "single" - it is the cheaper workflow and still handles most real
+questions correctly."""
+
 # Phase 173 - the pre-retrieval "sanity" pass: fixes spelling/grammar/typos
 # and standardizes phrasing only, never changes meaning. Runs before
 # check_input()/decompose() in every pipeline, so a typo'd question still

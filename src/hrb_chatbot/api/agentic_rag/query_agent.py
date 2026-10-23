@@ -41,11 +41,14 @@ async def query(payload: AgenticRagRequest, request: Request):
                 search_strategy=payload.search_strategy,
                 role=userProfile.role,
                 department=userProfile.department,
+                guardrails_model=payload.guardrails_model,
             ),
             lambda r: (r.get("token_usage") or {}).get("total_tokens"),
         )
     except GuardrailBlockedError as error:
         return json_error(422, str(error), code=error_codes.INPUT_GUARDRAIL_BLOCKED)
+    except ValueError as error:
+        return json_error(422, str(error), code=error_codes.VALIDATION_ERROR)
 
     token_usage = result.get("token_usage")
     eval_scores = result.get("eval_scores")
@@ -66,6 +69,7 @@ async def query(payload: AgenticRagRequest, request: Request):
             routed_to=None,
             eval_scores=EvalScores(**eval_scores) if eval_scores else None,
             guardrails=result["guardrails"],
+            guardrails_model_used=result.get("guardrails_model_used"),
         ),
         conversation_id=result.get("conversation_id"),
     )

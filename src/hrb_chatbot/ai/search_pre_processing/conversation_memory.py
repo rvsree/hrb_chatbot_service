@@ -1,7 +1,10 @@
 """Server-side conversation history for multi-turn support, keyed by
-conversation_id - Postgres-backed (Phase 76), STM and LTM are the same
-durable store, not two tiers. Replaces the old in-memory dict, which was
-wiped on every restart."""
+conversation_id - Postgres-backed (Phase 76), the durable system of record.
+Phase 247 adds a Redis cache-aside STM layer in front of the Postgres read
+(`load_history()`) - Postgres stays the only place history can be lost from;
+Redis is a performance cache that degrades to a Postgres read on a miss or
+outage, never the other way around. Replaces the old in-memory dict, which
+was wiped on every restart."""
 
 import uuid
 
@@ -14,9 +17,7 @@ def new_conversation_id() -> str:
     return uuid.uuid4().hex
 
 
-async def load_history(conversation_id: str) -> list[BaseMessage]:
-    """Returns [] for an unknown/new conversation_id - never raises."""
-    turns = await get_db_gateway().conversation_store().load_turns(conversation_id)
+def _turns_to_messages(turns: list[dict]) -> list[BaseMessage]:
     messages: list[BaseMessage] = []
     for turn in turns:
         if turn["role"] == "human":
@@ -26,15 +27,36 @@ async def load_history(conversation_id: str) -> list[BaseMessage]:
     return messages
 
 
+async def load_history(conversation_id: str) -> list[BaseMessage]:
+    """Returns [] for an unknown/new conversation_id - never raises. Reads
+    STM (Redis) first; on a miss, falls back to Postgres and backfills Redis
+    so the next read is a hit."""
+    gateway = get_db_gateway()
+    cached_turns = await gateway.stm_cache().get_turns(conversation_id)
+    if cached_turns is not None:
+        return _turns_to_messages(cached_turns)
+
+    turns = await gateway.conversation_store().load_turns(conversation_id)
+    await gateway.stm_cache().backfill(conversation_id, turns)
+    return _turns_to_messages(turns)
+
+
 async def save_turn(conversation_id: str, employee_id: str | None, human_content: str, ai_content: str) -> None:
     store = get_db_gateway().conversation_store()
     await store.save_turn(conversation_id, employee_id, "human", human_content)
     await store.save_turn(conversation_id, employee_id, "ai", ai_content)
 
+    cache = get_db_gateway().stm_cache()
+    await cache.append_turn(conversation_id, "human", human_content)
+    await cache.append_turn(conversation_id, "ai", ai_content)
+
 
 async def delete_conversation(conversation_id: str, employee_id: str) -> int:
     """Deletes every turn for one conversation - the NFR delete-my-data endpoint's own logic."""
-    return await get_db_gateway().conversation_store().delete_conversation(conversation_id, employee_id)
+    deleted = await get_db_gateway().conversation_store().delete_conversation(conversation_id, employee_id)
+    if deleted:
+        await get_db_gateway().stm_cache().clear(conversation_id)
+    return deleted
 
 
 async def list_conversations(employee_id: str) -> list[dict]:
@@ -54,7 +76,10 @@ async def list_all_conversations() -> list[dict]:
 
 async def delete_conversation_any(conversation_id: str) -> int:
     """Phase 168 - admin-only: deletes a conversation regardless of owner."""
-    return await get_db_gateway().conversation_store().delete_conversation_any(conversation_id)
+    deleted = await get_db_gateway().conversation_store().delete_conversation_any(conversation_id)
+    if deleted:
+        await get_db_gateway().stm_cache().clear(conversation_id)
+    return deleted
 
 
 async def get_conversation_turns_any(conversation_id: str) -> list[dict]:

@@ -2,7 +2,7 @@
 -- Postgres. Mirrors this project's real Role enum (common/enums.py):
 -- employee, manager, hr_support - not an open-ended list.
 --
--- Lives as its own schema (hrb_chatbot_v2_core) INSIDE the shared
+-- Lives as its own schema (hrb_chatbot_service_core) INSIDE the shared
 -- `hr_chatbot` database, not a standalone employees table in this
 -- project's own database. `hr_chatbot` already has a real, populated
 -- `hrb_emp_lms.employees` table (shared with hrb_lms_mcp/hrb_emp_assist) -
@@ -10,12 +10,12 @@
 -- employee rows, no synthetic data.
 --
 -- Renamed from hrb_chatbot_v2_auth 2026-09-22, alongside creating an
--- empty sibling schema `hrb_chatbot_v2_sessions` (reserved for future
+-- empty sibling schema `hrb_chatbot_service_sessions` (reserved for future
 -- conversation/session-state tables, no tables yet - nothing to build
 -- until a conversation-memory feature actually exists). Three schemas,
 -- one per bounded context, same physical `hr_chatbot` database: this
--- project's own identity/RBAC data (`hrb_chatbot_v2_core`), this
--- project's own future session state (`hrb_chatbot_v2_sessions`), and
+-- project's own identity/RBAC data (`hrb_chatbot_service_core`), this
+-- project's own future session state (`hrb_chatbot_service_sessions`), and
 -- hrb_lms_mcp's leave data (`hrb_emp_lms`, untouched, not owned by this
 -- project) - schema-per-service, a step toward real service isolation
 -- even while sharing one physical database.
@@ -37,14 +37,14 @@
 --
 -- Run as: psql -d hr_chatbot -f oauth_schema_ddl.sql
 
-CREATE SCHEMA IF NOT EXISTS hrb_chatbot_v2_core;
+CREATE SCHEMA IF NOT EXISTS hrb_chatbot_service_core;
 
 -- Reserved, deliberately empty - no conversation/session-state feature
 -- exists yet. Created now so the bounded-context boundary exists before
 -- any table does, not retrofitted after tables already landed elsewhere.
-CREATE SCHEMA IF NOT EXISTS hrb_chatbot_v2_sessions;
+CREATE SCHEMA IF NOT EXISTS hrb_chatbot_service_sessions;
 
-CREATE TABLE IF NOT EXISTS hrb_chatbot_v2_core.roles (
+CREATE TABLE IF NOT EXISTS hrb_chatbot_service_core.roles (
     id BIGSERIAL PRIMARY KEY,
     role_name TEXT NOT NULL UNIQUE,
     description TEXT
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS hrb_chatbot_v2_core.roles (
 -- has ever logged into this app - not every hrb_emp_lms.employees row
 -- needs one. employee_id/role_id are plain BIGINT/INTEGER, not FKs - see
 -- the file header for why.
-CREATE TABLE IF NOT EXISTS hrb_chatbot_v2_core.employee_roles (
+CREATE TABLE IF NOT EXISTS hrb_chatbot_service_core.employee_roles (
     id BIGSERIAL PRIMARY KEY,
     employee_id BIGINT NOT NULL UNIQUE,  -- matches hrb_emp_lms.employees.id, not FK-enforced
     role_id INTEGER NOT NULL,            -- matches roles.id, not FK-enforced
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS hrb_chatbot_v2_core.employee_roles (
 -- hrb_lms_mcp as a service - each with its own secret, no human involved.
 -- This is the "app-to-app" persona; `employee_roles`/`roles` above is
 -- "human-to-app".
-CREATE TABLE IF NOT EXISTS hrb_chatbot_v2_core.oauth_clients (
+CREATE TABLE IF NOT EXISTS hrb_chatbot_service_core.oauth_clients (
     id BIGSERIAL PRIMARY KEY,
     client_id TEXT NOT NULL UNIQUE,
     client_secret_hash TEXT NOT NULL,
@@ -79,17 +79,17 @@ CREATE TABLE IF NOT EXISTS hrb_chatbot_v2_core.oauth_clients (
 );
 
 -- What one client is allowed to call - the app-to-app equivalent of
--- `roles` for humans. E.g. hrb_chatbot_v2's own MCP client gets
+-- `roles` for humans. E.g. hrb_chatbot_service's own MCP client gets
 -- 'mcp:get_leave_balance'/'mcp:get_leave_history' but not
 -- 'mcp:submit_leave_request' - read-only until that's deliberately
 -- widened. Plain scope strings, not a separate scopes table - there's no
 -- shared vocabulary to enforce yet across more than one client.
-CREATE TABLE IF NOT EXISTS hrb_chatbot_v2_core.client_scopes (
+CREATE TABLE IF NOT EXISTS hrb_chatbot_service_core.client_scopes (
     id BIGSERIAL PRIMARY KEY,
     client_id BIGINT NOT NULL,  -- matches oauth_clients.id, not FK-enforced
     scope TEXT NOT NULL,
     UNIQUE(client_id, scope)
 );
 
-CREATE INDEX IF NOT EXISTS idx_employee_roles_role_id ON hrb_chatbot_v2_core.employee_roles(role_id);
-CREATE INDEX IF NOT EXISTS idx_client_scopes_client_id ON hrb_chatbot_v2_core.client_scopes(client_id);
+CREATE INDEX IF NOT EXISTS idx_employee_roles_role_id ON hrb_chatbot_service_core.employee_roles(role_id);
+CREATE INDEX IF NOT EXISTS idx_client_scopes_client_id ON hrb_chatbot_service_core.client_scopes(client_id);
