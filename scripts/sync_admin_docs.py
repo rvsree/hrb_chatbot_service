@@ -30,27 +30,27 @@ DOCS_TO_SYNC = {
     "request-unpaid-leave": {
         "overview": (
             "Request Unpaid Leave - Overview",
-            "docs/dev-reference/request-unpaid-leave/overview.html",
+            "docs/dev-reference/hrb_chatbot_v3/agents-and-workflows/request-unpaid-leave/overview.html",
             "text/html",
         ),
         "spec": (
             "Request Unpaid Leave - Spec",
-            "docs/dev-reference/request-unpaid-leave/spec.html",
+            "docs/dev-reference/hrb_chatbot_v3/agents-and-workflows/request-unpaid-leave/spec.html",
             "text/html",
         ),
         "architecture": (
             "Request Unpaid Leave - Architecture",
-            "docs/dev-reference/request-unpaid-leave/architecture.html",
+            "docs/dev-reference/hrb_chatbot_v3/agents-and-workflows/request-unpaid-leave/architecture.html",
             "text/html",
         ),
         "design": (
             "Request Unpaid Leave - Design",
-            "docs/dev-reference/request-unpaid-leave/design.html",
+            "docs/dev-reference/hrb_chatbot_v3/agents-and-workflows/request-unpaid-leave/design.html",
             "text/html",
         ),
         "decisions": (
             "Request Unpaid Leave - Decisions",
-            "docs/dev-reference/request-unpaid-leave/decisions.html",
+            "docs/dev-reference/hrb_chatbot_v3/agents-and-workflows/request-unpaid-leave/decisions.html",
             "text/html",
         ),
     },
@@ -67,32 +67,32 @@ DOCS_TO_SYNC = {
     "genai-rag-chat": {
         "overview": (
             "GenAI RAG Chat - Overview",
-            "docs/dev-reference/genai-rag-chat/overview.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/genai-rag-chat/overview.html",
             "text/html",
         ),
         "spec": (
             "GenAI RAG Chat - Spec",
-            "docs/dev-reference/genai-rag-chat/spec.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/genai-rag-chat/spec.html",
             "text/html",
         ),
         "architecture": (
             "GenAI RAG Chat - Architecture",
-            "docs/dev-reference/genai-rag-chat/architecture.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/genai-rag-chat/architecture.html",
             "text/html",
         ),
         "design": (
             "GenAI RAG Chat - Design",
-            "docs/dev-reference/genai-rag-chat/design.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/genai-rag-chat/design.html",
             "text/html",
         ),
         "decisions": (
             "GenAI RAG Chat - Decisions",
-            "docs/dev-reference/genai-rag-chat/decisions.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/genai-rag-chat/decisions.html",
             "text/html",
         ),
         "faq": (
             "GenAI RAG Chat - Interview FAQ",
-            "docs/dev-reference/genai-rag-chat/interview-faq.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/genai-rag-chat/interview-faq.html",
             "text/html",
         ),
     },
@@ -100,54 +100,54 @@ DOCS_TO_SYNC = {
     "single-agentic-rag": {
         "overview": (
             "Single-Agentic RAG - Overview",
-            "docs/dev-reference/single-agentic-rag/overview.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/single-agentic-rag/overview.html",
             "text/html",
         ),
         "spec": (
             "Single-Agentic RAG - Spec",
-            "docs/dev-reference/single-agentic-rag/spec.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/single-agentic-rag/spec.html",
             "text/html",
         ),
         "architecture": (
             "RAG Pipeline: Current State",
-            "docs/dev-reference/rag-retrieval/rag-pipeline-current-state.html",
+            "docs/dev-reference/_archive/rag-retrieval/rag-pipeline-current-state.html",
             "text/html",
         ),
         "design": (
             "Single-Agentic RAG - Design",
-            "docs/dev-reference/single-agentic-rag/design.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/single-agentic-rag/design.html",
             "text/html",
         ),
         "decisions": (
             "Single-Agentic RAG - Decisions",
-            "docs/dev-reference/single-agentic-rag/decisions.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/single-agentic-rag/decisions.html",
             "text/html",
         ),
     },
     "multi-agentic-rag": {
         "overview": (
             "Multi-Agentic RAG - Overview",
-            "docs/dev-reference/multi-agentic-rag/overview.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/multi-agentic-rag/overview.html",
             "text/html",
         ),
         "spec": (
             "Multi-Agentic RAG - Spec",
-            "docs/dev-reference/multi-agentic-rag/spec.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/multi-agentic-rag/spec.html",
             "text/html",
         ),
         "architecture": (
             "Multi-Agent Graph",
-            "docs/dev-reference/react_agents/multi-agent-graph.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/multi-agent-graph.html",
             "text/html",
         ),
         "design": (
             "Multi-Agentic RAG - Design",
-            "docs/dev-reference/multi-agentic-rag/design.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/multi-agentic-rag/design.html",
             "text/html",
         ),
         "decisions": (
             "Multi-Agentic RAG - Decisions",
-            "docs/dev-reference/multi-agentic-rag/decisions.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/multi-agentic-rag/decisions.html",
             "text/html",
         ),
     },
@@ -158,22 +158,22 @@ DOCS_TO_SYNC = {
     "cicd-pipeline-visibility": {
         "spec": (
             "CI/CD Pipeline Visibility - Spec",
-            "docs/dev-reference/cicd-pipeline-visibility/spec.html",
+            "docs/dev-reference/hrb_chatbot_v3/platform-and-admin/cicd-pipeline-visibility/spec.html",
             "text/html",
         ),
         "architecture": (
             "CI/CD Pipeline Visibility - Architecture",
-            "docs/dev-reference/cicd-pipeline-visibility/architecture.html",
+            "docs/dev-reference/hrb_chatbot_v3/platform-and-admin/cicd-pipeline-visibility/architecture.html",
             "text/html",
         ),
         "design": (
             "CI/CD Pipeline Visibility - Design",
-            "docs/dev-reference/cicd-pipeline-visibility/design.html",
+            "docs/dev-reference/hrb_chatbot_v3/platform-and-admin/cicd-pipeline-visibility/design.html",
             "text/html",
         ),
         "decisions": (
             "CI/CD Pipeline Visibility - Decisions",
-            "docs/dev-reference/cicd-pipeline-visibility/decisions.html",
+            "docs/dev-reference/hrb_chatbot_v3/platform-and-admin/cicd-pipeline-visibility/decisions.html",
             "text/html",
         ),
     },
@@ -184,32 +184,32 @@ DOCS_TO_SYNC = {
     "retrieval-strategies": {
         "overview": (
             "Retrieval Strategies - Overview",
-            "docs/dev-reference/retrieval-strategies/overview.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/retrieval-strategies/overview.html",
             "text/html",
         ),
         "spec": (
             "Retrieval Strategies - Spec",
-            "docs/dev-reference/retrieval-strategies/spec.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/retrieval-strategies/spec.html",
             "text/html",
         ),
         "architecture": (
             "RAG Validation Gates",
-            "docs/dev-reference/rag-validation-gates.html",
+            "docs/dev-reference/_archive/rag-validation-gates.html",
             "text/html",
         ),
         "design": (
             "Retrieval Strategies - Design",
-            "docs/dev-reference/retrieval-strategies/design.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/retrieval-strategies/design.html",
             "text/html",
         ),
         "decisions": (
             "Retrieval Strategies - Decisions",
-            "docs/dev-reference/retrieval-strategies/decisions.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/retrieval-strategies/decisions.html",
             "text/html",
         ),
         "faq": (
             "Retrieval Strategies - Interview FAQ",
-            "docs/dev-reference/retrieval-strategies/interview-faq.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/retrieval-strategies/interview-faq.html",
             "text/html",
         ),
     },
@@ -222,27 +222,27 @@ DOCS_TO_SYNC = {
     "genai-chat-workflow": {
         "overview": (
             "GenAI Chat Workflow - Overview",
-            "docs/dev-reference/genai-chat-workflow/overview.html",
+            "docs/dev-reference/hrb_chatbot_v3/agents-and-workflows/genai-chat-workflow/overview.html",
             "text/html",
         ),
         "spec": (
             "GenAI Chat Workflow - Spec",
-            "docs/dev-reference/genai-chat-workflow/spec.html",
+            "docs/dev-reference/hrb_chatbot_v3/agents-and-workflows/genai-chat-workflow/spec.html",
             "text/html",
         ),
         "architecture": (
             "GenAI Chat Workflow - Architecture",
-            "docs/dev-reference/genai-chat-workflow/architecture.html",
+            "docs/dev-reference/hrb_chatbot_v3/agents-and-workflows/genai-chat-workflow/architecture.html",
             "text/html",
         ),
         "design": (
             "GenAI Chat Workflow - Design",
-            "docs/dev-reference/genai-chat-workflow/design.html",
+            "docs/dev-reference/hrb_chatbot_v3/agents-and-workflows/genai-chat-workflow/design.html",
             "text/html",
         ),
         "decisions": (
             "GenAI Chat Workflow - Decisions",
-            "docs/dev-reference/genai-chat-workflow/decisions.html",
+            "docs/dev-reference/hrb_chatbot_v3/agents-and-workflows/genai-chat-workflow/decisions.html",
             "text/html",
         ),
     },
@@ -252,27 +252,27 @@ DOCS_TO_SYNC = {
     "admin-secret-code": {
         "overview": (
             "Admin Secret Code - Overview",
-            "docs/dev-reference/admin-secret-code/overview.html",
+            "docs/dev-reference/hrb_chatbot_v3/platform-and-admin/admin-secret-code/overview.html",
             "text/html",
         ),
         "spec": (
             "Admin Secret Code - Spec",
-            "docs/dev-reference/admin-secret-code/spec.html",
+            "docs/dev-reference/hrb_chatbot_v3/platform-and-admin/admin-secret-code/spec.html",
             "text/html",
         ),
         "architecture": (
             "Admin Secret Code - Architecture",
-            "docs/dev-reference/admin-secret-code/architecture.html",
+            "docs/dev-reference/hrb_chatbot_v3/platform-and-admin/admin-secret-code/architecture.html",
             "text/html",
         ),
         "design": (
             "Admin Secret Code - Design",
-            "docs/dev-reference/admin-secret-code/design.html",
+            "docs/dev-reference/hrb_chatbot_v3/platform-and-admin/admin-secret-code/design.html",
             "text/html",
         ),
         "decisions": (
             "Admin Secret Code - Decisions",
-            "docs/dev-reference/admin-secret-code/decisions.html",
+            "docs/dev-reference/hrb_chatbot_v3/platform-and-admin/admin-secret-code/decisions.html",
             "text/html",
         ),
     },
@@ -288,32 +288,32 @@ DOCS_TO_SYNC = {
     "upload-documents": {
         "overview": (
             "RAG Ingestion - Overview",
-            "docs/dev-reference/rag-ingestion/overview.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/overview.html",
             "text/html",
         ),
         "spec": (
             "RAG Ingestion - Spec",
-            "docs/dev-reference/rag-ingestion/spec.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/spec.html",
             "text/html",
         ),
         "architecture": (
             "RAG Ingestion - Architecture",
-            "docs/dev-reference/rag-ingestion/architecture.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/architecture.html",
             "text/html",
         ),
         "design": (
             "RAG Ingestion - Design",
-            "docs/dev-reference/rag-ingestion/design.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/design.html",
             "text/html",
         ),
         "decisions": (
             "RAG Ingestion - Decisions",
-            "docs/dev-reference/rag-ingestion/decisions.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/decisions.html",
             "text/html",
         ),
         "faq": (
             "RAG Ingestion - Interview FAQ",
-            "docs/dev-reference/rag-ingestion/interview-faq.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/interview-faq.html",
             "text/html",
         ),
     },
@@ -343,7 +343,7 @@ DOCS_TO_SYNC = {
     "scaling-latency-design": {
         "design": (
             "Scaling & Latency Design",
-            "docs/dev-reference/design/scaling-latency-design.html",
+            "docs/dev-reference/hrb_chatbot_v3/architecture/design/scaling-latency-design.html",
             "text/html",
         ),
     },
@@ -359,57 +359,57 @@ DOCS_TO_SYNC = {
     "deployment-guide": {
         "index": (
             "Deployment Guide - Index",
-            "docs/dev-reference/deployment-guide/index.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/index.html",
             "text/html",
         ),
         "deployment-aws": (
             "Deployment & AWS Operations",
-            "docs/dev-reference/deployment-guide/01-deployment-aws.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/01-deployment-aws.html",
             "text/html",
         ),
         "neon-postgres": (
             "Neon Postgres",
-            "docs/dev-reference/deployment-guide/02-neon-postgres.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/02-neon-postgres.html",
             "text/html",
         ),
         "pinecone-standard": (
             "Pinecone as the Standing Vector Store",
-            "docs/dev-reference/deployment-guide/03-pinecone-standard.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/03-pinecone-standard.html",
             "text/html",
         ),
         "redis-cache": (
             "Redis Cache",
-            "docs/dev-reference/deployment-guide/04-redis-cache.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/04-redis-cache.html",
             "text/html",
         ),
         "rag-ingestion-batch": (
             "RAG Ingestion Batch Process",
-            "docs/dev-reference/deployment-guide/05-rag-ingestion-batch.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/05-rag-ingestion-batch.html",
             "text/html",
         ),
         "nfr-reliability-resilience": (
             "NFR: Reliability & Resilience",
-            "docs/dev-reference/deployment-guide/06-nfr-reliability-resilience.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/06-nfr-reliability-resilience.html",
             "text/html",
         ),
         "reactjs-ui": (
             "React UI",
-            "docs/dev-reference/deployment-guide/07-reactjs-ui.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/07-reactjs-ui.html",
             "text/html",
         ),
         "milestone-plan": (
             "Milestone Plan & Golden Dataset Gate",
-            "docs/dev-reference/deployment-guide/08-milestone-plan.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/08-milestone-plan.html",
             "text/html",
         ),
         "custom-domain-setup": (
             "Custom Domain Setup",
-            "docs/dev-reference/deployment-guide/09-custom-domain-setup.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/09-custom-domain-setup.html",
             "text/html",
         ),
         "observability-howto": (
             "Checking LangSmith & CloudWatch",
-            "docs/dev-reference/deployment-guide/10-observability-howto.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/10-observability-howto.html",
             "text/html",
         ),
     },
@@ -421,27 +421,27 @@ DOCS_TO_SYNC = {
     "chunking-strategy": {
         "overview": (
             "Chunking Strategy - Overview",
-            "docs/dev-reference/chunking-strategy/overview.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/chunking-strategy/overview.html",
             "text/html",
         ),
         "spec": (
             "Chunking Strategy - Spec",
-            "docs/dev-reference/chunking-strategy/spec.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/chunking-strategy/spec.html",
             "text/html",
         ),
         "design": (
             "Chunking Strategy - Design",
-            "docs/dev-reference/chunking-strategy/design.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/chunking-strategy/design.html",
             "text/html",
         ),
         "decisions": (
             "Chunking Strategy - Decisions",
-            "docs/dev-reference/chunking-strategy/decisions.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/chunking-strategy/decisions.html",
             "text/html",
         ),
         "faq": (
             "Chunking Strategy - Interview FAQ",
-            "docs/dev-reference/chunking-strategy/interview-faq.html",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/chunking-strategy/interview-faq.html",
             "text/html",
         ),
     },
@@ -463,7 +463,7 @@ DOCS_TO_SYNC = {
         # it would lose that content with no DB backup anywhere.
         "system": (
             "Interview FAQs - System Level",
-            "docs/dev-reference/interview-faqs/system.html",
+            "docs/dev-reference/hrb_chatbot_v3/platform-and-admin/interview-faqs/system.html",
             "text/html",
         ),
     },
@@ -475,7 +475,7 @@ DOCS_TO_SYNC = {
     "developer-onboarding": {
         "overview": (
             "Developer Onboarding Guide",
-            "docs/dev-reference/developer-onboarding/guide.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/developer-onboarding/guide.html",
             "text/html",
         ),
     },
@@ -485,7 +485,7 @@ DOCS_TO_SYNC = {
     "build-guide": {
         "overview": (
             "Build Guide",
-            "docs/dev-reference/build-guide/guide.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/build-guide/guide.html",
             "text/html",
         ),
     },
@@ -495,7 +495,7 @@ DOCS_TO_SYNC = {
     "deployment-verification-guide": {
         "overview": (
             "Deployment Verification Guide",
-            "docs/dev-reference/deployment-verification-guide/guide.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-verification-guide/guide.html",
             "text/html",
         ),
     },
@@ -505,7 +505,7 @@ DOCS_TO_SYNC = {
     "production-monitoring-guide": {
         "overview": (
             "Production Monitoring Guide",
-            "docs/dev-reference/production-monitoring-guide/guide.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/production-monitoring-guide/guide.html",
             "text/html",
         ),
     },
@@ -515,7 +515,7 @@ DOCS_TO_SYNC = {
     "production-troubleshooting-faq": {
         "overview": (
             "Production Troubleshooting FAQ",
-            "docs/dev-reference/production-troubleshooting-faq/guide.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/production-troubleshooting-faq/guide.html",
             "text/html",
         ),
     },
@@ -525,7 +525,7 @@ DOCS_TO_SYNC = {
     "vector-db-optimization": {
         "overview": (
             "Vector DB Indexing & Re-indexing Guide",
-            "docs/dev-reference/vector-db-optimization/guide.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/vector-db-optimization/guide.html",
             "text/html",
         ),
     },

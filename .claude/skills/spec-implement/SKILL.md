@@ -39,7 +39,7 @@ Preconditions - stop and report if either is missing, don't proceed anyway:
    ..." line to the bullet describing what was actually checked - the same
    pattern every other completed phase in that file already follows.
 7. If this phase changed design, architecture, or a request/response
-   contract that the feature's own `docs/dev-reference/<feature>/` doc set
+   contract that the feature's own `docs/dev-reference/hrb_chatbot_v3/<category>/<feature>/` doc set
    already describes (Spec/Architecture/Design/Decisions), update those
    docs to match now - don't leave them to drift and get caught later.
    Re-syncing them (`python -m scripts.sync_admin_docs`) is still a real

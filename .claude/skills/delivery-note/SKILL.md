@@ -27,7 +27,7 @@ not applicable>
 line each, or "none">
 
 **Docs in sync:** <if this task changed design/architecture/a contract, did
-the feature's own docs/dev-reference/<feature>/ set get updated and re-
+the feature's own docs/dev-reference/hrb_chatbot_v3/<category>/<feature>/ set get updated and re-
 synced (see CLAUDE.md)? "yes, synced" / "yes, not yet synced - needs your
 go-ahead" / "n/a - no design/architecture/contract change">
 
