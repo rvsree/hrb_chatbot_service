@@ -106,16 +106,25 @@
   .ribbon .mono { font-weight: 500; opacity: 0.85; font-size: 11.5px; }
   footer { font-size: 11px; color: var(--text-faint); text-align: center; padding-top: 4px; }
   footer code { font-family: 'IBM Plex Mono', monospace; }
+  .status-banner { background: var(--now-bg); border: 1.5px solid var(--now-border); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--shadow); }
+  .status-banner .btitle { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 14px; color: var(--now); display: flex; align-items: center; gap: 8px; }
+  .status-banner p { margin: 0; font-size: 12px; color: var(--text); line-height: 1.6; }
+  .status-banner .mono { font-weight: 600; }
 </style>
 </head>
 <body>
 <div class="wrap">
 
 <header>
-  <span class="eyebrow">hrb_chatbot_service · architecture reference · 2026-10-21</span>
+  <span class="eyebrow">hrb_chatbot_service · architecture reference, written 2026-10-21 · real status added 2026-10-23</span>
   <h1>Microservices Interface Matrix</h1>
   <p class="subtitle">Direct answer: no, the first two docs didn't capture this — they gave an inventory and a schema map, not per-service upstream/downstream boundaries, backend touchpoints, logically-grouped connectors, or NFR detail. This fills that gap. Third companion to <span class="mono">service-boundary-decision.html</span> (what/why) and <span class="mono">microservices-rollout-plan.html</span> (how/when).</p>
 </header>
+
+<div class="status-banner">
+  <span class="btitle">✓ Real status, 2026-10-23 — the matrix below is now how these services actually talk to each other, with 2 real divergences</span>
+  <p>§1's boundary matrix is live and accurate for the 4 built-and-deployed rows (<span class="mono">hrb_chatbot_ui</span>, <span class="mono">api_gateway_service</span>, <span class="mono">rag_ingestion_service</span>, <span class="mono">rag_retrieval_service</span>) — confirmed via real CORS preflights, a real forwarded query, and a real SQS-triggered ingestion run, not just configured. Two real divergences from this doc's own plan: (1) <b>§2's common-libs grouping</b> shipped as <b>one package with extras</b> (<span class="mono">hrb-common-libs[observability,db,cache,llm,mcp,auth,vectorstore,web,storage,email]</span>, pip-installed via one git-tag-pinned dependency line), not ~10 independently-installable packages as recommended. (2) <b>§5's platform-components question is answered</b> — it did <b>not</b> stay co-located inside <span class="mono">rag_retrieval_service</span>'s row in §1's table; it's the fully-separate deployable this section's own closing note offered as the alternative, now called <span class="mono">hrb_platform_components</span>, built and live.</p>
+</div>
 
 <section>
   <h2><span class="h2-num">1</span>Service interface &amp; boundary matrix <span class="h2-sub">— who calls whom, which backends it's allowed to touch directly</span></h2>
@@ -126,10 +135,11 @@
       <tr><td class="key">hrb_chatbot_ui</td><td>end users (browser)</td><td>api_gateway_service only</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
       <tr><td class="key">api_gateway_service</td><td>hrb_chatbot_ui</td><td>rag_ingestion/rag_retrieval, future: chat_audio/employee_401k</td><td>platform_admin_controls (sessions)</td><td class="yes">yes — rate-limit/session</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
       <tr><td class="key">rag_ingestion_service</td><td>api_gateway_service (admin only)</td><td>Vector DB, S3, Postgres</td><td>rag_ingestion</td><td class="yes">yes — embedding cache</td><td class="yes">yes — write</td><td class="yes">yes</td><td class="no">—</td><td class="yes">yes — embeddings only</td><td class="no">—</td></tr>
-      <tr><td class="key">rag_retrieval_service</td><td>api_gateway_service</td><td>Vector DB, Postgres, Redis, LLM Gateway, MCP, Tavily, SES</td><td>rag_retrieval, chat_hitl, + co-located platform_*</td><td class="yes">yes — answer cache</td><td class="yes">yes — read</td><td class="no">—</td><td class="yes">yes — web_search_agent</td><td class="yes">yes</td><td class="yes">yes — client</td></tr>
-      <tr><td class="key">hrb_lms_mcp</td><td>rag_retrieval_service (OAuth2)</td><td>its own Postgres only</td><td>hrb_emp_lms, hrb_lms_mcp_auth (own DB)</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td><b>is</b> the server</td></tr>
-      <tr><td class="key">chat_audio_service</td><td>api_gateway_service</td><td class="tbd">TBD — needs own LLD</td><td>chat_audio</td><td class="tbd">TBD</td><td class="no">—</td><td class="tbd">TBD</td><td class="no">—</td><td class="yes">yes</td><td class="tbd">TBD</td></tr>
-      <tr><td class="key">employee_401k_service</td><td>api_gateway_service</td><td class="tbd">TBD — needs own LLD</td><td>employee_401k</td><td class="tbd">TBD</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="yes">yes</td><td class="tbd">TBD — maybe</td></tr>
+      <tr><td class="key">rag_retrieval_service</td><td>api_gateway_service</td><td>Vector DB, Postgres, Redis, LLM Gateway, MCP, Tavily, SES</td><td>rag_retrieval, chat_hitl — <b>not</b> platform_* (see hrb_platform_components row)</td><td class="yes">yes — answer cache</td><td class="yes">yes — read</td><td class="no">—</td><td class="yes">yes — web_search_agent</td><td class="yes">yes</td><td class="yes">yes — client</td></tr>
+      <tr><td class="key">hrb_platform_components <span class="pill core" style="margin-left:4px;">not in original plan</span></td><td>api_gateway_service</td><td>Postgres, GitHub (CI/CD status), MCP (catalog)</td><td>platform_interview_qa, platform_build_deployment, platform_admin_controls (approx.)</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="yes">yes — catalog only</td></tr>
+      <tr><td class="key">hrb_lms_mcp</td><td>rag_retrieval_service, hrb_platform_components (OAuth2)</td><td>its own Postgres only</td><td>hrb_emp_lms, hrb_lms_mcp_auth (own DB)</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td><b>is</b> the server</td></tr>
+      <tr><td class="key">chat_audio_service <span class="pill platform" style="margin-left:4px;">on hold</span></td><td>api_gateway_service</td><td class="tbd">TBD — needs own LLD</td><td>chat_audio</td><td class="tbd">TBD</td><td class="no">—</td><td class="tbd">TBD</td><td class="no">—</td><td class="yes">yes</td><td class="tbd">TBD</td></tr>
+      <tr><td class="key">employee_401k_service <span class="pill platform" style="margin-left:4px;">on hold</span></td><td>api_gateway_service</td><td class="tbd">TBD — needs own LLD</td><td>employee_401k</td><td class="tbd">TBD</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="yes">yes</td><td class="tbd">TBD — maybe</td></tr>
     </tbody>
   </table>
   </div>
@@ -139,6 +149,7 @@
 <section>
   <h2><span class="h2-num">2</span>Common-libs, regrouped <span class="h2-sub">— your existing <code class="mono">common/clients/</code> folders already are the right grouping</span></h2>
   <div class="fix-note"><span>✓</span><div><b>Checked the real code before designing this:</b> <code class="mono">common/clients/</code> already has 9 separate folders — <code class="mono">auth_client, cache_client, ci_client, db_client, email_client, llm_client, mcp_client, storage_client, web_client</code>. That's already the correct grouping. The one earlier mistake was proposing one monolithic <code class="mono">hrb_common_libs</code> — it should be ~10 small, independently-installable packages (these 9 plus a new <code class="mono">observability</code> one), each a repo folder or its own tiny repo, not one grab-bag.</div></div>
+  <div class="fix-note"><span>⚠</span><div><b>Real divergence, 2026-10-23:</b> it shipped as this doc's own earlier mistake, not its correction — one repo, <code class="mono">hrb-common-libs</code>, with the 10 areas as pip <em>extras</em> (<span class="mono">hrb-common-libs[observability,db,cache,llm,mcp,auth,vectorstore,web,storage,email]</span>) rather than 10 independently-installable packages. Each service's own <span class="mono">requirements.txt</span> still only requests the extras it actually needs, so the practical effect (no service pulling in a dependency it doesn't use) is the same either way — but it's one git-tag-pinned repo/version (currently v0.4.0) for everyone, not independently-versioned packages.</div></div>
   <div class="table-wrap">
   <table class="data-table">
     <thead><tr><th>Package</th><th>From</th><th>Needed by</th><th>NOT needed by</th></tr></thead>
@@ -218,13 +229,14 @@
 </section>
 
 <section>
-  <h2><span class="h2-num">5</span>Platform components, built separately <span class="h2-sub">— confirmed, with one clarification</span></h2>
-  <div class="fix-note"><span>↳</span><div><b>Recommendation unchanged, tracking made explicit:</b> <code class="mono">platform_interview_qa</code> and <code class="mono">platform_build_deployment</code> stay co-located inside <span class="mono">rag_retrieval_service</span>'s deployable (low-traffic admin features, no case for their own App Runner cost) — but they get their <em>own</em> HLD/LLD doc pair (§4's template) and their own distinct step in the rollout sequence, not folded silently into "build rag_retrieval_service." If you'd rather they be fully separate deployables for stronger isolation, that's the alternative — same AWS-cost tradeoff flagged in the first doc applies.</div></div>
+  <h2><span class="h2-num">5</span>Platform components <span class="h2-sub">— resolved 2026-10-23: the alternative was chosen, not the recommendation</span></h2>
+  <div class="fix-note"><span>⚠</span><div><b>Real outcome:</b> <code class="mono">platform_interview_qa</code> and <code class="mono">platform_build_deployment</code> (plus <code class="mono">platform_admin_controls</code>-shaped features) did <b>not</b> stay co-located inside <span class="mono">rag_retrieval_service</span>'s deployable as this section recommended — they became their own fully separate service, <span class="mono">hrb_platform_components</span>, built and deployed independently (its own ECR repo, App Runner service, CI/CD). The "stronger isolation" alternative this section offered as a fallback is the one that actually happened, AWS-cost tradeoff accepted. One known gap, flagged not fixed: 3 admin routes (admin-docs-sync-to-S3, request-metrics, FAQ submissions) still have no confirmed home in either <span class="mono">hrb_platform_components</span> or <span class="mono">rag_retrieval_service</span>.</div></div>
+  <div class="fix-note"><span>↳</span><div><b>Original recommendation, for the record:</b> stay co-located inside <span class="mono">rag_retrieval_service</span>'s deployable (low-traffic admin features, no case for their own App Runner cost) — but get their <em>own</em> HLD/LLD doc pair (§4's template) and their own distinct step in the rollout sequence, not folded silently into "build rag_retrieval_service."</div></div>
 </section>
 
-<div class="ribbon">Three companion docs now cover: what &amp; why (<span class="mono">service-boundary-decision</span>), how &amp; when (<span class="mono">microservices-rollout-plan</span>), and who-talks-to-whom + what template each service's docs must follow (this one)</div>
+<div class="ribbon">2026-10-23: 6 of the 7 planned services are now real, built, and deployed — see the status banner at the top for exactly what matches this matrix and what diverged</div>
 
-<footer>Companion to <code>service-boundary-decision.html</code> and <code>microservices-rollout-plan.html</code> · full discussion in-session</footer>
+<footer>Reference written in-session 2026-10-21, real status added 2026-10-23 · companion to <code>service-boundary-decision.html</code> and <code>microservices-rollout-plan.html</code></footer>
 
 </div>
 </body>

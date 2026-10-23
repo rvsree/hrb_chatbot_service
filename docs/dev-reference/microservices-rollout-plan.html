@@ -106,16 +106,28 @@
   .ribbon .mono { font-weight: 500; opacity: 0.85; font-size: 11.5px; }
   footer { font-size: 11px; color: var(--text-faint); text-align: center; padding-top: 4px; }
   footer code { font-family: 'IBM Plex Mono', monospace; }
+  .status-banner { background: var(--now-bg); border: 1.5px solid var(--now-border); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--shadow); }
+  .status-banner .btitle { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 14px; color: var(--now); display: flex; align-items: center; gap: 8px; }
+  .status-banner p { margin: 0; font-size: 12px; color: var(--text); line-height: 1.6; }
+  .status-banner .mono { font-weight: 600; }
 </style>
 </head>
 <body>
 <div class="wrap">
 
 <header>
-  <span class="eyebrow">hrb_chatbot_service · execution plan · 2026-10-20</span>
+  <span class="eyebrow">hrb_chatbot_service · execution plan, written 2026-10-20 · real status added 2026-10-23</span>
   <h1>Microservices Rollout Plan</h1>
   <p class="subtitle">Companion to <span class="mono">service-boundary-decision.html</span> — that doc decided <em>what</em> the services and schemas are; this one covers <em>how</em> to build them: shared libraries, final schema naming, the dependency-ordered sequence, and the HLD/LLD documentation every service needs regardless of whether it already exists.</p>
 </header>
+
+<div class="status-banner">
+  <span class="btitle">✓ Real status, 2026-10-23 — Phases 0-2 are done and live; everything below this banner is the original plan, kept as the historical record</span>
+  <p><b>Phase 0</b> — <span class="mono">hrb-common-libs</span> exists, tagged v0.4.0, used by every new service below. Schema regrouping (§2) was built and verified against a local Postgres (Phase 251 of <span class="mono">hrb_chatbot_service</span>) but deliberately <b>never applied to production</b> — Neon's pooled connection endpoint rejects the <span class="mono">search_path</span> option this needs, discovered the hard way when an early attempt to ship the connection-option change alone broke every production query for several minutes (hotfixed same session). Production Postgres is still one flat <span class="mono">public</span> schema today.</p>
+  <p><b>Phase 1</b> — <span class="mono">hrb_api_gateway_service</span> is built, deployed, live (<span class="mono">necxf9n7mv.us-east-1.awsapprunner.com</span>), and <span class="mono">hrb_chatbot_ui</span> is cut over to call it instead of the backend directly — the full Phase 1 scope, done, not just the Gateway standing up in isolation.</p>
+  <p><b>Phase 2</b> — Both split services exist, independently deployed. <span class="mono">rag_ingestion_service</span> went all the way to a real cutover: the production SQS trigger was switched from the old Lambda to this service's own, verified via a real S3 upload through the live trigger. <span class="mono">rag_retrieval_service</span> is built, deployed, and independently verified working end-to-end (3 real bugs found via a real multi-turn Playwright suite driving the live UI, all fixed) — but deliberately <b>not yet cut over</b>; <span class="mono">hrb_chatbot_service</span>'s own retrieval code is still what serves production traffic. One real divergence from this plan: <b>Support was not co-located inside <span class="mono">rag_retrieval_service</span></b> as §1/§4 below assumed — it became its own separate service, <span class="mono">hrb_platform_components</span> (also built, deployed, live), not a package inside the retrieval service.</p>
+  <p><b>Phase 3</b> — not started. <span class="mono">chat_audio_service</span>/<span class="mono">employee_401k_service</span> stay on hold per an explicit decision to finish verifying everything already built before starting new capabilities.</p>
+</div>
 
 <section>
   <h2><span class="h2-num">1</span>Shared libraries across services <span class="h2-sub">— share infra &amp; NFR code, not business logic</span></h2>
@@ -160,7 +172,7 @@
   <h2><span class="h2-num">3</span>Dependency-ordered execution sequence <span class="h2-sub">— lowest-risk, additive changes first</span></h2>
   <div class="phase-list">
     <div class="phase-card">
-      <div class="phase-head"><span class="phase-num">0</span><span class="phase-title">Foundations — zero behavior change</span><span class="phase-risk">risk: low</span></div>
+      <div class="phase-head"><span class="phase-num">0</span><span class="phase-title">Foundations — zero behavior change</span><span class="pill done">done — repo+rename, schema local-only</span></div>
       <ul class="phase-steps">
         <li><b>New repo:</b> <span class="mono">hrb_common_libs</span> — extract Base*Client/Gateway code, tag v0.1.0. Touches nothing live yet.</li>
         <li><b>Schema move, same repo:</b> create the 10 schemas above in the existing Neon database, <span class="mono">ALTER TABLE ... SET SCHEMA</span>, update every <span class="mono">*_store.py</span> to qualify table names. Done <em>before</em> any physical service split — isolates this risk from the split's risk.</li>
@@ -169,7 +181,7 @@
     </div>
     <div class="phase-arrow">↓</div>
     <div class="phase-card">
-      <div class="phase-head"><span class="phase-num">1</span><span class="phase-title">api_gateway_service — additive, fronts the still-undivided backend</span><span class="phase-risk">risk: medium</span></div>
+      <div class="phase-head"><span class="phase-num">1</span><span class="phase-title">api_gateway_service — additive, fronts the still-undivided backend</span><span class="pill done">done — live, UI cut over</span></div>
       <ul class="phase-steps">
         <li><b>Prerequisite:</b> Redis live in production (needed for shared rate-limit state) — this was already next in your own deployment-guide order; now it's a hard blocker, not optional.</li>
         <li><b>New repo:</b> <span class="mono">hrb_api_gateway_service</span>. Build RBAC (decide: absorb <span class="mono">api/gateway/rbac.py</span> or coexist), CORS, rate-limit, contract validation.</li>
@@ -178,7 +190,7 @@
     </div>
     <div class="phase-arrow">↓</div>
     <div class="phase-card">
-      <div class="phase-head"><span class="phase-num">2</span><span class="phase-title">Split RAG ingestion / retrieval — the real migration</span><span class="phase-risk">risk: highest</span></div>
+      <div class="phase-head"><span class="phase-num">2</span><span class="phase-title">Split RAG ingestion / retrieval — the real migration</span><span class="pill done">done — ingestion cut over, retrieval built+verified, not yet cut over</span></div>
       <ul class="phase-steps">
         <li><b>New repos</b> (per your own ask — protects the working app): <span class="mono">rag_ingestion_service</span>, <span class="mono">rag_retrieval_service</span>, each depending on <span class="mono">hrb_common_libs</span>.</li>
         <li>Move <span class="mono">ai/doc_processing/**</span> + ingestion routes → ingestion repo. Move <span class="mono">ai/rag_pipeline/**</span> + <span class="mono">ai/agents/**</span> + retrieval routes + <span class="mono">api/admin/**</span> (Support, co-located) → retrieval repo.</li>
@@ -189,7 +201,7 @@
     </div>
     <div class="phase-arrow">↓</div>
     <div class="phase-card">
-      <div class="phase-head"><span class="phase-num">3</span><span class="phase-title">New capabilities — build fresh, no migration risk</span><span class="phase-risk">risk: low (isolated)</span></div>
+      <div class="phase-head"><span class="phase-num">3</span><span class="phase-title">New capabilities — build fresh, no migration risk</span><span class="pill todo">on hold, by choice</span></div>
       <ul class="phase-steps">
         <li><span class="mono">chat_audio_service</span>, <span class="mono">employee_401k_service</span> — new repos, depend on <span class="mono">hrb_common_libs</span>. Can start in parallel with Phase 1/2 since they touch no existing working code.</li>
       </ul>
@@ -204,23 +216,24 @@
   <table class="data-table">
     <thead><tr><th>Service</th><th>HLD</th><th>LLD</th><th>Notes</th></tr></thead>
     <tbody>
-      <tr><td class="key">hrb_chatbot_service (pre-split)</td><td><span class="pill partial">partial</span></td><td><span class="pill partial">partial</span></td><td>CLAUDE.md + RAG-ROADMAP.md cover it today; needs a re-scope note once Phase 2 lands</td></tr>
-      <tr><td class="key">rag_ingestion_service</td><td><span class="pill todo">needed</span></td><td><span class="pill todo">needed</span></td><td>new</td></tr>
-      <tr><td class="key">rag_retrieval_service</td><td><span class="pill todo">needed</span></td><td><span class="pill todo">needed</span></td><td>new — largest scope, include Support's internal boundary</td></tr>
-      <tr><td class="key">api_gateway_service</td><td><span class="pill todo">needed</span></td><td><span class="pill todo">needed</span></td><td>new</td></tr>
-      <tr><td class="key">hrb_lms_mcp</td><td><span class="pill partial">partial</span></td><td><span class="pill todo">needed</span></td><td>deployment-guide doc 11 covers deploy only, not design</td></tr>
-      <tr><td class="key">chat_audio_service</td><td><span class="pill none">none</span></td><td><span class="pill none">none</span></td><td>not started</td></tr>
-      <tr><td class="key">employee_401k_service</td><td><span class="pill partial">partial</span></td><td><span class="pill todo">needed</span></td><td>design docs exist (401k-loan-agent/) but predate this rename/rescope</td></tr>
-      <tr><td class="key">hrb_common_libs</td><td><span class="pill none">none</span></td><td><span class="pill none">none</span></td><td>not started — not a running service, but still needs its own reference doc</td></tr>
+      <tr><td class="key">hrb_chatbot_service (pre-split)</td><td><span class="pill partial">partial</span></td><td><span class="pill partial">partial</span></td><td>CLAUDE.md + RAG-ROADMAP.md cover it today; still the live production backend for retrieval traffic</td></tr>
+      <tr><td class="key">rag_ingestion_service</td><td><span class="pill done">built, live</span></td><td><span class="pill done">built, live</span></td><td>deployed, real cutover done (SQS trigger switched)</td></tr>
+      <tr><td class="key">rag_retrieval_service</td><td><span class="pill done">built, live</span></td><td><span class="pill done">built, live</span></td><td>deployed, independently verified - not yet cut over</td></tr>
+      <tr><td class="key">api_gateway_service</td><td><span class="pill done">built, live</span></td><td><span class="pill done">built, live</span></td><td>deployed, UI cut over to it</td></tr>
+      <tr><td class="key">hrb_platform_components</td><td><span class="pill done">built, live</span></td><td><span class="pill done">built, live</span></td><td>not in this plan's original service list - emerged as its own separate service rather than co-located inside rag_retrieval_service, see §4 of microservices-interface-matrix.html</td></tr>
+      <tr><td class="key">hrb_lms_mcp</td><td><span class="pill done">built, live</span></td><td><span class="pill partial">partial</span></td><td>deployed to AWS (deployment-guide doc 11), real app-to-app OAuth2 live</td></tr>
+      <tr><td class="key">chat_audio_service</td><td><span class="pill none">none</span></td><td><span class="pill none">none</span></td><td>not started, on hold by choice</td></tr>
+      <tr><td class="key">employee_401k_service</td><td><span class="pill partial">partial</span></td><td><span class="pill todo">needed</span></td><td>design docs exist (401k-loan-agent/), not started, on hold by choice</td></tr>
+      <tr><td class="key">hrb-common-libs</td><td><span class="pill done">built</span></td><td><span class="pill done">built</span></td><td>tagged v0.4.0, used by every new service above - not a running service, no deploy target</td></tr>
     </tbody>
   </table>
   </div>
   <p style="margin:0;font-size:11.5px;color:var(--text-muted);line-height:1.5;">Recommend extending the existing <span class="mono">docs/dev-reference/&lt;feature&gt;/</span> convention (Overview/Spec/Design/Decisions tabs) rather than inventing a new format — a new <span class="mono">docs/dev-reference/microservices/&lt;service&gt;/</span> folder per service, same tabs, Overview+Architecture standing in for HLD and Spec+Design for LLD. Every service gets one, including today's working ones — the point is catching "built vs. missing vs. built wrong vs. needs to change for its new scope," which existing docs don't yet answer at the service level.</p>
 </section>
 
-<div class="ribbon">Next concrete step: Phase 0 — <span class="mono">hrb_common_libs</span> repo + schema migration script, before anything else moves</div>
+<div class="ribbon">Next concrete step: decide whether/when to cut rag_retrieval_service over to production traffic - it's built, deployed, and verified, just deliberately not yet live</div>
 
-<footer>Companion to <code>service-boundary-decision.html</code> · full discussion in-session</footer>
+<footer>Companion to <code>service-boundary-decision.html</code> · plan written in-session 2026-10-20 · real status added 2026-10-23</footer>
 
 </div>
 </body>

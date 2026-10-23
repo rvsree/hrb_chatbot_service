@@ -147,13 +147,17 @@
   .ribbon .mono { font-weight: 500; opacity: 0.85; font-size: 11.5px; }
   footer { font-size: 11px; color: var(--text-faint); text-align: center; padding-top: 4px; }
   footer code { font-family: 'IBM Plex Mono', monospace; }
+  .status-banner { background: var(--now-bg); border: 1.5px solid var(--now-border); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--shadow); }
+  .status-banner .btitle { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 14px; color: var(--now); display: flex; align-items: center; gap: 8px; }
+  .status-banner p { margin: 0; font-size: 12px; color: var(--text); line-height: 1.6; }
+  .status-banner .mono { font-weight: 600; }
 </style>
 </head>
 <body>
 <div class="wrap">
 
 <header>
-  <span class="eyebrow">hrb_chatbot_service · architecture decision · revised 2026-10-20</span>
+  <span class="eyebrow">hrb_chatbot_service · architecture decision, revised 2026-10-20 · real status added 2026-10-23</span>
   <h1>Module Boundary Plan</h1>
   <p class="subtitle">v4 — rename cost-checked, each service clearly described, BFF's case re-evaluated as a real API Gateway (not just UI aggregation), tech-neutral naming, and the blind spots this design still has.</p>
   <div class="legend">
@@ -165,6 +169,11 @@
     <span class="legend-item"><span class="dot unknown"></span>Unverified — needs you</span>
   </div>
 </header>
+
+<div class="status-banner">
+  <span class="btitle">✓ Real status, 2026-10-23 — 6 of the 7 planned services are now real and deployed</span>
+  <p><code class="mono">rag_ingestion_service</code>, <code class="mono">rag_retrieval_service</code>, and <code class="mono">api_gateway_service</code> all moved from PLANNED to built, deployed, and live - matching the split §1 recommended. One real divergence from this doc's own §1 call ("Support is not its own service"): Support <b>did</b> become its own separate deployable, <code class="mono">hrb_platform_components</code> - not co-located inside <code class="mono">rag_retrieval_service</code> as recommended here. <code class="mono">hrb_lms_mcp</code>'s own AWS deploy (flagged as "still your open plan" below) is also done, with real app-to-app OAuth2 live between it and the backend. <code class="mono">chat_audio_service</code>/<code class="mono">employee_401k_service</code> remain not started, on hold by explicit choice - this doc's "7 real services" ceiling is still accurate, just with 6 of 7 done instead of 3.</p>
+</div>
 
 <div class="quickfact">
   <span class="qtitle">Renaming <code class="mono">hrb_chatbot_service</code> → <code class="mono">hrb_chatbot_service</code> — verified cost, cheaper than it looks</span>
@@ -184,33 +193,35 @@
     <div class="service-card exists"><span class="status-tag">EXISTS</span><span class="sname">hrb_chatbot_ui</span><span class="sdesc">Frontend SPA — React / S3 + CloudFront</span></div>
     <div class="service-card exists"><span class="status-tag">EXISTS*</span><span class="sname">hrb_lms_mcp</span><span class="sdesc">MCP server — built &amp; proven locally; AWS wiring is your still-open plan</span></div>
   </div>
-  <div class="split-arrow">↓ recommended split of hrb_chatbot_service ↓</div>
+  <div class="split-arrow">↓ recommended split of hrb_chatbot_service — done, 2026-10-23 ↓</div>
   <div class="service-grid">
-    <div class="service-card planned"><span class="status-tag">PLANNED</span><span class="sname">rag_ingestion_service</span><span class="sdesc">does: extract → chunk → embed → index. Bursty, admin-triggered, Lambda-shaped (doc 5's design)</span></div>
-    <div class="service-card planned"><span class="status-tag">PLANNED</span><span class="sname">rag_retrieval_service</span><span class="sdesc">does: decompose → retrieve → generate, incl. single/multi-agentic-rag + HITL + conversation memory. Always-on, the real 1000s-of-users path</span></div>
+    <div class="service-card exists"><span class="status-tag">BUILT, LIVE</span><span class="sname">rag_ingestion_service</span><span class="sdesc">does: extract → chunk → embed → index. Deployed, real cutover done (SQS trigger switched from the old Lambda)</span></div>
+    <div class="service-card exists"><span class="status-tag">BUILT, LIVE</span><span class="sname">rag_retrieval_service</span><span class="sdesc">does: decompose → retrieve → generate, incl. single/multi-agentic-rag + HITL + conversation memory. Deployed, independently verified - not yet cut over</span></div>
   </div>
-  <div class="fix-note"><span>↳</span><div><b>Support is not its own service.</b> CI/CD dashboard, interview-qa, mcp-tools, admin docs — co-located inside <code class="mono">rag_retrieval_service</code> as a clean internal package, not a separate deployable (low-traffic, no independent scaling need).</div></div>
+  <div class="fix-note"><span>⚠</span><div><b>Real divergence from this call:</b> Support did <b>not</b> stay co-located inside <code class="mono">rag_retrieval_service</code> - it became its own separate service, <code class="mono">hrb_platform_components</code> (CI/CD dashboard, interview-qa, mcp-tools, admin docs), built and deployed independently. See <code class="mono">microservices-interface-matrix.html</code> §5 for the original co-location call this reversed.</div></div>
   <div class="service-grid">
-    <div class="service-card planned"><span class="status-tag">PROMOTED</span><span class="sname">api_gateway_service <span style="font-weight:500;opacity:.7;">(fka BFF)</span></span><span class="sdesc">Gateway half (session/RBAC/CORS/rate-limit/contract validation) is valid now, even with one backend. Aggregation half still waits for more backends — see §4</span></div>
-    <div class="service-card planned"><span class="status-tag">PLANNED</span><span class="sname">chat_audio_service</span><span class="sdesc">new capability — no code yet</span></div>
-    <div class="service-card planned"><span class="status-tag">PLANNED</span><span class="sname">employee_401k_service</span><span class="sdesc">new capability — hub + sub-agents (loan, withdrawal, transfer, retirement), design docs only</span></div>
+    <div class="service-card exists"><span class="status-tag">BUILT, LIVE</span><span class="sname">api_gateway_service <span style="font-weight:500;opacity:.7;">(fka BFF)</span></span><span class="sdesc">Gateway half (session/RBAC/CORS/rate-limit/contract validation) built and live; <span class="mono">hrb_chatbot_ui</span> cut over to it. Aggregation half still waits for more backends — see §4</span></div>
+    <div class="service-card exists"><span class="status-tag">BUILT, LIVE</span><span class="sname">hrb_platform_components</span><span class="sdesc">not in this doc's original inventory — Support became its own service instead of co-locating (see note above)</span></div>
+    <div class="service-card planned"><span class="status-tag">ON HOLD</span><span class="sname">chat_audio_service</span><span class="sdesc">new capability — no code yet, on hold by choice</span></div>
+    <div class="service-card planned"><span class="status-tag">ON HOLD</span><span class="sname">employee_401k_service</span><span class="sdesc">new capability — hub + sub-agents (loan, withdrawal, transfer, retirement), design docs only, on hold by choice</span></div>
   </div>
   <div class="schema-wrap">
   <table class="schema-table">
     <thead><tr><th>#</th><th>Service</th><th>Status</th><th>Notes</th></tr></thead>
     <tbody>
-      <tr><td>1</td><td class="schema-name">hrb_chatbot_service</td><td><span class="status-chip exists">exists</span></td><td>today's one deployable — splits into #4 + #5 if you proceed</td></tr>
-      <tr><td>2</td><td class="schema-name">hrb_chatbot_ui</td><td><span class="status-chip exists">exists</span></td><td>frontend, unaffected by this plan</td></tr>
-      <tr><td>3</td><td class="schema-name">hrb_lms_mcp</td><td><span class="status-chip exists">exists*</span></td><td>code built, local-proven; AWS deploy still pending (separate open plan)</td></tr>
-      <tr><td>4</td><td class="schema-name">rag_ingestion_service</td><td><span class="status-chip planned">planned</span></td><td>recommended near-term split of #1</td></tr>
-      <tr><td>5</td><td class="schema-name">rag_retrieval_service</td><td><span class="status-chip planned">planned</span></td><td>recommended near-term split of #1; houses Support internally</td></tr>
-      <tr><td>6</td><td class="schema-name">api_gateway_service</td><td><span class="status-chip planned">promoted</span></td><td>Gateway half recommended soon (§4) — not conditional anymore</td></tr>
-      <tr><td>7</td><td class="schema-name">chat_audio_service</td><td><span class="status-chip planned">planned</span></td><td>future capability, no code yet</td></tr>
-      <tr><td>8</td><td class="schema-name">employee_401k_service</td><td><span class="status-chip planned">planned</span></td><td>future capability, design-only</td></tr>
+      <tr><td>1</td><td class="schema-name">hrb_chatbot_service</td><td><span class="status-chip exists">exists</span></td><td>still live — the production backend for retrieval traffic, pending rag_retrieval_service's cutover</td></tr>
+      <tr><td>2</td><td class="schema-name">hrb_chatbot_ui</td><td><span class="status-chip exists">exists</span></td><td>frontend, now cut over to call api_gateway_service instead of #1 directly</td></tr>
+      <tr><td>3</td><td class="schema-name">hrb_lms_mcp</td><td><span class="status-chip exists">exists</span></td><td>deployed to AWS, real app-to-app OAuth2 live</td></tr>
+      <tr><td>4</td><td class="schema-name">rag_ingestion_service</td><td><span class="status-chip exists">built, live</span></td><td>deployed, real cutover done (SQS trigger switched)</td></tr>
+      <tr><td>5</td><td class="schema-name">rag_retrieval_service</td><td><span class="status-chip exists">built, live</span></td><td>deployed, independently verified — not yet cut over. Does NOT house Support (see note above)</td></tr>
+      <tr><td>6</td><td class="schema-name">api_gateway_service</td><td><span class="status-chip exists">built, live</span></td><td>deployed, UI cut over to it</td></tr>
+      <tr><td>7</td><td class="schema-name">hrb_platform_components</td><td><span class="status-chip exists">built, live</span></td><td>not in this doc's original inventory — houses what Support was meant to be</td></tr>
+      <tr><td>8</td><td class="schema-name">chat_audio_service</td><td><span class="status-chip planned">on hold</span></td><td>future capability, no code yet</td></tr>
+      <tr><td>9</td><td class="schema-name">employee_401k_service</td><td><span class="status-chip planned">on hold</span></td><td>future capability, design-only</td></tr>
     </tbody>
   </table>
   </div>
-  <p style="margin:0;font-size:11.5px;color:var(--text-muted);line-height:1.5;">Count: <b>3 exist today</b>; ceiling if everything gets built is still <b>7 real services</b> — same number as before, now with the Gateway service's timeline moved up and every name saying what it does.</p>
+  <p style="margin:0;font-size:11.5px;color:var(--text-muted);line-height:1.5;">Count, 2026-10-23: <b>7 exist today</b> (one more than this doc's own "7 real services" ceiling predicted, since Support became its own service rather than folding into #5); 2 remain on hold by explicit choice.</p>
 </section>
 
 <section>
@@ -232,7 +243,8 @@
 </section>
 
 <section>
-  <h2><span class="h2-num">3</span>Postgres schema map <span class="h2-sub">— two-word names, verified: every table is in <code class="mono">public</code> today, none are grouped</span></h2>
+  <h2><span class="h2-num">3</span>Postgres schema map <span class="h2-sub">— two-word names; still accurate for PRODUCTION as of 2026-10-23, see note below</span></h2>
+  <div class="fix-note"><span>⚠</span><div><b>2026-10-23:</b> the grouping below was built and verified against a <b>local</b> Postgres (Phase 251 of <code class="mono">hrb_chatbot_service</code>'s own ROADMAP) but deliberately never applied to production. The connection-option change this needs (<code class="mono">-c search_path=...</code>) was shipped to production once, independently of the actual schema migration SQL — Neon's pooled connection endpoint rejects that option outright, which broke every production query for several minutes before being hotfixed. Production Postgres is still one flat <code class="mono">public</code> schema, exactly as this section describes — so this table remains the real, current state, not stale.</div></div>
   <div class="schema-wrap">
   <table class="schema-table">
     <thead><tr><th>Schema</th><th>Tables (real, found in code)</th><th>Status</th></tr></thead>
@@ -263,13 +275,14 @@
 </section>
 
 <section>
-  <h2><span class="h2-num">4</span>BFF re-evaluated as a real API Gateway <span class="h2-sub">— case got stronger, promoted from "defer"</span></h2>
-  <div class="fix-note"><span>↳</span><div><b>Your framing changes the recommendation.</b> Classic BFF (data-shaping for one frontend) needs multiple backends to aggregate — that's why it was "defer." But Session/State, RBAC, CORS, rate-limiting, and contract validation are <em>Gateway</em> concerns, not aggregation — those are valid with just one backend behind it. Splitting the name in two: <code class="mono">api_gateway_service</code> (promoted, build this sooner) handles the cross-cutting concerns now; the aggregation half stays conditional until rag_ingestion/rag_retrieval/hrb_lms_mcp/chat_audio/employee_401k are all real separate services worth combining for the UI.</div></div>
+  <h2><span class="h2-num">4</span>BFF re-evaluated as a real API Gateway <span class="h2-sub">— case got stronger, promoted from "defer" — now built</span></h2>
+  <div class="fix-note"><span>✓</span><div><b>Done, 2026-10-23:</b> <code class="mono">hrb_api_gateway_service</code> is built, deployed, and <code class="mono">hrb_chatbot_ui</code> is cut over to it. The Gateway-concerns half (RBAC, CORS, rate-limit, contract validation) described below is real, not just planned. The aggregation half is still conditional/not built, same as this doc originally said — the Gateway today forwards 1:1 to a single configurable backend, it doesn't yet combine multiple backends' responses for the UI.</div></div>
+  <div class="fix-note"><span>↳</span><div><b>Original framing, for the record:</b> Classic BFF (data-shaping for one frontend) needs multiple backends to aggregate — that's why it was "defer." But Session/State, RBAC, CORS, rate-limiting, and contract validation are <em>Gateway</em> concerns, not aggregation — those are valid with just one backend behind it. Splitting the name in two: <code class="mono">api_gateway_service</code> (promoted, build this sooner) handles the cross-cutting concerns now; the aggregation half stays conditional until rag_ingestion/rag_retrieval/hrb_lms_mcp/chat_audio/employee_401k are all real separate services worth combining for the UI.</div></div>
   <div class="ceiling-grid">
     <div class="ceiling-card solved"><span class="ctitle">✓ Decouples backend services</span><p>Backend services stop each owning CORS/RBAC/rate-limit code — they focus on business logic. Each one can lock its own CORS down to only accept traffic from the Gateway, not the public internet.</p></div>
-    <div class="ceiling-card unsolved"><span class="ctitle">⚠ Don't rebuild the statefulness problem</span><p>If the Gateway holds session state in-process, you've just moved the "not horizontally scalable" problem up a layer. Session state needs to live in Postgres/Redis, same as everything else — not in the Gateway's own memory.</p></div>
-    <div class="ceiling-card unsolved"><span class="ctitle">⚠ Naming collision with today's code</span><p><code class="mono">api/gateway/rbac.py</code> already exists and already means "RBAC gateway." A new, separate <code class="mono">api_gateway_service</code> needs an explicit decision: does it replace/absorb <code class="mono">rbac.py</code>'s role, or do the two coexist with different jobs?</p></div>
-    <div class="ceiling-card unsolved"><span class="ctitle">⚠ Placeholder auth vs. real auth</span><p>CLAUDE.md is explicit today's RBAC is a self-asserted placeholder, real OAuth2 deferred. Building a real Gateway is the natural moment to finally implement real human-to-app auth — not just relocate the same placeholder.</p></div>
+    <div class="ceiling-card solved"><span class="ctitle">✓ Statefulness — resolved as recommended</span><p>Rate-limit state lives in Redis, not the Gateway's own memory — confirmed via its real Phase 1 build.</p></div>
+    <div class="ceiling-card solved"><span class="ctitle">✓ Naming collision — resolved: absorbed, 2026-10-23</span><p><code class="mono">api_gateway_service</code>'s own Phase 2 absorbed <code class="mono">api/gateway/rbac.py</code>'s role rather than coexisting with it — one RBAC mechanism, not two.</p></div>
+    <div class="ceiling-card unsolved"><span class="ctitle">⚠ Placeholder auth vs. real auth — still placeholder, 2026-10-23</span><p>Still accurate: human-to-app OAuth2 was explicitly deferred (user-confirmed decision, 2026-10-22) - employee/manager/hr_support roles stay self-asserted even through the new Gateway. Only admin keeps its own real secret_code auth. Building the Gateway did not change this.</p></div>
   </div>
   <p style="margin:0;font-size:11.5px;color:var(--text-muted);line-height:1.5;">Rate-limiting at the Gateway needs Redis live in prod to share limit state across replicas — ties directly into the still-open Redis gap below. Scope note: the Gateway fronts browser/UI traffic only — service-to-service calls (hrb_chatbot_service → hrb_lms_mcp) keep their own OAuth2 client-credentials auth and bypass it.</p>
 </section>
@@ -317,9 +330,9 @@
   </div></div>
 </section>
 
-<div class="ribbon">Recommendation unchanged: <span class="mono">modular monolith</span> for RAG core, Gateway promoted to near-term, naming tech-neutral throughout, 5 blind spots flagged for your call</div>
+<div class="ribbon">2026-10-23: the split actually happened — 6 of 7 planned services are built and deployed; see the status banner at the top for what changed along the way</div>
 
-<footer>Full discussion in-session · companion to <code>docs/agent-reference/RAG-ROADMAP.md</code> and <code>docs/dev-reference/deployment-guide/</code></footer>
+<footer>Decision written in-session 2026-10-20, real status added 2026-10-23 · companion to <code>docs/agent-reference/RAG-ROADMAP.md</code> and <code>docs/dev-reference/deployment-guide/</code></footer>
 
 </div>
 </body>
