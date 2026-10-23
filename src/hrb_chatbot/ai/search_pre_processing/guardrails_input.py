@@ -16,14 +16,19 @@ CONFIG_PATH = Path(__file__).resolve().parents[1] / "guardrails_config"
 
 # Phase 243's own real default - must match ai/guardrails_config/config.yml's
 # models[0].model exactly, since this is what "no override given" resolves to.
-DEFAULT_GUARDRAILS_MODEL = "gpt-4.1-nano"
+# 2026-10-23 HOTFIX: was "gpt-4.1-nano" - OpenAI shut that model down today
+# (confirmed live: GET /v1/models/gpt-4.1-nano returns shutdown_date
+# 2026-10-23, and every real guardrail call started 404ing in production
+# within hours of that). gpt-4.1-mini has a shutdown_date of 2027-01-14 -
+# confirmed live the same way before picking it.
+DEFAULT_GUARDRAILS_MODEL = "gpt-4.1-mini"
 
 
 def supported_guardrails_models() -> list[str]:
     """Phase 244 - exposed (not private) so GET /health (api/admin/health_checks.py)
     can surface the same real allow-list the frontend's Settings -> Model dropdown
     reads from and this module validates guardrails_model against."""
-    raw = read_setting(None, "GUARDRAILS_SUPPORTED_MODELS", f"{DEFAULT_GUARDRAILS_MODEL},gpt-4.1-mini")
+    raw = read_setting(None, "GUARDRAILS_SUPPORTED_MODELS", f"{DEFAULT_GUARDRAILS_MODEL},gpt-4.1")
     return [model.strip() for model in raw.split(",") if model.strip()]
 
 

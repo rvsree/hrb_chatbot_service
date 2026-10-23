@@ -96,13 +96,13 @@ class ClassificationOptions(BaseModel):
         None,
         max_length=100,
         description="genai-rag only - override the model used for query decomposition (Phase 130). "
-        "Defaults to OPENAI_DECOMPOSE_MODEL, then gpt-4.1-nano.",
+        "Defaults to OPENAI_DECOMPOSE_MODEL, then OPENAI_CHAT_MODEL.",
     )
     planner_model: str | None = Field(
         None,
         max_length=100,
         description="multi-agentic-rag only - override the model used for the Planner Agent's routing "
-        "step (Phase 65). Defaults to OPENAI_PLANNER_MODEL, then gpt-4.1-nano.",
+        "step (Phase 65). Defaults to OPENAI_PLANNER_MODEL, then OPENAI_CHAT_MODEL.",
     )
 
 

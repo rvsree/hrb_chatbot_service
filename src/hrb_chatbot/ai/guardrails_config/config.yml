@@ -5,7 +5,9 @@ models:
     # onto the cheap model like the Planner/decompose steps. No request-level
     # override here (see RAG-ROADMAP.md Phase 243's "Out of scope" - this is a
     # static YAML loaded into a cached LLMRails singleton, not per-call).
-    model: gpt-4.1-nano
+    # 2026-10-23 HOTFIX: was gpt-4.1-nano, shut down by OpenAI today - see
+    # guardrails_input.py's own DEFAULT_GUARDRAILS_MODEL comment.
+    model: gpt-4.1-mini
 
 rails:
   input:
