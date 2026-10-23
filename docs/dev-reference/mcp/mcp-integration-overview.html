@@ -94,7 +94,7 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">how hrb_chatbot_v2 talks to real MCP servers - the full picture, four phases</div>
+    <div class="eyebrow">how hrb_chatbot_service talks to real MCP servers - the full picture, four phases</div>
     <h1 class="display">MCP Integration Overview</h1>
     <p class="subtitle">Three phases shipped and live-verified against the real, running <span class="mono">hrb_lms_mcp</span> server this session; one more parked as a spec for later. Each phase is a separate concern - routing decides <em>when</em> to call MCP, the registry tracks <em>what's</em> reachable, auth decides <em>who's</em> allowed.</p>
     <div class="legend">
@@ -177,7 +177,7 @@
       <div class="panel-title"><span class="name display">Phase 50 - Server/Tool Registry</span><span class="sub">reused tables, not new ones - the same pattern as the user's own v1 project</span></div>
       <span class="panel-badge live">Live</span>
     </div>
-    <p style="margin:0; font-size:12.5px; color:var(--text-muted); line-height:1.55;">At every <span class="mono">hrb_chatbot_v2</span> startup, a real <span class="mono">tools/list</span> call populates <span class="mono">hr_chatbot.app_tracking</span>'s existing (previously empty) <span class="mono">mcp_server_registry</span>/<span class="mono">mcp_tools_registry</span>/<span class="mono">mcp_server_connections</span> tables - not hand-maintained, not simulated. A down server records a failed connection attempt and the app starts anyway.</p>
+    <p style="margin:0; font-size:12.5px; color:var(--text-muted); line-height:1.55;">At every <span class="mono">hrb_chatbot_service</span> startup, a real <span class="mono">tools/list</span> call populates <span class="mono">hr_chatbot.app_tracking</span>'s existing (previously empty) <span class="mono">mcp_server_registry</span>/<span class="mono">mcp_tools_registry</span>/<span class="mono">mcp_server_connections</span> tables - not hand-maintained, not simulated. A down server records a failed connection attempt and the app starts anyway.</p>
     <div class="grid">
       <div class="card">
         <div class="card-label">Real numbers, last verified run</div>

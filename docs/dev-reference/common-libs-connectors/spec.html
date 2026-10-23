@@ -1,0 +1,141 @@
+<title>Common-Libs Connectors - Spec</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --accent: #4a6fa5; --accent-bg: #e8eef6; --accent-border: #c3d2e5;
+    --must: #147a4a; --must-bg: #e3f5eb; --must-border: #b5e3c8;
+    --should: #9a5a0c; --should-bg: #fbf1dd; --should-border: #edd6a2;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+      --must: #52c98a; --must-bg: #12261a; --must-border: #1f4530;
+      --should: #e0ac48; --should-bg: #2c2311; --should-border: #4a3a17;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+    --must: #52c98a; --must-bg: #12261a; --must-border: #1f4530;
+    --should: #e0ac48; --should-bg: #2c2311; --should-border: #4a3a17;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0b2b25;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+  section.panel { display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; }
+  .panel-num { width: 28px; height: 28px; border-radius: 8px; background: var(--band-dark); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 12.5px; }
+  .panel-title { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 15.5px; }
+  .panel p { margin: 0; font-size: 13.5px; color: var(--text-muted); line-height: 1.6; }
+  .panel ul { margin: 0; padding-left: 20px; font-size: 13px; color: var(--text-muted); line-height: 1.75; }
+  .panel li { margin-bottom: 4px; }
+  .panel li b { color: var(--text); }
+  .pri { font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 999px; margin-right: 6px; }
+  .pri.must { background: var(--must-bg); border: 1px solid var(--must-border); color: var(--must); }
+  .pri.should { background: var(--should-bg); border: 1px solid var(--should-border); color: var(--should); }
+  footer { border-top: 1px solid var(--border); padding-top: 14px; font-size: 11.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">spec</div>
+    <h1 class="display">Common-Libs Connectors — Spec</h1>
+    <p class="subtitle">Requirements and constraints for the shared connector package, extracted from and replacing nine existing common/clients/ folders.</p>
+    <div class="doc-nav">
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=common-libs-connectors&type=overview" target="_blank" rel="noopener noreferrer">Overview</a>
+      <span class="doc-nav-item current">Spec</span>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=common-libs-connectors&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=common-libs-connectors&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=common-libs-connectors&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head"><span class="panel-num">1</span><span class="panel-title">Personas</span></div>
+    <p>Same as NFR Components - the builder of each new service, deciding at its first commit which backends it's actually allowed to touch.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><span class="panel-num">2</span><span class="panel-title">Functional requirements</span></div>
+    <ul>
+      <li><span class="pri must">MUST</span>Each of the 10 extras (<span class="mono">observability, db, cache, llm, mcp, storage, web, auth, email, ci</span>) is independently pip-installable via <span class="mono">hrb_common_libs[extra_name]</span>.</li>
+      <li><span class="pri must">MUST</span>Installing any extra other than <span class="mono">observability</span> transitively installs <span class="mono">observability</span> - every connector call is loggable/retryable by default.</li>
+      <li><span class="pri must">MUST</span>Installing the <span class="mono">db</span> extra does not pull in <span class="mono">llm</span>, <span class="mono">mcp</span>, or any other unrelated extra - no accidental coupling.</li>
+      <li><span class="pri must">MUST</span>Every public class/function keeps the existing <span class="mono">Base*Client</span> ABC + Gateway shape already proven in this codebase - this is an extraction, not a redesign.</li>
+      <li><span class="pri should">SHOULD</span>Each extra's connector classes accept a constructor-injected logger/retry policy from the <span class="mono">observability</span> extra rather than instantiating their own.</li>
+    </ul>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><span class="panel-num">3</span><span class="panel-title">Acceptance criteria</span></div>
+    <ul>
+      <li><span class="mono">pip install hrb_common_libs[db]</span> in a clean virtualenv does not install <span class="mono">openai</span>, <span class="mono">mcp</span>, <span class="mono">boto3</span>, or <span class="mono">tavily-python</span> as transitive dependencies.</li>
+      <li>A diff to <span class="mono">hrb_common_libs</span>'s <span class="mono">llm</span> extra that doesn't touch <span class="mono">db</span>/<span class="mono">cache</span>/etc. does not force a version bump for a service that only installed <span class="mono">db</span>.</li>
+      <li>Every extracted client's existing test suite (currently in <span class="mono">tests/hrb_chatbot/common/clients/</span>) passes unmodified against the extracted package, proving behavior didn't change in the move.</li>
+    </ul>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><span class="panel-num">4</span><span class="panel-title">Constraints</span></div>
+    <ul>
+      <li>Python 3.12 only, matching every consuming service.</li>
+      <li>No new backend dependency gets introduced during extraction - this is a move, not an upgrade.</li>
+      <li>Pinned via git tag in every consumer's <span class="mono">requirements.txt</span> - never a floating branch reference (see Decisions).</li>
+    </ul>
+  </section>
+
+  <footer>Common-Libs Connectors — overview.html, spec.html, architecture.html, design.html, decisions.html</footer>
+</div>
+<!-- local-nav-fallback -->
+<script>
+(function () {
+  if (location.protocol !== "file:") return;
+  var LOCAL_DOCS = {
+    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/common-libs-connectors/overview.html",
+    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/common-libs-connectors/spec.html",
+    architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/common-libs-connectors/architecture.html",
+    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/common-libs-connectors/design.html",
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/common-libs-connectors/decisions.html"
+  };
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    var match = a.href.match(/[?&]type=([^&]+)/);
+    if (!match) return;
+    var localPath = LOCAL_DOCS[match[1]];
+    if (localPath) { a.href = localPath; a.removeAttribute("target"); }
+  });
+})();
+</script>
+<!-- app-base-nav -->
+<script>
+(function () {
+  if (location.protocol === "file:") return;
+  var hashMatch = location.hash.match(/app_base=([^&]+)/);
+  if (!hashMatch) return;
+  var appBase = decodeURIComponent(hashMatch[1]).replace(/\/$/, "");
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      a.href = appBase + url.pathname + url.search + "#app_base=" + encodeURIComponent(appBase);
+    } catch (e) {}
+  });
+})();
+</script>

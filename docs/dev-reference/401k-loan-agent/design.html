@@ -93,14 +93,14 @@ footer.doc-foot { text-align: center; color: var(--fg-muted); font-size: 12px; p
     <span class="chip">Verdict: yes, a separate project (see &sect;01)</span>
     <span class="chip">Grounded in real KB text, not invented numbers</span>
   </div>
-  <div class="doc-nav"><a href="hrb-chatbot-integration.html" style="font-family: var(--font-display); font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--fg-muted); text-decoration: none;">companion doc: hrb_chatbot_v2 extension &amp; isolation &rarr;</a></div>
+  <div class="doc-nav"><a href="hrb-chatbot-integration.html" style="font-family: var(--font-display); font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--fg-muted); text-decoration: none;">companion doc: hrb_chatbot_service extension &amp; isolation &rarr;</a></div>
 </header>
 
 <section>
   <div class="section-head"><span class="section-num">00</span><h2>Summary, up front</h2></div>
   <p class="lede">Three things this doc answers directly, since they were the actual questions asked:</p>
   <ul class="spec-list">
-    <li><strong>Is this a different project?</strong> Yes. Not a style preference — the real A2A wire protocol (Agent Cards, JSON-RPC, a server listening on its own port) only makes sense between <em>separate, independently-deployed</em> services. Nothing in <code class="inline">hrb_chatbot_v2</code> today is deployed separately from the rest of itself. See &sect;01.</li>
+    <li><strong>Is this a different project?</strong> Yes. Not a style preference — the real A2A wire protocol (Agent Cards, JSON-RPC, a server listening on its own port) only makes sense between <em>separate, independently-deployed</em> services. Nothing in <code class="inline">hrb_chatbot_service</code> today is deployed separately from the rest of itself. See &sect;01.</li>
     <li><strong>Should it use Google ADK?</strong> Yes — and this is the first real case where that's actually justified in this project's own history (see the callout in &sect;01). A new, standalone service has no existing agent framework to collide with.</li>
     <li><strong>Should it follow the IK FDE course material?</strong> Yes, directly — <code class="inline">github.com/jeev1992/real-estate-negotiation-simulator</code>'s <code class="inline">m2_adk_multiagents</code> module, re-fetched live via the GitHub API for this doc (not from memory). &sect;03 maps its demos/exercises onto this use case's own design decisions, concept by concept.</li>
   </ul>
@@ -128,7 +128,7 @@ footer.doc-foot { text-align: center; color: var(--fg-muted); font-size: 12px; p
     <li>A new, separately-deployed Python service — its own directory tree (new repo, or at minimum a new top-level folder deployed independently — see &sect;09, open decision), <strong>not</strong> a module under <code class="inline">src/hrb_chatbot/</code>.</li>
     <li>A new dependency entirely: <code class="inline">google-adk</code> — not reviewed or approved for this project before now, per this project's own "no unreviewed libraries without explicit approval" rule. This doc is that review.</li>
     <li>A new deployable: its own container, its own port, its own health check, its own entry in whatever CI/CD this gets (see &sect;09).</li>
-    <li><code class="inline">hrb_chatbot_v2</code>'s own change is comparatively small: one new A2A <em>client</em> call-site, most naturally a new tool/domain-agent in <code class="inline">multi_agentic_rag</code> (parallel to how MCP tools are wired today) — not a rewrite of anything existing.</li>
+    <li><code class="inline">hrb_chatbot_service</code>'s own change is comparatively small: one new A2A <em>client</em> call-site, most naturally a new tool/domain-agent in <code class="inline">multi_agentic_rag</code> (parallel to how MCP tools are wired today) — not a rewrite of anything existing.</li>
   </ul>
 </section>
 
@@ -169,7 +169,7 @@ footer.doc-foot { text-align: center; color: var(--fg-muted); font-size: 12px; p
         <tr><td>Demo 13 — orchestration, polled vs. streamed</td><td>Buyer polls (<code class="inline">tasks/get</code>), seller streams (<code class="inline">message/stream</code>) — a live negotiation, completes in seconds</td><td>Doesn't transfer directly — see &sect;07, a real loan takes 5–7 <em>business days</em>, not seconds. Genuine point of departure, explained there.</td></tr>
         <tr><td>Demo 14 — error handling</td><td>4 layers: transport, protocol, task, application</td><td>Same 4 layers apply: network down, malformed JSON-RPC, Task <code class="inline">status: failed</code>, vs. a "completed" Task whose own content says "ineligible"</td></tr>
         <tr><td>Exercise 1 — budget-cap callback</td><td>Deterministic <code class="inline">before_tool_callback</code> blocks an action over a hard limit, not just an instruction</td><td>&sect;06 hard-block tier — the $50,000/50%-vested ceiling is enforced in code, never left to the LLM's judgment</td></tr>
-        <tr><td>Exercise 3 — A2A multiround client</td><td>Drive an A2A exchange end to end, threaded by <code class="inline">contextId</code> — "the matchmaker pattern"</td><td>This is literally <code class="inline">hrb_chatbot_v2</code>'s own new role: the client driving the employee's request against the Loan Agent</td></tr>
+        <tr><td>Exercise 3 — A2A multiround client</td><td>Drive an A2A exchange end to end, threaded by <code class="inline">contextId</code> — "the matchmaker pattern"</td><td>This is literally <code class="inline">hrb_chatbot_service</code>'s own new role: the client driving the employee's request against the Loan Agent</td></tr>
         <tr><td>Exercise 6 — human-in-the-loop, 3-tier governance</td><td>Auto-approve / human checkpoint / hard block, triggered by a price threshold</td><td>&sect;06 below — triggered by loan amount + risk flags instead of price</td></tr>
       </tbody>
     </table>
@@ -182,7 +182,7 @@ footer.doc-foot { text-align: center; color: var(--fg-muted); font-size: 12px; p
   <pre class="mermaid">
 sequenceDiagram
     participant E as Employee (chat)
-    participant C as hrb_chatbot_v2<br/>(A2A client)
+    participant C as hrb_chatbot_service<br/>(A2A client)
     participant L as 401(k) Loan Agent<br/>(new service, Google ADK)
     participant H as Human plan specialist<br/>(checkpoint tier only)
 
@@ -202,7 +202,7 @@ sequenceDiagram
     end
     C-->>E: result, in plain language
   </pre>
-  <p class="lede">The Loan Agent is deployed on its own — own port, own Agent Card, own process. <code class="inline">hrb_chatbot_v2</code> holds no loan-eligibility logic itself; it only knows how to discover and call the Agent Card's advertised skills, same separation of concerns the course's buyer/seller agents demonstrate.</p>
+  <p class="lede">The Loan Agent is deployed on its own — own port, own Agent Card, own process. <code class="inline">hrb_chatbot_service</code> holds no loan-eligibility logic itself; it only knows how to discover and call the Agent Card's advertised skills, same separation of concerns the course's buyer/seller agents demonstrate.</p>
 </section>
 
 <section>
@@ -293,7 +293,7 @@ sequenceDiagram
   <p class="lede">The course's buyer/seller negotiation completes in seconds, so Demo 13's choice (buyer polls, seller streams) is really about UX during one live conversation. A 401(k) loan is explicitly a <strong>5–7 business day</strong> process (&sect;02) — the employee will not keep a connection open that long, so neither polling nor <code class="inline">message/stream</code> fits as the primary mechanism.</p>
   <div class="callout warn">
     <span class="callout-label">Design decision, not yet confirmed</span>
-    <p>The Agent Card should advertise <code class="inline">pushNotifications: true</code>: the client registers a webhook via <code class="inline">tasks/pushNotificationConfig/set</code> once the Task enters <code class="inline">working</code>, and the Loan Agent calls it back when the state changes — days later, asynchronously — rather than the employee's session polling for a week. <code class="inline">hrb_chatbot_v2</code> would then need its own durable notification/inbox delivery (something like email, or a dashboard "My loan requests" view) — this is new surface, not reused from anywhere existing.</p>
+    <p>The Agent Card should advertise <code class="inline">pushNotifications: true</code>: the client registers a webhook via <code class="inline">tasks/pushNotificationConfig/set</code> once the Task enters <code class="inline">working</code>, and the Loan Agent calls it back when the state changes — days later, asynchronously — rather than the employee's session polling for a week. <code class="inline">hrb_chatbot_service</code> would then need its own durable notification/inbox delivery (something like email, or a dashboard "My loan requests" view) — this is new surface, not reused from anywhere existing.</p>
   </div>
 </section>
 
@@ -322,13 +322,13 @@ sequenceDiagram
       <tr><td>New repo, or a folder?</td><td>A genuinely separate GitHub repo (cleanest, matches "different project") vs. a new top-level folder inside an existing repo, deployed independently. Affects CI/CD, not the design above.</td></tr>
       <tr><td>Where does vested-balance/loan data come from?</td><td><code class="inline">hrb_lms_mcp</code> already holds real employee data for the leave-approval HITL flow and could be extended — or this stays a fully separate, self-contained mock dataset. Different ownership/trust implications either way.</td></tr>
       <tr><td>Real Empower integration, or simulated?</td><td>No real external API exists to call — same spirit as the course's own simulated buyer/seller agents. Worth stating explicitly so it's never mistaken for live.</td></tr>
-      <tr><td>Deployment target</td><td>Reuse the existing AWS App Runner pattern (proven, used by both <code class="inline">hrb_chatbot_v2</code> and <code class="inline">hrb_lms_mcp</code>) vs. something else entirely for a Google-ADK-based service.</td></tr>
-      <tr><td><code class="inline">hrb_chatbot_v2</code>'s own call-site</td><td>New domain agent/tool inside <code class="inline">multi_agentic_rag</code> (parallel to existing MCP tools) is the natural fit, but not yet confirmed against the rest of that pipeline's own scope.</td></tr>
+      <tr><td>Deployment target</td><td>Reuse the existing AWS App Runner pattern (proven, used by both <code class="inline">hrb_chatbot_service</code> and <code class="inline">hrb_lms_mcp</code>) vs. something else entirely for a Google-ADK-based service.</td></tr>
+      <tr><td><code class="inline">hrb_chatbot_service</code>'s own call-site</td><td>New domain agent/tool inside <code class="inline">multi_agentic_rag</code> (parallel to existing MCP tools) is the natural fit, but not yet confirmed against the rest of that pipeline's own scope.</td></tr>
     </tbody>
   </table>
 </section>
 
-<footer class="doc-foot">hrb_chatbot_v2 &middot; design exploration &middot; grounded in real KB text + the real IK FDE m2_adk_multiagents module, not invented</footer>
+<footer class="doc-foot">hrb_chatbot_service &middot; design exploration &middot; grounded in real KB text + the real IK FDE m2_adk_multiagents module, not invented</footer>
 
 </div>
 <script>mermaid.initialize({ startOnLoad: true, theme: "neutral" });</script>

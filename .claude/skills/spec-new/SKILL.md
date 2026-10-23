@@ -1,7 +1,7 @@
 ---
 name: spec-new
 description: >
-  Write a spec for a planned phase in hrb_chatbot_v2, before any code for it
+  Write a spec for a planned phase in hrb_chatbot_service, before any code for it
   is written. Invoke as /spec-new <phase-name-or-number>, e.g.
   "/spec-new Phase 15" or "/spec-new evaluation". Also use this to promote a
   docs/agent-reference/BACKLOG.md item into a new phase entry with a spec.

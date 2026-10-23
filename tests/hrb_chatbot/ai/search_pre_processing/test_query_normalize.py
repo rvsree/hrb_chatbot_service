@@ -1,8 +1,8 @@
 """Phase 173 - normalize_query() tests, same structured-output fake
 pattern as test_query_decompose.py (the LLM itself is faked, no real API call)."""
 
-from src.hrb_chatbot.ai.pre_processing import query_normalize
-from src.hrb_chatbot.ai.pre_processing.query_normalize import NormalizedQuery
+from src.hrb_chatbot.ai.search_pre_processing import query_normalize
+from src.hrb_chatbot.ai.search_pre_processing.query_normalize import NormalizedQuery
 
 
 class FakeRawResponse:

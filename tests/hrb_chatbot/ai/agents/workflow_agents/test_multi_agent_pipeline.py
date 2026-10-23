@@ -5,7 +5,8 @@ guardrail call is faked; only the graph wiring itself is real."""
 import pytest
 
 from src.hrb_chatbot.ai.agents.workflow_agents import multi_agent_pipeline
-from src.hrb_chatbot.ai.pre_processing import conversation_memory
+from src.hrb_chatbot.ai.rag_core import eval_threshold, guarded_pipeline
+from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
 from tests.conftest import FakeConversationStore, FakeDBGateway
 
 
@@ -43,14 +44,14 @@ def _fake_cache_and_eval_judges(monkeypatch):
         assert all(isinstance(t, str) for t in context_texts)
         return {"score": 0.9, "verdict": "GROUNDED", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"}
 
-    monkeypatch.setattr(multi_agent_pipeline, "evaluate_groundedness", _fake_evaluate_groundedness)
+    monkeypatch.setattr(eval_threshold, "evaluate_groundedness", _fake_evaluate_groundedness)
     monkeypatch.setattr(
-        multi_agent_pipeline,
+        eval_threshold,
         "evaluate_completeness",
         lambda query, answer, reference_answer=None, judge_model=None: {"score": 0.9, "verdict": "COMPLETE", "explanation": "fake", "prompt": "fake", "model_used": judge_model or "fake-chat-model"},
     )
     monkeypatch.setattr(
-        multi_agent_pipeline,
+        eval_threshold,
         "evaluate_retrieval_relevance",
         lambda query, chunk_texts, judge_model=None, wider_pool_texts=None: {
             "precision": 1.0 if chunk_texts else None,
@@ -86,14 +87,20 @@ def _fake_normalize_query(monkeypatch):
 
 
 def _patch_guardrails(monkeypatch):
-    async def _passthrough_check_input(query):
-        return query, {"status": "pass", "rail": None}
+    """Phase 245 - check_input() is still called directly from
+    multi_agent_pipeline (the pre-cache-check, unchanged by this phase);
+    check_output() now runs inside run_guarded_pipeline()'s own call, so
+    it's patched on guarded_pipeline, same convention test_orchestration_agent.py
+    already uses for the same reason."""
 
-    async def _passthrough_check_output(query, answer):
-        return answer, {"status": "pass", "rail": None}
+    async def _passthrough_check_input(query, guardrails_model=None):
+        return query, {"status": "pass", "rail": None, "model_used": guardrails_model or "gpt-4.1-nano"}
+
+    async def _passthrough_check_output(query, answer, guardrails_model=None):
+        return answer, {"status": "pass", "rail": None, "model_used": guardrails_model or "gpt-4.1-nano"}
 
     monkeypatch.setattr(multi_agent_pipeline, "check_input", _passthrough_check_input)
-    monkeypatch.setattr(multi_agent_pipeline, "check_output", _passthrough_check_output)
+    monkeypatch.setattr(guarded_pipeline, "check_output", _passthrough_check_output)
 
 
 def _patch_conversation_store(monkeypatch, conversation_store=None):
@@ -107,7 +114,7 @@ async def test_single_task_query_runs_one_domain_agent_and_still_goes_through_re
     # the fixture's default fake just passes the result through unchanged.
     _patch_guardrails(monkeypatch)
 
-    async def _fake_plan(query, request_id=None):
+    async def _fake_plan(query, request_id=None, planner_model=None):
         return [{"agent": "vector_kb_agent", "focus": query}], {"label": "planner"}
 
     async def _fake_vector_kb_run(focus, search_strategy=None, role=None, department=None):
@@ -139,7 +146,7 @@ async def test_single_task_query_runs_one_domain_agent_and_still_goes_through_re
 async def test_multi_task_query_dispatches_to_both_agents_in_parallel_and_merges(monkeypatch):
     _patch_guardrails(monkeypatch)
 
-    async def _fake_plan(query, request_id=None):
+    async def _fake_plan(query, request_id=None, planner_model=None):
         return [
             {"agent": "vector_kb_agent", "focus": "parental leave policy"},
             {"agent": "lms_ops_agent", "focus": "my leave balance"},
@@ -176,7 +183,7 @@ async def test_multi_task_query_dispatches_to_both_agents_in_parallel_and_merges
 async def test_sql_db_and_analytics_agents_report_not_available_without_crashing_the_graph(monkeypatch):
     _patch_guardrails(monkeypatch)
 
-    async def _fake_plan(query, request_id=None):
+    async def _fake_plan(query, request_id=None, planner_model=None):
         return [{"agent": "sql_db_agent", "focus": query}, {"agent": "lms_analytics_agent", "focus": query}], {
             "label": "planner"
         }
@@ -196,7 +203,7 @@ async def test_enabling_memory_without_an_id_generates_one_and_saves_the_turn(mo
     _patch_guardrails(monkeypatch)
     _patch_conversation_store(monkeypatch)
 
-    async def _fake_plan(query, request_id=None):
+    async def _fake_plan(query, request_id=None, planner_model=None):
         return [{"agent": "vector_kb_agent", "focus": query}], {"label": "planner"}
 
     async def _fake_vector_kb_run(focus, search_strategy=None, role=None, department=None):
@@ -215,9 +222,9 @@ async def test_enabling_memory_without_an_id_generates_one_and_saves_the_turn(mo
 
 
 async def test_guardrail_blocked_input_raises_so_the_route_can_catch_it(monkeypatch):
-    from src.hrb_chatbot.ai.pre_processing.guardrails_input import GuardrailBlockedError
+    from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import GuardrailBlockedError
 
-    async def _blocked_check_input(query):
+    async def _blocked_check_input(query, guardrails_model=None):
         raise GuardrailBlockedError("blocked")
 
     monkeypatch.setattr(multi_agent_pipeline, "check_input", _blocked_check_input)
@@ -237,7 +244,7 @@ async def test_sources_come_from_vector_kb_agent_only(monkeypatch):
     _patch_guardrails(monkeypatch)
     real_chunk = {"document_id": "doc-1", "filename": "leave.pdf", "chunk_index": 0, "text": "8 weeks paid.", "score": 0.9}
 
-    async def _fake_plan(query, request_id=None):
+    async def _fake_plan(query, request_id=None, planner_model=None):
         return [{"agent": "vector_kb_agent", "focus": query}], {"label": "planner"}
 
     async def _fake_vector_kb_run(focus, search_strategy=None, role=None, department=None):
@@ -271,10 +278,10 @@ async def test_retrieval_judge_scopes_to_vector_kb_sources_not_the_mixed_agent_r
         captured["wider_pool_top_k"] = top_k
         return [{"document_id": "doc-2", "chunk_index": 0, "text": "extra chunk from exact-KNN"}]
 
-    monkeypatch.setattr(multi_agent_pipeline, "evaluate_retrieval_relevance", _capturing_evaluate_retrieval_relevance)
+    monkeypatch.setattr(eval_threshold, "evaluate_retrieval_relevance", _capturing_evaluate_retrieval_relevance)
     monkeypatch.setattr(multi_agent_pipeline, "search_knn", _fake_search_knn)
 
-    async def _fake_plan(query, request_id=None):
+    async def _fake_plan(query, request_id=None, planner_model=None):
         return [
             {"agent": "vector_kb_agent", "focus": "parental leave policy"},
             {"agent": "web_search_agent", "focus": "general IRS rules"},
@@ -307,7 +314,7 @@ async def test_a_vector_kb_only_repeat_is_cache_served(monkeypatch):
     _patch_guardrails(monkeypatch)
     call_count = {"plan": 0}
 
-    async def _fake_plan(query, request_id=None):
+    async def _fake_plan(query, request_id=None, planner_model=None):
         call_count["plan"] += 1
         return [{"agent": "vector_kb_agent", "focus": query}], {"label": "planner"}
 
@@ -335,7 +342,7 @@ async def test_a_live_data_agent_dispatch_is_never_cached(monkeypatch):
     _patch_guardrails(monkeypatch)
     call_count = {"plan": 0}
 
-    async def _fake_plan(query, request_id=None):
+    async def _fake_plan(query, request_id=None, planner_model=None):
         call_count["plan"] += 1
         return [{"agent": "lms_ops_agent", "focus": query}], {"label": "planner"}
 
@@ -355,7 +362,7 @@ async def test_a_live_data_agent_dispatch_is_never_cached(monkeypatch):
 async def test_follow_ups_are_empty_when_no_domain_agent_ran(monkeypatch):
     _patch_guardrails(monkeypatch)
 
-    async def _fake_plan(query, request_id=None):
+    async def _fake_plan(query, request_id=None, planner_model=None):
         return [], {"label": "planner"}
 
     monkeypatch.setattr(multi_agent_pipeline.planner_agent, "plan", _fake_plan)
@@ -373,7 +380,7 @@ async def test_follow_ups_are_empty_when_no_domain_agent_ran(monkeypatch):
 async def test_follow_ups_are_generated_when_a_domain_agent_ran(monkeypatch):
     _patch_guardrails(monkeypatch)
 
-    async def _fake_plan(query, request_id=None):
+    async def _fake_plan(query, request_id=None, planner_model=None):
         return [{"agent": "vector_kb_agent", "focus": query}], {"label": "planner"}
 
     async def _fake_vector_kb_run(focus, search_strategy=None, role=None, department=None):
@@ -394,7 +401,7 @@ async def test_follow_ups_are_generated_when_a_domain_agent_ran(monkeypatch):
 async def test_tool_call_metrics_mark_success_false_on_an_error_result(monkeypatch):
     _patch_guardrails(monkeypatch)
 
-    async def _fake_plan(query, request_id=None):
+    async def _fake_plan(query, request_id=None, planner_model=None):
         return [{"agent": "lms_ops_agent", "focus": query}], {"label": "planner"}
 
     async def _fake_lms_ops_run(focus, employee_id):
@@ -410,22 +417,24 @@ async def test_tool_call_metrics_mark_success_false_on_an_error_result(monkeypat
     assert call["tool_type"] == "mcp"
 
 
-async def test_real_guardrail_status_reaches_the_result_on_this_direct_non_shared_core_path(monkeypatch):
-    """Phase 224 - multi_agent_pipeline.py calls check_input/check_output
-    directly (it doesn't run through rag_core.guarded_pipeline like genai-rag/
-    single-agentic-rag do), so this path needs its own confirmation that the
-    real status reaches result["guardrails"], not just a hardcoded "pass"."""
+async def test_real_guardrail_status_reaches_the_result_on_the_shared_core_path(monkeypatch):
+    """Phase 224, updated Phase 245 - multi_agent_pipeline.py now runs
+    check_output() through the shared rag_core.guarded_pipeline, same as
+    genai-rag/single-agentic-rag (check_input() is still called directly
+    here, for the pre-cache-check, unchanged) - confirms the real status
+    still reaches result["guardrails"], not just a hardcoded "pass", now
+    that it flows through the shared core instead of a direct call."""
 
-    async def _masking_check_input(query):
+    async def _masking_check_input(query, guardrails_model=None):
         return query.replace("123-45-6789", "<SSN>"), {"status": "modified", "rail": "pii detection"}
 
-    async def _masking_check_output(query, answer):
+    async def _masking_check_output(query, answer, guardrails_model=None):
         return answer.replace("Roth", "<PERSON>"), {"status": "modified", "rail": "self check output"}
 
     monkeypatch.setattr(multi_agent_pipeline, "check_input", _masking_check_input)
-    monkeypatch.setattr(multi_agent_pipeline, "check_output", _masking_check_output)
+    monkeypatch.setattr(guarded_pipeline, "check_output", _masking_check_output)
 
-    async def _fake_plan(query, request_id=None):
+    async def _fake_plan(query, request_id=None, planner_model=None):
         return [{"agent": "vector_kb_agent", "focus": query}], {"label": "planner"}
 
     async def _fake_vector_kb_run(focus, search_strategy=None, role=None, department=None):
@@ -452,7 +461,7 @@ async def test_search_strategy_reaches_vector_kb_agent_end_to_end(monkeypatch):
     _patch_guardrails(monkeypatch)
     captured = {}
 
-    async def _fake_plan(query, request_id=None):
+    async def _fake_plan(query, request_id=None, planner_model=None):
         return [{"agent": "vector_kb_agent", "focus": query}], {"label": "planner"}
 
     async def _fake_vector_kb_run(focus, search_strategy=None, role=None, department=None):

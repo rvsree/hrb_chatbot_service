@@ -15,7 +15,9 @@ class SearchOptions(BaseModel):
         None,
         description="Which retrieval technique to use - 'similarity' is the default when omitted. "
         "'mmr' trades some relevance for more diverse, less redundant results. 'keyword' is plain "
-        "BM25 lexical ranking. 'hybrid' merges 'keyword' and 'similarity' via Reciprocal Rank Fusion.",
+        "BM25 lexical ranking. 'hybrid' merges 'keyword' and 'similarity' via Reciprocal Rank Fusion. "
+        "'dynamic' (Phase 252) picks one of the above automatically per query - the response's own "
+        "retrieval.search_strategy field reports which one actually ran.",
     )
     lambda_mult: float | None = Field(
         None,
@@ -82,6 +84,28 @@ class EvalOptions(BaseModel):
     )
 
 
+class ClassificationOptions(BaseModel):
+    """Phase 243 - classification-tier model overrides. Only one field applies per
+    endpoint (decompose_model: genai-rag only, planner_model: multi-agentic-rag only) -
+    not shared the way EvalOptions is, since each pipeline has its own single
+    classification step, not a shared one."""
+
+    model_config = ConfigDict(protected_namespaces=())
+
+    decompose_model: str | None = Field(
+        None,
+        max_length=100,
+        description="genai-rag only - override the model used for query decomposition (Phase 130). "
+        "Defaults to OPENAI_DECOMPOSE_MODEL, then gpt-4.1-nano.",
+    )
+    planner_model: str | None = Field(
+        None,
+        max_length=100,
+        description="multi-agentic-rag only - override the model used for the Planner Agent's routing "
+        "step (Phase 65). Defaults to OPENAI_PLANNER_MODEL, then gpt-4.1-nano.",
+    )
+
+
 class RagQueryRequest(BaseModel):
     user_profile: UserProfile | None = None
     query: str = Field(
@@ -93,6 +117,14 @@ class RagQueryRequest(BaseModel):
     search_options: SearchOptions | None = None
     generation_options: GenerationOptions | None = None
     eval_options: EvalOptions | None = None
+    classification_options: ClassificationOptions | None = None
+    guardrails_model: str | None = Field(
+        None,
+        max_length=100,
+        description="Phase 244 - override the model running NeMo Guardrails' input/output safety checks. "
+        "Validated against GUARDRAILS_SUPPORTED_MODELS - 422 if given but not listed. Applies identically "
+        "to all 3 query endpoints (top-level field, not nested, since guardrails run on every mode).",
+    )
     enable_conversation_memory: bool = Field(
         False, description="Carry conversation history across calls, server-side, keyed by conversation_id."
     )
@@ -206,6 +238,12 @@ class EvalScores(BaseModel):
         "top_k) before this answer was generated. Always false when the feature was off, threshold wasn't "
         "set, or the first retrieval already passed.",
     )
+    answer_relevancy: float | None = Field(
+        None, description="Phase 250 - does the answer address what was actually asked (distinct from completeness's full-coverage check)? 0.0-1.0. Null unless EVAL_ANSWER_RELEVANCY_ENABLED=true (defaults false - a brand-new metric, opt-in not opt-out)."
+    )
+    answer_relevancy_verdict: str | None = Field(None, description="Phase 250 - RELEVANT (>=0.7), PARTIAL (>=0.4), or IRRELEVANT. Null when not run.")
+    answer_relevancy_explanation: str | None = Field(None, description="Phase 250 - the judge's reasoning for the answer_relevancy score.")
+    answer_relevancy_prompt: str | None = Field(None, description="Phase 250 - DeepEval's own verbose_logs for this judge call.")
     judge_model_used: str | None = Field(
         None, description="Phase 215 - the real model every judge call this turn actually used (the override if given, else the default) - verifiable, not just trusted."
     )
@@ -300,6 +338,15 @@ class ExplainabilityInfo(BaseModel):
         None, description="Phase 127 - genai-rag only; null for single/multi-agentic-rag, which hardcode temperature=0, not user-configurable."
     )
     guardrails: GuardrailInfo = Field(..., description="Phase 224 - real input/output guardrail status for this answer. Reused as-is on a cache hit, same reasoning as eval_scores.")
+    decompose_model_used: str | None = Field(
+        None, description="Phase 243 - which model ran genai-rag's query decomposition (override if given, else the real default). Null for single-/multi-agentic-rag, or on a cache hit (that step didn't run)."
+    )
+    planner_model_used: str | None = Field(
+        None, description="Phase 243 - which model ran multi-agentic-rag's Planner routing step (override if given, else the real default). Null for genai-rag/single-agentic-rag, or on a cache hit."
+    )
+    guardrails_model_used: str | None = Field(
+        None, description="Phase 244 - which model ran the input/output guardrail checks (override if given, else the real default). Always present for a real call, unlike decompose_model_used/planner_model_used - guardrails run on every mode. Reused as-is on a cache hit, same reasoning as eval_scores."
+    )
 
 
 class RagQueryResponse(BaseModel):

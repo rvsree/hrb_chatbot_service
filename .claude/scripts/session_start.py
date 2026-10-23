@@ -1,4 +1,4 @@
-"""SessionStart hook for hrb_chatbot_v2.
+"""SessionStart hook for hrb_chatbot_service.
 
 Prints a short "what's in flight" summary: current branch, last commit,
 how many phases in docs/agent-reference/RAG-ROADMAP.md's status table are

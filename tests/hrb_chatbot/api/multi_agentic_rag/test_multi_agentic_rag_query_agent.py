@@ -5,7 +5,7 @@ test in this project (e.g. single-agentic-rag's own test_query_agent.py)."""
 from fastapi.testclient import TestClient
 
 from src.hrb_chatbot.api.multi_agentic_rag import query_agent
-from src.hrb_chatbot.ai.pre_processing.guardrails_input import GuardrailBlockedError
+from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import GuardrailBlockedError
 from src.hrb_chatbot.main import app
 
 client = TestClient(app)
@@ -20,6 +20,7 @@ def _body(query: str = "What's my PTO balance and the parental leave policy?", u
 async def _fake_run_multi_agent(
     query, employee_id, enable_conversation_memory=False, conversation_id=None, request_id=None,
     judge_model=None, eval_score_threshold=None, search_strategy=None, role=None, department=None,
+    planner_model=None, guardrails_model=None,
 ):
     return {
         "answer": "Parental leave is 8 weeks paid. Your balance is 10 days.",
@@ -71,6 +72,7 @@ def test_guardrail_blocked_input_is_422(monkeypatch):
     async def _blocked(
         query, employee_id, enable_conversation_memory=False, conversation_id=None, request_id=None,
         judge_model=None, eval_score_threshold=None, search_strategy=None, role=None, department=None,
+        planner_model=None, guardrails_model=None,
     ):
         raise GuardrailBlockedError("This request was blocked by a safety check.")
 

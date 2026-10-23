@@ -108,7 +108,7 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">for confirming a change actually landed in hrb_chatbot_v2's production service</div>
+    <div class="eyebrow">for confirming a change actually landed in hrb_chatbot_service's production service</div>
     <h1 class="display">Deployment Verification Guide</h1>
     <p class="subtitle">The "confirm it actually landed" half of shipping a change: triggering the real App Runner deployment, polling for <span class="mono">RUNNING</span> instead of trusting the API call returning, smoke-testing against <span class="mono">/ping</span>, what GitHub Secrets <span class="mono">deploy.yml</span> needs, the honest state of rollback (there isn't one yet), the norm that nothing deploys without a human looking first, and the two real system diagrams this project has drawn of itself. Every command and threshold below is real, not illustrative. The build half - local dev loop, CI gates, the Docker flags, ECR push - lives in <span class="mono">docs/dev-reference/build-guide/</span>. Split out of <span class="mono">docs/dev-reference/developer-onboarding/</span> on 2026-10-15.</p>
     <div class="legend">
@@ -203,7 +203,7 @@
     </div>
     <div class="callout gap">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
-      <span>Don't conflate the two Postgres uses: <span class="mono">RAG_METADATA_STORE</span> (one row per uploaded document) is still <span class="mono">sqlite</span> in production, per the Production Monitoring Guide's own card on this - a hosted Postgres for <em>that</em> store hasn't been provisioned. The Neon <span class="mono">hr_chatbot</span> database shown in the External Services zone is a separate, already-live thing: this project's own <span class="mono">hrb_chatbot_v2_core</span>/<span class="mono">_sessions</span> schemas (admin credentials, the reused MCP tool registry) plus <span class="mono">hrb_lms_mcp</span>'s own <span class="mono">hrb_emp_lms</span>/<span class="mono">hrb_lms_mcp_auth</span> schemas (Phase 118) - see <span class="mono">docs/dev-reference/database/db-model-overview.html</span>.</span>
+      <span>Don't conflate the two Postgres uses: <span class="mono">RAG_METADATA_STORE</span> (one row per uploaded document) is still <span class="mono">sqlite</span> in production, per the Production Monitoring Guide's own card on this - a hosted Postgres for <em>that</em> store hasn't been provisioned. The Neon <span class="mono">hr_chatbot</span> database shown in the External Services zone is a separate, already-live thing: this project's own <span class="mono">hrb_chatbot_service_core</span>/<span class="mono">_sessions</span> schemas (admin credentials, the reused MCP tool registry) plus <span class="mono">hrb_lms_mcp</span>'s own <span class="mono">hrb_emp_lms</span>/<span class="mono">hrb_lms_mcp_auth</span> schemas (Phase 118) - see <span class="mono">docs/dev-reference/database/db-model-overview.html</span>.</span>
     </div>
   </section>
 

@@ -5,7 +5,7 @@
 # -----------------------------------------------------------------------------
 # Core Tools
 # -----------------------------------------------------------------------------
-python-dotenv==1.0.1
+python-dotenv==1.2.4  # bumped from 1.0.1 for deepeval (Phase 249), which requires this version range
 numpy==1.26.4
 
 # -----------------------------------------------------------------------------
@@ -37,8 +37,8 @@ pydantic==2.13.5
 # explicitly rather than relied on as an undocumented transitive install -
 # removing this line broke every test importing mcp (2026-10-07 cleanup
 # pass, caught by actually uninstalling and re-running, not just grepping
-# src/ for a direct import).
-pydantic-settings==2.6.1
+# src/ for a direct import). Bumped 2.6.1 -> 2.16.1 for deepeval (Phase 249).
+pydantic-settings==2.16.1
 
 # -----------------------------------------------------------------------------
 # File Processing
@@ -65,7 +65,13 @@ loguru==0.7.3
 # -----------------------------------------------------------------------------
 # Database Drivers
 # -----------------------------------------------------------------------------
-chromadb==1.3.5
+# Bumped 1.3.5 -> 1.5.9 for Phase 249 (deepeval, which hard-requires
+# posthog>=7.0.0 on Python 3.12 - chromadb==1.3.5 required posthog<6.0.0,
+# a real conflict). 1.5.9 drops the posthog dependency entirely, resolving
+# it cleanly rather than pinning posthog down and hoping. `chromadb.
+# EphemeralClient()` add/get round-trip + full test suite verified passing
+# after the bump.
+chromadb==1.5.9
 # 10.0.0 -> 9.1.0 -> 7.3.0 across two phases, not guessed - pip's resolver
 # rejected every other combination outright, originally a 3-way conflict
 # with llama-index-vector-stores-pinecone (removed, see Phase 17 note
@@ -195,7 +201,7 @@ mcp==1.9.4
 
 # -----------------------------------------------------------------------------
 # OAuth2 app-to-app client credentials (Phase 53) - issues/verifies JWTs
-# for authenticating hrb_chatbot_v2's outbound MCP calls to hrb_lms_mcp.
+# for authenticating hrb_chatbot_service's outbound MCP calls to hrb_lms_mcp.
 # Already a transitive dep of mcp (pyjwt[crypto]) in hrb_lms_mcp's own
 # env - pinned explicitly here too, not relied on as an undocumented
 # transitive install.
@@ -212,6 +218,28 @@ pyjwt==2.10.1
 # project's existing pins.
 # -----------------------------------------------------------------------------
 redis==8.1.0
+
+# -----------------------------------------------------------------------------
+# DeepEval (Phase 249) - replaces the hand-rolled LLM-as-judge prompts in
+# ai/rag_pipeline/evaluations/golden_dataset_harness.py, a deliberate,
+# user-approved deviation from the IK FDE Module 5 courseware pattern - see
+# docs/dev-reference/deepeval-standardization-design.html. Pulled in 3
+# transitive pins below that needed resolving by hand, not left to pip's
+# resolver:
+#   - huggingface-hub pinned down to 1.0.0 (not imported anywhere in src/,
+#     only a transitive dep of tokenizers/chromadb's unused default local
+#     embedder) - 1.29.0+ requires click>=8.4.2, which conflicts with
+#     deepeval's own click<8.4.0 pin. 1.0.0 has no click dependency at all.
+#   - click pinned to 8.3.3 to satisfy deepeval's <8.4.0,>=8.0.0 range, now
+#     that huggingface-hub no longer forces it higher.
+#   - posthog resolves to whatever deepeval's own install pulls (>=7.0.0 on
+#     Python 3.12) - no longer constrained by chromadb since the 1.5.9 bump
+#     above dropped chromadb's own posthog dependency.
+# DEEPEVAL_TELEMETRY_OPT_OUT=YES already set in .env/.env.example.
+# -----------------------------------------------------------------------------
+deepeval==4.3.1
+huggingface-hub==1.0.0
+click==8.3.3
 
 # -----------------------------------------------------------------------------
 # Deferred Packages (Enable for Linux/Docker deployment)

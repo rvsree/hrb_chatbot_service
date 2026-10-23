@@ -13,7 +13,7 @@ import asyncio
 
 from fastapi import APIRouter, Depends, Request
 
-from src.hrb_chatbot.ai.pre_processing import conversation_memory
+from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
 from src.hrb_chatbot.ai.rag_pipeline.tools.mcp_tools import _call_mcp_tool_json, admin_delete_hitl_request, get_mcp_tool_catalog
 from src.hrb_chatbot.api.dependencies import json_error
 from src.hrb_chatbot.api.gateway.rbac import identity_from_query_params, require_role
@@ -347,7 +347,7 @@ _CI_STATUS_PER_PAGE = 5
 
 
 # Phase 233 - which GitHub repo + workflow file(s) each real deployable
-# maps to. BACKEND/INGESTION_LAMBDA share one repo (hrb_chatbot_v2) but
+# maps to. BACKEND/INGESTION_LAMBDA share one repo (hrb_chatbot_service) but
 # must never show each other's runs - that mixing is the exact confusion
 # this phase exists to fix. LMS_MCP is a genuinely separate repo (its own
 # GITHUB_TOKEN access already live-verified before this was written).
@@ -533,7 +533,7 @@ async def get_ci_pipeline_status(
     # eval-gate.yml is workflow_dispatch-only, so most commits have none,
     # and that's shown as "not run for this commit," never an error.
     # Phase 233 - BACKEND only: eval_run_store only ever holds
-    # hrb_chatbot_v2's own golden-dataset release-gate runs, which have
+    # hrb_chatbot_service's own golden-dataset release-gate runs, which have
     # no real relationship to an lms_mcp or ingestion_lambda deploy -
     # showing "nearest eval gate" there would just be whatever backend
     # eval happened to run around the same calendar time, not a

@@ -1,9 +1,16 @@
 """Scores retrieval + generation against the golden dataset - ported directly from the
-IK FDE cohort's modules/5_evaluation/demo.py (Phase 62), not DeepEval's built-in metrics.
-Takes any pipeline as a plain function, not hardcoded."""
+IK FDE cohort's modules/5_evaluation/demo.py (Phase 62). Phase 249 moved groundedness/
+completeness onto DeepEval (see deepeval_judge_model.py) - a deliberate, user-approved
+deviation from that courseware's own hand-rolled-prompt pattern, see
+docs/dev-reference/deepeval-standardization-design.html. Retrieval scoring
+(calculate_retrieval_metrics/evaluate_retrieval_relevance) stays hand-rolled, untouched."""
 
 import json
 
+from deepeval.metrics import AnswerRelevancyMetric, ContextualPrecisionMetric, ContextualRecallMetric, FaithfulnessMetric, GEval
+from deepeval.test_case import LLMTestCase, SingleTurnParams
+
+from src.hrb_chatbot.ai.rag_core.deepeval_judge_model import GatewayDeepEvalModel
 from src.hrb_chatbot.common.clients.llm_client.client_gateway import get_client_gateway
 
 GOLDEN_DATASET_PATH = "resources/golden_dataset/golden_dataset.json"
@@ -41,108 +48,127 @@ def calculate_retrieval_metrics(retrieved_ids: list[str], relevant_ids: list[str
     }
 
 
-def _parse_judge_score(output: str) -> float:
-    """Course's own parse logic: read the "Score: X" line, normalize 0-10 to 0-1, default 0.5 on failure."""
-    try:
-        score_line = [line for line in output.split("\n") if line.startswith("Score:")][0]
-        return float(score_line.split(":")[1].strip()) / 10.0
-    except Exception:
-        return 0.5
-
-
 def evaluate_groundedness(answer: str, context_texts: list[str], judge_model: str | None = None) -> dict:
     """Groundedness (Faithfulness): is the answer supported by the retrieved context?
-    LLM-as-judge, course's own prompt - judge sees ONLY retrieved evidence, to test faithfulness.
+    Phase 249: DeepEval's FaithfulnessMetric under the hood - judge sees ONLY retrieved
+    evidence, same faithfulness test as before, now DeepEval-powered.
 
     Phase 215: judge_model, when given, overrides which model does the
     judging - the real model used (override or the client's own default)
     is always returned as model_used, so a caller can verify an override
     actually took effect rather than just trusting it did."""
-    context = "\n\n".join(context_texts)
-    client = get_client_gateway().openai_chat()
-    resolved_model = judge_model or client.model
-
-    prompt = f"""Evaluate if the ANSWER is fully supported by the CONTEXT. Check for hallucinations or unsupported claims.
-
-CONTEXT:
-{context}
-
-ANSWER:
-{answer}
-
-Rate the groundedness from 0 to 10:
-
-Provide:
-1. Score (0-10)
-2. Reasoning (one sentence)
-
-Format:
-Score: X
-Reasoning: <explanation>"""
+    resolved_model = judge_model or get_client_gateway().openai_chat().model
+    test_case = LLMTestCase(input="", actual_output=answer, retrieval_context=context_texts)
+    metric = FaithfulnessMetric(model=GatewayDeepEvalModel(judge_model), threshold=0.0, include_reason=True)
 
     try:
-        output = client.ask(prompt, temperature=0.0, model_name_override=judge_model)
-        score = _parse_judge_score(output)
+        metric.measure(test_case)
+        score = metric.score
         verdict = "GROUNDED" if score >= 0.7 else "PARTIAL" if score >= 0.4 else "HALLUCINATED"
-        return {"score": score, "verdict": verdict, "explanation": output, "prompt": prompt, "model_used": resolved_model}
+        return {
+            "score": score,
+            "verdict": verdict,
+            "explanation": metric.reason,
+            "prompt": metric.verbose_logs,
+            "model_used": resolved_model,
+        }
     except Exception as error:
-        return {"score": 0.5, "verdict": "ERROR", "explanation": str(error), "prompt": prompt, "model_used": resolved_model}
+        return {"score": 0.5, "verdict": "ERROR", "explanation": str(error), "prompt": None, "model_used": resolved_model}
 
 
 def evaluate_completeness(question: str, answer: str, reference_answer: str | None = None, judge_model: str | None = None) -> dict:
     """Response Completeness: does the answer fully address the question?
-    LLM-as-judge, course's own prompt - relative to reference coverage when one exists.
+    Phase 249: DeepEval's GEval (custom criteria - DeepEval has no built-in
+    "Completeness" metric) under the hood - same question relative to a
+    reference answer when one exists.
 
     Phase 215: judge_model, when given, overrides which model does the judging."""
-    client = get_client_gateway().openai_chat()
-    resolved_model = judge_model or client.model
-    if reference_answer:
-        prompt = f"""Evaluate if the ANSWER fully addresses the QUESTION compared to the REFERENCE ANSWER.
-
-QUESTION:
-{question}
-
-REFERENCE ANSWER:
-{reference_answer}
-
-GENERATED ANSWER:
-{answer}
-
-Rate the completeness from 0 to 10:
-
-Provide:
-1. Score (0-10)
-2. Reasoning (one sentence)
-
-Format:
-Score: X
-Reasoning: <explanation>"""
-    else:
-        prompt = f"""Evaluate if the ANSWER fully addresses the QUESTION.
-
-QUESTION:
-{question}
-
-ANSWER:
-{answer}
-
-Rate the completeness from 0 to 10:
-
-Provide:
-1. Score (0-10)
-2. Reasoning (one sentence)
-
-Format:
-Score: X
-Reasoning: <explanation>"""
+    resolved_model = judge_model or get_client_gateway().openai_chat().model
+    question_text = f"{question}\n\nReference answer: {reference_answer}" if reference_answer else question
+    test_case = LLMTestCase(input=question_text, actual_output=answer)
+    metric = GEval(
+        name="Completeness",
+        criteria="Does the answer fully address every part of the question, without leaving anything unanswered?",
+        evaluation_params=[SingleTurnParams.INPUT, SingleTurnParams.ACTUAL_OUTPUT],
+        model=GatewayDeepEvalModel(judge_model),
+        threshold=0.0,
+    )
 
     try:
-        output = client.ask(prompt, temperature=0.0, model_name_override=judge_model)
-        score = _parse_judge_score(output)
+        metric.measure(test_case)
+        score = metric.score
         verdict = "COMPLETE" if score >= 0.7 else "PARTIAL" if score >= 0.4 else "INCOMPLETE"
-        return {"score": score, "verdict": verdict, "explanation": output, "prompt": prompt, "model_used": resolved_model}
+        return {
+            "score": score,
+            "verdict": verdict,
+            "explanation": metric.reason,
+            "prompt": metric.verbose_logs,
+            "model_used": resolved_model,
+        }
     except Exception as error:
-        return {"score": 0.5, "verdict": "ERROR", "explanation": str(error), "prompt": prompt, "model_used": resolved_model}
+        return {"score": 0.5, "verdict": "ERROR", "explanation": str(error), "prompt": None, "model_used": resolved_model}
+
+
+def evaluate_answer_relevancy(question: str, answer: str, judge_model: str | None = None) -> dict:
+    """Answer Relevancy: does the answer actually address what was asked -
+    a new metric, Phase 250, doesn't exist in the hand-rolled version.
+    DeepEval's AnswerRelevancyMetric - different from completeness (which
+    checks full coverage of every part of the question); this checks the
+    answer isn't off-topic/padded with irrelevant content."""
+    resolved_model = judge_model or get_client_gateway().openai_chat().model
+    test_case = LLMTestCase(input=question, actual_output=answer)
+    metric = AnswerRelevancyMetric(model=GatewayDeepEvalModel(judge_model), threshold=0.0, include_reason=True)
+
+    try:
+        metric.measure(test_case)
+        score = metric.score
+        verdict = "RELEVANT" if score >= 0.7 else "PARTIAL" if score >= 0.4 else "IRRELEVANT"
+        return {
+            "score": score,
+            "verdict": verdict,
+            "explanation": metric.reason,
+            "prompt": metric.verbose_logs,
+            "model_used": resolved_model,
+        }
+    except Exception as error:
+        return {"score": 0.5, "verdict": "ERROR", "explanation": str(error), "prompt": None, "model_used": resolved_model}
+
+
+def evaluate_contextual_precision(
+    query: str, answer: str, chunk_texts: list[str], expected_answer: str, judge_model: str | None = None
+) -> dict:
+    """Golden-dataset-only (needs expected_output) - are the relevant chunks
+    ranked above irrelevant ones? Phase 250, additive: a new, separate
+    number from calculate_retrieval_metrics()'s own exact-ID-match
+    precision, which stays the one RELEASE_GATE_THRESHOLDS/the CI eval-gate
+    actually key off - this is not a replacement for that."""
+    resolved_model = judge_model or get_client_gateway().openai_chat().model
+    test_case = LLMTestCase(input=query, actual_output=answer, expected_output=expected_answer, retrieval_context=chunk_texts)
+    metric = ContextualPrecisionMetric(model=GatewayDeepEvalModel(judge_model), threshold=0.0, include_reason=True)
+
+    try:
+        metric.measure(test_case)
+        return {"score": metric.score, "explanation": metric.reason, "prompt": metric.verbose_logs, "model_used": resolved_model}
+    except Exception as error:
+        return {"score": 0.5, "explanation": str(error), "prompt": None, "model_used": resolved_model}
+
+
+def evaluate_contextual_recall(
+    query: str, answer: str, chunk_texts: list[str], expected_answer: str, judge_model: str | None = None
+) -> dict:
+    """Golden-dataset-only (needs expected_output) - does retrieval contain
+    everything needed to produce the expected answer? Phase 250, additive -
+    same non-replacement relationship to calculate_retrieval_metrics()'s
+    own exact-ID-match recall as evaluate_contextual_precision()'s above."""
+    resolved_model = judge_model or get_client_gateway().openai_chat().model
+    test_case = LLMTestCase(input=query, actual_output=answer, expected_output=expected_answer, retrieval_context=chunk_texts)
+    metric = ContextualRecallMetric(model=GatewayDeepEvalModel(judge_model), threshold=0.0, include_reason=True)
+
+    try:
+        metric.measure(test_case)
+        return {"score": metric.score, "explanation": metric.reason, "prompt": metric.verbose_logs, "model_used": resolved_model}
+    except Exception as error:
+        return {"score": 0.5, "explanation": str(error), "prompt": None, "model_used": resolved_model}
 
 
 def evaluate_retrieval_relevance(
@@ -280,6 +306,7 @@ async def score_case(case: dict, ask) -> dict:
 
     expected_source = case.get("expected_source_document")
     relevant_ids = [expected_source] if expected_source else []
+    expected_answer = case.get("expected_answer")
 
     scores = {}
     if relevant_ids:
@@ -289,9 +316,20 @@ async def score_case(case: dict, ask) -> dict:
         scores["f1"] = retrieval_scores["f1"]
 
     groundedness = evaluate_groundedness(answer, retrieved_texts)
-    completeness = evaluate_completeness(case["query"], answer, case.get("expected_answer"))
+    completeness = evaluate_completeness(case["query"], answer, expected_answer)
+    answer_relevancy = evaluate_answer_relevancy(case["query"], answer)
     scores["groundedness"] = groundedness["score"]
     scores["completeness"] = completeness["score"]
+    scores["answer_relevancy"] = answer_relevancy["score"]
+
+    # Phase 250 - additive, golden-only (needs expected_output): a separate,
+    # DeepEval-judged number alongside the exact-ID-match precision/recall/f1
+    # above, never replacing them - see this function's own module docstring.
+    if expected_answer:
+        contextual_precision = evaluate_contextual_precision(case["query"], answer, retrieved_texts, expected_answer)
+        contextual_recall = evaluate_contextual_recall(case["query"], answer, retrieved_texts, expected_answer)
+        scores["contextual_precision"] = contextual_precision["score"]
+        scores["contextual_recall"] = contextual_recall["score"]
 
     return {"case_id": case["id"], "category": case["category"], "scores": scores}
 

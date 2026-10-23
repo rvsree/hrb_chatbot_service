@@ -5,7 +5,7 @@ docs/dev-reference sets, not synced anywhere, just a working list. Saved
 2026-10-20.
 
 Each idea is grounded in something actually built and verified in this
-project (hrb_chatbot_v2 / hrb_chatbot_ui / hrb_lms_mcp) - not generic RAG/AI
+project (hrb_chatbot_service / hrb_chatbot_ui / hrb_lms_mcp) - not generic RAG/AI
 advice. Ordered simple -> moderate -> advanced.
 
 **Before publishing anything from this list:** genericize real company

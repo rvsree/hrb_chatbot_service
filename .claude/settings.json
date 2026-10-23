@@ -1,4 +1,11 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(aws apprunner *)",
+      "Bash(cd \"/c/workspace/2026-v1/interview-kickstart/rag_ingestion_service\" && gh repo create rag_ingestion_service --public --source=. --remote=origin --description \"Ingestion half of the HRB chatbot RAG pipeline - extract, chunk, embed, index\" 2>&1)",
+      "Read(//c/workspace/2026-v1/interview-kickstart/rag_ingestion_service/**)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
@@ -31,8 +38,8 @@
           {
             "type": "command",
             "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/scripts/post_write_test.py\"",
-            "async": true,
-            "timeout": 60
+            "timeout": 60,
+            "async": true
           }
         ]
       }
@@ -42,9 +49,9 @@
         "hooks": [
           {
             "type": "prompt",
-            "model": "claude-haiku-4-5-20251001",
+            "prompt": "$ARGUMENTS\n\nStopping condition for hrb_chatbot_service (a Python/FastAPI RAG project whose standing rules - 'flag don't fix', 'one task at a time' - are tracked in CLAUDE.md and docs/agent-reference/RAG-ROADMAP.md): last_assistant_message above describes writing or changing Python code under src/ or tests/, AND the message text itself clearly states at least one of - (a) tests were skipped, not run, or deferred; (b) an unresolved TODO/FIXME/placeholder that the message itself calls out; (c) something is claimed done/complete/working while that same message also describes a known failure or an unverified assumption. Do not guess at anything the message doesn't state. Plain documentation/config changes, research, questions, and a task whose own description includes verification do not satisfy this condition. Deny if this condition is satisfied, quoting the specific unverified claim as the reason; otherwise allow.",
             "timeout": 30,
-            "prompt": "$ARGUMENTS\n\nStopping condition for hrb_chatbot_v2 (a Python/FastAPI RAG project whose standing rules - 'flag don't fix', 'one task at a time' - are tracked in CLAUDE.md and docs/agent-reference/RAG-ROADMAP.md): last_assistant_message above describes writing or changing Python code under src/ or tests/, AND the message text itself clearly states at least one of - (a) tests were skipped, not run, or deferred; (b) an unresolved TODO/FIXME/placeholder that the message itself calls out; (c) something is claimed done/complete/working while that same message also describes a known failure or an unverified assumption. Do not guess at anything the message doesn't state. Plain documentation/config changes, research, questions, and a task whose own description includes verification do not satisfy this condition. Deny if this condition is satisfied, quoting the specific unverified claim as the reason; otherwise allow."
+            "model": "claude-haiku-4-5-20251001"
           }
         ]
       }

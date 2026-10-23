@@ -15,6 +15,9 @@ from src.hrb_chatbot.common.logging.logger import get_logger
 
 logger = get_logger("request_metrics_store")
 
+# Phase 251 - schema-per-domain migration, see resources/db_scripts/schema_migration.sql.
+_SCHEMA = "hrb_chat_metrics"
+
 CREATE_REQUEST_METRICS_TABLE = """
 CREATE TABLE IF NOT EXISTS request_metrics (
     id SERIAL PRIMARY KEY,
@@ -64,7 +67,8 @@ class RequestMetricsStore:
 
     def _connect(self) -> psycopg.Connection:
         return psycopg.connect(
-            host=self.host, port=self.port, dbname=self.db_name, user=self.user, password=self.password
+            host=self.host, port=self.port, dbname=self.db_name, user=self.user, password=self.password,
+            options=f"-c search_path={_SCHEMA},public",
         )
 
     def _ensure_table_sync(self) -> None:

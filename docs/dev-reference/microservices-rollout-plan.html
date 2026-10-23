@@ -112,7 +112,7 @@
 <div class="wrap">
 
 <header>
-  <span class="eyebrow">hrb_chatbot_v2 · execution plan · 2026-10-20</span>
+  <span class="eyebrow">hrb_chatbot_service · execution plan · 2026-10-20</span>
   <h1>Microservices Rollout Plan</h1>
   <p class="subtitle">Companion to <span class="mono">service-boundary-decision.html</span> — that doc decided <em>what</em> the services and schemas are; this one covers <em>how</em> to build them: shared libraries, final schema naming, the dependency-ordered sequence, and the HLD/LLD documentation every service needs regardless of whether it already exists.</p>
 </header>
@@ -144,7 +144,7 @@
       <tr><td class="key">rag_retrieval</td><td><span class="pill core">core business</span></td><td>conversation_turns</td></tr>
       <tr><td class="key">chat_hitl</td><td><span class="pill core">core business</span></td><td>agent_threads, chat_session_records, chat_turn_records, email_send_events</td></tr>
       <tr><td class="key">chat_audio</td><td><span class="pill core">core business</span></td><td>— none yet, design-only</td></tr>
-      <tr><td class="key">plan_401k</td><td><span class="pill core">core business</span></td><td>— none yet, design-only</td></tr>
+      <tr><td class="key">employee_401k</td><td><span class="pill core">core business</span></td><td>— none yet, design-only</td></tr>
       <tr><td class="key">platform_admin_controls</td><td><span class="pill platform">platform</span></td><td>admin_credentials, faq_submissions</td></tr>
       <tr><td class="key">platform_chat_metrics</td><td><span class="pill platform">platform</span></td><td>request_metrics</td></tr>
       <tr><td class="key">platform_interview_qa</td><td><span class="pill platform">platform</span></td><td>interview_qa_cards</td></tr>
@@ -164,7 +164,7 @@
       <ul class="phase-steps">
         <li><b>New repo:</b> <span class="mono">hrb_common_libs</span> — extract Base*Client/Gateway code, tag v0.1.0. Touches nothing live yet.</li>
         <li><b>Schema move, same repo:</b> create the 10 schemas above in the existing Neon database, <span class="mono">ALTER TABLE ... SET SCHEMA</span>, update every <span class="mono">*_store.py</span> to qualify table names. Done <em>before</em> any physical service split — isolates this risk from the split's risk.</li>
-        <li><b>Rename:</b> <span class="mono">hrb_chatbot_v2</span> → <span class="mono">hrb_chatbot_service</span> (repo/folder/LangSmith) — cheap, do it here since you're already touching things.</li>
+        <li><b>Rename:</b> <span class="mono">hrb_chatbot_service</span> → <span class="mono">hrb_chatbot_service</span> (repo/folder/LangSmith) — cheap, do it here since you're already touching things.</li>
       </ul>
     </div>
     <div class="phase-arrow">↓</div>
@@ -191,7 +191,7 @@
     <div class="phase-card">
       <div class="phase-head"><span class="phase-num">3</span><span class="phase-title">New capabilities — build fresh, no migration risk</span><span class="phase-risk">risk: low (isolated)</span></div>
       <ul class="phase-steps">
-        <li><span class="mono">chat_audio_service</span>, <span class="mono">plan_401k_service</span> — new repos, depend on <span class="mono">hrb_common_libs</span>. Can start in parallel with Phase 1/2 since they touch no existing working code.</li>
+        <li><span class="mono">chat_audio_service</span>, <span class="mono">employee_401k_service</span> — new repos, depend on <span class="mono">hrb_common_libs</span>. Can start in parallel with Phase 1/2 since they touch no existing working code.</li>
       </ul>
     </div>
   </div>
@@ -210,7 +210,7 @@
       <tr><td class="key">api_gateway_service</td><td><span class="pill todo">needed</span></td><td><span class="pill todo">needed</span></td><td>new</td></tr>
       <tr><td class="key">hrb_lms_mcp</td><td><span class="pill partial">partial</span></td><td><span class="pill todo">needed</span></td><td>deployment-guide doc 11 covers deploy only, not design</td></tr>
       <tr><td class="key">chat_audio_service</td><td><span class="pill none">none</span></td><td><span class="pill none">none</span></td><td>not started</td></tr>
-      <tr><td class="key">plan_401k_service</td><td><span class="pill partial">partial</span></td><td><span class="pill todo">needed</span></td><td>design docs exist (401k-loan-agent/) but predate this rename/rescope</td></tr>
+      <tr><td class="key">employee_401k_service</td><td><span class="pill partial">partial</span></td><td><span class="pill todo">needed</span></td><td>design docs exist (401k-loan-agent/) but predate this rename/rescope</td></tr>
       <tr><td class="key">hrb_common_libs</td><td><span class="pill none">none</span></td><td><span class="pill none">none</span></td><td>not started — not a running service, but still needs its own reference doc</td></tr>
     </tbody>
   </table>

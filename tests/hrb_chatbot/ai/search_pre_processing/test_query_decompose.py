@@ -1,8 +1,8 @@
 """Phase 130 - decompose() tests, same structured-output fake pattern as
 test_planner_agent.py (the LLM itself is faked, no real API call)."""
 
-from src.hrb_chatbot.ai.pre_processing import query_decompose
-from src.hrb_chatbot.ai.pre_processing.query_decompose import DecomposedQuery
+from src.hrb_chatbot.ai.search_pre_processing import query_decompose
+from src.hrb_chatbot.ai.search_pre_processing.query_decompose import DecomposedQuery
 
 
 class FakeRawResponse:
@@ -30,7 +30,7 @@ class FakeLlm:
 
 
 def _patch_llm(monkeypatch, parsed=None, raise_error=None):
-    monkeypatch.setattr(query_decompose, "_build_llm", lambda: FakeLlm(parsed, raise_error))
+    monkeypatch.setattr(query_decompose, "_build_llm", lambda decompose_model=None: FakeLlm(parsed, raise_error))
 
 
 async def test_atomic_question_returns_one_sub_question(monkeypatch):

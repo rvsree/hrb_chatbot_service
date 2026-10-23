@@ -21,17 +21,18 @@ class DecomposedQuery(BaseModel):
     sub_questions: list[str]
 
 
-def _build_llm() -> ChatOpenAI:
+def _build_llm(decompose_model: str | None = None) -> ChatOpenAI:
     # Phase 65's own precedent (Planner) - cheap enough to tier onto its own model.
-    return build_agent_llm("OPENAI_DECOMPOSE_MODEL")
+    # Phase 243: decompose_model, when given, overrides OPENAI_DECOMPOSE_MODEL for this call only.
+    return build_agent_llm("OPENAI_DECOMPOSE_MODEL", model_override=decompose_model)
 
 
-async def decompose(query: str) -> list[str]:
+async def decompose(query: str, decompose_model: str | None = None) -> list[str]:
     """Splits a compound question into independent sub-questions. Never
     returns an empty list - falls back to [query] unchanged on a parse
     failure or an empty result, so a decomposition hiccup degrades to
     today's exact single-question behavior, never a crash or a lost ask."""
-    llm = _build_llm().with_structured_output(DecomposedQuery, include_raw=True)
+    llm = _build_llm(decompose_model).with_structured_output(DecomposedQuery, include_raw=True)
     messages = [SystemMessage(content=DECOMPOSE_SYSTEM_PROMPT), HumanMessage(content=query)]
 
     try:

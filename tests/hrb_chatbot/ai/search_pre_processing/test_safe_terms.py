@@ -2,7 +2,7 @@
 invisibly - confirmed live against a real Presidio AnalyzerEngine call
 that this breaks NER tagging without changing the visible text."""
 
-from src.hrb_chatbot.ai.pre_processing.safe_terms import SAFE_TERMS_NOT_PII, protect_known_safe_terms
+from src.hrb_chatbot.ai.search_pre_processing.safe_terms import SAFE_TERMS_NOT_PII, protect_known_safe_terms
 
 
 def test_known_safe_term_is_wrapped():

@@ -603,6 +603,12 @@ class FakeFeedbackStore:
             return list(reversed(self._entries))
         return list(reversed([entry for entry in self._entries if entry["employee_id"] == employee_id]))
 
+    async def get_latest_feedback_for_conversation(self, conversation_id):
+        if not conversation_id:
+            return None
+        matching = [entry for entry in self._entries if entry["conversation_id"] == conversation_id]
+        return matching[-1] if matching else None
+
     async def delete_feedback(self, feedback_id):
         before = len(self._entries)
         self._entries = [entry for entry in self._entries if entry["id"] != feedback_id]
@@ -667,6 +673,31 @@ class FakeAnswerCache:
         self._entries.clear()
         self.clear_all_call_count += 1
         return count
+
+    async def health_check(self):
+        return {"provider": "redis", "status": "healthy"}
+
+
+class FakeStmCache:
+    """Stands in for StmCache (Phase 247, Redis-backed) - plain in-memory
+    dict keyed by conversation_id, same async interface as the real
+    Redis-backed one, never touches a real cache."""
+
+    def __init__(self):
+        self._turns: dict[str, list[dict]] = {}
+
+    async def get_turns(self, conversation_id):
+        return self._turns.get(conversation_id)
+
+    async def append_turn(self, conversation_id, role, content):
+        self._turns.setdefault(conversation_id, []).append({"role": role, "content": content})
+
+    async def backfill(self, conversation_id, turns):
+        if turns:
+            self._turns[conversation_id] = [{"role": turn["role"], "content": turn["content"]} for turn in turns]
+
+    async def clear(self, conversation_id):
+        self._turns.pop(conversation_id, None)
 
     async def health_check(self):
         return {"provider": "redis", "status": "healthy"}
@@ -1058,6 +1089,7 @@ class FakeDBGateway:
         feedback_store: "FakeFeedbackStore | None" = None,
         embedding_cache: FakeEmbeddingCache | None = None,
         answer_cache: FakeAnswerCache | None = None,
+        stm_cache: "FakeStmCache | None" = None,
         admin_credential_store: "FakeAdminCredentialStore | None" = None,
         agent_thread_store: "FakeAgentThreadStore | None" = None,
         doc_metadata_store: "FakeDocMetadataStore | None" = None,
@@ -1075,6 +1107,7 @@ class FakeDBGateway:
         self._feedback_store = feedback_store or FakeFeedbackStore()
         self._embedding_cache = embedding_cache or FakeEmbeddingCache()
         self._answer_cache = answer_cache or FakeAnswerCache()
+        self._stm_cache = stm_cache or FakeStmCache()
         self._admin_credential_store = admin_credential_store or FakeAdminCredentialStore()
         self._agent_thread_store = agent_thread_store or FakeAgentThreadStore()
         self._doc_metadata_store = doc_metadata_store or FakeDocMetadataStore()
@@ -1105,6 +1138,9 @@ class FakeDBGateway:
 
     def answer_cache(self):
         return self._answer_cache
+
+    def stm_cache(self):
+        return self._stm_cache
 
     def admin_credential_store(self):
         return self._admin_credential_store

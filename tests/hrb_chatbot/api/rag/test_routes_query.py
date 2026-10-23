@@ -278,6 +278,25 @@ def test_unexpected_pipeline_failure_returns_a_clean_500(monkeypatch):
     assert "error" in response.json()
 
 
+def test_unlisted_guardrails_model_is_a_422_validation_error(monkeypatch):
+    """Phase 244 - resolve_guardrails_model() raises ValueError for a
+    guardrails_model not on GUARDRAILS_SUPPORTED_MODELS; the route's existing
+    `except ValueError` block (already used for other validation failures)
+    turns that into a clean 422, not a 500."""
+
+    async def _raise_unsupported_model(*args, **kwargs):
+        raise ValueError("guardrails_model 'gpt-4-turbo' is not supported - choose one of ['gpt-4.1-nano', 'gpt-4.1-mini'].")
+
+    monkeypatch.setattr(retrieve_document.pipeline, "answer_query", _raise_unsupported_model)
+
+    response = client.post(
+        "/v1/genai-rag-retrieval/query", json={**_body(), "guardrails_model": "gpt-4-turbo"}
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "VALIDATION_ERROR"
+
+
 def test_mcp_routed_answer_reports_tools_used(monkeypatch):
     async def _fake_mcp_answer_query(params, request_id=None):
         return {

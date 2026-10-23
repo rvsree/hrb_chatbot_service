@@ -69,7 +69,7 @@ class ClientGateway:
         """Return the shared GitHub Actions client for the given repo,
         building it on first use (Phase 183; Phase 233 added the repo
         param). `repo=None` keeps this project's own default
-        (GITHUB_REPO / rvsree/hrb_chatbot_v2) - same GITHUB_TOKEN either
+        (GITHUB_REPO / rvsree/hrb_chatbot_service) - same GITHUB_TOKEN either
         way, just pointed at a different repo's Actions API."""
         key = repo or "default"
         if key not in self.github_actions_clients:

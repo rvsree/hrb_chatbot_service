@@ -87,7 +87,7 @@ footer.doc-foot { text-align: center; color: var(--fg-muted); font-size: 12px; p
 <header class="doc-head">
   <span class="eyebrow">design exploration &middot; companion doc</span>
   <h1>HRB Chatbot ⇄ 401(k) Loan Agent — Integration &amp; Isolation</h1>
-  <p class="subtitle">Assuming "HRB 401k Manager" is built and running as its own separate A2A service (per <code class="inline">design.html</code>), this is how <code class="inline">hrb_chatbot_v2</code> (backend + frontend) extends to talk to it — with a hard isolation boundary so none of this code path intermixes with the existing RAG/agentic features.</p>
+  <p class="subtitle">Assuming "HRB 401k Manager" is built and running as its own separate A2A service (per <code class="inline">design.html</code>), this is how <code class="inline">hrb_chatbot_service</code> (backend + frontend) extends to talk to it — with a hard isolation boundary so none of this code path intermixes with the existing RAG/agentic features.</p>
   <div class="status-row">
     <span class="chip warn">Status: design only — no code written</span>
     <span class="chip good">Revision 2 — business-domain naming, not protocol-prefixed (see &sect;00)</span>
@@ -121,16 +121,16 @@ flowchart TB
         SRV --> LLM --> CB --> DATA
         AC --- SRV
     end
-    EXT["Any A2A client<br/>(hrb_chatbot_v2, or anything else)"] -->|JSON-RPC over HTTP| SRV
+    EXT["Any A2A client<br/>(hrb_chatbot_service, or anything else)"] -->|JSON-RPC over HTTP| SRV
   </pre>
-  <p>The important property: nothing about this box's internals is visible to or reachable from <code class="inline">hrb_chatbot_v2</code> except through the Agent Card + JSON-RPC surface. That boundary is what makes the isolation on the other side possible too.</p>
+  <p>The important property: nothing about this box's internals is visible to or reachable from <code class="inline">hrb_chatbot_service</code> except through the Agent Card + JSON-RPC surface. That boundary is what makes the isolation on the other side possible too.</p>
 </section>
 
 <section>
-  <div class="section-head"><span class="section-num">02</span><h2>Diagram 2 — hrb_chatbot_v2 backend extension</h2></div>
+  <div class="section-head"><span class="section-num">02</span><h2>Diagram 2 — hrb_chatbot_service backend extension</h2></div>
   <pre class="mermaid">
 flowchart TB
-    subgraph EXIST["Existing hrb_chatbot_v2 — untouched"]
+    subgraph EXIST["Existing hrb_chatbot_service — untouched"]
         direction TB
         E1["api/rag/*, api/agentic_rag/*, api/multi_agentic_rag/*"]
         E2["ai/rag_pipeline/*, ai/agents/*"]
@@ -278,7 +278,7 @@ flowchart TB
   </ol>
 </section>
 
-<footer class="doc-foot">hrb_chatbot_v2 &middot; design exploration &middot; companion to this folder's design.html</footer>
+<footer class="doc-foot">hrb_chatbot_service &middot; design exploration &middot; companion to this folder's design.html</footer>
 
 </div>
 <script>mermaid.initialize({ startOnLoad: true, theme: "neutral" });</script>

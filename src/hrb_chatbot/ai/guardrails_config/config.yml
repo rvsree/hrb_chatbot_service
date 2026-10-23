@@ -1,7 +1,11 @@
 models:
   - type: main
     engine: openai
-    model: gpt-4.1-mini
+    # Phase 243 - input/output safety checks are a classification task, tiered
+    # onto the cheap model like the Planner/decompose steps. No request-level
+    # override here (see RAG-ROADMAP.md Phase 243's "Out of scope" - this is a
+    # static YAML loaded into a cached LLMRails singleton, not per-call).
+    model: gpt-4.1-nano
 
 rails:
   input:

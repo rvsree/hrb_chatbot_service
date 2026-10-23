@@ -656,6 +656,24 @@ code under 3 different names - exactly the "decorative control" the
 earlier finding was right to reject. Naming both concepts in the existing
 option's label/tooltip instead of inventing fake duplicate entries.
 
+## `dynamic` added to `SearchOptions.search_strategy` (Phase 252) — Finalized
+
+A 6th valid value - no shape change, same `search_options.search_strategy`
+string field:
+
+```json
+{ "search_options": { "search_strategy": "dynamic" } }
+```
+
+Not a 6th real retrieval technique - a router that resolves, once per
+query via a heuristic (`dynamic_strategy_selector.py`, no LLM call), to one
+of the existing 5 (`knn` excluded - a correctness baseline, not an
+auto-pick target). `RetrievalInfo.search_strategy` in the response always
+reports the **resolved** concrete value (e.g. `"hybrid"`), never the
+literal string `"dynamic"` - same transparency convention the Phase 240
+auto-router already uses for `resolved_mode`. `hrb_chatbot_ui`'s Retrieval
+Strategy dropdown makes this the default selection.
+
 **Compatibility - both backends support `knn`, cost profile differs:**
 ChromaDB's `get_all_chunks()` is a single local SQLite-backed bulk read
 (fast). Pinecone's is a paginated network round-trip (100 ids/`fetch()`
@@ -986,6 +1004,73 @@ Phase 231 already gave for keeping the ACL filter out of that field:
 `applied_filter` represents Self-Query's own parsed filter, and mixing in
 a security control would misrepresent what it shows.
 
+## POST /v1/rag-retrieval/query (Phase 240) — Finalized
+
+New, additive endpoint - `single-agentic-rag-retrieval`/`multi-agentic-rag-retrieval`
+stay exactly as they are today (forced-mode, unchanged contracts) so a demo
+can still reliably force either path on purpose. This one adds the
+auto-routing UI direction discussed 2026-10-21: a lightweight
+classification step decides single-agent vs. multi-agent per question,
+instead of the caller picking. "Direct RAG" (`genai-rag`) is deliberately
+not part of this router - it stays a separate, explicitly-selected mode
+(including the adhoc-upload-and-ask use case), per the same discussion.
+
+Request - identical shape to `single-agentic-rag-retrieval`'s own (the
+router's job is picking a pipeline, not a new request shape):
+
+```json
+{
+  "user_profile": { "employee_id": "EMP052", "full_name": "Eddy Employee", "role": "employee" },
+  "query": "What is my PTO balance?",
+  "enable_conversation_memory": false,
+  "conversation_id": null
+}
+```
+
+Response - whichever shape the resolved pipeline actually returns
+(`single-agentic-rag`'s `tools_used`/`iterations` shape, or
+`multi-agentic-rag`'s own), plus one new field naming which one was
+picked, so the UI's existing per-mode rendering logic can key off it
+without new frontend response-shape handling, and so the Explainability
+modal's existing "Retrieval Strategy" tab can show it:
+
+```json
+{
+  "resolved_mode": "single-agentic-rag",
+  "query": "What is my PTO balance?",
+  "answer": "Your current Paid Time Off (PTO) balance is 11 days available.",
+  "tools_used": [{ "tool_name": "GetLeaveBalance", "tool_input": "" }],
+  "iterations": 2,
+  "conversation_id": null
+}
+```
+
+`resolved_mode`: `"single-agentic-rag" | "multi-agentic-rag"` - always
+present, even on failure/escalation paths. Added as a new optional field
+(`resolved_mode: str | None = None`) to both `AgenticRagResponse` and
+`MultiAgenticRagResponse` - `None`/absent on those 2 models' own direct,
+forced-mode endpoints (unchanged), always set when either model is
+returned from this router endpoint.
+
+Decided 2026-10-21 (all 3 were open questions, now resolved):
+1. **Classifier** - a real LLM call (`gpt-4.1-nano` by default, same
+   model-tiering convention as Phase 243's Planner/decompose), structured
+   output, one short prompt deciding single-domain vs. multi-domain. Not a
+   heuristic or embedding-based approach - matches every other
+   classification step in this project.
+2. **Escalation** - **yes**, auto-escalates: if `single-agentic-rag`'s own
+   result looks weak (no sources/tool calls at all, or a live
+   groundedness/completeness score below an internal threshold - see the
+   phase spec's own `AUTO_ROUTER_ESCALATION_THRESHOLD`), the router
+   re-runs the SAME query through `multi-agentic-rag` and returns that
+   result instead, with `resolved_mode: "multi-agentic-rag"`. This is a
+   real cascade - worst case, a misclassified question costs both a
+   single-agentic-rag call AND a multi-agentic-rag call, not just one.
+3. **Service home** - built in `hrb_chatbot_service` now (the only place that
+   can actually run today), documented as the intended future home of
+   `rag_retrieval_service` once that service exists - same resolution
+   pattern `hrb_platform_components`' own Phase 0 used.
+
 ## GET /v1/genai-rag/ingest-document/documents, GET .../{id} — Finalized
 
 Identity: query params (`?employee_id=...&full_name=...&role=...`), not a
@@ -1152,7 +1237,7 @@ carries that instead of a crashed request.
 pair only ever fit `backend`'s own 2 workflow files. Phase 233 gave the
 *pipeline* endpoint (`/ci-status/pipeline`) an `application` selector but
 never touched this one (`/ci-status`, the older "Full run history" grid
-below it) - it still only ever showed `hrb_chatbot_v2`'s own `ci.yml`/
+below it) - it still only ever showed `hrb_chatbot_service`'s own `ci.yml`/
 `deploy.yml`, regardless of which application the Application dropdown had
 selected. This redesign gives it the same `application` param, plus new
 `page`/pagination (user-reported: the grid would otherwise grow
@@ -1191,7 +1276,7 @@ order, unchanged).
           "conclusion": "success",
           "head_sha": "d870681",
           "head_commit_message": "Add golden dataset Postgres mirror",
-          "html_url": "https://github.com/rvsree/hrb_chatbot_v2/actions/runs/123456",
+          "html_url": "https://github.com/rvsree/hrb_chatbot_service/actions/runs/123456",
           "created_at": "2026-10-15T03:58:22Z"
         }
       ],
@@ -1231,7 +1316,7 @@ GET /v1/admin/ci-status/pipeline?application=ingestion_lambda&employee_id=...&fu
 ```
 
 `Application` (new `StrEnum`, `common/enums.py`): `backend` (this
-project's own `ci.yml`/`deploy.yml`, `rvsree/hrb_chatbot_v2`),
+project's own `ci.yml`/`deploy.yml`, `rvsree/hrb_chatbot_service`),
 `ingestion_lambda` (`deploy-lambda.yml`, same repo as `backend` but a
 different deployable, filtered out of `backend`'s own view and vice
 versa - they used to be shown mixed together, confirmed confusing in
@@ -1430,3 +1515,92 @@ convention every other MCP-backed call in this project already follows.
 `error` is a string when the MCP-side call failed - `tools` is then always
 `[]`, never a partial list. Read-only introspection - this route never
 calls a tool, only discovers what's available.
+
+## `classification_options` request field + `*_model_used` on `ExplainabilityInfo` (Phase 243, model tiering) — Finalized
+
+New shared `ClassificationOptions` sub-object, mirroring Phase 215's
+`EvalOptions` pattern (optional override, free-text model name). Only one
+field applies per endpoint - the other is simply unused there, not
+rejected:
+
+```json
+{
+  "classification_options": {
+    "decompose_model": "gpt-4.1-nano",
+    "planner_model": "gpt-4.1-nano"
+  }
+}
+```
+
+`decompose_model` - genai-rag only (`POST /v1/genai-rag-retrieval/query`),
+overrides the model used by Phase 130's query-decomposition step. Defaults
+to `OPENAI_DECOMPOSE_MODEL` env var, then `gpt-4.1-nano` (Phase 243's new
+real default, was unset before this phase).
+
+`planner_model` - multi-agentic-rag only
+(`POST /v1/multi-agentic-rag-retrieval/query`), overrides the model used by
+the Planner Agent's routing step (Phase 65). Defaults to
+`OPENAI_PLANNER_MODEL` env var, then `gpt-4.1-nano` (same default change).
+
+Not added to single-agentic-rag - its ReAct loop has no separate
+classification/decomposition step to tier (see this project's own
+established reasoning: that endpoint's one LLM call is both classification
+and generation combined, left untouched).
+
+`ExplainabilityInfo` gains two new nullable fields, same
+"verifiable, not just trusted" reasoning as `judge_model_used`:
+
+```json
+"explainability_info": {
+  "...": "...existing fields unchanged",
+  "decompose_model_used": "gpt-4.1-nano",
+  "planner_model_used": null
+}
+```
+
+`decompose_model_used` is null for single/multi-agentic-rag responses
+(that stage never ran); `planner_model_used` is null for genai-rag/
+single-agentic-rag responses, same reasoning.
+
+## `guardrails_model` request field + `guardrails_model_used`/`guardrails_supported_models` (Phase 244, guardrails model override) — Finalized
+
+A real request-level override for which model runs NeMo Guardrails'
+input/output safety checks - unlike `classification_options`, this is a
+single top-level field, present and functionally identical on all 3 query
+requests (guardrails run on every mode, same as `eval_options`):
+
+```json
+{
+  "guardrails_model": "gpt-4.1-mini"
+}
+```
+
+Optional, free text at the wire level but validated server-side against a
+real allow-list (`GUARDRAILS_SUPPORTED_MODELS` env var, comma-separated) -
+a value outside that list is a `422` with `code: "VALIDATION_ERROR"`, not
+silently accepted or silently ignored. Omitting the field uses the
+backend's own configured default (`gpt-4.1-nano` today, same as the
+`ai/guardrails_config/config.yml` value Phase 243 set).
+
+`ExplainabilityInfo` gains one new field, same verifiability reasoning as
+`judge_model_used`/`decompose_model_used`:
+
+```json
+"explainability_info": {
+  "...": "...existing fields unchanged",
+  "guardrails_model_used": "gpt-4.1-mini"
+}
+```
+
+Always present (guardrails run on every real call, no mode-null case like
+`decompose_model_used`/`planner_model_used` have) - reused as-is, not
+null, on a cache hit (same reasoning as `eval_scores`: the cached answer's
+guardrail check already happened for that content).
+
+`GET /health`'s response gains `guardrails_supported_models: string[]` -
+the same allow-list the server validates `guardrails_model` against, so
+`hrb_chatbot_ui`'s Settings → Model tab can render it as a real `<select>`
+instead of free text, with no value the backend would reject. Reaches the
+frontend through `hrb_api_gateway_service`'s existing Phase 7
+`checks.backend_service.backend_report` nesting unchanged - no Gateway
+code needed for this field specifically.

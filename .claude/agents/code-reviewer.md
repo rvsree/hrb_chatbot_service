@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: >
-  Reviews a phase's code changes against hrb_chatbot_v2's
+  Reviews a phase's code changes against hrb_chatbot_service's
   docs/agent-reference/CODING-STANDARDS.md and error-handling-by-layer rules, in an
   isolated context, after implementation and before its roadmap checkbox
   is flipped to done. Read-only - flags issues, never fixes them. Use as a
