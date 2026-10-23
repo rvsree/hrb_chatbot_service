@@ -1,4 +1,4 @@
-# HRB Chatbot v2
+# HRB Chatbot Service
 
 An HR benefits chatbot backed by a RAG pipeline over the JPMC benefits
 knowledge base (`resources/kb_docs/`). Being built by hand, one feature at a
@@ -7,24 +7,35 @@ time, to apply RAG concepts from the Interview Kickstart FDE cohort - see
 current status (that file is the source of truth for "what's done" - this
 README doesn't repeat it).
 
+**2026-10-23: now one of 7 repos**, not the whole system - this repo is still
+the live production backend for retrieval traffic, but `hrb_api_gateway_service`
+now fronts everything, and `rag_ingestion_service`/`rag_retrieval_service`/
+`hrb_platform_components` have split off real functionality into their own
+deployed services (see `docs/dev-reference/microservices-rollout-plan.html`
+for the full real status). This repo's own retrieval code stays live until
+`rag_retrieval_service`'s own cutover is approved - a separate, later decision.
+
 ## Environments
 
 | App | Local | AWS (production) |
 | --- | --- | --- |
 | Backend (this repo, `hrb_chatbot_service`) | `http://127.0.0.1:8093` | `https://hrb-chatbot.rvsree.dev` |
+| Gateway (`hrb_api_gateway_service`, separate repo - the real public entry point now) | `http://127.0.0.1:8100` | `https://necxf9n7mv.us-east-1.awsapprunner.com` |
 | Frontend (`hrb_chatbot_ui`, separate repo) | `http://localhost:5173` (`npm run dev`) | `https://hrb-chatbot-ui.rvsree.dev` |
 | MCP server (`hrb_lms_mcp`, separate repo - leave balance/history tools) | `http://127.0.0.1:8190` | `https://hrb-lms-mcp.rvsree.dev` |
 
 The AWS backend runs on App Runner (Phase 10, see
 [AWS-DEVOPS-RUNBOOK.md](docs/agent-reference/AWS-DEVOPS-RUNBOOK.md)); the AWS
-frontend is a static build on S3 behind CloudFront (Phase 117, manually
-provisioned - no CI/CD pipeline for it yet, unlike the backend's `deploy.yml`);
-`hrb_lms_mcp` is its own App Runner service with a real `deploy.yml` (Phase
-118). All three point at each other by default: the frontend's
-`.env.production` bakes in the production backend URL above, the backend's
-CORS config (`main.py`) allows the production frontend origin, and the
-backend's `HRB_LMS_MCP_URL`/OAuth2 settings (App Runner secrets, not
-committed anywhere) point at the production MCP server.
+frontend is a static build on S3 behind CloudFront, with a real CI/CD
+pipeline as of 2026-10-23 (build -> S3 sync -> CloudFront invalidation on
+every push to its own `master`); `hrb_lms_mcp` is its own App Runner service
+with a real `deploy.yml`. As of 2026-10-23, the frontend's own
+`.env.production` points at the **Gateway**, not this backend directly - the
+Gateway forwards 1:1 to this backend's `BACKEND_SERVICE_URL` secret. This
+backend's CORS config (`main.py`) still allows the production frontend
+origin directly too (unchanged, in case anything still calls it that way),
+and its `HRB_LMS_MCP_URL`/OAuth2 settings (App Runner secrets, not committed
+anywhere) point at the production MCP server.
 
 ## Prerequisites
 
