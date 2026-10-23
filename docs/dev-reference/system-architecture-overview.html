@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>System Architecture Overview</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef0f4; --surface: #ffffff; --surface-alt: #f4f5f9; --border: #d9dce4;
+    --text: #191d28; --text-muted: #565f72; --text-faint: #8992a4;
+    --now: #1f8a4c; --now-bg: #e6f5ec; --now-border: #b9e2c9;
+    --logical: #333f9e; --logical-bg: #e8eafc; --logical-border: #c7cdf5;
+    --later: #b8790a; --later-bg: #fbf1dd; --later-border: #edd6a2;
+    --reuse: #0b6f66; --reuse-bg: #e2f6f2; --reuse-border: #b7e4da;
+    --risk: #b23a2f; --risk-bg: #fbebe8; --risk-border: #f0c4bc;
+    --unknown: #6b6f7a; --unknown-bg: #eceef2; --unknown-border: #d4d7e0;
+    --ribbon-bg: #191d28; --ribbon-text: #ffffff;
+    --shadow: 0 2px 4px rgba(20,24,34,0.06), 0 12px 26px rgba(20,24,34,0.08);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1218; --surface: #1a1f29; --surface-alt: #1c212c; --border: #2b3140;
+      --text: #e8eaf0; --text-muted: #a3aac0; --text-faint: #6d7488;
+      --now: #4fbd80; --now-bg: #15281d; --now-border: #23492f;
+      --logical: #7c86e0; --logical-bg: #1c2140; --logical-border: #343d7a;
+      --later: #e0ac48; --later-bg: #2c2311; --later-border: #4a3a17;
+      --reuse: #3fc2a8; --reuse-bg: #12241f; --reuse-border: #1f4237;
+      --risk: #e2776a; --risk-bg: #2c1815; --risk-border: #4a2620;
+      --unknown: #9199ac; --unknown-bg: #20242e; --unknown-border: #363c4a;
+      --ribbon-bg: #e8eaf0; --ribbon-text: #14161e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1218; --surface: #1a1f29; --surface-alt: #1c212c; --border: #2b3140;
+    --text: #e8eaf0; --text-muted: #a3aac0; --text-faint: #6d7488;
+    --now: #4fbd80; --now-bg: #15281d; --now-border: #23492f;
+    --logical: #7c86e0; --logical-bg: #1c2140; --logical-border: #343d7a;
+    --later: #e0ac48; --later-bg: #2c2311; --later-border: #4a3a17;
+    --reuse: #3fc2a8; --reuse-bg: #12241f; --reuse-border: #1f4237;
+    --risk: #e2776a; --risk-bg: #2c1815; --risk-border: #4a2620;
+    --unknown: #9199ac; --unknown-bg: #20242e; --unknown-border: #363c4a;
+    --ribbon-bg: #e8eaf0; --ribbon-text: #14161e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 32px 56px;
+  }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-faint); font-weight: 600; }
+  h1 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 900; font-size: clamp(24px, 3.8vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 13.5px; max-width: 80ch; line-height: 1.55; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 9px; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); padding: 5px 10px 5px 8px; border-radius: 999px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot.now { background: var(--now); } .dot.later { background: var(--later); } .dot.reuse { background: var(--reuse); } .dot.unknown { background: var(--unknown); }
+
+  h2 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 15.5px; display: flex; align-items: center; gap: 9px; }
+  .h2-num { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 700; background: var(--ribbon-bg); color: var(--ribbon-text); border-radius: 6px; padding: 2px 7px; flex: none; }
+  .h2-sub { font-size: 11.5px; font-weight: 500; color: var(--text-faint); }
+  section { display: flex; flex-direction: column; gap: 12px; }
+
+  /* diagram layers */
+  .diagram { display: flex; flex-direction: column; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; box-shadow: var(--shadow); }
+  .layer-row { display: flex; justify-content: center; }
+  .layer-arrow { text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: var(--text-faint); line-height: 1; padding: 2px 0; }
+  .layer-label { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); text-align: center; margin-top: 2px; }
+
+  .node { border-radius: 10px; padding: 9px 14px; border: 1.5px solid; text-align: center; display: flex; flex-direction: column; gap: 2px; min-width: 140px; }
+  .node .nname { font-weight: 700; font-size: 12.5px; font-family: 'IBM Plex Mono', monospace; }
+  .node .ndesc { font-size: 10px; color: var(--text-muted); line-height: 1.35; }
+  .node .nurl { font-size: 9px; color: var(--text-faint); font-family: 'IBM Plex Mono', monospace; }
+  .node.live { background: var(--now-bg); border-color: var(--now-border); }
+  .node.live .nname { color: var(--now); }
+  .node.standalone { background: var(--later-bg); border-color: var(--later-border); border-style: dashed; }
+  .node.standalone .nname { color: var(--later); }
+  .node.infra { background: var(--reuse-bg); border-color: var(--reuse-border); }
+  .node.infra .nname { color: var(--reuse); }
+  .node.lib { background: var(--unknown-bg); border-color: var(--unknown-border); border-style: dotted; }
+  .node.lib .nname { color: var(--unknown); }
+  .node.user { background: var(--surface-alt); border-color: var(--border); }
+
+  .row-grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+
+  .fix-note { display: flex; gap: 8px; align-items: flex-start; background: var(--surface-alt); border: 1px dashed var(--border); border-radius: 8px; padding: 9px 11px; font-size: 11.5px; color: var(--text-muted); line-height: 1.5; }
+  .fix-note b { color: var(--text); }
+
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12px; background: var(--surface); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); }
+  .data-table thead th { text-align: left; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-faint); background: var(--surface-alt); padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  .data-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table .key { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 11.5px; }
+  .table-wrap { overflow-x: auto; }
+  .pill { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+  .pill.live { background: var(--now-bg); border-color: var(--now-border); color: var(--now); }
+  .pill.standalone { background: var(--later-bg); border-color: var(--later-border); color: var(--later); }
+  .pill.hold { background: var(--unknown-bg); border-color: var(--unknown-border); color: var(--unknown); }
+
+  .ribbon { display: flex; align-items: center; gap: 10px; justify-content: center; background: var(--ribbon-bg); color: var(--ribbon-text); border-radius: 12px; padding: 11px 16px; font-size: 12.5px; font-weight: 600; text-align: center; box-shadow: var(--shadow); }
+  .ribbon .mono { font-weight: 500; opacity: 0.85; font-size: 11.5px; }
+  footer { font-size: 11px; color: var(--text-faint); text-align: center; padding-top: 4px; }
+  footer code { font-family: 'IBM Plex Mono', monospace; }
+
+  @media (max-width: 720px) {
+    .node { min-width: 0; flex: 1 1 140px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="eyebrow">hrb_chatbot_service · system reference · 2026-10-23</span>
+  <h1>System Architecture Overview</h1>
+  <p class="subtitle">The real, current picture across all 7 repos — not a plan. None of this project's other diagrams show this: the Gateway in front, the split backend services, which ones are actually cut over vs. built-and-standing-by, and the shared infra underneath. Companion to <span class="mono">service-boundary-decision.html</span>, <span class="mono">microservices-rollout-plan.html</span>, and <span class="mono">microservices-interface-matrix.html</span> — those three cover the decision and the plan; this one is what's actually deployed today.</p>
+  <div class="legend">
+    <span class="legend-item"><span class="dot now"></span>Live — real production traffic</span>
+    <span class="legend-item"><span class="dot later"></span>Built, deployed, standalone — not cut over</span>
+    <span class="legend-item"><span class="dot reuse"></span>Shared infra</span>
+    <span class="legend-item"><span class="dot unknown"></span>Shared library, not a running service</span>
+  </div>
+</header>
+
+<section>
+  <h2><span class="h2-num">1</span>Request flow <span class="h2-sub">— a real browser request, top to bottom</span></h2>
+  <div class="diagram">
+    <div class="layer-row"><div class="node user"><span class="nname">Browser</span><span class="ndesc">end user, any role</span></div></div>
+    <div class="layer-arrow">↓</div>
+    <div class="layer-row"><div class="node live"><span class="nname">hrb_chatbot_ui</span><span class="ndesc">React/Vite SPA · S3 + CloudFront</span><span class="nurl">hrb-chatbot-ui.rvsree.dev</span></div></div>
+    <div class="layer-arrow">↓</div>
+    <div class="layer-row"><div class="node live"><span class="nname">hrb_api_gateway_service</span><span class="ndesc">RBAC · CORS · rate-limit · contract validation</span><span class="nurl">necxf9n7mv.us-east-1.awsapprunner.com</span></div></div>
+    <div class="layer-arrow">↓ forwards 1:1 to one configurable backend ↓</div>
+    <div class="layer-label">backend services — split from the original monolith</div>
+    <div class="layer-row">
+      <div class="row-grid">
+        <div class="node live"><span class="nname">hrb_chatbot_service</span><span class="ndesc">still the live retrieval backend — the pre-split monolith, not yet decommissioned</span><span class="nurl">hrb-chatbot.rvsree.dev</span></div>
+        <div class="node live"><span class="nname">rag_ingestion_service</span><span class="ndesc">extract→chunk→embed→index · sync App Runner + async Lambda, both cut over</span><span class="nurl">wkfgxanevz.us-east-1.awsapprunner.com</span></div>
+        <div class="node standalone"><span class="nname">rag_retrieval_service</span><span class="ndesc">decompose→retrieve→generate · built, deployed, independently verified — NOT cut over</span><span class="nurl">mpm3qjkbkc.us-east-1.awsapprunner.com</span></div>
+        <div class="node live"><span class="nname">hrb_platform_components</span><span class="ndesc">CI/CD dashboard, interview Q&amp;A, MCP catalog — its own service, not co-located</span><span class="nurl">pgmzxemv5z.us-east-1.awsapprunner.com</span></div>
+      </div>
+    </div>
+    <div class="layer-arrow">↓</div>
+    <div class="layer-row">
+      <div class="node live"><span class="nname">hrb_lms_mcp</span><span class="ndesc">MCP server — leave balance/history tools. Called by hrb_chatbot_service, rag_retrieval_service, hrb_platform_components over real OAuth2 client-credentials</span><span class="nurl">hrb-lms-mcp.rvsree.dev</span></div>
+    </div>
+  </div>
+  <div class="fix-note"><span>↳</span><div><b>Why both <span class="mono">hrb_chatbot_service</span> and <span class="mono">rag_retrieval_service</span> are "live":</b> the Gateway's <span class="mono">BACKEND_SERVICE_URL</span> still points at <span class="mono">hrb_chatbot_service</span> today — that's genuinely what answers a real retrieval query right now. <span class="mono">rag_retrieval_service</span> is a complete, independently-deployed, independently-verified parallel implementation of the same retrieval logic, proven via a real multi-turn Playwright suite against its own live URL — it just isn't the one in the request path yet. Cutting it over is a separate, deliberate decision, not a readiness gap.</div></div>
+</section>
+
+<section>
+  <h2><span class="h2-num">2</span>Shared infrastructure <span class="h2-sub">— what the backend services underneath actually touch</span></h2>
+  <div class="diagram">
+    <div class="layer-row">
+      <div class="row-grid">
+        <div class="node infra"><span class="nname">Neon Postgres</span><span class="ndesc">one flat <span class="mono" style="font-size:9px;">public</span> schema in production — the schema-per-domain split (Phase 251) is local-only, see §3</span></div>
+        <div class="node infra"><span class="nname">Redis</span><span class="ndesc">rate-limit state (Gateway), answer cache + STM/LTM conversation memory (chatbot/retrieval)</span></div>
+        <div class="node infra"><span class="nname">Pinecone</span><span class="ndesc">vector DB — ingestion writes, retrieval reads, same index</span></div>
+        <div class="node infra"><span class="nname">S3 + CloudFront</span><span class="ndesc">KB document uploads, leave-docs, and the UI's own static hosting</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="fix-note"><span>⚠</span><div><b>Real incident, 2026-10-23:</b> a connection-option change meant to support the schema-per-domain split shipped to production independently of the actual migration SQL — Neon's pooled connection endpoint rejects the <span class="mono">search_path</span> option outright, breaking every production query for several minutes before being hotfixed. Production Postgres is still one flat <span class="mono">public</span> schema, same as before — see <span class="mono">RAG-ROADMAP.md</span>'s Phase 251 entry for the full incident.</div></div>
+</section>
+
+<section>
+  <h2><span class="h2-num">3</span>Shared library <span class="h2-sub">— not a deployed service, but every backend here depends on it</span></h2>
+  <div class="layer-row">
+    <div class="node lib"><span class="nname">hrb-common-libs</span><span class="ndesc">connectors + observability, 10 pip extras in one git-tag-pinned repo (v0.4.0) — not ~10 separate packages, see microservices-interface-matrix.html §2</span></div>
+  </div>
+  <p style="margin:0;font-size:11.5px;color:var(--text-muted);line-height:1.5;">Used by <span class="mono">hrb_api_gateway_service</span>, <span class="mono">rag_ingestion_service</span>, <span class="mono">rag_retrieval_service</span>, and <span class="mono">hrb_platform_components</span> — every repo built during the actual split. <span class="mono">hrb_chatbot_service</span> (pre-split) and <span class="mono">hrb_chatbot_ui</span> (frontend, different language) don't depend on it.</p>
+</section>
+
+<section>
+  <h2><span class="h2-num">4</span>All 7 repos, one table <span class="h2-sub">— status, URL, what it actually does</span></h2>
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>Repo</th><th>Status</th><th>Production URL</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td class="key">hrb_chatbot_ui</td><td><span class="pill live">live</span></td><td class="mono" style="font-size:10.5px;">hrb-chatbot-ui.rvsree.dev</td><td>Frontend SPA — the only thing end users talk to directly</td></tr>
+      <tr><td class="key">hrb_api_gateway_service</td><td><span class="pill live">live</span></td><td class="mono" style="font-size:10.5px;">necxf9n7mv.us-east-1.awsapprunner.com</td><td>Single public entry point — RBAC/CORS/rate-limit/contract validation</td></tr>
+      <tr><td class="key">hrb_chatbot_service</td><td><span class="pill live">live</span></td><td class="mono" style="font-size:10.5px;">hrb-chatbot.rvsree.dev</td><td>Pre-split monolith — still the real retrieval backend behind the Gateway</td></tr>
+      <tr><td class="key">rag_ingestion_service</td><td><span class="pill live">live, cut over</span></td><td class="mono" style="font-size:10.5px;">wkfgxanevz.us-east-1.awsapprunner.com</td><td>Extract→chunk→embed→index — both sync (App Runner) and async (Lambda) paths real</td></tr>
+      <tr><td class="key">rag_retrieval_service</td><td><span class="pill standalone">standalone</span></td><td class="mono" style="font-size:10.5px;">mpm3qjkbkc.us-east-1.awsapprunner.com</td><td>Decompose→retrieve→generate — built, deployed, verified, deliberately not cut over</td></tr>
+      <tr><td class="key">hrb_platform_components</td><td><span class="pill live">live</span></td><td class="mono" style="font-size:10.5px;">pgmzxemv5z.us-east-1.awsapprunner.com</td><td>CI/CD dashboard, interview Q&amp;A, MCP tool catalog</td></tr>
+      <tr><td class="key">hrb-common-libs</td><td><span class="pill live">in use</span></td><td class="mono" style="font-size:10.5px;">— (library, no URL)</td><td>Shared connectors + observability, pip-installed by 4 of the above</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="margin:0;font-size:11.5px;color:var(--text-muted);line-height:1.5;">Not counted above: <span class="mono">hrb_lms_mcp</span> (a separate project, pre-existing, also live at <span class="mono">hrb-lms-mcp.rvsree.dev</span>) and the 2 on-hold future services (<span class="mono">chat_audio_service</span>, <span class="mono">employee_401k_service</span>) covered in <span class="mono">service-boundary-decision.html</span> §1.</p>
+</section>
+
+<div class="ribbon">6 of 7 planned services are real and deployed · rag_retrieval_service's cutover is the one open decision left on this picture</div>
+
+<footer>2026-10-23 · companion to <code>service-boundary-decision.html</code>, <code>microservices-rollout-plan.html</code>, <code>microservices-interface-matrix.html</code> · see <code>reengineering-status-board.html</code> for per-phase test/build/deploy/smoke detail</footer>
+
+</div>
+</body>
+</html>
