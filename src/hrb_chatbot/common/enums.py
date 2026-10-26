@@ -18,17 +18,25 @@ class MetadataStore(StrEnum):
 
 
 class Application(StrEnum):
-    """Phase 233 - which real deployable the CI/CD Pipeline Visibility
-    dashboard is showing. BACKEND/INGESTION_LAMBDA share one GitHub repo
-    (hrb_chatbot_service) but are different workflow files/deploy targets;
-    LMS_MCP is a genuinely separate repo (rvsree/hrb_lms_mcp); FRONTEND
-    (hrb_chatbot_ui) has no GitHub Actions workflow at all - deployed
-    manually, see its own README."""
+    """Phase 255 - which real deployable the CI/CD Pipeline Visibility
+    dashboard is showing. Rebuilt for the real 7-repo split - Phase 233's
+    original 4-member set (backend/ingestion_lambda/lms_mcp/frontend)
+    predates it. Each member below is its own GitHub repo now except
+    BACKEND (hrb_chatbot_service, unchanged) and LMS_MCP (rvsree/hrb_lms_mcp,
+    unchanged - a genuinely separate project). INGESTION_LAMBDA was dropped
+    as its own member: hrb_chatbot_service's own deploy-lambda.yml/Lambda
+    is confirmed superseded (its SQS trigger is disabled) by RAG_INGESTION's
+    own Lambda - see RAG-ROADMAP.md's Phase 255 entry for the live
+    verification."""
 
-    BACKEND = "backend"
-    INGESTION_LAMBDA = "ingestion_lambda"
-    LMS_MCP = "lms_mcp"
     FRONTEND = "frontend"
+    GATEWAY = "gateway"
+    BACKEND = "backend"
+    RAG_INGESTION = "rag_ingestion"
+    RAG_RETRIEVAL = "rag_retrieval"
+    PLATFORM_COMPONENTS = "platform_components"
+    COMMON_LIBS = "common_libs"
+    LMS_MCP = "lms_mcp"
 
 
 class LlmProvider(StrEnum):

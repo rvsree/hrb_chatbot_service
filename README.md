@@ -11,9 +11,29 @@ README doesn't repeat it).
 the live production backend for retrieval traffic, but `hrb_api_gateway_service`
 now fronts everything, and `rag_ingestion_service`/`rag_retrieval_service`/
 `hrb_platform_components` have split off real functionality into their own
-deployed services (see `docs/dev-reference/microservices-rollout-plan.html`
+deployed services (see
+[../docs/architecture/microservices-rollout-plan.html](../docs/architecture/microservices-rollout-plan.html)
 for the full real status). This repo's own retrieval code stays live until
 `rag_retrieval_service`'s own cutover is approved - a separate, later decision.
+
+## Diagrams and cross-service docs
+
+**Moved 2026-10-26**: platform-level docs (architecture, diagrams, auth,
+build-and-deploy) now live one level up, at `hrb_emp_assist/docs/` - this
+repo keeps only its own service-specific docs under
+`docs/dev-reference/hrb_chatbot_v3/`.
+
+Start at
+[../docs/architecture/platform-overview.html](../docs/architecture/platform-overview.html)
+- the one-page hub: business capabilities, all 7 repos, one diagram, links
+to everything else. Every application's own current-state, target-state
+(scaling), and deployment architecture - as real, editable `.drawio` files,
+not static images - is indexed at
+[../docs/architecture/diagrams/README.md](../docs/architecture/diagrams/README.md).
+This repo's own 3 diagrams:
+[current state](../docs/architecture/diagrams/hrb-chatbot-service-current-state-architecture.drawio),
+[target state](../docs/architecture/diagrams/hrb-chatbot-service-target-state-scaling-architecture.drawio),
+[deployment](../docs/architecture/diagrams/hrb-chatbot-service-deployment-architecture.drawio).
 
 ## Environments
 
@@ -199,9 +219,12 @@ requester's own view) - a human-in-the-loop approval flow, not an agent
 auto-approving itself. `admin` can file requests and view every request
 (`GET /all`) the same way `hr_support` can, but deliberately cannot
 resolve/approve one - that stays an `hr_support`-only action. See
-[docs/dev-reference/react_agents/](docs/dev-reference/react_agents/) and
+[docs/dev-reference/hrb_chatbot_v3/agents-and-workflows/request-unpaid-leave/](docs/dev-reference/hrb_chatbot_v3/agents-and-workflows/request-unpaid-leave/)
+(the real built feature's own doc set) and
 the relevant `docs/agent-reference/RAG-ROADMAP.md` phase entries (search
-for "HITL"/"A2A") for the design.
+for "HITL"/"A2A") for the design. *(Corrected 2026-10-24 - this link
+previously pointed at `docs/dev-reference/react_agents/`, a pre-build
+design folder since moved to `_archive/` in the 2026-10-23 reorg.)*
 
 ## Running in a container
 

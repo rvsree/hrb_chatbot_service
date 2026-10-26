@@ -2,7 +2,10 @@
 
 A simple, follow-along guide to this project's test suite - what's tested,
 what isn't yet, and the pattern to copy when you add your own tests for
-the hand-written RAG pipeline later.
+the hand-written RAG pipeline later. This doc covers whether the *code*
+works (the pytest suite); for whether the chatbot's *answers* are actually
+good (golden/synthetic/live-query datasets, the RAG quality side), see
+[testing-strategies.md](testing-strategies.md) instead.
 
 ## Running the tests
 

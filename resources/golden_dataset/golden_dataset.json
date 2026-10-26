@@ -11,7 +11,8 @@
       "disability.pdf": "AmazingBank_Sedgwick_Unpaid_Timeoff.pdf"
     },
     "generated": "2026-09-08",
-    "case_count": 26,
+    "case_count": 29,
+    "_routing_accuracy_cases_added_2026_10_26": "Phase 258 - expected_tool/expected_agent fields added to 401k-01 and agent-call-leave-balance-01, plus 3 new cases (routing-leave-history-01/routing-analytics-01/routing-web-search-01) covering the remaining real tool/agent types - see each case's own notes field; routing-analytics-01 and routing-web-search-01 are flagged best-effort, not live-verified.",
     "_case_count_corrected_2026_09_21": "was 22, file actually has 23 cases - fixed, not just the number: category breakdown is 18 happy, 1 happy_multi_document, 2 unhappy_out_of_scope, 1 unhappy_unanswerable, 1 unhappy_adversarial",
     "_multi_agent_cases_added_2026_10_04": "Phase 67 - 2 new cases for multi-agentic-rag (not genai-rag): happy_multi_topic_single_domain (same-domain compound, tests Planner splitting within vector_kb_agent) and happy_multi_domain_agent (cross-domain, KB + live leave-balance data). Both also checked by a dedicated live multi-agent test, not just this file's own exact-match scoring - see each case's own notes field.",
     "_call_type_added_2026_10_04": "Phase 73 - every case now carries call_type (\"agent_call\" or \"llm_call\"), reflecting whether genai-rag's own try_route_to_mcp() bypass (Phase 49) would fire for that query's text, verified programmatically against the real is_leave_balance_query()/is_leave_history_query() functions, not eyeballed. Checked by tests/hrb_chatbot/ai/rag_pipeline/evaluations/test_routing_type_golden_cases.py, which runs in the default suite (not -m eval) since confirming the bypass needs no LLM call.",
@@ -30,7 +31,9 @@
         "5%",
         "one year of service"
       ],
-      "call_type": "llm_call"
+      "call_type": "llm_call",
+      "expected_tool": "SearchKnowledgeBase",
+      "expected_agent": "vector_kb_agent"
     },
     {
       "id": "401k-02",
@@ -359,7 +362,43 @@
       "expected_source_document": null,
       "expected_answer": null,
       "expected_keywords": [],
-      "notes": "Phase 73 - dedicated case for the routing-type check (test_routing_type_golden_cases.py), not for answer-quality scoring. Exercises genai-rag's try_route_to_mcp() deterministic bypass (Phase 49) - a real MCP call, not retrieval+generation, so no fixed expected_answer/expected_source_document is meaningful here."
+      "notes": "Phase 73 - dedicated case for the routing-type check (test_routing_type_golden_cases.py), not for answer-quality scoring. Exercises genai-rag's try_route_to_mcp() deterministic bypass (Phase 49) - a real MCP call, not retrieval+generation, so no fixed expected_answer/expected_source_document is meaningful here.",
+      "expected_tool": "GetLeaveBalance",
+      "expected_agent": "lms_ops_agent"
+    },
+    {
+      "id": "routing-leave-history-01",
+      "category": "happy",
+      "call_type": "agent_call",
+      "query": "What unpaid leave requests have I submitted in the past?",
+      "expected_source_document": null,
+      "expected_answer": null,
+      "expected_keywords": [],
+      "notes": "Phase 258 - routing-accuracy case, not answer-quality scoring (same reasoning as agent-call-leave-balance-01). Real leave-history data, not a KB document lookup.",
+      "expected_tool": "GetLeaveHistory",
+      "expected_agent": "lms_ops_agent"
+    },
+    {
+      "id": "routing-analytics-01",
+      "category": "happy",
+      "call_type": "llm_call",
+      "query": "How many employees took parental leave last year?",
+      "expected_source_document": null,
+      "expected_answer": null,
+      "expected_keywords": [],
+      "notes": "Phase 258 - best-effort routing case, flagged honestly: lms_analytics_agent's real planner-routing trigger wasn't live-verified before adding this (the Planner's own routing decision is itself an LLM judgment call, not deterministic) - confirm with a real run before trusting this case's expected_agent value. No single-agentic-rag equivalent tool exists for this kind of aggregate question, so expected_tool is intentionally omitted. call_type is llm_call, not agent_call - this query does NOT match genai-rag's own deterministic MCP-bypass keywords (confirmed live via test_routing_type_golden_cases.py, which caught this exact mistake on the first attempt), unlike agent-call-leave-balance-01/routing-leave-history-01 above - it's only an 'agent_call' in the multi-agentic-rag planner-routing sense, a different mechanism.",
+      "expected_agent": "lms_analytics_agent"
+    },
+    {
+      "id": "routing-web-search-01",
+      "category": "happy",
+      "call_type": "llm_call",
+      "query": "What is JPMorgan Chase's current published stock price?",
+      "expected_source_document": null,
+      "expected_answer": null,
+      "expected_keywords": [],
+      "notes": "Phase 258 - best-effort routing case, flagged honestly, same caveat as routing-analytics-01: web_search_agent's real routing trigger wasn't live-verified before adding this case. No single-agentic-rag equivalent tool exists for live external search, so expected_tool is intentionally omitted. call_type is llm_call, not agent_call - same correction as routing-analytics-01, this query doesn't match genai-rag's own deterministic MCP-bypass keywords.",
+      "expected_agent": "web_search_agent"
     }
   ]
 }

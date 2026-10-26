@@ -1,0 +1,216 @@
+<title>State Management</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef0f4; --surface: #ffffff; --surface-alt: #f4f5f9; --border: #d9dce4;
+    --text: #191d28; --text-muted: #565f72; --text-faint: #8992a4;
+    --redis: #b23a2f; --redis-bg: #fbebe8; --redis-border: #f0c4bc;
+    --pg: #1f6fa8; --pg-bg: #e7f1fa; --pg-border: #bedaf0;
+    --new: #1f8a4c; --new-bg: #e6f5ec; --new-border: #b9e2c9;
+    --shadow: 0 2px 4px rgba(20,24,34,0.06), 0 12px 26px rgba(20,24,34,0.08);
+    --code-bg: #f4f5f9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1218; --surface: #1a1f29; --surface-alt: #1c212c; --border: #2b3140;
+      --text: #e8eaf0; --text-muted: #a3aac0; --text-faint: #6d7488;
+      --redis: #e2776a; --redis-bg: #2c1815; --redis-border: #4a2620;
+      --pg: #5aa6dd; --pg-bg: #16222e; --pg-border: #26425a;
+      --new: #4fbd80; --new-bg: #15281d; --new-border: #23492f;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --code-bg: #1c212c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1218; --surface: #1a1f29; --surface-alt: #1c212c; --border: #2b3140;
+    --text: #e8eaf0; --text-muted: #a3aac0; --text-faint: #6d7488;
+    --redis: #e2776a; --redis-bg: #2c1815; --redis-border: #4a2620;
+    --pg: #5aa6dd; --pg-bg: #16222e; --pg-border: #26425a;
+    --new: #4fbd80; --new-bg: #15281d; --new-border: #23492f;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --code-bg: #1c212c;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-faint); font-weight: 600; }
+  h1 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 900; font-size: clamp(26px, 4.2vw, 36px); }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 74ch; line-height: 1.55; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); padding: 5px 10px 5px 8px; border-radius: 999px; }
+  .dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+  .dot.redis { background: var(--redis); } .dot.pg { background: var(--pg); } .dot.new { background: var(--new); }
+
+  .section { display: flex; flex-direction: column; gap: 12px; }
+  .section h2 { font-family: 'Archivo', sans-serif; font-size: 17px; font-weight: 800; margin: 0; }
+  .lede { color: var(--text-muted); font-size: 13.5px; line-height: 1.6; margin: 0; max-width: 78ch; }
+
+  pre.flow {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 18px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px;
+    line-height: 1.65; overflow-x: auto; white-space: pre; box-shadow: var(--shadow);
+  }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--surface); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; }
+  .card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .store-pill { font-size: 10px; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+  .store-pill.redis { color: var(--redis); background: var(--redis-bg); border: 1px solid var(--redis-border); }
+  .store-pill.pg { color: var(--pg); background: var(--pg-bg); border: 1px solid var(--pg-border); }
+  .card-label { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 14px; }
+  .card-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.55; }
+  .card-ref { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--text-faint); word-break: break-word; }
+  .new-tag { font-size: 10px; font-weight: 700; color: var(--new); background: var(--new-bg); border: 1px solid var(--new-border); padding: 1px 7px; border-radius: 999px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .tbl-wrap { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); }
+  .tbl-wrap table { margin: 0; }
+  .tbl-wrap th, .tbl-wrap td { padding: 10px 14px; }
+
+  .banner { display: flex; gap: 10px; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; line-height: 1.6; color: var(--text-muted); }
+  .banner strong { color: var(--text); }
+  code.inline { font-family: 'IBM Plex Mono', monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 0.92em; }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">hrb_chatbot_service &middot; MVP-6 diagram, 2026-10-26</span>
+    <h1>State Management</h1>
+    <p class="subtitle">
+      Where this service's mutable runtime state actually lives, split by backing store (Redis vs
+      Postgres), and which pieces are new from this session's Phase 257/259/260 work. See
+      <a href="conversational-memory-stm-ltm.html">conversational-memory-stm-ltm.html</a> for the
+      conversation-memory data flow specifically, and
+      <a href="database/db-model-overview.html">db-model-overview.html</a> for the full DB schema -
+      this page is about runtime <em>state</em>, not the whole data model.
+    </p>
+    <div class="legend">
+      <span class="legend-item"><span class="dot redis"></span>Redis - fast, ephemeral, per-key TTL</span>
+      <span class="legend-item"><span class="dot pg"></span>Postgres - durable, queryable</span>
+      <span class="legend-item"><span class="dot new"></span>New this session (Phase 257/259/260)</span>
+    </div>
+  </header>
+
+  <div class="banner">
+    <div><strong>Naming collision, worth flagging up front:</strong> this project uses "STM/LTM" for two
+    <em>unrelated</em> things - Phase 247's Redis conversation-memory tiers (below), and Phase 257's
+    live-query quality gate (<code class="inline">is_ltm</code> on captured questions, covered on the
+    companion page). Same initials, different concept. Not fixed/renamed this session - flagged.</div>
+  </div>
+
+  <div class="section">
+    <h2>Redis-backed state</h2>
+    <p class="lede">Every Redis-backed mechanism in this service shares one reason for existing: App Runner
+      auto-scales to multiple instances, so anything that needs to be shared across instances can't live in
+      process memory (Phase 84's own lesson, restated in Phase 259's circuit breaker design).</p>
+    <div class="grid">
+      <div class="card">
+        <div class="card-top"><span class="card-label">Conversation STM/LTM split</span><span class="store-pill redis">Redis</span></div>
+        <p class="card-desc">Short-term (recent turns, short TTL) vs long-term (older turns, longer TTL) conversation
+          memory tiers, assembled into the prompt by the Search Pre-Processing Layer's <code class="inline">assemble_context()</code>.
+          Pre-existing (Phase 247), unchanged this session.</p>
+        <p class="card-ref">ai/rag_core/guarded_pipeline.py (load/save) &middot; ai/search_pre_processing/context_assembly.py</p>
+      </div>
+      <div class="card">
+        <div class="card-top"><span class="card-label">Rate limiter counters</span><span class="store-pill redis">Redis</span></div>
+        <p class="card-desc">Per-identity request counters with a sliding window, shared across instances for the same
+          reason the circuit breaker below is. Pre-existing (Phase 84).</p>
+        <p class="card-ref">common/clients/rate_limiter.py</p>
+      </div>
+      <div class="card">
+        <div class="card-top"><span class="card-label">Circuit breaker fail/open state</span><span class="store-pill redis">Redis</span><span class="new-tag">New</span></div>
+        <p class="card-desc">Two key families per breaker name: <code class="inline">circuitbreaker:fail:&lt;name&gt;</code>
+          (consecutive-failure counter) and <code class="inline">circuitbreaker:open:&lt;name&gt;</code> (cooldown
+          marker). One breaker each for <code class="inline">llm:openai</code> / <code class="inline">llm:anthropic</code>.
+          Sync Redis client, not async - the whole <code class="inline">ask()</code> call chain it wraps is synchronous.</p>
+        <p class="card-ref">common/resiliency/circuit_breaker.py</p>
+      </div>
+      <div class="card">
+        <div class="card-top"><span class="card-label">MCP circuit breaker (pre-existing)</span><span class="store-pill redis">Redis</span></div>
+        <p class="card-desc">Phase 185's original, MCP-call-only circuit breaker - the one Phase 259's generic
+          <code class="inline">CircuitBreaker</code> class generalizes the pattern from. Still its own separate
+          implementation, not migrated onto the new shared class this session.</p>
+        <p class="card-ref">ai/rag_pipeline/tools/mcp_tools/__init__.py::_check_circuit_breaker()</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Postgres-backed state</h2>
+    <div class="grid">
+      <div class="card">
+        <div class="card-top"><span class="card-label">Generic app_settings store</span><span class="store-pill pg">Postgres</span><span class="new-tag">New</span></div>
+        <p class="card-desc">Key-value JSONB table, schema <code class="inline">hrb_platform_settings</code>. Read
+          fresh on every call via <code class="inline">get_setting()</code> (async) or
+          <code class="inline">get_setting_sync()</code> (sync - used inside the circuit breaker's own
+          synchronous call chain). No redeploy needed for a value change to take effect.</p>
+        <p class="card-ref">common/clients/db_client/app_settings_store.py</p>
+      </div>
+      <div class="card">
+        <div class="card-top"><span class="card-label">Conversation persistence</span><span class="store-pill pg">Postgres</span></div>
+        <p class="card-desc">Full conversation history, independent of the Redis STM/LTM tiers above - this is what
+          survives a hard page reload (confirmed live by a Playwright test this session: a reload re-fetches via
+          <code class="inline">GET /v1/conversations/{id}</code>, not from browser state).</p>
+        <p class="card-ref">common/clients/db_client/conversation_store.py</p>
+      </div>
+      <div class="card">
+        <div class="card-top"><span class="card-label">Live queries</span><span class="store-pill pg">Postgres</span><span class="new-tag">New</span></div>
+        <p class="card-desc">Real production questions, captured post-answer, scored, optionally flagged
+          <code class="inline">is_ltm</code>. See the companion conversational-memory page for the full write path.</p>
+        <p class="card-ref">common/clients/db_client/live_query_store.py &middot; schema hrb_query_capture.live_queries</p>
+      </div>
+      <div class="card">
+        <div class="card-top"><span class="card-label">Synthetic dataset cases</span><span class="store-pill pg">Postgres</span><span class="new-tag">New</span></div>
+        <p class="card-desc">Generated test cases, same idempotent-by-(case_key, dataset) shape as the golden dataset's
+          own store. Generation methodology defined (testing-strategies.md); the generator script itself is a later,
+          separate phase.</p>
+        <p class="card-ref">common/clients/db_client/synthetic_dataset_store.py &middot; schema hrb_query_capture.synthetic_dataset_cases</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Dynamic-config read path - the pattern Phase 260 generalized</h2>
+    <p class="lede">Three independent mechanisms now read their own tunable from <code class="inline">app_settings</code>
+      on every call, each falling back independently if that read itself fails:</p>
+    <pre class="flow">
+app_settings.get_setting(key, fallback)
+        |
+        |-- judge_provider_default -----> golden_dataset_harness.py's 5 judge functions
+        |                                  (OpenAI default; "anthropic" routes through
+        |                                   anthropic_chat().ask() instead)
+        |
+        |-- react_loop_max_iterations --> orchestration_agent.py's ReAct loop cap
+        |                                  (falls back to DEFAULT_MAX_ITERATIONS = 5)
+        |
+        `-- llm_{openai,anthropic}_circuit_breaker_{failure_threshold,cooldown_seconds}
+                                       --> CircuitBreaker._resolve_failure_threshold() /
+                                           _resolve_cooldown_seconds() (own try/except each -
+                                           a Postgres hiccup here must never skip recording
+                                           the real Redis failure, only fall back to the
+                                           constructor-time value)
+    </pre>
+    <p class="lede">All 7 keys are editable live from <code class="inline">hrb_chatbot_ui</code>'s new Settings page
+      (Model / Memory / Resiliency sub-tabs) - see <a href="../../../ROADMAP.md">hrb_chatbot_ui's own ROADMAP.md</a>,
+      Phase 1.</p>
+  </div>
+
+  <div class="section">
+    <h2>Fallback order - same 3-level shape, every dynamic setting</h2>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>Level</th><th>Source</th><th>When it's used</th></tr>
+        <tr><td>1</td><td>app_settings (Postgres)</td><td>Normal case - the value a human last set via the Settings UI, or never set (store returns the default passed in)</td></tr>
+        <tr><td>2</td><td>Constructor-time value</td><td>app_settings read itself raised - env var override, or a hardcoded default, resolved once when the object was built</td></tr>
+        <tr><td>3</td><td>Hardcoded default</td><td>Env var also unset - the literal fallback in code (e.g. failure_threshold=2, cooldown_seconds=10)</td></tr>
+      </table>
+    </div>
+  </div>
+</div>

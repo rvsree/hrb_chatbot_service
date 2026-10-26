@@ -10,7 +10,12 @@ from src.hrb_chatbot.ai.agents._llm_helpers import AGENT_LLM_TIMEOUT_SECONDS, bu
 from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
 from src.hrb_chatbot.ai.search_pre_processing.query_normalize import normalize_query
 from src.hrb_chatbot.ai.prompts.agent_prompts import ORCHESTRATION_SYSTEM_PROMPT
-from src.hrb_chatbot.ai.rag_core.eval_threshold import build_eval_scores, retrieval_relevance_enabled, run_enabled_eval_judges
+from src.hrb_chatbot.ai.rag_core.eval_threshold import (
+    build_eval_scores,
+    maybe_capture_live_query,
+    retrieval_relevance_enabled,
+    run_enabled_eval_judges,
+)
 from src.hrb_chatbot.ai.rag_core.guarded_pipeline import run_guarded_pipeline
 from src.hrb_chatbot.ai.rag_core.response_format import TABULAR_FORMAT_INSTRUCTION, should_use_tabular_format
 from src.hrb_chatbot.ai.rag_core.tool_classification import classify_tool
@@ -185,7 +190,13 @@ async def run_agent(
     per-call agent choice, so there's no "default vs. override" nuance here."""
     started_at = time.perf_counter()
     normalized_query = await normalize_query(query)
-    resolved_max_iterations = max_iterations or DEFAULT_MAX_ITERATIONS
+    # Phase 260 - an explicit per-call max_iterations always wins; otherwise
+    # read fresh from app_settings on every real request (so a Settings UI
+    # change takes effect on the next query, no restart), falling back to
+    # the hardcoded constant only if that read itself fails.
+    resolved_max_iterations = max_iterations or await get_db_gateway().app_settings_store().get_setting(
+        "react_loop_max_iterations", DEFAULT_MAX_ITERATIONS
+    )
     llm = _build_llm().bind(tools=AGENTIC_TOOL_DEFINITIONS)
 
     resolved_conversation_id = None
@@ -345,6 +356,10 @@ async def run_agent(
     result["eval_scores"] = eval_scores
     result["latency_ms"]["eval"] = eval_ms
     result["latency_ms"]["total"] = _elapsed_ms(started_at)
+
+    await maybe_capture_live_query(
+        normalized_query, result["answer"], eval_scores, "single-agentic-rag", request_id, employee_id
+    )
 
     # Phase 140: a non-deterministic LLM tool choice must not get a free
     # pass into a 6h cache - if the query itself looks like it's asking for

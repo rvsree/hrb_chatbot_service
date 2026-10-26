@@ -9,7 +9,12 @@ from src.hrb_chatbot.ai.search_pre_processing import cache_layer, conversation_m
 from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import check_input
 from src.hrb_chatbot.ai.search_pre_processing.query_decompose import decompose
 from src.hrb_chatbot.ai.search_pre_processing.query_normalize import normalize_query
-from src.hrb_chatbot.ai.rag_core.eval_threshold import build_eval_scores, retrieval_relevance_enabled, run_enabled_eval_judges
+from src.hrb_chatbot.ai.rag_core.eval_threshold import (
+    build_eval_scores,
+    maybe_capture_live_query,
+    retrieval_relevance_enabled,
+    run_enabled_eval_judges,
+)
 from src.hrb_chatbot.ai.rag_core.guarded_pipeline import run_guarded_pipeline
 from src.hrb_chatbot.ai.rag_core.tool_classification import classify_tool
 from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import evaluate_retrieval_relevance
@@ -490,6 +495,10 @@ async def answer_query(params: RagQueryParams, request_id: str | None = None) ->
     # than a separate top-level field a caller would have to know to check.
     if result["eval_scores"] is not None:
         result["eval_scores"]["retrieval_retry_attempted"] = result.get("retry_attempted", False)
+
+    await maybe_capture_live_query(
+        checked_query, result["answer"], result["eval_scores"], "genai-rag", request_id, params.employee_id
+    )
 
     # total_ms covers the whole call (guardrails, cache check, retrieval,
     # generation, eval scoring, conversation-memory save) -

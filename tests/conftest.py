@@ -130,21 +130,28 @@ class FakeChatClient:
 
 class FakeClientGateway:
     """Stands in for ClientGateway - just enough to return a FakeEmbeddingClient/
-    FakeChatClient where real code calls get_client_gateway().openai_embedding()/openai_chat()."""
+    FakeChatClient where real code calls get_client_gateway().openai_embedding()/openai_chat()/
+    anthropic_chat() (Phase 256 - anthropic_chat_client, a separate fake from chat_client
+    so a test can tell which provider a call actually went through)."""
 
     def __init__(
         self,
         embedding_client: FakeEmbeddingClient | None = None,
         chat_client: FakeChatClient | None = None,
+        anthropic_chat_client: "FakeChatClient | None" = None,
     ):
         self._embedding_client = embedding_client or FakeEmbeddingClient()
         self._chat_client = chat_client or FakeChatClient()
+        self._anthropic_chat_client = anthropic_chat_client or FakeChatClient(model="fake-anthropic-model")
 
     def openai_embedding(self) -> FakeEmbeddingClient:
         return self._embedding_client
 
     def openai_chat(self) -> FakeChatClient:
         return self._chat_client
+
+    def anthropic_chat(self) -> FakeChatClient:
+        return self._anthropic_chat_client
 
 
 class FakeVectorStore(BaseVectorDBClient):
@@ -1074,6 +1081,99 @@ class FakeInterviewQaStore:
         return {"provider": "postgres", "status": "healthy"}
 
 
+class FakeLiveQueryStore:
+    """Stands in for LiveQueryStore (Phase 257) - plain in-memory list, same
+    async interface as the real Postgres-backed one, never touches a real
+    database."""
+
+    def __init__(self, queries: list[dict] | None = None):
+        self._queries = queries or []
+        self._next_id = max((row["id"] for row in self._queries), default=0) + 1
+
+    async def capture(self, query_text, answer_text, pipeline, request_id, employee_id, eval_score, is_ltm):
+        row = {
+            "id": self._next_id,
+            "query_text": query_text,
+            "answer_text": answer_text,
+            "pipeline": pipeline,
+            "request_id": request_id,
+            "employee_id": employee_id,
+            "eval_score": eval_score,
+            "is_ltm": is_ltm,
+            "category": None,
+            "created_at": "2026-10-26T00:00:00Z",
+        }
+        self._queries.append(row)
+        self._next_id += 1
+
+    async def list_queries(self, is_ltm=None):
+        rows = self._queries
+        if is_ltm is not None:
+            rows = [row for row in rows if row["is_ltm"] == is_ltm]
+        return list(reversed(rows))
+
+    def health_check(self):
+        return {"provider": "postgres", "status": "healthy"}
+
+
+class FakeSyntheticDatasetStore:
+    """Stands in for SyntheticDatasetStore (Phase 257) - plain in-memory
+    list, same async interface as the real Postgres-backed one, never
+    touches a real database."""
+
+    def __init__(self, cases: list[dict] | None = None):
+        self._cases = cases or []
+        self._next_id = max((case["id"] for case in self._cases), default=0) + 1
+
+    async def list_cases(self):
+        return list(self._cases)
+
+    async def upsert_case(self, case_key, dataset, category, query, raw_case):
+        for case in self._cases:
+            if case["case_key"] == case_key and case["dataset"] == dataset:
+                changed = case["raw_case"] != raw_case
+                case.update(category=category, query=query, raw_case=raw_case)
+                return {"id": case["id"], "case_key": case_key, "changed": changed}
+        case = {
+            "id": self._next_id,
+            "case_key": case_key,
+            "dataset": dataset,
+            "category": category,
+            "query": query,
+            "raw_case": raw_case,
+            "created_at": "2026-10-26T00:00:00Z",
+            "updated_at": "2026-10-26T00:00:00Z",
+        }
+        self._cases.append(case)
+        self._next_id += 1
+        return {"id": case["id"], "case_key": case_key, "changed": True}
+
+    def health_check(self):
+        return {"provider": "postgres", "status": "healthy"}
+
+
+class FakeAppSettingsStore:
+    """Stands in for AppSettingsStore (Phase 257) - plain in-memory dict,
+    same async interface as the real Postgres-backed one, never touches a
+    real database. Phase 260 - get_setting_sync() mirrors the real store's
+    own sync counterpart, for sync callers like CircuitBreaker."""
+
+    def __init__(self, settings: dict | None = None):
+        self._settings = dict(settings or {})
+
+    async def get_setting(self, key, default):
+        return self._settings.get(key, default)
+
+    def get_setting_sync(self, key, default):
+        return self._settings.get(key, default)
+
+    async def set_setting(self, key, value, updated_by=None):
+        self._settings[key] = value
+
+    def health_check(self):
+        return {"provider": "postgres", "status": "healthy"}
+
+
 class FakeDBGateway:
     """Stands in for DBGateway - returns the one FakeVectorStore/FakeMetadataStore/
     FakeConversationStore/FakeEmbeddingCache/FakeAnswerCache given to it regardless
@@ -1099,6 +1199,9 @@ class FakeDBGateway:
         faq_submission_store: "FakeFaqSubmissionStore | None" = None,
         interview_qa_store: "FakeInterviewQaStore | None" = None,
         pipeline_run_store: "FakePipelineRunStore | None" = None,
+        live_query_store: "FakeLiveQueryStore | None" = None,
+        synthetic_dataset_store: "FakeSyntheticDatasetStore | None" = None,
+        app_settings_store: "FakeAppSettingsStore | None" = None,
     ):
         self._vector_store = vector_store or FakeVectorStore()
         self._metadata_store = metadata_store or FakeMetadataStore()
@@ -1117,6 +1220,9 @@ class FakeDBGateway:
         self._faq_submission_store = faq_submission_store or FakeFaqSubmissionStore()
         self._interview_qa_store = interview_qa_store or FakeInterviewQaStore()
         self._pipeline_run_store = pipeline_run_store or FakePipelineRunStore()
+        self._live_query_store = live_query_store or FakeLiveQueryStore()
+        self._synthetic_dataset_store = synthetic_dataset_store or FakeSyntheticDatasetStore()
+        self._app_settings_store = app_settings_store or FakeAppSettingsStore()
 
     def vector_store(self, provider=None):
         return self._vector_store
@@ -1168,3 +1274,12 @@ class FakeDBGateway:
 
     def pipeline_run_store(self):
         return self._pipeline_run_store
+
+    def live_query_store(self):
+        return self._live_query_store
+
+    def synthetic_dataset_store(self):
+        return self._synthetic_dataset_store
+
+    def app_settings_store(self):
+        return self._app_settings_store

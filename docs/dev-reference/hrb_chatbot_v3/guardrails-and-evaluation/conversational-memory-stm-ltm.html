@@ -1,0 +1,165 @@
+<title>Conversational Memory: STM vs LTM</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef0f4; --surface: #ffffff; --surface-alt: #f4f5f9; --border: #d9dce4;
+    --text: #191d28; --text-muted: #565f72; --text-faint: #8992a4;
+    --a: #5a3ea8; --a-bg: #efe9fb; --a-border: #d9c9f2;
+    --b: #1f8a4c; --b-bg: #e6f5ec; --b-border: #b9e2c9;
+    --shadow: 0 2px 4px rgba(20,24,34,0.06), 0 12px 26px rgba(20,24,34,0.08);
+    --code-bg: #f4f5f9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1218; --surface: #1a1f29; --surface-alt: #1c212c; --border: #2b3140;
+      --text: #e8eaf0; --text-muted: #a3aac0; --text-faint: #6d7488;
+      --a: #b89bf0; --a-bg: #241a36; --a-border: #3a2a54;
+      --b: #4fbd80; --b-bg: #15281d; --b-border: #23492f;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --code-bg: #1c212c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1218; --surface: #1a1f29; --surface-alt: #1c212c; --border: #2b3140;
+    --text: #e8eaf0; --text-muted: #a3aac0; --text-faint: #6d7488;
+    --a: #b89bf0; --a-bg: #241a36; --a-border: #3a2a54;
+    --b: #4fbd80; --b-bg: #15281d; --b-border: #23492f;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --code-bg: #1c212c;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-faint); font-weight: 600; }
+  h1 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 900; font-size: clamp(26px, 4.2vw, 36px); }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.55; }
+
+  .split { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+  .panel { border-radius: 14px; padding: 18px 20px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; }
+  .panel.a { background: var(--a-bg); border: 1px solid var(--a-border); }
+  .panel.b { background: var(--b-bg); border: 1px solid var(--b-border); }
+  .panel h2 { margin: 0; font-family: 'Archivo', sans-serif; font-size: 16px; font-weight: 800; }
+  .panel.a h2 { color: var(--a); } .panel.b h2 { color: var(--b); }
+  .panel p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--text); }
+  .panel .tag { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--text-faint); }
+
+  .section { display: flex; flex-direction: column; gap: 12px; }
+  .section h2 { font-family: 'Archivo', sans-serif; font-size: 17px; font-weight: 800; margin: 0; }
+  .lede { color: var(--text-muted); font-size: 13.5px; line-height: 1.6; margin: 0; max-width: 78ch; }
+
+  pre.flow {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 18px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px;
+    line-height: 1.65; overflow-x: auto; white-space: pre; box-shadow: var(--shadow);
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .tbl-wrap { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); }
+  .tbl-wrap table { margin: 0; }
+
+  .banner { display: flex; gap: 10px; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; line-height: 1.6; color: var(--text-muted); }
+  .banner strong { color: var(--text); }
+  code.inline { font-family: 'IBM Plex Mono', monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 0.92em; }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">hrb_chatbot_service &middot; MVP-6 diagram, 2026-10-26</span>
+    <h1>Conversational Memory: STM vs LTM</h1>
+    <p class="subtitle">
+      This project has two genuinely different mechanisms both called "STM/LTM" - built in different
+      phases, for different reasons, never connected to each other. This page exists to keep them straight.
+      See <a href="../architecture/state-management-diagram.html">state-management-diagram.html</a> for
+      where each one physically lives, and
+      <a href="../../../agent-reference/testing-strategies.md">testing-strategies.md</a> for how (B) relates
+      to the golden/synthetic dataset story.
+    </p>
+  </header>
+
+  <div class="split">
+    <div class="panel a">
+      <span class="tag">(A) &middot; Phase 247, pre-existing</span>
+      <h2>Conversation memory tiers</h2>
+      <p><strong>What it means here:</strong> how much of a conversation's own history gets loaded back into
+        the prompt. STM = recent turns, short Redis TTL. LTM = older turns, longer TTL. Both are about
+        <em>continuity within one conversation</em> - does the bot remember what you said 3 turns ago.</p>
+      <p><strong>Where:</strong> Redis, split by key prefix. Assembled by <code class="inline">assemble_context()</code>
+        before every genai-rag / single-agentic-rag / multi-agentic-rag answer.</p>
+      <p><strong>Unaffected by this session's work.</strong> No code in Phase 256-260 touches this mechanism.</p>
+    </div>
+    <div class="panel b">
+      <span class="tag">(B) &middot; Phase 257, built this session</span>
+      <h2>Live-query quality gate</h2>
+      <p><strong>What it means here:</strong> a label on a <em>captured, already-answered</em> question - does
+        this one specific Q&amp;A pair clear a groundedness bar. Nothing to do with conversation continuity;
+        a single-turn genai-rag query with no conversation history at all can still be flagged
+        <code class="inline">is_ltm = true</code>.</p>
+      <p><strong>Where:</strong> Postgres, <code class="inline">hrb_query_capture.live_queries.is_ltm</code>
+        column. Threshold (default 0.6) is itself a dynamic <code class="inline">app_settings</code> value,
+        editable from the UI.</p>
+      <p><strong>Purpose:</strong> curate a pool of real, already-well-answered questions - a dataset-quality
+        concept, not a memory concept. See the dataset comparison table below.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>(B)'s real write path - the thing actually built this session</h2>
+    <pre class="flow">
+employee asks a question
+        |
+        v
+genai-rag / single-agentic-rag / multi-agentic-rag pipeline runs
+        |
+        v
+run_guarded_pipeline()  (input guardrail -> conversation memory (A) -> answer -> output guardrail)
+        |
+        v
+each pipeline computes its OWN eval_scores afterward
+  (groundedness, completeness, ... - build_eval_scores(), shared helper)
+        |
+        v
+maybe_capture_live_query(query, answer, eval_scores, pipeline, request_id, employee_id)
+  (ai/rag_core/eval_threshold.py - called from all 3 pipelines' own code,
+   NOT from inside run_guarded_pipeline() - eval_scores aren't computed yet
+   at that point, confirmed by reading the real call order)
+        |
+        v
+threshold = app_settings.get_setting("ltm_score_threshold", 0.6)
+        |
+        +-- groundedness >= threshold --> write live_queries row, is_ltm = true
+        |
+        `-- groundedness <  threshold --> write live_queries row, is_ltm = false
+        |
+        v
+hrb_chatbot_ui Admin Dashboard -> Live Queries tab
+  (All / LTM only / Not LTM filter, GET ?is_ltm=... query param)
+    </pre>
+  </div>
+
+  <div class="section">
+    <h2>How (B) relates to the golden / synthetic dataset story</h2>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th></th><th>Golden dataset</th><th>Synthetic dataset</th><th>Live query store (this page)</th></tr>
+        <tr><td>Answers</td><td>Trust (human-verified)</td><td>Scale (generated, cheap)</td><td>Reality (real traffic)</td></tr>
+        <tr><td>"Correct answer" trustworthy?</td><td>Yes</td><td>Not verified</td><td>N/A - only a live score, no pre-known answer</td></tr>
+        <tr><td>Can gate a release?</td><td>Yes - the only one that can</td><td>No</td><td>No</td></tr>
+        <tr><td>Promoted by</td><td>A person writing it</td><td>A generator script (methodology defined, not yet built)</td><td><code class="inline">maybe_capture_live_query()</code>, automatically</td></tr>
+      </table>
+    </div>
+    <p class="lede">Full detail, use cases, and challenges for all three:
+      <a href="../../../agent-reference/testing-strategies.md">docs/agent-reference/testing-strategies.md</a>.</p>
+  </div>
+
+  <div class="banner">
+    <div><strong>Not wired together, by design:</strong> a live query flagged <code class="inline">is_ltm</code>
+    does not automatically become a golden-dataset or synthetic-dataset case - promoting one into either is a
+    manual step today, same as testing-strategies.md's own "Challenges" section already notes. Nothing in this
+    session's work changed that.</div>
+  </div>
+</div>

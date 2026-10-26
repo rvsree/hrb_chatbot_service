@@ -14,6 +14,7 @@ from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import (
     evaluate_contextual_precision,
     evaluate_contextual_recall,
     evaluate_groundedness,
+    evaluate_routing_accuracy,
     score_case,
 )
 
@@ -313,3 +314,39 @@ def test_evaluate_contextual_recall_on_judge_failure_returns_error_shape_not_rai
 
     assert result["score"] == 0.5
     assert "judge model unreachable" in result["explanation"]
+
+
+class TestEvaluateRoutingAccuracy:
+    """Phase 258 - deterministic, no LLM call, no judge model to fake."""
+
+    def test_no_expectation_returns_none(self):
+        assert evaluate_routing_accuracy(None, ["SearchKnowledgeBase"]) is None
+
+    def test_expected_tool_was_called_scores_one(self):
+        result = evaluate_routing_accuracy("GetLeaveBalance", ["GetLeaveBalance"])
+
+        assert result["score"] == 1.0
+        assert result["expected"] == "GetLeaveBalance"
+        assert result["actual"] == ["GetLeaveBalance"]
+
+    def test_expected_tool_among_several_actual_still_scores_one(self):
+        result = evaluate_routing_accuracy("GetLeaveBalance", ["SearchKnowledgeBase", "GetLeaveBalance"])
+
+        assert result["score"] == 1.0
+
+    def test_expected_tool_not_called_scores_zero(self):
+        result = evaluate_routing_accuracy("GetLeaveHistory", ["SearchKnowledgeBase"])
+
+        assert result["score"] == 0.0
+
+    def test_no_tools_called_at_all_scores_zero(self):
+        result = evaluate_routing_accuracy("GetLeaveBalance", [])
+
+        assert result["score"] == 0.0
+
+    def test_works_identically_for_an_agent_name_not_just_a_tool_name(self):
+        """Confirms the same function serves multi-agentic-rag's expected_agent
+        too - no separate implementation needed."""
+        result = evaluate_routing_accuracy("lms_ops_agent", ["lms_ops_agent"])
+
+        assert result["score"] == 1.0
