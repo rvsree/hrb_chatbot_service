@@ -28,6 +28,70 @@ This is the backend behind **[hrb-chatbot-ui.rvsree.dev](https://hrb-chatbot-ui.
 Runner pauses this service by default for cost control - a slow first
 response means it's resuming, not broken.
 
+## Tech Stack
+
+```mermaid
+flowchart TD
+    HUB((hrb_chatbot_service))
+    HUB --> FW[Framework]
+    HUB --> AI[AI / RAG]
+    HUB --> VDB[Vector DB]
+    HUB --> MDB[Metadata DB]
+    HUB --> GR[Guardrails]
+    HUB --> LLM[LLM Providers]
+    HUB --> EVAL[Evaluation]
+    HUB --> DEP[Deployment]
+
+    FW --> FW1[FastAPI]
+    FW --> FW2[Uvicorn]
+    FW --> FW3[Pydantic v2]
+
+    AI --> AI1[LangChain]
+    AI --> AI2[LangGraph]
+    AI --> AI3[langgraph-checkpoint-postgres]
+
+    VDB --> V1[ChromaDB - dev]
+    VDB --> V2[Pinecone - prod]
+
+    MDB --> M1[SQLite - dev]
+    MDB --> M2[Postgres/Neon - prod]
+
+    GR --> G1[NeMo Guardrails]
+    GR --> G2[Presidio]
+    GR --> G3[spaCy]
+
+    LLM --> L1[OpenAI]
+    LLM --> L2[Anthropic]
+    LLM --> L3[OpenRouter]
+
+    EVAL --> E1[DeepEval]
+    EVAL --> E2[LLM-judge scoring]
+
+    DEP --> D1[AWS App Runner]
+    DEP --> D2[Docker - 2-stage build]
+    DEP --> D3[ECR + Secrets Manager]
+
+    classDef hub fill:#4C1D95,color:#fff,stroke:#2E1065,stroke-width:2px
+    classDef fw fill:#1D4ED8,color:#fff,stroke:#1E3A8A
+    classDef ai fill:#047857,color:#fff,stroke:#064E3B
+    classDef vdb fill:#B45309,color:#fff,stroke:#78350F
+    classDef mdb fill:#0E7490,color:#fff,stroke:#164E63
+    classDef gr fill:#BE185D,color:#fff,stroke:#831843
+    classDef llm fill:#9333EA,color:#fff,stroke:#581C87
+    classDef eval fill:#7C3AED,color:#fff,stroke:#4C1D95
+    classDef dep fill:#475569,color:#fff,stroke:#1E293B
+
+    class HUB hub
+    class FW,FW1,FW2,FW3 fw
+    class AI,AI1,AI2,AI3 ai
+    class VDB,V1,V2 vdb
+    class MDB,M1,M2 mdb
+    class GR,G1,G2,G3 gr
+    class LLM,L1,L2,L3 llm
+    class EVAL,E1,E2 eval
+    class DEP,D1,D2,D3 dep
+```
+
 ## What this repo demonstrates
 
 For someone evaluating this cold rather than setting it up: this is where
