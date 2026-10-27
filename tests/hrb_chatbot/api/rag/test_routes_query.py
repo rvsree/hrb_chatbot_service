@@ -37,7 +37,7 @@ async def _fake_answer_query(params, request_id=None):
         "sources": [
             {
                 "document_id": "doc-1",
-                "filename": "JPMC Healthcare Benefits.pdf",
+                "filename": "AmazingBank Healthcare Benefits.pdf",
                 "chunk_index": 0,
                 "text": "Some grounded chunk text.",
                 "score": 0.95,
@@ -67,7 +67,7 @@ def test_well_formed_query_returns_a_grounded_answer(monkeypatch):
     assert body["query"] == "How many weeks of parental leave do I get?"
     assert body["answer_info"]["answer"] == "This is a fake grounded answer."
     assert body["answer_info"]["model_used"] == "gpt-4.1-mini"
-    assert body["retrieval_info"]["sources"][0]["filename"] == "JPMC Healthcare Benefits.pdf"
+    assert body["retrieval_info"]["sources"][0]["filename"] == "AmazingBank Healthcare Benefits.pdf"
 
 
 def test_mcp_routed_answer_reports_routed_to_in_explainability(monkeypatch):

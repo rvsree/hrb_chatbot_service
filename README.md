@@ -1,7 +1,10 @@
 # HRB Chatbot Service
 
-An HR benefits chatbot backed by a RAG pipeline over the JPMC benefits
-knowledge base (`resources/kb_docs/`). Being built by hand, one feature at a
+An HR benefits chatbot backed by a RAG pipeline over the AmazingBank benefits
+knowledge base (`resources/kb_docs/`). Built AI-agent-assisted under a
+spec-first process (a PreToolUse hook blocks code changes without a written
+spec; implementer/reviewer subagents execute and check each phase), one
+feature at a
 time, to apply RAG concepts from the Interview Kickstart FDE cohort - see
 [docs/agent-reference/RAG-ROADMAP.md](docs/agent-reference/RAG-ROADMAP.md) for the phase-by-phase plan and
 current status (that file is the source of truth for "what's done" - this
@@ -187,7 +190,7 @@ request/response case, happy path and edge case, importable into Postman):
 # upload a real PDF - chunks, embeds, and indexes in the same call (no
 # separate index step since Phase 26); identity travels as a JSON string in
 # the payload form field, not headers - copy the document_id from the response
-curl -F "files=@resources/kb_docs/JPMC Healthcare Benefits.pdf;type=application/pdf" -F "payload={\"user_profile\": {\"employee_id\": \"EMP051\", \"full_name\": \"Hana Support\", \"role\": \"hr_support\"}}" http://127.0.0.1:8093/v1/genai-rag/ingest-document/documents
+curl -F "files=@resources/kb_docs/AmazingBank_Healthcare_Benefits.pdf;type=application/pdf" -F "payload={\"user_profile\": {\"employee_id\": \"EMP051\", \"full_name\": \"Hana Support\", \"role\": \"hr_support\"}}" http://127.0.0.1:8093/v1/genai-rag/ingest-document/documents
 
 # ask a question - real retrieval + grounded generation (spends: one real
 # embedding call + one real chat completion). Input/output guardrails and

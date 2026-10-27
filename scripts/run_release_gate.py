@@ -86,7 +86,7 @@ def _total_tokens(result: dict) -> int:
 def _load_scorable_cases() -> list[dict]:
     """Golden cases, with expected_source_document resolved from the dataset's
     own short keys ("401k.pdf") to the real uploaded filename chunks actually
-    carry ("JPMC Empower 401(k) Savings Plan.pdf") - confirmed live, before this
+    carry ("AmazingBank_Empower_401k_Savings_Plan.pdf") - confirmed live, before this
     fix, every case's precision/recall/f1 came back 0.0 because nothing was ever
     comparing against the right value, which would have made this gate always
     report BLOCK regardless of real retrieval quality. agent_call cases

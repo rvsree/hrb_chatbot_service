@@ -72,7 +72,7 @@ done from here.
 
 ## TL;DR
 
-This is a hand-built HR benefits RAG chatbot (JPMC benefits PDFs → chunk →
+This is a hand-built HR benefits RAG chatbot (AmazingBank benefits PDFs → chunk →
 embed → index → retrieve → answer), built by the user personally to learn
 RAG concepts from an Interview Kickstart FDE cohort. **Claude Code builds
 boilerplate and infrastructure; the user hand-writes the actual RAG logic**

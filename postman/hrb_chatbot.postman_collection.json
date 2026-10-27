@@ -329,7 +329,7 @@
                     {
                       "key": "files",
                       "type": "file",
-                      "src": "{{kb_docs_dir}}/JPMC Healthcare Benefits.pdf"
+                      "src": "{{kb_docs_dir}}/AmazingBank_Healthcare_Benefits.pdf"
                     },
                     {
                       "key": "payload",
@@ -379,7 +379,7 @@
                     {
                       "key": "files",
                       "type": "file",
-                      "src": "{{kb_docs_dir}}/JPMC Healthcare Benefits.pdf"
+                      "src": "{{kb_docs_dir}}/AmazingBank_Healthcare_Benefits.pdf"
                     },
                     {
                       "key": "payload",
@@ -413,12 +413,12 @@
                     {
                       "key": "files",
                       "type": "file",
-                      "src": "{{kb_docs_dir}}/JPMC Paid TimeOff.pdf"
+                      "src": "{{kb_docs_dir}}/AmazingBank_Paid_TimeOff.pdf"
                     },
                     {
                       "key": "files",
                       "type": "file",
-                      "src": "{{kb_docs_dir}}/JPMC Guild Tuition Assistance.pdf"
+                      "src": "{{kb_docs_dir}}/AmazingBank_Guild_Tuition_Assistance.pdf"
                     },
                     {
                       "key": "payload",
@@ -451,7 +451,7 @@
                     {
                       "key": "files",
                       "type": "file",
-                      "src": "{{kb_docs_dir}}/JPMC Guild Tuition Assistance.pdf"
+                      "src": "{{kb_docs_dir}}/AmazingBank_Guild_Tuition_Assistance.pdf"
                     },
                     {
                       "key": "payload",
@@ -485,16 +485,16 @@
                     {
                       "key": "files",
                       "type": "file",
-                      "src": "{{kb_docs_dir}}/JPMC Healthcare Benefits.pdf"
+                      "src": "{{kb_docs_dir}}/AmazingBank_Healthcare_Benefits.pdf"
                     },
                     {
                       "key": "payload",
                       "type": "text",
-                      "value": "{\"user_profile\": {\"employee_id\": \"EMP051\", \"full_name\": \"Hana Support\", \"role\": \"hr_support\"}, \"chunk_info\": {\"chunking_strategy\": \"recursive\", \"chunk_size\": 500, \"chunk_overlap\": 50}, \"document_metadata\": {\"doc_category\": \"benefits\", \"department\": \"HR\", \"doc_description\": \"healthcare\", \"owner\": \"HR Benefits Team\", \"purpose\": \"Summarizes JPMC's medical, dental, and vision plan options and eligibility.\", \"effective_date\": \"2026-01-01\", \"audience\": \"All full-time employees\", \"confidentiality_level\": \"Internal\", \"author\": \"HR Benefits Team\", \"doc_date\": \"December 2025\", \"doc_version\": \"1.0\"}}"
+                      "value": "{\"user_profile\": {\"employee_id\": \"EMP051\", \"full_name\": \"Hana Support\", \"role\": \"hr_support\"}, \"chunk_info\": {\"chunking_strategy\": \"recursive\", \"chunk_size\": 500, \"chunk_overlap\": 50}, \"document_metadata\": {\"doc_category\": \"benefits\", \"department\": \"HR\", \"doc_description\": \"healthcare\", \"owner\": \"HR Benefits Team\", \"purpose\": \"Summarizes AmazingBank's medical, dental, and vision plan options and eligibility.\", \"effective_date\": \"2026-01-01\", \"audience\": \"All full-time employees\", \"confidentiality_level\": \"Internal\", \"author\": \"HR Benefits Team\", \"doc_date\": \"December 2025\", \"doc_version\": \"1.0\"}}"
                     }
                   ]
                 },
-                "description": "Phase 38: re-exposes per-call chunking overrides (now payload.chunk_info, Phase 45). chunking_strategy must be one of the ChunkingStrategy enum values (fixed/recursive/semantic/markdown/html/none) or this 422s; left out, CHUNK_DEFAULT_SIZE/CHUNK_DEFAULT_OVERLAP from .env (or decide_chunk_size()'s own table/large-document auto-sizing) apply instead. Phase 45: every document_metadata field here overrides whatever the LLM extraction step would have guessed for that field - check the response's document_metadata to see the caller's values win. Phase 57: doc_type/doc_classification renamed to doc_category/doc_description. Phase 59: added author/doc_date/doc_version - document-level provenance fields, extracted from a document's own closing colophon when present (verified live on JPMC Guild Tuition Assistance.pdf's page 20), not chunk-filterable like doc_category/doc_description."
+                "description": "Phase 38: re-exposes per-call chunking overrides (now payload.chunk_info, Phase 45). chunking_strategy must be one of the ChunkingStrategy enum values (fixed/recursive/semantic/markdown/html/none) or this 422s; left out, CHUNK_DEFAULT_SIZE/CHUNK_DEFAULT_OVERLAP from .env (or decide_chunk_size()'s own table/large-document auto-sizing) apply instead. Phase 45: every document_metadata field here overrides whatever the LLM extraction step would have guessed for that field - check the response's document_metadata to see the caller's values win. Phase 57: doc_type/doc_classification renamed to doc_category/doc_description. Phase 59: added author/doc_date/doc_version - document-level provenance fields, extracted from a document's own closing colophon when present (verified live on AmazingBank_Guild_Tuition_Assistance.pdf's page 20), not chunk-filterable like doc_category/doc_description."
               }
             }
           ]
@@ -527,7 +527,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"user_profile\": {\n    \"employee_id\": \"EMP051\",\n    \"full_name\": \"Hana Support\",\n    \"role\": \"hr_support\"\n  },\n  \"filename\": \"JPMC Healthcare Benefits.pdf\",\n  \"content_type\": \"application/pdf\",\n  \"chunk_info\": {\n    \"chunking_strategy\": null,\n    \"chunk_size\": null,\n    \"chunk_overlap\": null\n  },\n  \"document_metadata\": {\n    \"doc_category\": \"benefits\",\n    \"department\": \"HR\"\n  }\n}",
+                  "raw": "{\n  \"user_profile\": {\n    \"employee_id\": \"EMP051\",\n    \"full_name\": \"Hana Support\",\n    \"role\": \"hr_support\"\n  },\n  \"filename\": \"AmazingBank_Healthcare_Benefits.pdf\",\n  \"content_type\": \"application/pdf\",\n  \"chunk_info\": {\n    \"chunking_strategy\": null,\n    \"chunk_size\": null,\n    \"chunk_overlap\": null\n  },\n  \"document_metadata\": {\n    \"doc_category\": \"benefits\",\n    \"department\": \"HR\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -573,7 +573,7 @@
                 "body": {
                   "mode": "file",
                   "file": {
-                    "src": "{{kb_docs_dir}}/JPMC Healthcare Benefits.pdf"
+                    "src": "{{kb_docs_dir}}/AmazingBank_Healthcare_Benefits.pdf"
                   }
                 }
               },
@@ -751,7 +751,7 @@
                     {
                       "key": "file",
                       "type": "file",
-                      "src": "{{kb_docs_dir}}/JPMC Healthcare Benefits.pdf"
+                      "src": "{{kb_docs_dir}}/AmazingBank_Healthcare_Benefits.pdf"
                     },
                     {
                       "key": "payload",
@@ -901,7 +901,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"user_profile\": {\"employee_id\": \"EMP051\", \"full_name\": \"Hana Support\", \"role\": \"hr_support\"},\n  \"query\": \"How much tuition assistance does JPMC offer for undergraduate programs?\",\n  \"enable_conversation_memory\": true\n}"
+                  "raw": "{\n  \"user_profile\": {\"employee_id\": \"EMP051\", \"full_name\": \"Hana Support\", \"role\": \"hr_support\"},\n  \"query\": \"How much tuition assistance does AmazingBank offer for undergraduate programs?\",\n  \"enable_conversation_memory\": true\n}"
                 },
                 "description": "Phase 58. Verified live 2026-09-25: response's conversation_id (server-generated, e.g. \"3d9280dc55ee4554b7cd43b55493f950\") must be copied into the next request's conversation_id field to continue this conversation - see the next request in this folder."
               }
@@ -1110,7 +1110,7 @@
                   "mode": "raw",
                   "raw": "{\n  \"user_profile\": {\"employee_id\": \"EMP052\", \"full_name\": \"Eddy Employee\", \"role\": \"employee\"},\n  \"query\": \"How many weeks of paid parental leave does JPMorgan Chase provide?\"\n}"
                 },
-                "description": "Verified live 2026-09-24: agent chose SearchKnowledgeBase, returned a real grounded answer from the indexed JPMC Paid TimeOff.pdf. Expect 200, tools_used containing SearchKnowledgeBase."
+                "description": "Verified live 2026-09-24: agent chose SearchKnowledgeBase, returned a real grounded answer from the indexed AmazingBank_Paid_TimeOff.pdf. Expect 200, tools_used containing SearchKnowledgeBase."
               }
             },
             {
@@ -1136,7 +1136,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"user_profile\": {\"employee_id\": \"EMP052\", \"full_name\": \"Eddy Employee\", \"role\": \"employee\"},\n  \"query\": \"What is the JPMC 401k match?\",\n  \"enable_conversation_memory\": true\n}"
+                  "raw": "{\n  \"user_profile\": {\"employee_id\": \"EMP052\", \"full_name\": \"Eddy Employee\", \"role\": \"employee\"},\n  \"query\": \"What is the AmazingBank 401k match?\",\n  \"enable_conversation_memory\": true\n}"
                 },
                 "description": "Phase 58. Verified live 2026-09-25: response's conversation_id (server-generated, e.g. \"c389e3d6ec6b4357aaee216cd93826ac\") must be copied into the next request's conversation_id field to continue this conversation - see the next request in this folder."
               }

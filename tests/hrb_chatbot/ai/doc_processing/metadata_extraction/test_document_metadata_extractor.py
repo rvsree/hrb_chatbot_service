@@ -83,7 +83,7 @@ def test_a_short_document_sends_the_whole_text_no_tail_needed(monkeypatch):
 
 
 def test_phase_59_a_long_document_sends_both_head_and_tail_so_a_closing_colophon_is_seen(monkeypatch):
-    # Real case found live: JPMC Guild Tuition Assistance.pdf's "Document
+    # Real case found live: AmazingBank_Guild_Tuition_Assistance.pdf's "Document
     # Version: 1.0" colophon sits on page 20, well past the head-only
     # excerpt's old cutoff - this proves the tail excerpt actually reaches it.
     head = "HEAD_MARKER " * 500  # well over MAX_CHARACTERS_SENT (3000)

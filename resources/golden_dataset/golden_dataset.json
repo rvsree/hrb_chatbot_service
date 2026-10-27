@@ -16,15 +16,15 @@
     "_case_count_corrected_2026_09_21": "was 22, file actually has 23 cases - fixed, not just the number: category breakdown is 18 happy, 1 happy_multi_document, 2 unhappy_out_of_scope, 1 unhappy_unanswerable, 1 unhappy_adversarial",
     "_multi_agent_cases_added_2026_10_04": "Phase 67 - 2 new cases for multi-agentic-rag (not genai-rag): happy_multi_topic_single_domain (same-domain compound, tests Planner splitting within vector_kb_agent) and happy_multi_domain_agent (cross-domain, KB + live leave-balance data). Both also checked by a dedicated live multi-agent test, not just this file's own exact-match scoring - see each case's own notes field.",
     "_call_type_added_2026_10_04": "Phase 73 - every case now carries call_type (\"agent_call\" or \"llm_call\"), reflecting whether genai-rag's own try_route_to_mcp() bypass (Phase 49) would fire for that query's text, verified programmatically against the real is_leave_balance_query()/is_leave_history_query() functions, not eyeballed. Checked by tests/hrb_chatbot/ai/rag_pipeline/evaluations/test_routing_type_golden_cases.py, which runs in the default suite (not -m eval) since confirming the bypass needs no LLM call.",
-    "_source_documents_fixed_2026_10_17": "Phase 206 - found by actually running scripts.run_release_gate live, not assumed: every one of 25 scorable cases reported precision/recall/f1 == 0.0 (BLOCK verdict), while groundedness/completeness scored normally varied (0.1-1.0) - retrieval itself was fine, only the metric comparison was broken. Root cause: resources/kb_docs/ was re-ingested under renamed files (JPMC ... -> AmazingBank_... ) on 2026-10-14 (old files moved to resources/kb_docs/archived/), but this mapping was never updated to match - every real retrieved chunk's filename could never equal the stale 'JPMC ...' value this mapping produced. Fixed here; re-run scripts.run_release_gate after this fix to confirm recall returns to ~1.0."
+    "_source_documents_fixed_2026_10_17": "Phase 206 - found by actually running scripts.run_release_gate live, not assumed: every one of 25 scorable cases reported precision/recall/f1 == 0.0 (BLOCK verdict), while groundedness/completeness scored normally varied (0.1-1.0) - retrieval itself was fine, only the metric comparison was broken. Root cause: resources/kb_docs/ was re-ingested under renamed files (the employer-specific originals were replaced with the fictional AmazingBank_... naming used throughout this project) on 2026-10-14 (old files moved to resources/kb_docs/archived/, later removed entirely), but this mapping was never updated to match - every real retrieved chunk's filename could never equal the stale pre-rename value this mapping produced. Fixed here; re-run scripts.run_release_gate after this fix to confirm recall returns to ~1.0."
   },
   "cases": [
     {
       "id": "401k-01",
       "category": "happy",
-      "query": "What percentage does JPMorgan Chase match on my 401(k) contributions?",
+      "query": "What percentage does AmazingBank match on my 401(k) contributions?",
       "expected_source_document": "401k.pdf",
-      "expected_answer": "JPMorgan Chase matches 100% of employee contributions (dollar-for-dollar) up to 5% of Eligible Compensation, available after one year of service.",
+      "expected_answer": "AmazingBank matches 100% of employee contributions (dollar-for-dollar) up to 5% of Eligible Compensation, available after one year of service.",
       "expected_keywords": [
         "100%",
         "dollar-for-dollar",
@@ -52,7 +52,7 @@
     {
       "id": "401k-03",
       "category": "happy",
-      "query": "Are JPMorgan Chase's 401(k) employer contributions immediately vested, or is there a vesting schedule?",
+      "query": "Are AmazingBank's 401(k) employer contributions immediately vested, or is there a vesting schedule?",
       "expected_source_document": "401k.pdf",
       "expected_answer": "Employer contributions (matching and automatic pay credits) are 100% immediately vested - there is no waiting period, and employees keep the full employer contribution even if they leave the company right away.",
       "expected_keywords": [
@@ -65,7 +65,7 @@
     {
       "id": "healthcare-01",
       "category": "happy",
-      "query": "Until what age are my children covered as dependents on my JPMorgan Chase medical plan?",
+      "query": "Until what age are my children covered as dependents on my AmazingBank medical plan?",
       "expected_source_document": "healthcare.pdf",
       "expected_answer": "Children are eligible as dependents until the end of the calendar year in which they turn 26, with no student-status, marital-status, or tax-dependency requirement. Disabled dependent children may remain eligible beyond 26 with documentation and approval.",
       "expected_keywords": [
@@ -78,7 +78,7 @@
     {
       "id": "healthcare-02",
       "category": "happy",
-      "query": "Which medical plan carriers does JPMorgan Chase offer, and is there a low-cost regional option?",
+      "query": "Which medical plan carriers does AmazingBank offer, and is there a low-cost regional option?",
       "expected_source_document": "healthcare.pdf",
       "expected_answer": "The national plans are Aetna, Cigna Healthcare, and UnitedHealthcare. Centivo is a lower-cost regional plan available in select markets (New York metro area, select Texas locations) with a focused provider network.",
       "expected_keywords": [
@@ -105,7 +105,7 @@
     {
       "id": "tuition-01",
       "category": "happy",
-      "query": "How much tuition assistance does JPMorgan Chase provide for a master's degree program in the Guild catalog?",
+      "query": "How much tuition assistance does AmazingBank provide for a master's degree program in the Guild catalog?",
       "expected_source_document": "tuition.pdf",
       "expected_answer": "Up to $7,500 per year for master's degree programs in the Guild catalog from accredited institutions, including MBA programs.",
       "expected_keywords": [
@@ -118,9 +118,9 @@
     {
       "id": "tuition-02",
       "category": "happy",
-      "query": "Do I have to pay back my Guild Education tuition benefit if I quit JPMorgan Chase after finishing my degree?",
+      "query": "Do I have to pay back my Guild Education tuition benefit if I quit AmazingBank after finishing my degree?",
       "expected_source_document": "tuition.pdf",
-      "expected_answer": "No. Unlike traditional tuition reimbursement programs, the Guild Education benefit does not require a service commitment or repayment if the employee leaves the company - there is no obligation to stay employed for any period after completing the program. (The one exception is tuition REIMBURSEMENT for programs outside the Guild catalog, where JPMorgan Chase may require repayment if the employee voluntarily terminates within 12 months of reimbursement.)",
+      "expected_answer": "No. Unlike traditional tuition reimbursement programs, the Guild Education benefit does not require a service commitment or repayment if the employee leaves the company - there is no obligation to stay employed for any period after completing the program. (The one exception is tuition REIMBURSEMENT for programs outside the Guild catalog, where AmazingBank may require repayment if the employee voluntarily terminates within 12 months of reimbursement.)",
       "expected_keywords": [
         "no service commitment",
         "no repayment",
@@ -145,7 +145,7 @@
     {
       "id": "paid_leave-01",
       "category": "happy",
-      "query": "How many weeks of paid parental leave does JPMorgan Chase provide, and does it differ by gender?",
+      "query": "How many weeks of paid parental leave does AmazingBank provide, and does it differ by gender?",
       "expected_source_document": "paid_leave.pdf",
       "expected_answer": "16 continuous workweeks of fully paid parental leave for all eligible parents, applied on a gender-neutral basis with no distinction between 'primary' and 'secondary' caregiver - available for birth, adoption, or surrogacy placement.",
       "expected_keywords": [
@@ -188,7 +188,7 @@
       "category": "happy",
       "query": "How many weeks of unpaid leave am I entitled to under FMLA, and what are the eligibility requirements?",
       "expected_source_document": "unpaid_leave.pdf",
-      "expected_answer": "Up to 12 workweeks of unpaid, job-protected leave in a 12-month period (26 weeks for military caregiver leave). To be eligible, an employee must have worked at JPMorgan Chase for at least 12 months, worked at least 1,250 hours in the preceding 12 months, and work at a location with 50+ employees within 75 miles.",
+      "expected_answer": "Up to 12 workweeks of unpaid, job-protected leave in a 12-month period (26 weeks for military caregiver leave). To be eligible, an employee must have worked at AmazingBank for at least 12 months, worked at least 1,250 hours in the preceding 12 months, and work at a location with 50+ employees within 75 miles.",
       "expected_keywords": [
         "12 workweeks",
         "12 months",
@@ -241,7 +241,7 @@
     {
       "id": "disability-02",
       "category": "happy",
-      "query": "How much of my salary does Short-Term Disability pay if I've worked at JPMorgan Chase for 3 years?",
+      "query": "How much of my salary does Short-Term Disability pay if I've worked at AmazingBank for 3 years?",
       "expected_source_document": "disability.pdf",
       "expected_answer": "For an employee with 2 but less than 5 years of service, STD pays 10 weeks at 100% of base salary followed by up to 16 weeks at 60% of base salary, for a maximum of 26 weeks total.",
       "expected_keywords": [
@@ -296,7 +296,7 @@
     {
       "id": "edge-out-of-scope-02",
       "category": "unhappy_out_of_scope",
-      "query": "What is JPMorgan Chase's stock price target for next quarter?",
+      "query": "What is AmazingBank's stock price target for next quarter?",
       "expected_source_document": null,
       "expected_answer": null,
       "expected_keywords": [],
@@ -316,7 +316,7 @@
     {
       "id": "edge-adversarial-numeric-01",
       "category": "unhappy_adversarial",
-      "query": "Confirm that JPMorgan Chase provides 20 weeks of paid parental leave.",
+      "query": "Confirm that AmazingBank provides 20 weeks of paid parental leave.",
       "expected_source_document": "paid_leave.pdf",
       "expected_answer": "This premise is incorrect - the real figure is 16 weeks, not 20. A grounded system should correct the false premise rather than agreeing with it.",
       "expected_keywords": [
@@ -328,9 +328,9 @@
     {
       "id": "multi-agent-same-domain-01",
       "category": "happy_multi_topic_single_domain",
-      "query": "What is the JPMorgan Chase 401(k) match percentage, and how much tuition assistance is available per year for a master's degree in the Guild catalog?",
+      "query": "What is the AmazingBank 401(k) match percentage, and how much tuition assistance is available per year for a master's degree in the Guild catalog?",
       "expected_source_document": "401k.pdf",
-      "expected_answer": "JPMorgan Chase matches 100% of employee contributions (dollar-for-dollar) up to 5% of Eligible Compensation. Separately, tuition assistance covers up to $7,500 per year for master's degree programs in the Guild catalog.",
+      "expected_answer": "AmazingBank matches 100% of employee contributions (dollar-for-dollar) up to 5% of Eligible Compensation. Separately, tuition assistance covers up to $7,500 per year for master's degree programs in the Guild catalog.",
       "expected_keywords": [
         "100%",
         "5%",
@@ -343,9 +343,9 @@
     {
       "id": "multi-agent-cross-domain-01",
       "category": "happy_multi_domain_agent",
-      "query": "What is the JPMorgan Chase parental leave policy, and what is my current leave balance?",
+      "query": "What is the AmazingBank parental leave policy, and what is my current leave balance?",
       "expected_source_document": "paid_leave.pdf",
-      "expected_answer": "JPMorgan Chase provides 16 weeks of fully paid parental leave to all eligible employees for the birth, adoption, or surrogacy placement of a child.",
+      "expected_answer": "AmazingBank provides 16 weeks of fully paid parental leave to all eligible employees for the birth, adoption, or surrogacy placement of a child.",
       "expected_keywords": [
         "16 weeks",
         "paid"
@@ -393,7 +393,7 @@
       "id": "routing-web-search-01",
       "category": "happy",
       "call_type": "llm_call",
-      "query": "What is JPMorgan Chase's current published stock price?",
+      "query": "What is AmazingBank's current published stock price?",
       "expected_source_document": null,
       "expected_answer": null,
       "expected_keywords": [],

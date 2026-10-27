@@ -303,7 +303,7 @@ bugs found the hard way" for why.
     in `db_gateway.vector_store()`.
 
   Verified live, real cost incurred (a few cents, embedding actual PDF
-  text): `POST /rag/documents/{id}/index` on `JPMC Healthcare Benefits.pdf`
+  text): `POST /rag/documents/{id}/index` on `AmazingBank Healthcare Benefits.pdf`
   → 39 real chunks, `action: "insert"`. Re-running the identical call →
   `action: "update"`, `chunks_removed: 0` (nothing stale, same content).
   Then the case that actually proves the update logic, not just its
@@ -313,7 +313,7 @@ bugs found the hard way" for why.
   confirming the old chunks were actually deleted, not left behind
   alongside the new ones. Restored the document to its real 39-chunk
   content afterward. Switched `RAG_VECTOR_DB` to `pinecone`, indexed a
-  second document (`JPMC Paid TimeOff.pdf`) → 45 chunks landed in
+  second document (`AmazingBank Paid TimeOff.pdf`) → 45 chunks landed in
   Pinecone's `hrb_chatbot_kb` namespace while ChromaDB's count stayed at
   39, untouched - confirming the switch actually isolates the two
   backends rather than one silently winning. Re-indexed that same
@@ -636,7 +636,7 @@ later, separate wave once this core is solid.
   **Verified live, real cost incurred** (one real embedding call + one real
   chat completion): asked "How many weeks of paid time off do employees
   get per year?" against a real indexed document
-  (`JPMC Paid TimeOff.pdf`) → a correct, grounded answer ("3 to 5 weeks of
+  (`AmazingBank Paid TimeOff.pdf`) → a correct, grounded answer ("3 to 5 weeks of
   vacation annually based on years of service and pay grade"), traceable
   to the real retrieved chunk text, with `sources` correctly showing the
   real `filename`. Also unit-tested with fakes (no network): 9 tests
@@ -1414,7 +1414,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
   **Verified live, real cost incurred** (not just unit-tested): started
   the app with uvicorn, uploaded a real PDF
-  (`JPMC Guild Tuition Assistance.pdf`), then in sequence -
+  (`AmazingBank Guild Tuition Assistance.pdf`), then in sequence -
   `POST .../index/recursive` → `action: "insert"`, 45 chunks,
   `chunking_strategy: "recursive"` in the response; `POST .../index` (no
   strategy) → `action: "update"`, auto-selected `"recursive"` again (same
@@ -1759,7 +1759,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       could hit, not because it needs a decision before implementing.
 
   **Verified:** the exact reported scenario reproduced live against a real
-  `TestClient` call (upload `JPMC Healthcare Benefits.pdf` twice, identical
+  `TestClient` call (upload `AmazingBank Healthcare Benefits.pdf` twice, identical
   bytes) - first upload `status: "uploaded"`; second `status: "duplicate"`,
   `duplicate_count: 1`, pointing at the first upload's `document_id`, no
   second document created. Full test suite green (89/89 - was 88, minus the
@@ -2021,7 +2021,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   drops it - confirmed by direct test against a real ephemeral Chroma
   client). Live-verified end to end against the real OpenAI extraction
   call, a real Chroma collection, and the real SQLite metadata store
-  (`resources/kb_docs/JPMC Guild Tuition Assistance.pdf`): first index -
+  (`resources/kb_docs/AmazingBank Guild Tuition Assistance.pdf`): first index -
   chunk metadata came back
   `{'doc_type': 'benefits', 'department': None, 'doc_classification':
   'Guild Education benefit program', 'is_current': True, 'chunk_index': 0}`
@@ -2138,7 +2138,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   un-overridable; plus 3 new route-level tests for `use_multi_query`/
   `use_self_query`/`llm_provider`/`applied_filter`). Live-verified against
   real OpenAI + a real indexed document
-  (`resources/kb_docs/JPMC Empower 401(k) Savings Plan.pdf`) through the
+  (`resources/kb_docs/AmazingBank Empower 401(k) Savings Plan.pdf`) through the
   real `/v1/rag-retrieval/query` endpoint: `use_multi_query=true` alone
   retrieved 7 real chunks and generated a grounded answer; `use_self_query`
   alone correctly parsed `{"doc_type": {"$eq": "benefits"}}` and matched 5
@@ -2476,7 +2476,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       - `IndexResponse.document_id` already reports the real, resolved id
         - no contract change needed there; a caller using a filename
           finds out the real id from the response.
-    - **User-visible behavior:** `POST /documents/JPMC Healthcare
+    - **User-visible behavior:** `POST /documents/AmazingBank Healthcare
       Benefits.pdf/index` (URL-encoded) behaves identically to using that
       document's real id, as long as exactly one current document has
       that name.
@@ -2494,7 +2494,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   a filename is 409 naming both ids; unknown filename is still 404;
   filename resolution ignores a superseded document's old name while id
   lookup still reaches it regardless). Live-verified on the real dev DB:
-  `JPMC Healthcare Benefits.pdf` genuinely resolves to 8 different current
+  `AmazingBank Healthcare Benefits.pdf` genuinely resolves to 8 different current
   documents there (accumulated across this whole session's testing) and
   correctly 409s naming all 8 - confirming the ambiguity path against
   real, not synthetic, data. A fresh, unambiguous upload reindexed
@@ -4301,7 +4301,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     real answer, "11 days available" - matches the real data.
   - `"How many weeks of paid parental leave..."` -> agent chose
     `SearchKnowledgeBase` -> real, grounded, accurate answer from the
-    actually-indexed `JPMC Paid TimeOff.pdf`.
+    actually-indexed `AmazingBank Paid TimeOff.pdf`.
   - `"How does the 401k employer match work?"` -> agent correctly chose
     `SearchKnowledgeBase`, searched twice with different phrasing, then
     honestly reported no information found - not a bug, confirmed the
@@ -4529,7 +4529,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
   **Verified live, both endpoints, real multi-turn resolution - not just
   unit tests:**
-  - `single-agentic-rag`: turn 1 asked "What is the JPMC 401k match?"
+  - `single-agentic-rag`: turn 1 asked "What is the AmazingBank 401k match?"
     (2 tool calls, got a real conversation_id back). Turn 2, same
     conversation_id, asked "What was the phone number you just gave me?"
     - agent answered correctly with **0 tool calls, 1 iteration** - the
@@ -4556,7 +4556,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   - **Context:** part of a broader "multimodal chunking/indexing" request
     (text/tables/images) - this piece covers the metadata half. First
     investigated live against a real KB document
-    (`JPMC Guild Tuition Assistance.pdf`) before assuming a gap existed:
+    (`AmazingBank Guild Tuition Assistance.pdf`) before assuming a gap existed:
     confirmed `pypdf`'s plain `extract_text()` already captures a document's
     closing "Document Version: 1.0 / Effective Date: .../ Last Updated:
     .../ Next Review Date: ..." colophon (found on page 20) - this text is
@@ -4613,7 +4613,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   SENT` (3000) characters to the LLM - fine for owner/department/
   doc_category, which are almost always on a title page, but
   author/doc_date/doc_version often sit in a closing colophon instead.
-  Confirmed live on `JPMC Guild Tuition Assistance.pdf` (20 pages): its
+  Confirmed live on `AmazingBank Guild Tuition Assistance.pdf` (20 pages): its
   "Document Version: 1.0" line is on page 20, entirely outside the old
   head-only excerpt - the new fields would have stayed `null` on every
   real document shaped like this. Fixed: `extract_document_metadata()`
@@ -5284,14 +5284,14 @@ Explicitly deferred to a later, separate wave - not part of the above:
   the 401(k) match rate "is not specified in the available information."
   Traced this down, not assumed: isolated the retrieval call for the
   401k-focused sub-query alone, confirmed it returned the wrong document
-  (`JPMC Healthcare Benefits.pdf`); then re-ran the *original, already-
+  (`AmazingBank Healthcare Benefits.pdf`); then re-ran the *original, already-
   verified* golden case 401k-01's exact query through genai-rag's own
   `pipeline.answer_query()` directly (no agents involved at all) and got
   the same wrong result - proving this had nothing to do with the Planner,
   multi-agentic-rag, or anything built in this session. Checked the local
   metadata store directly: only 3 of the 6 KB PDFs the golden dataset
-  assumes were actually indexed locally (`JPMC Guild Tuition
-  Assistance.pdf`, `JPMC Paid TimeOff.pdf`, `JPMC Healthcare
+  assumes were actually indexed locally (`AmazingBank Guild Tuition
+  Assistance.pdf`, `AmazingBank Paid TimeOff.pdf`, `AmazingBank Healthcare
   Benefits.pdf`) - `401k.pdf`/`unpaid_leave.pdf`/`disability.pdf` were
   missing from this local dev index even though all 6 source files exist
   on disk under `resources/kb_docs/`. A local indexing gap, not a code
@@ -7775,7 +7775,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     `/health` → `"status":"healthy"` with real OpenAI/Pinecone/SQLite
     checks; a real `POST /v1/genai-rag/retrieve-document/query` ("What
     dental plans are offered?") → correct grounded answer citing
-    `JPMC Healthcare Benefits.pdf, chunk 11.0` (MetLife/Delta Dental).
+    `AmazingBank Healthcare Benefits.pdf, chunk 11.0` (MetLife/Delta Dental).
   - Done on `feature-hrb-chatbot-subdomain`, pushed, **not merged** into
     `develop`/`master` - per this phase's own declared scope.
 
@@ -9154,7 +9154,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     too before the fix, same bug class as Phase 109/110's own).
   - Verified live against the real backend for both agentic endpoints,
     not just genai-rag: single-agentic-rag returned **3 real sources**
-    (`JPMC Healthcare Benefits.pdf`, real chunk indices) for a dental-plan
+    (`AmazingBank Healthcare Benefits.pdf`, real chunk indices) for a dental-plan
     question; multi-agentic-rag returned the identical 3 sources for the
     same question (same underlying KB query, different orchestration) -
     both `served_from_cache: false` on the first ask, confirming live
@@ -9363,7 +9363,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     guesses. This repo's own findings: 4 empty dead packages
     (`repo/`, `ai/doc_processing/helper/`, `ai/rag_pipeline/prompts/`,
     `common/clients/mcp_client/`), a byte-identical duplicate KB PDF
-    (`JPMC Unpaid TimeOff v1.pdf`), several requirements.txt entries
+    (`AmazingBank Unpaid TimeOff v1.pdf`), several requirements.txt entries
     with zero imports anywhere in `src/`, and stale/broken links in
     CLAUDE.md's dev-reference section (files moved in commit `967ee13`,
     links never updated). Postman collection and `GET /v1/conversations`
@@ -16706,7 +16706,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       BLOCK), while groundedness/completeness scored normally and varied
       (0.1-1.0) - a sign retrieval itself works but the metric comparison
       doesn't. Root cause, confirmed by listing `resources/kb_docs/`:
-      every document was re-ingested under a renamed file (`JPMC ...` ->
+      every document was re-ingested under a renamed file (`AmazingBank ...` ->
       `AmazingBank_...`) on 2026-10-14, old files moved to
       `resources/kb_docs/archived/`, but `golden_dataset.json`'s own
       `_meta.source_documents` mapping was never updated - a real

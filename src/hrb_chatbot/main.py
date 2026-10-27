@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="HRB Chatbot",
     version="0.1.0",
-    description="An HR benefits chatbot backed by a RAG pipeline over the JPMC benefits knowledge base.",
+    description="An HR benefits chatbot backed by a RAG pipeline over the AmazingBank benefits knowledge base.",
     lifespan=lifespan,
 )
 
