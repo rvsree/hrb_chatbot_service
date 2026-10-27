@@ -54,7 +54,7 @@ repo keeps only its own service-specific docs under
 
 Start at
 [../docs/architecture/platform-overview.html](../docs/architecture/platform-overview.html)
-- the one-page hub: business capabilities, all 7 repos, one diagram, links
+- the one-page hub: business capabilities, all 8 repos, one diagram, links
 to everything else. Every application's own current-state, target-state
 (scaling), and deployment architecture - as real, editable `.drawio` files,
 not static images - is indexed at
@@ -212,7 +212,7 @@ into Postman - it covers the same happy-path and edge cases as
 README_TEST.md, ready to run against `{{base_url}}` (local or the deployed
 App Runner URL).
 [resources/golden_dataset/golden_dataset.json](resources/golden_dataset/golden_dataset.json)
-has 22 real question/expected-answer pairs grounded in the actual
+has 29 real question/expected-answer pairs grounded in the actual
 `resources/kb_docs/` PDFs, for evaluating whether real answers are grounded
 and correct rather than hallucinated - exercisable against the real query
 endpoint now.
@@ -273,7 +273,7 @@ tracks counts, not dollars - no verified per-model price table exists yet
 
 ## Testing strategy — three tiers, different trust levels
 
-- **Golden dataset** (`resources/golden_dataset/golden_dataset.json`) - 23
+- **Golden dataset** (`resources/golden_dataset/golden_dataset.json`) - 29
   hand-curated cases, every expected answer pulled directly from the real
   KB PDFs, not invented. Highest trust. Runs in CI via
   `scripts/run_release_gate.py`, producing a PASS/REVIEW/BLOCK decision on
