@@ -1068,7 +1068,7 @@ Decided 2026-10-21 (all 3 were open questions, now resolved):
    single-agentic-rag call AND a multi-agentic-rag call, not just one.
 3. **Service home** - built in `hrb_chatbot_service` now (the only place that
    can actually run today), documented as the intended future home of
-   `rag_retrieval_service` once that service exists - same resolution
+   `hrb_rag_retrieval_service` once that service exists - same resolution
    pattern `hrb_platform_components`' own Phase 0 used.
 
 ## GET /v1/genai-rag/ingest-document/documents, GET .../{id} — Finalized

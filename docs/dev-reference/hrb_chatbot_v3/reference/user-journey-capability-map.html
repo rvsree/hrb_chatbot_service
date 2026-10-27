@@ -81,7 +81,7 @@
   <div class="hops">
     <div class="hop">UI<span class="comm">HTTPS</span></div><div class="arrow">→</div>
     <div class="hop">api_gateway_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
-    <div class="hop">rag_retrieval_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
+    <div class="hop">hrb_rag_retrieval_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
     <div class="hop">Vector DB + LLM Gateway<span class="comm">SDK calls</span></div>
   </div>
   <div class="outcome"><b>Demands:</b> RAG retrieval, LLM Gateway connector, vector-store connector, answer cache.</div>
@@ -93,7 +93,7 @@
   <div class="hops">
     <div class="hop">UI<span class="comm">HTTPS</span></div><div class="arrow">→</div>
     <div class="hop">api_gateway_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
-    <div class="hop">rag_retrieval_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
+    <div class="hop">hrb_rag_retrieval_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
     <div class="hop">MCP client<span class="comm">MCP protocol</span></div><div class="arrow">→</div>
     <div class="hop">hrb_lms_mcp<span class="comm">OAuth2 client-creds</span></div><div class="arrow">→</div>
     <div class="hop">hrb_emp_lms (own DB)<span class="comm">SQL</span></div>
@@ -107,7 +107,7 @@
   <div class="hops">
     <div class="hop">UI<span class="comm">HTTPS</span></div><div class="arrow">→</div>
     <div class="hop">api_gateway_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
-    <div class="hop">rag_retrieval_service / HITL graph<span class="comm">LangGraph interrupt()</span></div><div class="arrow">→</div>
+    <div class="hop">hrb_rag_retrieval_service / HITL graph<span class="comm">LangGraph interrupt()</span></div><div class="arrow">→</div>
     <div class="hop">SES<span class="comm">email, async</span></div><div class="arrow">→</div>
     <div class="hop"><em>manager approves, days later</em></div><div class="arrow">→</div>
     <div class="hop">resume via thread_id<span class="comm">Command(resume=...)</span></div>
@@ -121,7 +121,7 @@
   <div class="hops">
     <div class="hop">Admin UI<span class="comm">HTTPS, multipart</span></div><div class="arrow">→</div>
     <div class="hop">api_gateway_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
-    <div class="hop">rag_ingestion_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
+    <div class="hop">hrb_rag_ingestion_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
     <div class="hop">S3 + chunk/embed<span class="comm">SDK + batch</span></div><div class="arrow">→</div>
     <div class="hop">Vector DB + Postgres<span class="comm">write</span></div>
   </div>
@@ -160,15 +160,15 @@
     <div class="hop">UI (mic)<span class="comm">WebRTC/upload</span></div><div class="arrow">→</div>
     <div class="hop">api_gateway_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
     <div class="hop">chat_audio_service<span class="comm">speech-to-text</span></div><div class="arrow">→</div>
-    <div class="hop">rag_retrieval_service or employee_401k_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
+    <div class="hop">hrb_rag_retrieval_service or employee_401k_service<span class="comm">REST, sync</span></div><div class="arrow">→</div>
     <div class="hop">chat_audio_service<span class="comm">text-to-speech</span></div>
   </div>
-  <div class="outcome"><b>Demands:</b> audio is a <em>front door</em>, not a new answer-generation path - it transcribes in, then hands off to an existing capability, and synthesizes speech out. Confirms chat_audio_service doesn't duplicate rag_retrieval_service's logic, it wraps it.</div>
+  <div class="outcome"><b>Demands:</b> audio is a <em>front door</em>, not a new answer-generation path - it transcribes in, then hands off to an existing capability, and synthesizes speech out. Confirms chat_audio_service doesn't duplicate hrb_rag_retrieval_service's logic, it wraps it.</div>
 </section>
 
 <div class="synth">
   <h2 style="margin-bottom:10px;"><span class="jnum">Σ</span>What the journeys actually demand, not assumed up front</h2>
-  <p style="margin:0;font-size:13px;color:var(--text-muted);line-height:1.6;">Reading top to bottom: journeys 1-2 justify <b>rag_retrieval_service</b> as one capability (static + live data, same conversational path). Journey 3 proves it needs <b>durable, days-long async state</b>, not just request/response. Journey 4 proves <b>rag_ingestion_service</b> is a genuinely different traffic shape and deserves its own service. Journey 5 proves <b>platform/admin</b> is its own concern with zero LLM involvement. Journeys 6-7 prove the future services (<b>employee_401k_service</b>, <b>chat_audio_service</b>) extend the system by composing with what exists, not by duplicating it.</p>
+  <p style="margin:0;font-size:13px;color:var(--text-muted);line-height:1.6;">Reading top to bottom: journeys 1-2 justify <b>hrb_rag_retrieval_service</b> as one capability (static + live data, same conversational path). Journey 3 proves it needs <b>durable, days-long async state</b>, not just request/response. Journey 4 proves <b>hrb_rag_ingestion_service</b> is a genuinely different traffic shape and deserves its own service. Journey 5 proves <b>platform/admin</b> is its own concern with zero LLM involvement. Journeys 6-7 prove the future services (<b>employee_401k_service</b>, <b>chat_audio_service</b>) extend the system by composing with what exists, not by duplicating it.</p>
   <table class="cap-table">
     <thead><tr><th>Journey</th><th>Capability it justifies</th><th>Status</th></tr></thead>
     <tbody>

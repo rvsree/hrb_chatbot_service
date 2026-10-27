@@ -60,10 +60,10 @@ Each has its own `CLAUDE.md`, `ROADMAP.md` (empty of specs, phases listed), and 
    `hrb_chatbot_service` — proves the Gateway before anything else splits.
 
 **Phase 2 — Split RAG ingestion / retrieval (the real migration, highest risk)**
-7. New repos: `rag_ingestion_service`, `rag_retrieval_service`, both
+7. New repos: `hrb_rag_ingestion_service`, `hrb_rag_retrieval_service`, both
    depending on `hrb_common_libs`.
 8. Move code per the interface matrix's boundaries; Support/platform
-   co-locates inside `rag_retrieval_service`.
+   co-locates inside `hrb_rag_retrieval_service`.
 9. New ECR/App Runner/IAM per service, mirroring the existing deploy.yml
    pattern.
 10. Keep `hrb_chatbot_service` dormant as rollback safety net until both

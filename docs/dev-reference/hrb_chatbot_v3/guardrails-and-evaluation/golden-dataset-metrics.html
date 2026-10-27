@@ -144,7 +144,7 @@
 </section>
 
 <section>
-  <h2><span class="h2-num">3</span>3 real bugs found and fixed during this testing <span class="h2-sub">all in rag_retrieval_service, all same root pattern</span></h2>
+  <h2><span class="h2-num">3</span>3 real bugs found and fixed during this testing <span class="h2-sub">all in hrb_rag_retrieval_service, all same root pattern</span></h2>
   <div class="table-wrap">
   <table class="data-table">
     <thead><tr><th>Bug</th><th>Root cause</th><th>Fix</th></tr></thead>
@@ -155,7 +155,7 @@
     </tbody>
   </table>
   </div>
-  <div class="fix-note"><span>⚠</span><div><b>Plus a 4th bug found in 3 places at once, same session, different root cause:</b> OpenAI shut down <code class="mono">gpt-4.1-nano</code> on 2026-10-23 - the hardcoded default guardrails model in both <code class="mono">hrb_chatbot_service</code> and <code class="mono">rag_retrieval_service</code>, and the hardcoded decompose/planner model override in <code class="mono">hrb_chatbot_ui</code> itself (sent on every real request). All 3 found live, fixed, redeployed, and re-verified the same session - not part of this golden-dataset testing specifically, but found because of it.</div></div>
+  <div class="fix-note"><span>⚠</span><div><b>Plus a 4th bug found in 3 places at once, same session, different root cause:</b> OpenAI shut down <code class="mono">gpt-4.1-nano</code> on 2026-10-23 - the hardcoded default guardrails model in both <code class="mono">hrb_chatbot_service</code> and <code class="mono">hrb_rag_retrieval_service</code>, and the hardcoded decompose/planner model override in <code class="mono">hrb_chatbot_ui</code> itself (sent on every real request). All 3 found live, fixed, redeployed, and re-verified the same session - not part of this golden-dataset testing specifically, but found because of it.</div></div>
 </section>
 
 <section>

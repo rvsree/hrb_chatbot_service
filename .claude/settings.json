@@ -2,8 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(aws apprunner *)",
-      "Bash(cd \"/c/workspace/2026-v1/interview-kickstart/rag_ingestion_service\" && gh repo create rag_ingestion_service --public --source=. --remote=origin --description \"Ingestion half of the HRB chatbot RAG pipeline - extract, chunk, embed, index\" 2>&1)",
-      "Read(//c/workspace/2026-v1/interview-kickstart/rag_ingestion_service/**)"
+      "Bash(cd \"/c/workspace/2026-v1/interview-kickstart/hrb_rag_ingestion_service\" && gh repo create hrb_rag_ingestion_service --public --source=. --remote=origin --description \"Ingestion half of the HRB chatbot RAG pipeline - extract, chunk, embed, index\" 2>&1)",
+      "Read(//c/workspace/2026-v1/interview-kickstart/hrb_rag_ingestion_service/**)"
     ]
   },
   "hooks": {

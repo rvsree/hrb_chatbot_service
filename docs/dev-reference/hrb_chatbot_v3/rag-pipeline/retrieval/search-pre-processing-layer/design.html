@@ -66,7 +66,7 @@
 
 # Same key-naming convention already fixed project-wide:
 # {service}:{purpose}:{identifier}
-rag_retrieval_service:stm:7f3a9c...</pre>
+hrb_rag_retrieval_service:stm:7f3a9c...</pre>
     <p>Read: <span class="mono">GET stm:{conversation_id}</span> - on miss, fall back to <span class="mono">conversation_store.get_turns(conversation_id, limit=N)</span> (Postgres) and backfill Redis. Write: append to both Redis (via <span class="mono">RPUSH</span> + re-set TTL) and Postgres (unchanged, already happens today) on every turn.</p>
   </section>
 
