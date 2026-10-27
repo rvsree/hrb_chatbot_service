@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hrb-chatbot-service"
+version = "0.1.0"
+description = "HR benefits chatbot - RAG pipeline over the JPMC benefits knowledge base."
+requires-python = ">=3.12,<3.13"
+# Runtime deps stay in requirements.txt (installed into the image before this
+# wheel is built) - this project's one existing source of truth for them.
+dependencies = []
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.setuptools.package-data]
+# config.yml/prompts.yml are data, not code - setuptools.packages.find skips
+# dirs with no __init__.py, so they need listing here to land in the wheel.
+"src.hrb_chatbot.ai.guardrails_config" = ["*.yml"]

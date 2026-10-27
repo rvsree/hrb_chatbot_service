@@ -5,6 +5,7 @@ alongside it."""
 
 from src.hrb_chatbot.ai.rag_core import eval_threshold
 from src.hrb_chatbot.ai.rag_core.eval_threshold import build_eval_scores, check_eval_threshold, run_enabled_eval_judges
+from tests.conftest import FakeAppSettingsStore, FakeDBGateway
 
 
 def test_no_threshold_given_means_no_check():
@@ -219,3 +220,72 @@ class TestBuildEvalScores:
         eval_scores = build_eval_scores(None, None, None, None, FAKE_ANSWER_RELEVANCY)
 
         assert eval_scores["judge_model_used"] == "fake-model"
+
+
+class TestMaybeCaptureLiveQuery:
+    """Phase 257 - the live-query LTM capture gate."""
+
+    async def test_none_eval_scores_is_a_no_op(self, monkeypatch):
+        fake_gateway = FakeDBGateway()
+        monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: fake_gateway)
+
+        await eval_threshold.maybe_capture_live_query("q", "a", None, "genai-rag", "req-1", "EMP001")
+
+        assert await fake_gateway.live_query_store().list_queries() == []
+
+    async def test_missing_groundedness_key_is_a_no_op(self, monkeypatch):
+        fake_gateway = FakeDBGateway()
+        monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: fake_gateway)
+
+        await eval_threshold.maybe_capture_live_query("q", "a", {"completeness": 0.9}, "genai-rag", "req-1", "EMP001")
+
+        assert await fake_gateway.live_query_store().list_queries() == []
+
+    async def test_score_at_or_above_default_threshold_is_captured_as_ltm(self, monkeypatch):
+        fake_gateway = FakeDBGateway()
+        monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: fake_gateway)
+
+        await eval_threshold.maybe_capture_live_query(
+            "What is my deductible?", "It's $500.", {"groundedness": 0.6}, "genai-rag", "req-1", "EMP001"
+        )
+
+        rows = await fake_gateway.live_query_store().list_queries()
+        assert len(rows) == 1
+        assert rows[0]["is_ltm"] is True
+        assert rows[0]["eval_score"] == 0.6
+        assert rows[0]["pipeline"] == "genai-rag"
+        assert rows[0]["request_id"] == "req-1"
+        assert rows[0]["employee_id"] == "EMP001"
+
+    async def test_score_below_default_threshold_is_captured_but_not_ltm(self, monkeypatch):
+        fake_gateway = FakeDBGateway()
+        monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: fake_gateway)
+
+        await eval_threshold.maybe_capture_live_query(
+            "q", "a", {"groundedness": 0.3}, "single-agentic-rag", "req-2", "EMP002"
+        )
+
+        rows = await fake_gateway.live_query_store().list_queries()
+        assert len(rows) == 1
+        assert rows[0]["is_ltm"] is False
+
+    async def test_custom_threshold_from_app_settings_is_honored(self, monkeypatch):
+        fake_gateway = FakeDBGateway(app_settings_store=FakeAppSettingsStore({"ltm_score_threshold": 0.9}))
+        monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: fake_gateway)
+
+        await eval_threshold.maybe_capture_live_query("q", "a", {"groundedness": 0.7}, "genai-rag", "req-3", None)
+
+        rows = await fake_gateway.live_query_store().list_queries()
+        assert rows[0]["is_ltm"] is False
+
+    async def test_capture_failure_is_swallowed_never_raises(self, monkeypatch):
+        class _BoomStore:
+            async def capture(self, *args, **kwargs):
+                raise RuntimeError("db is down")
+
+        fake_gateway = FakeDBGateway()
+        monkeypatch.setattr(fake_gateway, "live_query_store", lambda: _BoomStore())
+        monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: fake_gateway)
+
+        # Must not raise.
+        await eval_threshold.maybe_capture_live_query("q", "a", {"groundedness": 0.9}, "genai-rag", "req-4", None)

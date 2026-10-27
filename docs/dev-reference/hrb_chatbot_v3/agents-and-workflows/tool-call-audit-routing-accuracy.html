@@ -1,0 +1,152 @@
+<title>Tool-Call Audit &amp; Routing Accuracy</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef0f4; --surface: #ffffff; --surface-alt: #f4f5f9; --border: #d9dce4;
+    --text: #191d28; --text-muted: #565f72; --text-faint: #8992a4;
+    --ok: #1f8a4c; --ok-bg: #e6f5ec; --ok-border: #b9e2c9;
+    --bad: #b23a2f; --bad-bg: #fbebe8; --bad-border: #f0c4bc;
+    --shadow: 0 2px 4px rgba(20,24,34,0.06), 0 12px 26px rgba(20,24,34,0.08);
+    --code-bg: #f4f5f9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1218; --surface: #1a1f29; --surface-alt: #1c212c; --border: #2b3140;
+      --text: #e8eaf0; --text-muted: #a3aac0; --text-faint: #6d7488;
+      --ok: #4fbd80; --ok-bg: #15281d; --ok-border: #23492f;
+      --bad: #e2776a; --bad-bg: #2c1815; --bad-border: #4a2620;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --code-bg: #1c212c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1218; --surface: #1a1f29; --surface-alt: #1c212c; --border: #2b3140;
+    --text: #e8eaf0; --text-muted: #a3aac0; --text-faint: #6d7488;
+    --ok: #4fbd80; --ok-bg: #15281d; --ok-border: #23492f;
+    --bad: #e2776a; --bad-bg: #2c1815; --bad-border: #4a2620;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --code-bg: #1c212c;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-faint); font-weight: 600; }
+  h1 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 900; font-size: clamp(26px, 4.2vw, 36px); }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.55; }
+
+  .section { display: flex; flex-direction: column; gap: 12px; }
+  .section h2 { font-family: 'Archivo', sans-serif; font-size: 17px; font-weight: 800; margin: 0; }
+  .lede { color: var(--text-muted); font-size: 13.5px; line-height: 1.6; margin: 0; max-width: 78ch; }
+
+  pre.flow {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 18px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px;
+    line-height: 1.65; overflow-x: auto; white-space: pre; box-shadow: var(--shadow);
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .tbl-wrap { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); }
+  .tbl-wrap table { margin: 0; }
+
+  .chip { font-size: 10px; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+  .chip.ok { color: var(--ok); background: var(--ok-bg); border: 1px solid var(--ok-border); }
+  .chip.bad { color: var(--bad); background: var(--bad-bg); border: 1px solid var(--bad-border); }
+
+  .banner { display: flex; gap: 10px; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; line-height: 1.6; color: var(--text-muted); }
+  .banner strong { color: var(--text); }
+  code.inline { font-family: 'IBM Plex Mono', monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 0.92em; }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">hrb_chatbot_service &middot; MVP-6 diagram, 2026-10-26</span>
+    <h1>Tool-Call Audit &amp; Routing Accuracy</h1>
+    <p class="subtitle">
+      How this project checks that an agentic pipeline called the <em>right</em> tool, not just that it
+      produced a plausible-sounding answer. Covers Phase 258 (routing-accuracy scoring) and the related
+      deterministic MCP keyword fast-path that <code class="inline">call_type</code> describes.
+    </p>
+  </header>
+
+  <div class="section">
+    <h2>What gets audited, and how</h2>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>Mechanism</th><th>Mode(s)</th><th>Judge</th><th>What it proves</th></tr>
+        <tr><td>Routing-accuracy score (Phase 258)</td><td>single-agentic-rag, multi-agentic-rag</td><td>None - deterministic string match</td><td>The expected tool/agent was actually among the real dispatches, not just that the final answer looked right</td></tr>
+        <tr><td>MCP keyword fast-path (Phase 49/73)</td><td>genai-rag only</td><td>None - keyword match on the query text</td><td>A leave-balance/leave-history question bypassed the LLM entirely, going straight to MCP</td></tr>
+        <tr><td>Groundedness/completeness/etc. (DeepEval)</td><td>All 3 modes</td><td>LLM judge (OpenAI or Anthropic, Phase 256)</td><td>The answer's content quality - a different question from "was the right tool called"</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Routing-accuracy scoring - the actual mechanism (Phase 258)</h2>
+    <pre class="flow">
+golden_dataset.json case
+  { "query": "...", "expected_tool": "GetLeaveHistory", "call_type": "agent_call" }
+                              (single-agentic-rag cases use expected_tool;
+                               multi-agentic-rag cases use expected_agent -
+                               same field shape, different key name)
+        |
+        v
+real pipeline run against that query
+        |
+        v
+result["tools_used"]  =  [ { "tool_name": "GetLeaveHistory", ... }, ... ]
+  (both single-agentic-rag's ReAct loop and multi-agentic-rag's LangGraph
+   graph expose their real dispatches under this same key - confirmed by
+   reading both pipelines directly, not assumed)
+        |
+        v
+evaluate_routing_accuracy(expected, actual_tool_names)
+  (golden_dataset_harness.py - deterministic set-membership check,
+   NO LLM call, NOT a DeepEval metric)
+        |
+        +-- expected_tool in actual_tool_names --> score 1.0 (match)
+        |
+        `-- not present                        --> score 0.0 (routing miss)
+        |
+        v
+wired into scripts/run_release_gate.py's METRICS for all 3 modes
+  (the routing-tagged subset only - most golden cases have no expected_tool)
+        |
+        v
+also exposed standalone via scripts/run_routing_accuracy_check.py
+  (cheap iteration - routing-only, skips the groundedness/completeness
+   judge calls entirely)
+    </pre>
+  </div>
+
+  <div class="section">
+    <h2><code class="inline">call_type</code> - a real bug this session, worth keeping visible</h2>
+    <p class="lede">
+      <code class="inline">call_type: "agent_call"</code> means one specific thing: this query is expected to
+      trigger genai-rag's own deterministic MCP keyword bypass
+      (<code class="inline">is_leave_balance_query()</code> / <code class="inline">is_leave_history_query()</code>).
+      It does <strong>not</strong> mean "this tests agentic routing in general" - that's a different concept
+      (routing-accuracy, above), and conflating the two produces a real, catchable test failure:
+    </p>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>Case</th><th>Tagged</th><th>Result</th><th>Why</th></tr>
+        <tr><td>routing-leave-history-01</td><td>agent_call</td><td><span class="chip ok">Correct</span></td><td>Matches genai-rag's real keyword bypass</td></tr>
+        <tr><td>routing-analytics-01</td><td>agent_call <em>(initial, wrong)</em></td><td><span class="chip bad">Caught by test suite</span></td><td>Doesn't match any keyword bypass - retagged <code class="inline">llm_call</code></td></tr>
+        <tr><td>routing-web-search-01</td><td>agent_call <em>(initial, wrong)</em></td><td><span class="chip bad">Caught by test suite</span></td><td>Same - retagged <code class="inline">llm_call</code>, with a note added to the case's own JSON</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="banner">
+    <div><strong>Why this matters for an audit, not just a test pass:</strong> routing-accuracy and
+    groundedness are independent signals - an agent can call the wrong tool and still produce a
+    plausible-reading (but wrong) answer that a groundedness judge alone wouldn't catch, since it isn't
+    checking "was this the right tool," only "does this answer look supported." Routing-accuracy is the
+    check that closes that gap.</div>
+  </div>
+</div>

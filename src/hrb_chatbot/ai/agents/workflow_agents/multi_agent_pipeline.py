@@ -23,7 +23,12 @@ from src.hrb_chatbot.ai.agents.workflow_agents import planner_agent, reviewer_ag
 from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
 from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import check_input
 from src.hrb_chatbot.ai.search_pre_processing.query_normalize import normalize_query
-from src.hrb_chatbot.ai.rag_core.eval_threshold import build_eval_scores, retrieval_relevance_enabled, run_enabled_eval_judges
+from src.hrb_chatbot.ai.rag_core.eval_threshold import (
+    build_eval_scores,
+    maybe_capture_live_query,
+    retrieval_relevance_enabled,
+    run_enabled_eval_judges,
+)
 from src.hrb_chatbot.ai.rag_core.guarded_pipeline import run_guarded_pipeline
 from src.hrb_chatbot.ai.rag_core.tool_classification import classify_tool
 from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.exact_knn_search import search_knn
@@ -38,6 +43,11 @@ logger = get_logger("agents.multi_agent_pipeline")
 # vector_kb_agent, which only queries the same static document index
 # genai-rag's own retrieval does.
 LIVE_DATA_AGENTS = {"lms_ops_agent", "sql_db_agent", "lms_analytics_agent", "web_search_agent"}
+
+# Phase 259 - same value LangGraph's own implicit default already uses (25),
+# now an explicit, reviewed constant in this project's own code rather than
+# relying on the library default never being looked at again.
+GRAPH_RECURSION_LIMIT = 25
 
 
 def _elapsed_ms(started_at: float) -> float:
@@ -358,7 +368,14 @@ async def run_multi_agent(
         # Phase 201: request_id in both the graph's own state (so planner_node/
         # reviewer_node can thread it to their own LLM calls) and this config -
         # tags the whole graph run's own LangSmith trace, if tracing is on.
-        graph_config = {"metadata": {"request_id": request_id}} if request_id else None
+        # Phase 259: recursion_limit explicit, not LangGraph's own implicit
+        # default (25) - same value, but now a reviewed constant in this
+        # project's own code, matching DEFAULT_MAX_ITERATIONS already being
+        # explicit for the other 2 agentic loops (orchestration_agent.py/
+        # adhoc_document_agent.py).
+        graph_config = {"recursion_limit": GRAPH_RECURSION_LIMIT}
+        if request_id:
+            graph_config["metadata"] = {"request_id": request_id}
         final_state = await graph.ainvoke(
             {
                 "query": generate_query,
@@ -435,6 +452,10 @@ async def run_multi_agent(
     result["eval_scores"] = eval_scores
     result["latency_ms"]["eval"] = eval_ms
     result["latency_ms"]["total"] = _elapsed_ms(started_at)
+
+    await maybe_capture_live_query(
+        checked_query, result["answer"], eval_scores, "multi-agentic-rag", request_id, employee_id
+    )
 
     cache_eligible = not any(task["agent"] in LIVE_DATA_AGENTS for task in result["tasks"])
     if cache_eligible:

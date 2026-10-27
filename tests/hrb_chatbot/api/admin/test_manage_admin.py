@@ -8,6 +8,7 @@ from src.hrb_chatbot.ai.search_pre_processing import conversation_memory as conv
 from src.hrb_chatbot.api.admin import manage_admin
 from src.hrb_chatbot.main import app
 from tests.conftest import (
+    FakeAppSettingsStore,
     FakeConversationStore,
     FakeDBGateway,
     FakeDocMetadataStore,
@@ -15,7 +16,9 @@ from tests.conftest import (
     FakeFaqSubmissionStore,
     FakeFeedbackStore,
     FakeInterviewQaStore,
+    FakeLiveQueryStore,
     FakePipelineRunStore,
+    FakeSyntheticDatasetStore,
 )
 
 client = TestClient(app)
@@ -638,18 +641,41 @@ def test_ci_status_defaults_to_backend_with_both_workflows(monkeypatch):
     assert requested_repos == [None]
 
 
-def test_ci_status_ingestion_lambda_shows_only_its_own_workflow(monkeypatch):
+def test_ci_status_rag_ingestion_shows_both_its_real_workflows(monkeypatch):
+    """Phase 255 - rag_ingestion_service has two real deploy paths (sync
+    App Runner + async Lambda), both in this one repo."""
     fake_github = _FakeGitHubActionsClient(
-        runs_by_workflow_file={"deploy-lambda.yml": [_fake_workflow_run(3, 12)]},
+        runs_by_workflow_file={
+            "deploy.yml": [_fake_workflow_run(3, 12)],
+            "deploy-lambda.yml": [_fake_workflow_run(4, 2)],
+        },
     )
-    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github))
+    requested_repos = []
+    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github, requested_repos))
 
-    response = client.get("/v1/admin/ci-status", params={**ADMIN_PROFILE, "application": "ingestion_lambda"})
+    response = client.get("/v1/admin/ci-status", params={**ADMIN_PROFILE, "application": "rag_ingestion"})
 
     assert response.status_code == 200
     body = response.json()
-    assert [w["workflow_file"] for w in body["workflows"]] == ["deploy-lambda.yml"]
-    assert body["workflows"][0]["display_name"] == "Async Ingestion Deploy"
+    assert [w["workflow_file"] for w in body["workflows"]] == ["deploy.yml", "deploy-lambda.yml"]
+    assert body["workflows"][0]["display_name"] == "Production Deploy (sync, App Runner)"
+    assert body["workflows"][1]["display_name"] == "Async Ingestion Deploy (Lambda)"
+    assert requested_repos == ["rvsree/rag_ingestion_service"]
+
+
+def test_ci_status_common_libs_shows_only_ci_no_deploy_workflow(monkeypatch):
+    """Phase 255 - hrb-common-libs ships via git tag, not App Runner - it
+    has a real ci.yml but no deploy.yml at all."""
+    fake_github = _FakeGitHubActionsClient(runs_by_workflow_file={"ci.yml": [_fake_workflow_run(5, 9)]})
+    requested_repos = []
+    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github, requested_repos))
+
+    response = client.get("/v1/admin/ci-status", params={**ADMIN_PROFILE, "application": "common_libs"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [w["workflow_file"] for w in body["workflows"]] == ["ci.yml"]
+    assert requested_repos == ["rvsree/hrb-common-libs"]
 
 
 def test_ci_status_lms_mcp_uses_its_own_repo(monkeypatch):
@@ -663,16 +689,21 @@ def test_ci_status_lms_mcp_uses_its_own_repo(monkeypatch):
     assert requested_repos == ["rvsree/hrb_lms_mcp"]
 
 
-def test_ci_status_frontend_returns_honest_message_and_skips_github_call(monkeypatch):
-    fake_github = _FakeGitHubActionsClient(error="should never be called for frontend")
-    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github))
+def test_ci_status_frontend_now_behaves_like_a_normal_application(monkeypatch):
+    """Phase 255 - hrb_chatbot_ui has a real deploy.yml now (shipped
+    2026-10-23) - no more "no automated CI/CD" early-return, no more
+    skipping the real GitHub call."""
+    fake_github = _FakeGitHubActionsClient(runs_by_workflow_file={"deploy.yml": [_fake_workflow_run(6, 3)]})
+    requested_repos = []
+    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github, requested_repos))
 
     response = client.get("/v1/admin/ci-status", params={**ADMIN_PROFILE, "application": "frontend"})
 
     assert response.status_code == 200
     body = response.json()
-    assert body["workflows"] == []
-    assert "no automated CI/CD" in body["error"]
+    assert body["error"] is None
+    assert [w["workflow_file"] for w in body["workflows"]] == ["deploy.yml"]
+    assert requested_repos == ["rvsree/hrb_chatbot_ui"]
 
 
 def test_ci_status_has_more_true_when_additional_pages_exist(monkeypatch):
@@ -871,55 +902,71 @@ def test_pipeline_status_persists_a_snapshot_on_read(monkeypatch):
     assert body["snapshots"][0]["head_commit_message"] == "A real commit"
 
 
-def test_pipeline_status_frontend_application_returns_the_honest_no_cicd_message(monkeypatch):
-    """Phase 233 - hrb_chatbot_ui has no GitHub Actions workflow at all -
-    this must never touch GitHub, just return the honest message."""
+def test_pipeline_status_frontend_now_behaves_like_a_normal_application(monkeypatch):
+    """Phase 255 - hrb_chatbot_ui has a real deploy.yml now - no more
+    early-return, the real GitHub call happens like any other application."""
     requested_repos = []
-    fake_github = _FakeGitHubActionsClient(error="should never be called for frontend")
+    fake_github = _FakeGitHubActionsClient(
+        latest_sha="uishaonce1",
+        runs=[
+            {
+                "id": 1, "run_number": 3, "workflow_file": "deploy.yml", "status": "completed", "conclusion": "success",
+                "head_commit_message": "c", "head_branch": "master", "event": "push", "actor_login": "rvsree",
+                "html_url": "https://github.com/.../runs/1", "created_at": "2026-10-23T00:00:00Z",
+            },
+        ],
+        jobs_by_run_id={1: []},
+    )
     monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github, requested_repos))
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(eval_run_store=FakeEvalRunStore(runs=[])))
 
     response = client.get("/v1/admin/ci-status/pipeline", params={**ADMIN_PROFILE, "application": "frontend"})
 
     assert response.status_code == 200
     body = response.json()
-    assert body["runs"] == []
-    assert "no automated CI/CD" in body["error"]
-    assert "hrb_chatbot_ui/README.md" in body["error"]
-    assert requested_repos == []
+    assert body["error"] is None
+    assert [run["workflow_file"] for run in body["runs"]] == ["deploy.yml"]
+    assert requested_repos == ["rvsree/hrb_chatbot_ui"]
 
 
-def test_pipeline_status_ingestion_lambda_filters_out_the_backend_workflows(monkeypatch):
-    """Phase 233 - a shared repo can have BOTH kinds of run on one commit;
-    ingestion_lambda must only ever show its own deploy-lambda.yml."""
+def test_pipeline_status_rag_ingestion_shows_both_its_own_workflows(monkeypatch):
+    """Phase 255 - rag_ingestion_service's own repo has two real workflows
+    (sync App Runner + async Lambda) that can both run on the same commit;
+    both must show, unfiltered, since both belong to this one application."""
     fake_github = _FakeGitHubActionsClient(
-        latest_sha="shared1234",
+        latest_sha="ingest5678",
         runs=[
             {
-                "id": 1, "run_number": 240, "workflow_file": "ci.yml", "status": "completed", "conclusion": "success",
-                "head_commit_message": "c", "head_branch": "develop", "event": "push", "actor_login": "rvsree",
-                "html_url": "https://github.com/.../runs/1", "created_at": "2026-10-19T00:00:00Z",
+                "id": 1, "run_number": 12, "workflow_file": "deploy.yml", "status": "completed", "conclusion": "success",
+                "head_commit_message": "c", "head_branch": "master", "event": "push", "actor_login": "rvsree",
+                "html_url": "https://github.com/.../runs/1", "created_at": "2026-10-22T00:00:00Z",
             },
             {
-                "id": 2, "run_number": 23, "workflow_file": "deploy-lambda.yml", "status": "completed", "conclusion": "success",
+                "id": 2, "run_number": 2, "workflow_file": "deploy-lambda.yml", "status": "completed", "conclusion": "failure",
                 "head_commit_message": "c", "head_branch": "master", "event": "push", "actor_login": "rvsree",
-                "html_url": "https://github.com/.../runs/2", "created_at": "2026-10-19T00:01:00Z",
+                "html_url": "https://github.com/.../runs/2", "created_at": "2026-10-22T00:01:00Z",
             },
         ],
         jobs_by_run_id={1: [], 2: []},
     )
-    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github))
+    requested_repos = []
+    monkeypatch.setattr(manage_admin, "get_client_gateway", lambda: _fake_client_gateway_with_github(fake_github, requested_repos))
     monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(eval_run_store=FakeEvalRunStore(runs=[])))
 
-    response = client.get("/v1/admin/ci-status/pipeline", params={**ADMIN_PROFILE, "application": "ingestion_lambda"})
+    response = client.get("/v1/admin/ci-status/pipeline", params={**ADMIN_PROFILE, "application": "rag_ingestion"})
 
     assert response.status_code == 200
     body = response.json()
-    assert [run["workflow_file"] for run in body["runs"]] == ["deploy-lambda.yml"]
+    assert [run["workflow_file"] for run in body["runs"]] == ["deploy.yml", "deploy-lambda.yml"]
+    assert requested_repos == ["rvsree/rag_ingestion_service"]
 
 
-def test_pipeline_status_backend_filters_out_the_ingestion_lambda_workflow(monkeypatch):
-    """Inverse of the above - backend (the default) must never show
-    deploy-lambda.yml, even when it ran on the very same commit."""
+def test_pipeline_status_backend_filters_out_the_dead_ingestion_lambda_workflow(monkeypatch):
+    """Phase 255 - hrb_chatbot_service's own deploy-lambda.yml is confirmed
+    retired (its SQS trigger is disabled, superseded by rag_ingestion_service's
+    own Lambda - see RAG-ROADMAP.md Phase 255) and dropped from BACKEND's
+    own workflow list - it must never show for application=backend, even
+    when it ran on the very same commit as a real ci.yml/deploy.yml run."""
     fake_github = _FakeGitHubActionsClient(
         latest_sha="shared1234",
         runs=[
@@ -1119,3 +1166,132 @@ def test_get_mcp_tools_surfaces_an_error_without_a_500(monkeypatch):
     body = response.json()
     assert body["tools"] == []
     assert "hrb_lms_mcp" in body["error"]
+
+
+# Phase 257 - live-query capture, synthetic dataset, generic app settings.
+
+def test_non_admin_cannot_list_live_queries(monkeypatch):
+    response = client.get("/v1/admin/live-queries", params=EMPLOYEE_PROFILE)
+    assert response.status_code == 403
+
+
+def test_admin_lists_live_queries(monkeypatch):
+    store = FakeLiveQueryStore(
+        [
+            {
+                "id": 1, "query_text": "deductible?", "answer_text": "$500", "pipeline": "genai-rag",
+                "request_id": "req-1", "employee_id": "EMP052", "eval_score": 0.8, "is_ltm": True,
+                "category": None, "created_at": "2026-10-26T00:00:00Z",
+            },
+            {
+                "id": 2, "query_text": "bad query", "answer_text": "not sure", "pipeline": "genai-rag",
+                "request_id": "req-2", "employee_id": "EMP052", "eval_score": 0.3, "is_ltm": False,
+                "category": None, "created_at": "2026-10-26T00:00:00Z",
+            },
+        ]
+    )
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(live_query_store=store))
+
+    response = client.get("/v1/admin/live-queries", params=ADMIN_PROFILE)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] == 2
+
+
+def test_admin_filters_live_queries_by_is_ltm(monkeypatch):
+    store = FakeLiveQueryStore(
+        [
+            {
+                "id": 1, "query_text": "q1", "answer_text": "a1", "pipeline": "genai-rag",
+                "request_id": "req-1", "employee_id": "EMP052", "eval_score": 0.8, "is_ltm": True,
+                "category": None, "created_at": "2026-10-26T00:00:00Z",
+            },
+            {
+                "id": 2, "query_text": "q2", "answer_text": "a2", "pipeline": "genai-rag",
+                "request_id": "req-2", "employee_id": "EMP052", "eval_score": 0.3, "is_ltm": False,
+                "category": None, "created_at": "2026-10-26T00:00:00Z",
+            },
+        ]
+    )
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(live_query_store=store))
+
+    response = client.get("/v1/admin/live-queries", params={**ADMIN_PROFILE, "is_ltm": True})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] == 1
+    assert body["queries"][0]["id"] == 1
+
+
+def test_non_admin_cannot_list_synthetic_dataset(monkeypatch):
+    response = client.get("/v1/admin/synthetic-dataset", params=EMPLOYEE_PROFILE)
+    assert response.status_code == 403
+
+
+def test_admin_lists_synthetic_dataset(monkeypatch):
+    store = FakeSyntheticDatasetStore(
+        [
+            {
+                "id": 1, "case_key": "gen-001", "dataset": "synthetic_v1", "category": "rag",
+                "query": "What's the 401k match?", "raw_case": {"expected_answer": "6%"},
+                "created_at": "2026-10-26T00:00:00Z", "updated_at": "2026-10-26T00:00:00Z",
+            }
+        ]
+    )
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(synthetic_dataset_store=store))
+
+    response = client.get("/v1/admin/synthetic-dataset", params=ADMIN_PROFILE)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] == 1
+    assert body["cases"][0]["case_key"] == "gen-001"
+
+
+def test_non_admin_cannot_read_a_setting(monkeypatch):
+    response = client.get("/v1/admin/app-settings/ltm_score_threshold", params=EMPLOYEE_PROFILE)
+    assert response.status_code == 403
+
+
+def test_admin_reads_an_unset_setting_returns_404(monkeypatch):
+    store = FakeAppSettingsStore()
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(app_settings_store=store))
+
+    response = client.get("/v1/admin/app-settings/ltm_score_threshold", params=ADMIN_PROFILE)
+
+    assert response.status_code == 404
+
+
+def test_admin_reads_a_set_setting(monkeypatch):
+    store = FakeAppSettingsStore({"ltm_score_threshold": 0.6})
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(app_settings_store=store))
+
+    response = client.get("/v1/admin/app-settings/ltm_score_threshold", params=ADMIN_PROFILE)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["key"] == "ltm_score_threshold"
+    assert body["value"] == 0.6
+
+
+def test_non_admin_cannot_update_a_setting(monkeypatch):
+    response = client.request(
+        "PUT", "/v1/admin/app-settings/ltm_score_threshold",
+        json={"user_profile": EMPLOYEE_PROFILE, "value": 0.7},
+    )
+    assert response.status_code == 403
+
+
+def test_admin_updates_a_setting(monkeypatch):
+    store = FakeAppSettingsStore({"ltm_score_threshold": 0.6})
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(app_settings_store=store))
+
+    response = client.request(
+        "PUT", "/v1/admin/app-settings/ltm_score_threshold",
+        json={"user_profile": ADMIN_PROFILE, "value": 0.75},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["value"] == 0.75
+    assert store._settings["ltm_score_threshold"] == 0.75

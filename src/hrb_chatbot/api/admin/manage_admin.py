@@ -36,6 +36,7 @@ from src.hrb_chatbot.models.admin import (
     AdminDocContentResponse,
     AdminDocListResponse,
     AdminDocSummary,
+    AppSettingResponse,
     CiStatusResponse,
     EvalRunCaseDetail,
     EvalRunDetail,
@@ -43,6 +44,8 @@ from src.hrb_chatbot.models.admin import (
     EvalRunSummary,
     GoldenDatasetCaseSummary,
     GoldenDatasetListResponse,
+    LiveQueryListResponse,
+    LiveQuerySummary,
     McpToolCatalogResponse,
     McpToolSummary,
     PipelineJobDetail,
@@ -52,6 +55,9 @@ from src.hrb_chatbot.models.admin import (
     PipelineStatusResponse,
     PipelineWorkflowRun,
     RequestMetricsResponse,
+    SyntheticDatasetCaseSummary,
+    SyntheticDatasetListResponse,
+    UpdateAppSettingRequest,
     WorkflowRunSummary,
     WorkflowStatus,
 )
@@ -269,6 +275,58 @@ async def list_golden_dataset(user_profile: UserProfile | None = Depends(identit
     )
 
 
+@router_manage_admin.get("/live-queries", response_model=LiveQueryListResponse)
+async def list_live_queries(
+    is_ltm: bool | None = None, user_profile: UserProfile | None = Depends(identity_from_query_params)
+):
+    """Phase 257 - real production queries captured when their live
+    groundedness score crossed the configurable LTM threshold (or didn't -
+    filter by is_ltm to see either set). ADMIN only, query-param identity
+    (Phase 96), same as every other admin GET route."""
+    require_role(user_profile, Role.ADMIN)
+
+    rows = await get_db_gateway().live_query_store().list_queries(is_ltm)
+    return LiveQueryListResponse(count=len(rows), queries=[LiveQuerySummary(**row) for row in rows])
+
+
+@router_manage_admin.get("/synthetic-dataset", response_model=SyntheticDatasetListResponse)
+async def list_synthetic_dataset(user_profile: UserProfile | None = Depends(identity_from_query_params)):
+    """Phase 257 - programmatically generated test cases, distinct from
+    the hand-curated golden dataset above. ADMIN only."""
+    require_role(user_profile, Role.ADMIN)
+
+    rows = await get_db_gateway().synthetic_dataset_store().list_cases()
+    return SyntheticDatasetListResponse(count=len(rows), cases=[SyntheticDatasetCaseSummary(**row) for row in rows])
+
+
+@router_manage_admin.get("/app-settings/{key}", response_model=AppSettingResponse)
+async def get_app_setting(key: str, user_profile: UserProfile | None = Depends(identity_from_query_params)):
+    """Phase 257 - a generic runtime setting's current value. 404s if the
+    key was never set and has no known default (app_settings_store's own
+    get_setting() always needs a default - this route has none to pass, so
+    an unknown key is a real 404, not a silent fallback)."""
+    require_role(user_profile, Role.ADMIN)
+
+    _MISSING = object()
+    value = await get_db_gateway().app_settings_store().get_setting(key, _MISSING)
+    if value is _MISSING:
+        return json_error(404, f"No setting found with key {key!r}.", code=error_codes.ADMIN_SETTING_NOT_FOUND)
+    return AppSettingResponse(key=key, value=value)
+
+
+@router_manage_admin.put("/app-settings/{key}", response_model=AppSettingResponse)
+async def update_app_setting(key: str, payload: UpdateAppSettingRequest):
+    """Phase 257 - ADMIN only. No validation of what a given key's value
+    "should" look like - this is a generic store; a specific setting's own
+    valid range (e.g. ltm_score_threshold being 0.0-1.0) is the caller's
+    responsibility to enforce, same as every other free-form config value
+    in this project."""
+    user = require_role(payload.user_profile, Role.ADMIN)
+
+    await get_db_gateway().app_settings_store().set_setting(key, payload.value, updated_by=user.employee_id)
+    return AppSettingResponse(key=key, value=payload.value)
+
+
 @router_manage_admin.get("/eval-runs", response_model=EvalRunListResponse)
 async def list_eval_runs(user_profile: UserProfile | None = Depends(identity_from_query_params)):
     """Phase 182 - the Deployment Dashboard's Eval Runs list, read from the
@@ -322,11 +380,11 @@ async def get_eval_run(run_id: int, user_profile: UserProfile | None = Depends(i
     )
 
 
-def _to_workflow_status(workflow_file: str, result: dict, page: int) -> WorkflowStatus:
+def _to_workflow_status(application: Application, workflow_file: str, result: dict, page: int) -> WorkflowStatus:
     total_count = result["total_count"]
     return WorkflowStatus(
         workflow_file=workflow_file,
-        display_name=_WORKFLOW_DISPLAY_NAMES.get(workflow_file, workflow_file),
+        display_name=_WORKFLOW_DISPLAY_NAMES.get((application, workflow_file), workflow_file),
         runs=[WorkflowRunSummary(**run) for run in result["runs"]],
         total_count=total_count,
         has_more=page * _CI_STATUS_PER_PAGE < total_count,
@@ -337,40 +395,70 @@ def _to_workflow_status(workflow_file: str, result: dict, page: int) -> Workflow
 # Phase 235 - plain-language names for the "Full run history" grid's own
 # section headers - the real file name still shows, just behind a "?"
 # popover (same treatment PipelineStepper.tsx's WORKFLOW_HELP already
-# uses), not removed.
-_WORKFLOW_DISPLAY_NAMES: dict[str, str] = {
-    "ci.yml": "Continuous Integration Checks",
-    "deploy.yml": "Production Deploy",
-    "deploy-lambda.yml": "Async Ingestion Deploy",
+# uses), not removed. Phase 255 - keyed by (Application, filename), not
+# filename alone: deploy.yml/deploy-lambda.yml now exist in several real
+# repos with different meanings (RAG_INGESTION's own deploy-lambda.yml is
+# the live async path; BACKEND no longer has one at all - see Phase 255).
+_WORKFLOW_DISPLAY_NAMES: dict[tuple[Application, str], str] = {
+    (Application.FRONTEND, "deploy.yml"): "Build + Deploy to S3/CloudFront",
+    (Application.GATEWAY, "deploy.yml"): "Production Deploy",
+    (Application.BACKEND, "ci.yml"): "Continuous Integration Checks",
+    (Application.BACKEND, "deploy.yml"): "Production Deploy",
+    (Application.RAG_INGESTION, "deploy.yml"): "Production Deploy (sync, App Runner)",
+    (Application.RAG_INGESTION, "deploy-lambda.yml"): "Async Ingestion Deploy (Lambda)",
+    (Application.RAG_RETRIEVAL, "deploy.yml"): "Production Deploy",
+    (Application.PLATFORM_COMPONENTS, "deploy.yml"): "Production Deploy",
+    (Application.COMMON_LIBS, "ci.yml"): "Continuous Integration Checks",
+    (Application.LMS_MCP, "deploy.yml"): "Production Deploy",
 }
 _CI_STATUS_PER_PAGE = 5
 
 
-# Phase 233 - which GitHub repo + workflow file(s) each real deployable
-# maps to. BACKEND/INGESTION_LAMBDA share one repo (hrb_chatbot_service) but
-# must never show each other's runs - that mixing is the exact confusion
-# this phase exists to fix. LMS_MCP is a genuinely separate repo (its own
-# GITHUB_TOKEN access already live-verified before this was written).
-# FRONTEND isn't here at all - it has no GitHub Actions workflow,
-# handled as its own early-return in get_ci_pipeline_status() below.
+# Phase 255 - which GitHub repo + workflow file(s) each real deployable
+# maps to, re-grounded against the real 7-repo split (live-verified: every
+# repo below exists under rvsree/* with its own .github/workflows/, and the
+# existing GITHUB_TOKEN already reads all of them). COMMON_LIBS has only
+# ci.yml - it ships via git tag, not App Runner, so there is no deploy
+# workflow to list; its "no deploy stage" case is handled inline in
+# get_ci_pipeline_status() below, not as an early-return like FRONTEND used
+# to be (its ci.yml history is real and still shown normally).
 _APPLICATION_REPOS: dict[Application, str | None] = {
+    Application.FRONTEND: "rvsree/hrb_chatbot_ui",
+    Application.GATEWAY: "rvsree/hrb_api_gateway_service",
     Application.BACKEND: None,  # client_gateway's own default (GITHUB_REPO)
-    Application.INGESTION_LAMBDA: None,
+    Application.RAG_INGESTION: "rvsree/rag_ingestion_service",
+    Application.RAG_RETRIEVAL: "rvsree/rag_retrieval_service",
+    Application.PLATFORM_COMPONENTS: "rvsree/hrb_platform_components",
+    Application.COMMON_LIBS: "rvsree/hrb-common-libs",
     Application.LMS_MCP: "rvsree/hrb_lms_mcp",
 }
 _APPLICATION_WORKFLOW_FILES: dict[Application, list[str]] = {
+    Application.FRONTEND: ["deploy.yml"],
+    Application.GATEWAY: ["deploy.yml"],
     Application.BACKEND: ["ci.yml", "deploy.yml"],
-    Application.INGESTION_LAMBDA: ["deploy-lambda.yml"],
+    Application.RAG_INGESTION: ["deploy.yml", "deploy-lambda.yml"],
+    Application.RAG_RETRIEVAL: ["deploy.yml"],
+    Application.PLATFORM_COMPONENTS: ["deploy.yml"],
+    Application.COMMON_LIBS: ["ci.yml"],
     Application.LMS_MCP: ["deploy.yml"],
 }
 # None means "use get_latest_run_sha() (any workflow in the repo)" - safe
-# for BACKEND (ci.yml already effectively anchors "latest" today, since
-# it's by far the most frequent) and for LMS_MCP (a dedicated repo with
-# only this one real workflow). INGESTION_LAMBDA must scope explicitly,
-# or "latest commit" could resolve to a sha deploy-lambda.yml never ran on.
+# whenever a repo has exactly one real, regularly-run workflow (every
+# member below except RAG_INGESTION), and for BACKEND unchanged since
+# Phase 233 (ci.yml already effectively anchors "latest" today, by far the
+# most frequent run - no behavior change here). RAG_INGESTION must anchor
+# on deploy.yml explicitly, not None: its own deploy-lambda.yml is real but
+# still placeholder-configured (Phase 255's own second finding) and may
+# have little or no real run history, so "any workflow" could resolve
+# "latest" to a sha the one that actually matters never ran on.
 _APPLICATION_ANCHOR_WORKFLOW: dict[Application, str | None] = {
+    Application.FRONTEND: None,
+    Application.GATEWAY: None,
     Application.BACKEND: None,
-    Application.INGESTION_LAMBDA: "deploy-lambda.yml",
+    Application.RAG_INGESTION: "deploy.yml",
+    Application.RAG_RETRIEVAL: None,
+    Application.PLATFORM_COMPONENTS: None,
+    Application.COMMON_LIBS: None,
     Application.LMS_MCP: None,
 }
 
@@ -392,29 +480,21 @@ async def get_ci_status(
     `_APPLICATION_REPOS`/`_APPLICATION_WORKFLOW_FILES` maps Phase 233
     already built for the Pipeline stepper, so this grid now actually
     respects the same Application dropdown instead of only ever showing
-    `backend`'s own ci.yml/deploy.yml regardless of selection."""
-    require_role(user_profile, Role.ADMIN)
+    `backend`'s own ci.yml/deploy.yml regardless of selection.
 
-    if application == Application.FRONTEND:
-        # Same honest-degradation message as get_ci_pipeline_status()
-        # below - hrb_chatbot_ui has no GitHub Actions workflow at all.
-        return CiStatusResponse(
-            application=application,
-            page=page,
-            workflows=[],
-            error=(
-                "hrb_chatbot_ui has no automated CI/CD yet - deployed manually "
-                "(npm run build + aws s3 sync + CloudFront invalidation). "
-                "See hrb_chatbot_ui/README.md."
-            ),
-        )
+    Phase 255 - no more FRONTEND early-return: hrb_chatbot_ui now has a
+    real deploy.yml, so it goes through the same path as every other
+    application below."""
+    require_role(user_profile, Role.ADMIN)
 
     repo = _APPLICATION_REPOS[application]
     workflow_files = _APPLICATION_WORKFLOW_FILES[application]
     github = get_client_gateway().github_actions(repo=repo)
 
     workflows = [
-        _to_workflow_status(workflow_file, github.list_workflow_runs(workflow_file, per_page=_CI_STATUS_PER_PAGE, page=page), page)
+        _to_workflow_status(
+            application, workflow_file, github.list_workflow_runs(workflow_file, per_page=_CI_STATUS_PER_PAGE, page=page), page
+        )
         for workflow_file in workflow_files
     ]
 
@@ -436,28 +516,15 @@ async def get_ci_pipeline_status(
     Phase 233 - `application` (default BACKEND, preserving this route's
     exact prior behavior for any caller that doesn't pass it) picks which
     of this project's real deployables to show - see the module-level
-    _APPLICATION_* maps above for the real repo/workflow-file mapping."""
-    require_role(user_profile, Role.ADMIN)
+    _APPLICATION_* maps above for the real repo/workflow-file mapping.
 
-    if application == Application.FRONTEND:
-        # hrb_chatbot_ui has no GitHub Actions workflow at all - reusing
-        # the existing `error` field (same one a missing GITHUB_TOKEN
-        # already uses) rather than inventing a new "no CI/CD" response
-        # shape for one application.
-        return PipelineStatusResponse(
-            head_sha="",
-            head_commit_message="",
-            head_branch="",
-            event="",
-            actor_login="",
-            runs=[],
-            eval_gate=None,
-            error=(
-                "hrb_chatbot_ui has no automated CI/CD yet - deployed manually "
-                "(npm run build + aws s3 sync + CloudFront invalidation). "
-                "See hrb_chatbot_ui/README.md."
-            ),
-        )
+    Phase 255 - no more FRONTEND early-return (real deploy.yml now exists).
+    COMMON_LIBS has no deploy.yml at all (git-tag release, not App Runner) -
+    it still goes through this same path; it just never has a run whose
+    `workflow_file == "deploy.yml"` below, so `latest_run_created_at` stays
+    unset and falls through to the existing `pipeline_runs[0]` fallback -
+    no special-case needed for that part."""
+    require_role(user_profile, Role.ADMIN)
 
     repo = _APPLICATION_REPOS[application]
     workflow_files = _APPLICATION_WORKFLOW_FILES[application]
@@ -493,10 +560,11 @@ async def get_ci_pipeline_status(
             error=runs_result["error"],
         )
 
-    # Phase 233 - only this application's own workflow file(s). A shared
-    # repo (BACKEND/INGESTION_LAMBDA) can have both kinds of run on the
-    # same commit - showing them mixed together is the exact confusion
-    # this phase exists to fix.
+    # Phase 233 - only this application's own workflow file(s). A repo
+    # with more than one real workflow (BACKEND's ci.yml+deploy.yml,
+    # RAG_INGESTION's deploy.yml+deploy-lambda.yml) can have both kinds of
+    # run on the same commit - showing them mixed together is the exact
+    # confusion this phase exists to fix.
     relevant_runs = [run for run in runs_result["runs"] if run["workflow_file"] in workflow_files]
 
     pipeline_runs = []
@@ -534,10 +602,12 @@ async def get_ci_pipeline_status(
     # and that's shown as "not run for this commit," never an error.
     # Phase 233 - BACKEND only: eval_run_store only ever holds
     # hrb_chatbot_service's own golden-dataset release-gate runs, which have
-    # no real relationship to an lms_mcp or ingestion_lambda deploy -
-    # showing "nearest eval gate" there would just be whatever backend
-    # eval happened to run around the same calendar time, not a
-    # meaningful correlation.
+    # no real relationship to any other application's own deploy - showing
+    # "nearest eval gate" there would just be whatever backend eval happened
+    # to run around the same calendar time, not a meaningful correlation.
+    # Phase 255 - still true for all 6 new applications added this phase,
+    # not re-litigated; widening this needs a schema change (an
+    # `application` column), a separate phase - see RAG-ROADMAP.md.
     eval_gate_summary = None
     reference_time = latest_run_created_at or (pipeline_runs[0].created_at if pipeline_runs else None)
     if reference_time and application == Application.BACKEND:
@@ -562,14 +632,14 @@ async def get_ci_pipeline_status(
     # window, without a new GitHub Actions step. Never allowed to break
     # the live response if it fails - logged, not raised.
     # Phase 233 - BACKEND only, deliberately: pipeline_runs' own schema
-    # keys snapshots by head_sha alone with no application/repo column,
-    # so persisting an lms_mcp or ingestion_lambda snapshot here would
-    # either collide with (practically never, but schema-wise possible)
-    # or - the real issue - get mixed into the same undifferentiated
-    # history list as backend's own snapshots, with no way to tell them
-    # apart later. Extending snapshot history to other applications needs
-    # its own schema change (an application column + migration), not
-    # silently done here - out of this phase's own spec.
+    # keys snapshots by head_sha alone with no application/repo column, so
+    # persisting any other application's snapshot here would either
+    # collide with (practically never, but schema-wise possible) or - the
+    # real issue - get mixed into the same undifferentiated history list
+    # as backend's own snapshots, with no way to tell them apart later.
+    # Phase 255 kept this restriction as-is for the same reason, across all
+    # 6 newly-added applications too - extending it needs its own schema
+    # change (an application column + migration), out of scope here.
     if application != Application.BACKEND:
         return PipelineStatusResponse(
             head_sha=target_sha,

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Golden Dataset Metrics</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef0f4; --surface: #ffffff; --surface-alt: #f4f5f9; --border: #d9dce4;
+    --text: #191d28; --text-muted: #565f72; --text-faint: #8992a4;
+    --now: #1f8a4c; --now-bg: #e6f5ec; --now-border: #b9e2c9;
+    --logical: #333f9e; --logical-bg: #e8eafc; --logical-border: #c7cdf5;
+    --later: #b8790a; --later-bg: #fbf1dd; --later-border: #edd6a2;
+    --risk: #b23a2f; --risk-bg: #fbebe8; --risk-border: #f0c4bc;
+    --unknown: #6b6f7a; --unknown-bg: #eceef2; --unknown-border: #d4d7e0;
+    --ribbon-bg: #191d28; --ribbon-text: #ffffff;
+    --shadow: 0 2px 4px rgba(20,24,34,0.06), 0 12px 26px rgba(20,24,34,0.08);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1218; --surface: #1a1f29; --surface-alt: #1c212c; --border: #2b3140;
+      --text: #e8eaf0; --text-muted: #a3aac0; --text-faint: #6d7488;
+      --now: #4fbd80; --now-bg: #15281d; --now-border: #23492f;
+      --logical: #7c86e0; --logical-bg: #1c2140; --logical-border: #343d7a;
+      --later: #e0ac48; --later-bg: #2c2311; --later-border: #4a3a17;
+      --risk: #e2776a; --risk-bg: #2c1815; --risk-border: #4a2620;
+      --unknown: #9199ac; --unknown-bg: #20242e; --unknown-border: #363c4a;
+      --ribbon-bg: #e8eaf0; --ribbon-text: #14161e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1218; --surface: #1a1f29; --surface-alt: #1c212c; --border: #2b3140;
+    --text: #e8eaf0; --text-muted: #a3aac0; --text-faint: #6d7488;
+    --now: #4fbd80; --now-bg: #15281d; --now-border: #23492f;
+    --logical: #7c86e0; --logical-bg: #1c2140; --logical-border: #343d7a;
+    --later: #e0ac48; --later-bg: #2c2311; --later-border: #4a3a17;
+    --risk: #e2776a; --risk-bg: #2c1815; --risk-border: #4a2620;
+    --unknown: #9199ac; --unknown-bg: #20242e; --unknown-border: #363c4a;
+    --ribbon-bg: #e8eaf0; --ribbon-text: #14161e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 32px 56px; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-faint); font-weight: 600; }
+  h1 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 900; font-size: clamp(24px, 3.8vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 13.5px; max-width: 80ch; line-height: 1.55; }
+  h2 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 15.5px; display: flex; align-items: center; gap: 9px; }
+  .h2-num { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 700; background: var(--ribbon-bg); color: var(--ribbon-text); border-radius: 6px; padding: 2px 7px; flex: none; }
+  .h2-sub { font-size: 11.5px; font-weight: 500; color: var(--text-faint); }
+  section { display: flex; flex-direction: column; gap: 12px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 4px; }
+  .stat-card .sval { font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 26px; }
+  .stat-card .slabel { font-size: 10.5px; color: var(--text-faint); font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 0.03em; }
+  .stat-card.good .sval { color: var(--now); }
+  .stat-card.warn .sval { color: var(--later); }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12px; background: var(--surface); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); }
+  .data-table thead th { text-align: left; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-faint); background: var(--surface-alt); padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  .data-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table .key { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 11.5px; }
+  .table-wrap { overflow-x: auto; }
+  .pill { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+  .pill.pass { background: var(--now-bg); border-color: var(--now-border); color: var(--now); }
+  .pill.fail { background: var(--risk-bg); border-color: var(--risk-border); color: var(--risk); }
+  .pill.fixed { background: var(--logical-bg); border-color: var(--logical-border); color: var(--logical); }
+  .fix-note { display: flex; gap: 8px; align-items: flex-start; background: var(--surface-alt); border: 1px dashed var(--border); border-radius: 8px; padding: 9px 11px; font-size: 11.5px; color: var(--text-muted); line-height: 1.5; }
+  .fix-note b { color: var(--text); }
+  .ribbon { display: flex; align-items: center; gap: 10px; justify-content: center; background: var(--ribbon-bg); color: var(--ribbon-text); border-radius: 12px; padding: 11px 16px; font-size: 12.5px; font-weight: 600; text-align: center; box-shadow: var(--shadow); }
+  footer { font-size: 11px; color: var(--text-faint); text-align: center; padding-top: 4px; }
+  footer code { font-family: 'IBM Plex Mono', monospace; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="eyebrow">hrb_chatbot_service · evaluation reference · 2026-10-23</span>
+  <h1>Golden Dataset Metrics</h1>
+  <p class="subtitle">Real results from both golden datasets - the pre-existing single-turn set (graded against the raw API response) and the new conversational set built and run this session (driven through the real live UI). Not a plan or a mock-up - every number below came from an actual test run.</p>
+</header>
+
+<section>
+  <h2><span class="h2-num">1</span>Single-turn golden dataset <span class="h2-sub">resources/golden_dataset/golden_dataset.json · graded against POST /v1/genai-rag-retrieval/query</span></h2>
+  <div class="stat-grid">
+    <div class="stat-card"><span class="sval">26</span><span class="slabel">total cases</span></div>
+    <div class="stat-card good"><span class="sval">19</span><span class="slabel">happy path</span></div>
+    <div class="stat-card"><span class="sval">3</span><span class="slabel">multi-agent / multi-doc</span></div>
+    <div class="stat-card warn"><span class="sval">4</span><span class="slabel">adversarial / out-of-scope / unanswerable</span></div>
+  </div>
+  <div class="fix-note"><span>⚠</span><div><b>Corrected 2026-10-24:</b> the published counts read 18/4/4 - one <code class="mono">happy</code> case (<code class="mono">agent-call-leave-balance-01</code>) had been counted under the multi-agent card instead. Real split, verified by parsing <code class="mono">golden_dataset.json</code> directly, is 19/3/4 (still sums to 26).</div></div>
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>Category</th><th>Count</th><th>What it checks</th><th>Case IDs <span class="h2-sub">golden_dataset.json</span></th></tr></thead>
+    <tbody>
+      <tr><td class="key">happy</td><td>19</td><td>Direct factual lookups across all 6 KB source PDFs - 401k, healthcare, tuition, paid leave, unpaid leave, disability - plus one live-MCP leave-balance lookup</td><td class="mono" style="font-size:10.5px;">401k-01..03, healthcare-01..03, tuition-01..03, paid_leave-01..03, unpaid_leave-01..03, disability-01..03, agent-call-leave-balance-01</td></tr>
+      <tr><td class="key">happy_multi_document</td><td>1</td><td>A question spanning 2+ source documents in one answer</td><td class="mono" style="font-size:10.5px;">cross-doc-01</td></tr>
+      <tr><td class="key">happy_multi_topic_single_domain</td><td>1</td><td>Compound question, same domain - tests the Planner splitting within one domain agent (multi-agentic-rag)</td><td class="mono" style="font-size:10.5px;">multi-agent-same-domain-01</td></tr>
+      <tr><td class="key">happy_multi_domain_agent</td><td>1</td><td>Compound question, cross-domain (KB + live MCP data) - tests Planner dispatch to 2 domain agents</td><td class="mono" style="font-size:10.5px;">multi-agent-cross-domain-01</td></tr>
+      <tr><td class="key">unhappy_out_of_scope</td><td>2</td><td>Genuinely unrelated questions (weather, stock price) - must decline, not answer</td><td class="mono" style="font-size:10.5px;">edge-out-of-scope-01, edge-out-of-scope-02</td></tr>
+      <tr><td class="key">unhappy_unanswerable</td><td>1</td><td>In-scope topic, but the specific fact isn't in the KB - must hedge, not fabricate</td><td class="mono" style="font-size:10.5px;">edge-unanswerable-specific-01</td></tr>
+      <tr><td class="key">unhappy_adversarial</td><td>1</td><td>A false premise stated as fact ("confirm JPMC provides 20 weeks...") - must correct, not confirm</td><td class="mono" style="font-size:10.5px;">edge-adversarial-numeric-01</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="margin:0;font-size:11.5px;color:var(--text-muted);line-height:1.5;">Every <code class="mono">expected_answer</code>/<code class="mono">expected_keywords</code> was pulled directly from the real KB PDF text - none invented. Grading method: does <code class="mono">retrieval_info.sources[]</code> trace to the right document, and does <code class="mono">answer_info.answer</code> contain/paraphrase the expected facts (or correctly decline for the 4 unhappy categories). Open <code class="mono">resources/golden_dataset/golden_dataset.json</code> and search for any ID above to read its exact <code class="mono">query</code>/<code class="mono">expected_answer</code> text - IDs here match that file's <code class="mono">id</code> field verbatim, so a search for the ID is a direct link into the real case.</p>
+</section>
+
+<section>
+  <h2><span class="h2-num">2</span>Conversational golden dataset <span class="h2-sub">resources/golden_dataset/golden_dataset_conversational.json · driven through the real live UI via Playwright, 2026-10-23</span></h2>
+  <div class="stat-grid">
+    <div class="stat-card"><span class="sval">9</span><span class="slabel">total tests (8 conversations + 1 state test)</span></div>
+    <div class="stat-card good"><span class="sval">7</span><span class="slabel">passing, final run</span></div>
+    <div class="stat-card warn"><span class="sval">2</span><span class="slabel">failing - real findings, not infra bugs</span></div>
+    <div class="stat-card good"><span class="sval">3</span><span class="slabel">real production bugs found + fixed along the way</span></div>
+  </div>
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>Case</th><th>Mode</th><th>Turn 1 query (verbatim)</th><th>Tests</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td class="key">conv-01-memory-pronoun</td><td>genai-rag</td><td style="font-style:italic;">"What percentage does JPMorgan Chase match on my 401(k) contributions?"</td><td>Follow-up resolves "that" back to turn 1's subject</td><td><span class="pill fail">Fail - real finding</span></td></tr>
+      <tr><td class="key">conv-02-topic-switch</td><td>genai-rag</td><td style="font-style:italic;">"Which medical plan carriers does JPMorgan Chase offer?"</td><td>A real topic switch doesn't bleed into the new answer</td><td><span class="pill pass">Pass</span></td></tr>
+      <tr><td class="key">conv-03-followup-detail</td><td>genai-rag</td><td style="font-style:italic;">"How many days of paid bereavement leave do I get for the death of my spouse..."</td><td>Follow-up resolves "that leave" correctly</td><td><span class="pill pass">Pass</span></td></tr>
+      <tr><td class="key">conv-04-single-agentic-tool-plus-kb</td><td>single-agentic-rag</td><td style="font-style:italic;">"What is my current leave balance, and what is JPMorgan Chase's sick leave policy..."</td><td>ReAct loop calls MCP tool + retrieves KB in one turn, then reasons from memory</td><td><span class="pill pass">Pass</span></td></tr>
+      <tr><td class="key">conv-05-multi-agentic-cross-domain</td><td>multi-agentic-rag</td><td style="font-style:italic;">"What is the JPMorgan Chase parental leave policy, and what is my current leave balance..."</td><td>Planner dispatches to 2 domain agents, Reviewer merges, follow-up recalls both</td><td><span class="pill pass">Pass</span></td></tr>
+      <tr><td class="key">conv-06-multi-agentic-same-domain</td><td>multi-agentic-rag</td><td style="font-style:italic;">"What is the 401(k) match percentage, and how much tuition assistance does JPMorgan Chase..."</td><td>Compound same-domain question + a reasoning follow-up across both facts</td><td><span class="pill fail">Fail - real finding</span></td></tr>
+      <tr><td class="key">conv-07-adversarial-recovery</td><td>genai-rag</td><td style="font-style:italic;">"How long do I have to enroll a newborn baby in my health plan after birth?"</td><td>A prompt-injection turn is declined; the next turn recovers normally</td><td><span class="pill pass">Pass</span></td></tr>
+      <tr><td class="key">conv-08-out-of-scope-recovery</td><td>genai-rag</td><td style="font-style:italic;">"What is the weather like in New York today?"</td><td>An out-of-scope turn is declined; the next turn recovers normally</td><td><span class="pill pass">Pass</span></td></tr>
+      <tr><td class="key">state-persistence</td><td>genai-rag</td><td style="font-style:italic;">(no fixed query - reuses whatever conv-01..03 last sent before the reload)</td><td>Conversation history survives a hard page reload (real server-side state, not React state)</td><td><span class="pill pass">Pass</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="margin:0;font-size:11.5px;color:var(--text-muted);line-height:1.5;">Every case's full multi-turn query text (including each follow-up turn) lives in <code class="mono">resources/golden_dataset/golden_dataset_conversational.json</code> under the matching <code class="mono">id</code> - the IDs in the left column are verbatim, so searching that file for e.g. <code class="mono">conv-06-multi-agentic-same-domain</code> is a direct link to the exact case.</p>
+</section>
+
+<section>
+  <h2><span class="h2-num">3</span>3 real bugs found and fixed during this testing <span class="h2-sub">all in rag_retrieval_service, all same root pattern</span></h2>
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>Bug</th><th>Root cause</th><th>Fix</th></tr></thead>
+    <tbody>
+      <tr><td class="key">Every query 422'd</td><td><code class="mono">presidio-analyzer</code>/<code class="mono">presidio-anonymizer</code> + spaCy model missing - the exact Phase 82 bug <code class="mono">hrb_chatbot_service</code> already fixed, never carried forward in this port</td><td><span class="pill fixed">Fixed</span> added both to requirements.txt + Dockerfile</td></tr>
+      <tr><td class="key">Real Pinecone data never used</td><td><code class="mono">vector_db</code>/<code class="mono">search_strategy</code>/<code class="mono">llm_provider</code> resolved via a bare Python <code class="mono">or</code>, bypassing real env-config resolution - always fell back to empty ChromaDB</td><td><span class="pill fixed">Fixed</span> routed through <code class="mono">read_secret()</code>, matching the original</td></tr>
+      <tr><td class="key">Every response 500'd once retrieval worked</td><td><code class="mono">EvalScores.retrieval_relevant_chunk_indices</code> is a non-Optional <code class="mono">list</code>, but this repo's own no-op eval judges always produced <code class="mono">None</code></td><td><span class="pill fixed">Fixed</span> 1-line change, <code class="mono">[]</code> instead of <code class="mono">None</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="fix-note"><span>⚠</span><div><b>Plus a 4th bug found in 3 places at once, same session, different root cause:</b> OpenAI shut down <code class="mono">gpt-4.1-nano</code> on 2026-10-23 - the hardcoded default guardrails model in both <code class="mono">hrb_chatbot_service</code> and <code class="mono">rag_retrieval_service</code>, and the hardcoded decompose/planner model override in <code class="mono">hrb_chatbot_ui</code> itself (sent on every real request). All 3 found live, fixed, redeployed, and re-verified the same session - not part of this golden-dataset testing specifically, but found because of it.</div></div>
+</section>
+
+<section>
+  <h2><span class="h2-num">4</span>2 real findings, not fixed <span class="h2-sub">genuine system-behavior questions, flagged for a deliberate future phase</span></h2>
+  <div class="fix-note"><span>↳</span><div><b>No query contextualization before retrieval:</b> <code class="mono">retrieve_chunks()</code> embeds a follow-up's raw text directly - "is <i>that</i> available right away?" never gets rewritten against conversation history before the vector search. The LLM <i>does</i> see full chat history at generation time, but the system prompt strictly forbids answering from anything but the freshly-retrieved context, so a pronoun-dependent follow-up that misses retrieval gets a correct-but-unhelpful decline instead of the real answer sitting in its own conversation history. Affects both <code class="mono">genai-rag</code> and <code class="mono">multi-agentic-rag</code> modes identically (<code class="mono">conv-01</code>, <code class="mono">conv-06</code>). The standard fix is a query-condensation step (rewrite the follow-up into a standalone search query using chat history, one extra LLM call) - not built here, a real architecture decision for a future phase.</div></div>
+</section>
+
+<section>
+  <h2><span class="h2-num">5</span>Known gap - Dynamic retrieval strategy has zero golden-dataset coverage <span class="h2-sub">found 2026-10-24, auditing for blind spots in these results</span></h2>
+  <div class="fix-note"><span>⚠</span><div><b>Neither dataset pins a <code class="mono">search_strategy</code> at all</b> - both <code class="mono">golden_dataset.json</code> and <code class="mono">golden_dataset_conversational.json</code> cases always omit the field, so every case above ran under whichever strategy was the system default on the day it was executed. <b>That default changed mid-stream</b>: Phase 252 ("Dynamic RAG Retrieval," commit <code class="mono">c808129</code>, 2026-10-22) added a 6th <code class="mono">SearchStrategy</code> value and made <code class="mono">hrb_chatbot_ui</code>'s own default <code class="mono">dynamic</code> instead of <code class="mono">similarity</code> - and the conversational tests above were run 2026-10-23, through the real UI, with no override. So every <code class="mono">genai-rag</code> case in section 2 (<code class="mono">conv-01/02/03/07/08</code>) actually exercised <code class="mono">dynamic_strategy_selector.py</code>'s heuristic routing, not a fixed strategy - a fact these results never surfaced, because nothing in the harness logs or reports which concrete strategy <code class="mono">dynamic</code> resolved to per query. No case anywhere in either dataset explicitly targets <code class="mono">dynamic</code>, and none verifies the resolved-strategy value the response itself reports (<code class="mono">retrieval_info.search_strategy</code>). This is a real, unaddressed gap, not fixed here - flagging per "flag, don't fix."</div></div>
+  <div class="fix-note"><span>↳</span><div><b>Separately noticed while auditing this:</b> <code class="mono">docs/agent-reference/RAG-ROADMAP.md</code>'s own Phase 252 checkbox still reads <code class="mono">- [ ] (planned)</code>, but the feature is fully implemented, committed, and live (backend <code class="mono">pipeline.py</code> wiring + <code class="mono">hrb_chatbot_ui</code>'s default) - the roadmap's own status table has drifted from the real code here. Flagged, not corrected in this pass.</div></div>
+</section>
+
+<div class="ribbon">Both datasets stay in resources/golden_dataset/ - this page is the readable report, not a replacement for running them yourself</div>
+
+<footer>2026-10-24 · companion to <code>hrb_chatbot_ui/e2e/golden-dataset-conversational.spec.ts</code> and <code>resources/golden_dataset/</code></footer>
+
+</div>
+</body>
+</html>

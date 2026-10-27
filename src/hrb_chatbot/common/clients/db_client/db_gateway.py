@@ -5,6 +5,7 @@ from src.hrb_chatbot.common.clients.cache_client.embedding_cache import Embeddin
 from src.hrb_chatbot.common.clients.cache_client.stm_cache import StmCache
 from src.hrb_chatbot.common.clients.db_client.admin_credential_store import AdminCredentialStore
 from src.hrb_chatbot.common.clients.db_client.agent_thread_store import AgentThreadStore
+from src.hrb_chatbot.common.clients.db_client.app_settings_store import AppSettingsStore
 from src.hrb_chatbot.common.clients.db_client.base_metadata_client import BaseMetadataClient
 from src.hrb_chatbot.common.clients.db_client.base_vector_db_client import BaseVectorDBClient
 from src.hrb_chatbot.common.clients.db_client.chat_workflow_store import ChatWorkflowStore
@@ -15,12 +16,14 @@ from src.hrb_chatbot.common.clients.db_client.eval_run_store import EvalRunStore
 from src.hrb_chatbot.common.clients.db_client.faq_submission_store import FaqSubmissionStore
 from src.hrb_chatbot.common.clients.db_client.golden_dataset_store import GoldenDatasetStore
 from src.hrb_chatbot.common.clients.db_client.interview_qa_store import InterviewQaStore
+from src.hrb_chatbot.common.clients.db_client.live_query_store import LiveQueryStore
 from src.hrb_chatbot.common.clients.db_client.pipeline_run_store import PipelineRunStore
 from src.hrb_chatbot.common.clients.db_client.request_metrics_store import RequestMetricsStore
 from src.hrb_chatbot.common.clients.db_client.feedback_store import FeedbackStore
 from src.hrb_chatbot.common.clients.db_client.pinecone_client import PineconeClient
 from src.hrb_chatbot.common.clients.db_client.postgres_client import PostgresClient
 from src.hrb_chatbot.common.clients.db_client.sqlite_client import SQLiteClient
+from src.hrb_chatbot.common.clients.db_client.synthetic_dataset_store import SyntheticDatasetStore
 from src.hrb_chatbot.common.config.settings import get_active_vector_db, get_app_environment, read_setting
 from src.hrb_chatbot.common.enums import MetadataStore, VectorDB
 
@@ -54,6 +57,9 @@ class DBGateway:
         self.pipeline_run_store_client = None
         self.faq_submission_store_client = None
         self.interview_qa_store_client = None
+        self.live_query_store_client = None
+        self.synthetic_dataset_store_client = None
+        self.app_settings_store_client = None
 
     def chroma(self) -> ChromaDBClient:
         # Return the shared ChromaDB client, building it on first use.
@@ -135,6 +141,24 @@ class DBGateway:
         if self.golden_dataset_store_client is None:
             self.golden_dataset_store_client = GoldenDatasetStore()
         return self.golden_dataset_store_client
+
+    def live_query_store(self) -> LiveQueryStore:
+        """Return the shared live-query capture store, building it on first use (Phase 257)."""
+        if self.live_query_store_client is None:
+            self.live_query_store_client = LiveQueryStore()
+        return self.live_query_store_client
+
+    def synthetic_dataset_store(self) -> SyntheticDatasetStore:
+        """Return the shared synthetic-dataset store, building it on first use (Phase 257)."""
+        if self.synthetic_dataset_store_client is None:
+            self.synthetic_dataset_store_client = SyntheticDatasetStore()
+        return self.synthetic_dataset_store_client
+
+    def app_settings_store(self) -> AppSettingsStore:
+        """Return the shared generic runtime-settings store, building it on first use (Phase 257)."""
+        if self.app_settings_store_client is None:
+            self.app_settings_store_client = AppSettingsStore()
+        return self.app_settings_store_client
 
     def eval_run_store(self) -> EvalRunStore:
         """Return the shared eval-run store, building it on first use (Phase 182)."""

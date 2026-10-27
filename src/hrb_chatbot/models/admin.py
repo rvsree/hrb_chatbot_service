@@ -10,6 +10,7 @@ equivalent anywhere)."""
 from pydantic import BaseModel
 
 from src.hrb_chatbot.common.enums import Application
+from src.hrb_chatbot.models.common import UserProfile
 
 
 class AdminConversationSummary(BaseModel):
@@ -84,6 +85,60 @@ class GoldenDatasetCaseSummary(BaseModel):
 class GoldenDatasetListResponse(BaseModel):
     count: int
     cases: list[GoldenDatasetCaseSummary]
+
+
+class LiveQuerySummary(BaseModel):
+    """Phase 257 - one captured live query, real production traffic whose
+    groundedness score crossed the configurable LTM threshold (or didn't -
+    is_ltm distinguishes the two)."""
+
+    id: int
+    query_text: str
+    answer_text: str | None
+    pipeline: str | None
+    request_id: str | None
+    employee_id: str | None
+    eval_score: float | None
+    is_ltm: bool
+    category: str | None
+    created_at: str
+
+
+class LiveQueryListResponse(BaseModel):
+    count: int
+    queries: list[LiveQuerySummary]
+
+
+class SyntheticDatasetCaseSummary(BaseModel):
+    """Phase 257 - one synthetic (generated) test case. Same shape as
+    GoldenDatasetCaseSummary deliberately - different source (generated,
+    not hand-curated), same structure."""
+
+    id: int
+    case_key: str
+    dataset: str
+    category: str | None
+    query: str | None
+    raw_case: dict
+    created_at: str
+    updated_at: str
+
+
+class SyntheticDatasetListResponse(BaseModel):
+    count: int
+    cases: list[SyntheticDatasetCaseSummary]
+
+
+class AppSettingResponse(BaseModel):
+    """Phase 257 - a single runtime setting's current value."""
+
+    key: str
+    value: float | int | str | bool
+
+
+class UpdateAppSettingRequest(BaseModel):
+    user_profile: UserProfile
+    value: float | int | str | bool
 
 
 class EvalRunSummary(BaseModel):

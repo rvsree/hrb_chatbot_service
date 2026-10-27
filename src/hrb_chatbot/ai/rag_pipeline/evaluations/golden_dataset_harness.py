@@ -12,6 +12,18 @@ from deepeval.test_case import LLMTestCase, SingleTurnParams
 
 from src.hrb_chatbot.ai.rag_core.deepeval_judge_model import GatewayDeepEvalModel
 from src.hrb_chatbot.common.clients.llm_client.client_gateway import get_client_gateway
+from src.hrb_chatbot.common.enums import LlmProvider
+
+
+def _resolve_judge_model_name(judge_model: str | None, judge_provider: LlmProvider | None) -> str:
+    """Phase 256 - same resolution pattern the OpenAI path already used,
+    mirrored for Anthropic: an explicit judge_model always wins; otherwise
+    fall back to whichever provider's own configured default model."""
+    if judge_model:
+        return judge_model
+    if judge_provider == LlmProvider.ANTHROPIC:
+        return get_client_gateway().anthropic_chat().model
+    return get_client_gateway().openai_chat().model
 
 GOLDEN_DATASET_PATH = "resources/golden_dataset/golden_dataset.json"
 
@@ -48,7 +60,9 @@ def calculate_retrieval_metrics(retrieved_ids: list[str], relevant_ids: list[str
     }
 
 
-def evaluate_groundedness(answer: str, context_texts: list[str], judge_model: str | None = None) -> dict:
+def evaluate_groundedness(
+    answer: str, context_texts: list[str], judge_model: str | None = None, judge_provider: LlmProvider | None = None
+) -> dict:
     """Groundedness (Faithfulness): is the answer supported by the retrieved context?
     Phase 249: DeepEval's FaithfulnessMetric under the hood - judge sees ONLY retrieved
     evidence, same faithfulness test as before, now DeepEval-powered.
@@ -56,10 +70,13 @@ def evaluate_groundedness(answer: str, context_texts: list[str], judge_model: st
     Phase 215: judge_model, when given, overrides which model does the
     judging - the real model used (override or the client's own default)
     is always returned as model_used, so a caller can verify an override
-    actually took effect rather than just trusting it did."""
-    resolved_model = judge_model or get_client_gateway().openai_chat().model
+    actually took effect rather than just trusting it did.
+
+    Phase 256: judge_provider, when given, routes the judge call through
+    Anthropic instead of OpenAI - default stays OpenAI (None), unchanged."""
+    resolved_model = _resolve_judge_model_name(judge_model, judge_provider)
     test_case = LLMTestCase(input="", actual_output=answer, retrieval_context=context_texts)
-    metric = FaithfulnessMetric(model=GatewayDeepEvalModel(judge_model), threshold=0.0, include_reason=True)
+    metric = FaithfulnessMetric(model=GatewayDeepEvalModel(judge_model, judge_provider), threshold=0.0, include_reason=True)
 
     try:
         metric.measure(test_case)
@@ -76,21 +93,29 @@ def evaluate_groundedness(answer: str, context_texts: list[str], judge_model: st
         return {"score": 0.5, "verdict": "ERROR", "explanation": str(error), "prompt": None, "model_used": resolved_model}
 
 
-def evaluate_completeness(question: str, answer: str, reference_answer: str | None = None, judge_model: str | None = None) -> dict:
+def evaluate_completeness(
+    question: str,
+    answer: str,
+    reference_answer: str | None = None,
+    judge_model: str | None = None,
+    judge_provider: LlmProvider | None = None,
+) -> dict:
     """Response Completeness: does the answer fully address the question?
     Phase 249: DeepEval's GEval (custom criteria - DeepEval has no built-in
     "Completeness" metric) under the hood - same question relative to a
     reference answer when one exists.
 
-    Phase 215: judge_model, when given, overrides which model does the judging."""
-    resolved_model = judge_model or get_client_gateway().openai_chat().model
+    Phase 215: judge_model, when given, overrides which model does the judging.
+    Phase 256: judge_provider, when given, routes through Anthropic instead
+    of OpenAI - default stays OpenAI (None), unchanged."""
+    resolved_model = _resolve_judge_model_name(judge_model, judge_provider)
     question_text = f"{question}\n\nReference answer: {reference_answer}" if reference_answer else question
     test_case = LLMTestCase(input=question_text, actual_output=answer)
     metric = GEval(
         name="Completeness",
         criteria="Does the answer fully address every part of the question, without leaving anything unanswered?",
         evaluation_params=[SingleTurnParams.INPUT, SingleTurnParams.ACTUAL_OUTPUT],
-        model=GatewayDeepEvalModel(judge_model),
+        model=GatewayDeepEvalModel(judge_model, judge_provider),
         threshold=0.0,
     )
 
@@ -109,15 +134,20 @@ def evaluate_completeness(question: str, answer: str, reference_answer: str | No
         return {"score": 0.5, "verdict": "ERROR", "explanation": str(error), "prompt": None, "model_used": resolved_model}
 
 
-def evaluate_answer_relevancy(question: str, answer: str, judge_model: str | None = None) -> dict:
+def evaluate_answer_relevancy(
+    question: str, answer: str, judge_model: str | None = None, judge_provider: LlmProvider | None = None
+) -> dict:
     """Answer Relevancy: does the answer actually address what was asked -
     a new metric, Phase 250, doesn't exist in the hand-rolled version.
     DeepEval's AnswerRelevancyMetric - different from completeness (which
     checks full coverage of every part of the question); this checks the
-    answer isn't off-topic/padded with irrelevant content."""
-    resolved_model = judge_model or get_client_gateway().openai_chat().model
+    answer isn't off-topic/padded with irrelevant content.
+
+    Phase 256: judge_provider, when given, routes through Anthropic instead
+    of OpenAI - default stays OpenAI (None), unchanged."""
+    resolved_model = _resolve_judge_model_name(judge_model, judge_provider)
     test_case = LLMTestCase(input=question, actual_output=answer)
-    metric = AnswerRelevancyMetric(model=GatewayDeepEvalModel(judge_model), threshold=0.0, include_reason=True)
+    metric = AnswerRelevancyMetric(model=GatewayDeepEvalModel(judge_model, judge_provider), threshold=0.0, include_reason=True)
 
     try:
         metric.measure(test_case)
@@ -135,16 +165,24 @@ def evaluate_answer_relevancy(question: str, answer: str, judge_model: str | Non
 
 
 def evaluate_contextual_precision(
-    query: str, answer: str, chunk_texts: list[str], expected_answer: str, judge_model: str | None = None
+    query: str,
+    answer: str,
+    chunk_texts: list[str],
+    expected_answer: str,
+    judge_model: str | None = None,
+    judge_provider: LlmProvider | None = None,
 ) -> dict:
     """Golden-dataset-only (needs expected_output) - are the relevant chunks
     ranked above irrelevant ones? Phase 250, additive: a new, separate
     number from calculate_retrieval_metrics()'s own exact-ID-match
     precision, which stays the one RELEASE_GATE_THRESHOLDS/the CI eval-gate
-    actually key off - this is not a replacement for that."""
-    resolved_model = judge_model or get_client_gateway().openai_chat().model
+    actually key off - this is not a replacement for that.
+
+    Phase 256: judge_provider, when given, routes through Anthropic instead
+    of OpenAI - default stays OpenAI (None), unchanged."""
+    resolved_model = _resolve_judge_model_name(judge_model, judge_provider)
     test_case = LLMTestCase(input=query, actual_output=answer, expected_output=expected_answer, retrieval_context=chunk_texts)
-    metric = ContextualPrecisionMetric(model=GatewayDeepEvalModel(judge_model), threshold=0.0, include_reason=True)
+    metric = ContextualPrecisionMetric(model=GatewayDeepEvalModel(judge_model, judge_provider), threshold=0.0, include_reason=True)
 
     try:
         metric.measure(test_case)
@@ -154,15 +192,23 @@ def evaluate_contextual_precision(
 
 
 def evaluate_contextual_recall(
-    query: str, answer: str, chunk_texts: list[str], expected_answer: str, judge_model: str | None = None
+    query: str,
+    answer: str,
+    chunk_texts: list[str],
+    expected_answer: str,
+    judge_model: str | None = None,
+    judge_provider: LlmProvider | None = None,
 ) -> dict:
     """Golden-dataset-only (needs expected_output) - does retrieval contain
     everything needed to produce the expected answer? Phase 250, additive -
     same non-replacement relationship to calculate_retrieval_metrics()'s
-    own exact-ID-match recall as evaluate_contextual_precision()'s above."""
-    resolved_model = judge_model or get_client_gateway().openai_chat().model
+    own exact-ID-match recall as evaluate_contextual_precision()'s above.
+
+    Phase 256: judge_provider, when given, routes through Anthropic instead
+    of OpenAI - default stays OpenAI (None), unchanged."""
+    resolved_model = _resolve_judge_model_name(judge_model, judge_provider)
     test_case = LLMTestCase(input=query, actual_output=answer, expected_output=expected_answer, retrieval_context=chunk_texts)
-    metric = ContextualRecallMetric(model=GatewayDeepEvalModel(judge_model), threshold=0.0, include_reason=True)
+    metric = ContextualRecallMetric(model=GatewayDeepEvalModel(judge_model, judge_provider), threshold=0.0, include_reason=True)
 
     try:
         metric.measure(test_case)
@@ -409,3 +455,19 @@ def diagnose_failure_patterns(scores: dict) -> list[str]:
         )
 
     return patterns
+
+
+def evaluate_routing_accuracy(expected: str | None, actual_tool_names: list[str]) -> dict | None:
+    """Phase 258 - did the agent call the tool/dispatch to the agent the
+    case expected? Deterministic fact, not a quality judgment - no LLM
+    judge call here, unlike every other evaluate_*() in this file. Works
+    for both single-agentic-rag's expected_tool (compared against
+    tools_used[].tool_name) and multi-agentic-rag's expected_agent
+    (multi-agentic-rag already copies each dispatched agent's name into
+    that same tools_used[].tool_name key, confirmed by reading
+    multi_agent_pipeline.py directly - one function serves both).
+    Returns None (not scored) when the case has no expectation set, so an
+    un-annotated case never drags down the aggregate."""
+    if expected is None:
+        return None
+    return {"score": 1.0 if expected in actual_tool_names else 0.0, "expected": expected, "actual": actual_tool_names}
