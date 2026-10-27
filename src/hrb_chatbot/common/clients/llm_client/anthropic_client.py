@@ -6,6 +6,7 @@ from src.hrb_chatbot.common.clients.llm_client.base_llm_client import BaseLLMCli
 from src.hrb_chatbot.common.config.settings import read_setting, read_url_setting
 from src.hrb_chatbot.common.logging.call_logger import log_backend_call
 from src.hrb_chatbot.common.logging.logger import get_logger
+from src.hrb_chatbot.common.resiliency.circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
 
 logger = get_logger("anthropic_client")
 
@@ -61,6 +62,10 @@ class AnthropicChatClient(BaseLLMClient):
         else:
             self.client = None
 
+        # Phase 259 - fails fast on a known, ongoing Anthropic outage
+        # instead of paying a real network timeout on every call.
+        self._circuit_breaker = CircuitBreaker("llm:anthropic")
+
     def warn_if_workspace_id_looks_wrong(self):
         """Warn if ANTHROPIC_WORKSPACE_ID looks like a pasted name rather than an id."""
         if not self.workspace_id:
@@ -102,14 +107,22 @@ class AnthropicChatClient(BaseLLMClient):
         if system_prompt:
             extra_arguments["system"] = system_prompt
 
+        if not self._circuit_breaker.check():
+            raise CircuitBreakerOpenError("Anthropic is currently failing - circuit breaker open, not attempting the real call")
+
         # temperature deliberately not passed - the anthropic library rejects it now.
         with log_backend_call(logger, "anthropic", "messages.ask", model=self.model):
-            response = self.get_client().messages.create(
-                model=self.model,
-                max_tokens=max_tokens or self.DEFAULT_MAX_TOKENS,
-                messages=[{"role": "user", "content": message_text}],
-                **extra_arguments,
-            )
+            try:
+                response = self.get_client().messages.create(
+                    model=self.model,
+                    max_tokens=max_tokens or self.DEFAULT_MAX_TOKENS,
+                    messages=[{"role": "user", "content": message_text}],
+                    **extra_arguments,
+                )
+            except Exception:
+                self._circuit_breaker.record_failure()
+                raise
+            self._circuit_breaker.record_success()
 
         if response.usage:
             logger.info("[anthropic] tokens used: %s input + %s output", response.usage.input_tokens, response.usage.output_tokens)

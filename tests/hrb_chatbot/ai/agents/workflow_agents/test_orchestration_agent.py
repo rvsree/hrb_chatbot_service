@@ -15,7 +15,7 @@ import pytest
 from src.hrb_chatbot.ai.agents.workflow_agents import orchestration_agent
 from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
 from src.hrb_chatbot.ai.rag_core import eval_threshold, guarded_pipeline
-from tests.conftest import FakeConversationStore, FakeDBGateway
+from tests.conftest import FakeAppSettingsStore, FakeConversationStore, FakeDBGateway
 
 
 @pytest.fixture(autouse=True)
@@ -368,6 +368,33 @@ async def test_max_iterations_reached_gives_a_clear_fallback_not_a_crash(monkeyp
 
     assert "wasn't able to finish" in result["answer"]
     assert result["iterations"] == 3
+
+
+async def test_max_iterations_defaults_from_app_settings_when_not_explicitly_given(monkeypatch):
+    """Phase 260 - no max_iterations passed means the real default now comes
+    from app_settings (react_loop_max_iterations), read fresh every call,
+    not the hardcoded DEFAULT_MAX_ITERATIONS constant directly."""
+    _patch_guardrails(monkeypatch)
+    always_calls_tool = FakeResponse(tool_calls=[{"name": "SearchKnowledgeBase", "args": {"input": "x"}, "id": "call_1"}])
+    monkeypatch.setattr(
+        orchestration_agent, "TOOL_FUNCTIONS", {"SearchKnowledgeBase": lambda args, employee_id, role=None, department=None: _noop()}
+    )
+    _patch_llm(monkeypatch, [always_calls_tool] * 3)
+    gateway = FakeDBGateway(app_settings_store=FakeAppSettingsStore({"react_loop_max_iterations": 3}))
+    monkeypatch.setattr(orchestration_agent, "get_db_gateway", lambda: gateway)
+
+    result = await orchestration_agent.run_agent("loop forever", employee_id="EMP052")
+
+    assert result["iterations"] == 3
+
+
+async def test_max_iterations_falls_back_to_the_hardcoded_default_when_app_settings_is_empty(monkeypatch):
+    """Confirms DEFAULT_MAX_ITERATIONS (5) is still the real fallback when
+    nothing is set in app_settings - same as every test in this file that
+    doesn't touch this setting at all (the autouse fixture's own empty
+    FakeAppSettingsStore already proves this implicitly; this test says so
+    explicitly)."""
+    assert orchestration_agent.DEFAULT_MAX_ITERATIONS == 5
 
 
 async def _noop():

@@ -43,6 +43,16 @@ RUN python -m venv /opt/venv && \
 # COPY --from=builder /opt/venv /opt/venv below picks it up automatically.
 RUN /opt/venv/bin/python -m spacy download en_core_web_lg
 
+# Build this project's own code into a wheel - the same role a JAR plays in
+# a Java build - instead of copying loose source into the final image.
+# --no-deps/--no-build-isolation: requirements.txt already installed every
+# runtime dependency above; this step packages only src/, nothing else.
+COPY pyproject.toml ./
+COPY src ./src
+RUN /opt/venv/bin/pip install setuptools>=68 wheel && \
+    /opt/venv/bin/pip wheel . --no-deps --no-build-isolation -w /tmp/dist && \
+    /opt/venv/bin/pip install --no-deps /tmp/dist/*.whl
+
 # ---------------------------------------------------------------------------
 # Stage 2 - the image that actually runs
 # ---------------------------------------------------------------------------
@@ -67,22 +77,19 @@ RUN useradd --create-home --uid 10001 hrbchat
 
 COPY --from=builder /opt/venv /opt/venv
 
-# /srv holds src/ so imports written as `from src.hrb_chatbot...` resolve the
-# same way they do when running locally from the repository root - see
-# docs/agent-reference/RAG-ROADMAP.md's note on the src.hrb_chatbot.* import convention.
-# No .env is copied in: a container is configured through environment
-# variables at run time (see README.md's Docker section), not a file baked
-# into the image.
+# No src/ copied here anymore - the builder stage already installed it as a
+# real package (src.hrb_chatbot.*) into /opt/venv's site-packages, carried
+# over by the COPY above, the same way a runtime image only needs the JAR,
+# not the .java files that built it. No .env is copied in either: a
+# container is configured through environment variables at run time (see
+# README.md's Docker section), not a file baked into the image.
 WORKDIR /srv
-COPY --chown=hrbchat:hrbchat src ./src
 
 # ChromaDB's persistent store, the SQLite metadata file, and uploaded PDFs
 # all write under data/ (relative to /srv). /srv itself is root-owned and
 # not writable by hrbchat, so without this, the app fails at startup with a
 # confusing "unable to open database file" / "could not connect to tenant" -
-# it's actually a permission error, not a missing-database error. Only data/
-# gets hrbchat ownership - the code under src/ stays read-only to the
-# process that runs it.
+# it's actually a permission error, not a missing-database error.
 RUN mkdir -p data && chown hrbchat:hrbchat data
 
 USER hrbchat

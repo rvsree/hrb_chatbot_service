@@ -6,6 +6,7 @@ from src.hrb_chatbot.common.clients.llm_client.base_llm_client import BaseLLMCli
 from src.hrb_chatbot.common.config.settings import read_setting, read_url_setting
 from src.hrb_chatbot.common.logging.call_logger import log_backend_call
 from src.hrb_chatbot.common.logging.logger import get_logger
+from src.hrb_chatbot.common.resiliency.circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
 
 logger = get_logger("openai_client")
 
@@ -58,6 +59,10 @@ class OpenAIChatClient(BaseLLMClient):
         # and every existing caller expects a plain string back.
         self.last_token_usage: dict | None = None
 
+        # Phase 259 - fails fast on a known, ongoing OpenAI outage instead
+        # of paying a real network timeout on every call.
+        self._circuit_breaker = CircuitBreaker("llm:openai")
+
     def get_client(self):
         """Return the OpenAI object, or raise a clear error if there is no key."""
         if self.client is None:
@@ -86,13 +91,22 @@ class OpenAIChatClient(BaseLLMClient):
         messages.append({"role": "user", "content": message_text})
 
         resolved_model = model_name_override or self.model
+
+        if not self._circuit_breaker.check():
+            raise CircuitBreakerOpenError("OpenAI is currently failing - circuit breaker open, not attempting the real call")
+
         with log_backend_call(logger, "openai", "chat.ask", model=resolved_model, temperature=temperature):
-            response = self.get_client().chat.completions.create(
-                model=resolved_model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
+            try:
+                response = self.get_client().chat.completions.create(
+                    model=resolved_model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
+            except Exception:
+                self._circuit_breaker.record_failure()
+                raise
+            self._circuit_breaker.record_success()
 
         if response.usage:
             logger.info("[openai] tokens used: %s prompt + %s completion", response.usage.prompt_tokens, response.usage.completion_tokens)

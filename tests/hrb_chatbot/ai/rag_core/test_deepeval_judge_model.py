@@ -4,6 +4,7 @@ FakeChatClient/FakeClientGateway from conftest.py - no real network call."""
 
 from src.hrb_chatbot.ai.rag_core import deepeval_judge_model
 from src.hrb_chatbot.ai.rag_core.deepeval_judge_model import GatewayDeepEvalModel
+from src.hrb_chatbot.common.enums import LlmProvider
 from tests.conftest import FakeChatClient, FakeClientGateway
 
 
@@ -70,3 +71,70 @@ def test_get_model_name_falls_back_to_the_clients_own_default_model(monkeypatch)
 def test_load_model_returns_itself():
     model = GatewayDeepEvalModel()
     assert model.load_model() is model
+
+
+class TestJudgeProvider:
+    """Phase 256 - judge_provider routes judge calls through Anthropic
+    instead of OpenAI. Default (None) stays OpenAI, unchanged."""
+
+    def test_default_provider_still_calls_openai(self, monkeypatch):
+        openai_chat = FakeChatClient(answer="openai answer")
+        anthropic_chat = FakeChatClient(answer="anthropic answer")
+        monkeypatch.setattr(
+            deepeval_judge_model,
+            "get_client_gateway",
+            lambda: FakeClientGateway(chat_client=openai_chat, anthropic_chat_client=anthropic_chat),
+        )
+
+        model = GatewayDeepEvalModel()
+        result = model.generate("a prompt")
+
+        assert result == "openai answer"
+        assert len(openai_chat.calls) == 1
+        assert len(anthropic_chat.calls) == 0
+
+    def test_anthropic_provider_calls_anthropic_not_openai(self, monkeypatch):
+        openai_chat = FakeChatClient(answer="openai answer")
+        anthropic_chat = FakeChatClient(answer="anthropic answer")
+        monkeypatch.setattr(
+            deepeval_judge_model,
+            "get_client_gateway",
+            lambda: FakeClientGateway(chat_client=openai_chat, anthropic_chat_client=anthropic_chat),
+        )
+
+        model = GatewayDeepEvalModel(judge_provider=LlmProvider.ANTHROPIC)
+        result = model.generate("a prompt")
+
+        assert result == "anthropic answer"
+        assert len(anthropic_chat.calls) == 1
+        assert len(openai_chat.calls) == 0
+
+    def test_anthropic_provider_does_not_pass_model_name_override(self, monkeypatch):
+        """Anthropic's real ask() has no model_name_override param - judge_model
+        is only ever applied on the OpenAI path, confirmed here."""
+        anthropic_chat = FakeChatClient(answer="anthropic answer")
+        monkeypatch.setattr(
+            deepeval_judge_model,
+            "get_client_gateway",
+            lambda: FakeClientGateway(anthropic_chat_client=anthropic_chat),
+        )
+
+        model = GatewayDeepEvalModel(judge_model="some-model", judge_provider=LlmProvider.ANTHROPIC)
+        model.generate("a prompt")
+
+        assert "model_name_override" not in anthropic_chat.calls[0] or anthropic_chat.calls[0]["model_name_override"] is None
+
+    def test_get_model_name_falls_back_to_anthropics_own_default_when_provider_is_anthropic(self, monkeypatch):
+        anthropic_chat = FakeChatClient(model="fake-anthropic-model")
+        monkeypatch.setattr(
+            deepeval_judge_model, "get_client_gateway", lambda: FakeClientGateway(anthropic_chat_client=anthropic_chat)
+        )
+
+        model = GatewayDeepEvalModel(judge_provider=LlmProvider.ANTHROPIC)
+
+        assert model.get_model_name() == "fake-anthropic-model"
+
+    def test_get_model_name_still_honors_an_explicit_override_with_anthropic_provider(self):
+        model = GatewayDeepEvalModel(judge_model="claude-haiku-4-5", judge_provider=LlmProvider.ANTHROPIC)
+
+        assert model.get_model_name() == "claude-haiku-4-5"

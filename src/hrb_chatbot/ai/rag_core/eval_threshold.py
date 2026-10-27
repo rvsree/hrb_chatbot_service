@@ -13,7 +13,11 @@ from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import (
     evaluate_groundedness,
     evaluate_retrieval_relevance,
 )
+from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 from src.hrb_chatbot.common.config.settings import read_setting
+from src.hrb_chatbot.common.logging.logger import get_logger
+
+logger = get_logger("rag_core.eval_threshold")
 
 EVAL_THRESHOLD_METRICS = ("groundedness", "completeness", "retrieval_precision")
 
@@ -144,3 +148,34 @@ def build_eval_scores(
         eval_scores, eval_score_threshold
     )
     return eval_scores
+
+
+async def maybe_capture_live_query(
+    query: str, answer: str, eval_scores: dict | None, pipeline: str, request_id: str | None, employee_id: str | None,
+) -> None:
+    """Phase 257 - called once by each of the 3 pipelines, right after they
+    build eval_scores (same shared-helper pattern as build_eval_scores
+    itself). Fire-and-forget: never raises, a capture failure must never
+    affect the real response being scored. Gates on groundedness alone
+    (always-on by default, simplest) crossing the LTM threshold -
+    app_settings key ltm_score_threshold, default 0.6 if never set.
+    No-op if groundedness wasn't computed (EVAL_GROUNDEDNESS_ENABLED=false)."""
+    if eval_scores is None:
+        return
+    groundedness = eval_scores.get("groundedness")
+    if groundedness is None:
+        return
+    try:
+        gateway = get_db_gateway()
+        threshold = await gateway.app_settings_store().get_setting("ltm_score_threshold", 0.6)
+        await gateway.live_query_store().capture(
+            query_text=query,
+            answer_text=answer,
+            pipeline=pipeline,
+            request_id=request_id,
+            employee_id=employee_id,
+            eval_score=groundedness,
+            is_ltm=groundedness >= threshold,
+        )
+    except Exception as error:
+        logger.warning("Could not capture live query for pipeline=%s request_id=%s: %s", pipeline, request_id, error)

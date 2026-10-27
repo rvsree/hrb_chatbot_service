@@ -288,32 +288,32 @@ DOCS_TO_SYNC = {
     "upload-documents": {
         "overview": (
             "RAG Ingestion - Overview",
-            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/overview.html",
+            "docs/dev-reference/_archive/rag-pipeline/rag-ingestion/overview.html",
             "text/html",
         ),
         "spec": (
             "RAG Ingestion - Spec",
-            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/spec.html",
+            "docs/dev-reference/_archive/rag-pipeline/rag-ingestion/spec.html",
             "text/html",
         ),
         "architecture": (
             "RAG Ingestion - Architecture",
-            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/architecture.html",
+            "docs/dev-reference/_archive/rag-pipeline/rag-ingestion/architecture.html",
             "text/html",
         ),
         "design": (
             "RAG Ingestion - Design",
-            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/design.html",
+            "docs/dev-reference/_archive/rag-pipeline/rag-ingestion/design.html",
             "text/html",
         ),
         "decisions": (
             "RAG Ingestion - Decisions",
-            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/decisions.html",
+            "docs/dev-reference/_archive/rag-pipeline/rag-ingestion/decisions.html",
             "text/html",
         ),
         "faq": (
             "RAG Ingestion - Interview FAQ",
-            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/interview-faq.html",
+            "docs/dev-reference/_archive/rag-pipeline/rag-ingestion/interview-faq.html",
             "text/html",
         ),
     },
@@ -369,17 +369,17 @@ DOCS_TO_SYNC = {
         ),
         "neon-postgres": (
             "Neon Postgres",
-            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/02-neon-postgres.html",
+            "../docs/deployment-and-ops/deployment-guide/02-neon-postgres.html",
             "text/html",
         ),
         "pinecone-standard": (
             "Pinecone as the Standing Vector Store",
-            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/03-pinecone-standard.html",
+            "../docs/deployment-and-ops/deployment-guide/03-pinecone-standard.html",
             "text/html",
         ),
         "redis-cache": (
             "Redis Cache",
-            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/04-redis-cache.html",
+            "../docs/deployment-and-ops/deployment-guide/04-redis-cache.html",
             "text/html",
         ),
         "rag-ingestion-batch": (
@@ -389,17 +389,17 @@ DOCS_TO_SYNC = {
         ),
         "nfr-reliability-resilience": (
             "NFR: Reliability & Resilience",
-            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/06-nfr-reliability-resilience.html",
+            "../docs/deployment-and-ops/deployment-guide/06-nfr-reliability-resilience.html",
             "text/html",
         ),
         "reactjs-ui": (
             "React UI",
-            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/07-reactjs-ui.html",
+            "../docs/deployment-and-ops/deployment-guide/07-reactjs-ui.html",
             "text/html",
         ),
         "milestone-plan": (
             "Milestone Plan & Golden Dataset Gate",
-            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/08-milestone-plan.html",
+            "../docs/deployment-and-ops/deployment-guide/08-milestone-plan.html",
             "text/html",
         ),
         "custom-domain-setup": (
@@ -527,6 +527,56 @@ DOCS_TO_SYNC = {
             "Vector DB Indexing & Re-indexing Guide",
             "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/vector-db-optimization/guide.html",
             "text/html",
+        ),
+    },
+    # 2026-10-24 - real gap found while doing the MVP pilot pass for this
+    # feature: all 5 existing docs below (overview/spec/architecture/
+    # design/decisions) already existed on disk but had never been
+    # registered here at all, so they were never in S3 or doc_metadata.
+    # The 3 diagram-* entries are new .drawio files from the same pass -
+    # application/xml, not text/html, so the admin docs viewer offers them
+    # as a download rather than rendering them inline (a .drawio file is a
+    # download-and-open-in-draw.io artifact, not a displayable page).
+    "api-gateway-service": {
+        "overview": (
+            "API Gateway Service - Overview",
+            "../docs/platform-and-admin/api-gateway-service/overview.html",
+            "text/html",
+        ),
+        "spec": (
+            "API Gateway Service - Spec",
+            "../docs/platform-and-admin/api-gateway-service/spec.html",
+            "text/html",
+        ),
+        "architecture": (
+            "API Gateway Service - Architecture",
+            "../docs/platform-and-admin/api-gateway-service/architecture.html",
+            "text/html",
+        ),
+        "design": (
+            "API Gateway Service - Design",
+            "../docs/platform-and-admin/api-gateway-service/design.html",
+            "text/html",
+        ),
+        "decisions": (
+            "API Gateway Service - Decisions",
+            "../docs/platform-and-admin/api-gateway-service/decisions.html",
+            "text/html",
+        ),
+        "diagram-current-state": (
+            "API Gateway Service - Current State Architecture (draw.io)",
+            "../docs/architecture/diagrams/api-gateway-current-state-architecture.drawio",
+            "application/xml",
+        ),
+        "diagram-target-state": (
+            "API Gateway Service - Target State Scaling Architecture (draw.io)",
+            "../docs/architecture/diagrams/api-gateway-target-state-scaling-architecture.drawio",
+            "application/xml",
+        ),
+        "diagram-deployment": (
+            "API Gateway Service - Deployment Architecture (draw.io)",
+            "../docs/architecture/diagrams/api-gateway-deployment-architecture.drawio",
+            "application/xml",
         ),
     },
 }
