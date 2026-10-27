@@ -7,14 +7,40 @@ time, to apply RAG concepts from the Interview Kickstart FDE cohort - see
 current status (that file is the source of truth for "what's done" - this
 README doesn't repeat it).
 
-**2026-10-23: now one of 7 repos**, not the whole system - this repo is still
+**2026-10-23: now one of 8 repos**, not the whole system - this repo is still
 the live production backend for retrieval traffic, but `hrb_api_gateway_service`
-now fronts everything, and `rag_ingestion_service`/`rag_retrieval_service`/
+now fronts everything, and `hrb_rag_ingestion_service`/`hrb_rag_retrieval_service`/
 `hrb_platform_components` have split off real functionality into their own
 deployed services (see
 [../docs/architecture/microservices-rollout-plan.html](../docs/architecture/microservices-rollout-plan.html)
 for the full real status). This repo's own retrieval code stays live until
-`rag_retrieval_service`'s own cutover is approved - a separate, later decision.
+`hrb_rag_retrieval_service`'s own cutover is approved - a separate, later decision.
+
+## What this repo demonstrates
+
+For someone evaluating this cold rather than setting it up: this is where
+the RAG/agentic engine actually lives - the code every other service's own
+copy was built from.
+
+- **3 interchangeable answer modes**: direct retrieve-then-generate,
+  single-agent ReAct tool-calling, and a multi-agent planner → domain-agent
+  → reviewer graph (LangGraph) - same question, three real architectures,
+  switchable per request.
+- **Conversation memory** across turns (Redis-backed STM, Postgres-backed
+  long-term capture of high-quality answers) - not a stateless Q&A bot.
+- **Human-in-the-loop workflow**: a real multi-day unpaid-leave approval -
+  request filed, a manager approves days later by email, the conversation
+  resumes exactly where it left off.
+- **Input/output guardrails** and a shared evaluation harness (golden
+  dataset, release-gate CI check, live-query quality sampling) running on
+  every real query, not bolted on after the fact.
+- **Built via Spec-Driven Development** - every non-trivial change has a
+  written spec before code, reviewed, then implemented; the full phase-by-
+  phase history is in [docs/agent-reference/RAG-ROADMAP.md](docs/agent-reference/RAG-ROADMAP.md),
+  not reconstructed after the fact.
+- **892 tests**, zero requiring a real API key or network call - every
+  external client is faked with the exact same method signature as the
+  real one.
 
 ## Diagrams and cross-service docs
 
