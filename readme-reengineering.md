@@ -32,7 +32,7 @@ doc convention (e.g. `multi-agentic-rag/`, `request-unpaid-leave/`).
 
 | Repo | Contains | Status |
 |---|---|---|
-| [hrb-common-libs](https://github.com/rvsree/hrb-common-libs) | 11-extra connector package (an eleventh, `vectorstore`, was added after finding a real scope gap) | **All phases done**, 53/53 tests passing, tagged `v0.3.0` |
+| [hrb_common_libs](https://github.com/rvsree/hrb_common_libs) | 11-extra connector package (an eleventh, `vectorstore`, was added after finding a real scope gap) | **All phases done**, 53/53 tests passing, tagged `v0.3.0` |
 | [hrb_api_gateway_service](https://github.com/rvsree/hrb_api_gateway_service) | RBAC/CORS/rate-limit/contract-validation Gateway | Phase 1 (CORS + rate limit) done, 9/9 tests passing |
 | [hrb_platform_components](https://github.com/rvsree/hrb_platform_components) | interview_qa, build_deployment, mcp_catalog | scaffolded, pushed — deployment model (standalone vs. mounted) still open, flagged in its own CLAUDE.md |
 
