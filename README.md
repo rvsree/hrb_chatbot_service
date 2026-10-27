@@ -252,6 +252,42 @@ for "HITL"/"A2A") for the design. *(Corrected 2026-10-24 - this link
 previously pointed at `docs/dev-reference/react_agents/`, a pre-build
 design folder since moved to `_archive/` in the 2026-10-23 reorg.)*
 
+## Explainability — what every query response actually carries
+
+Every `POST /query` response includes an `explainability_info` block, not
+just the answer text: a `request_id` for correlating with backend logs,
+`served_from_cache` (true = no LLM call happened at all), `llm_call_count`,
+a `latency_ms` breakdown (retrieval vs. generation vs. live-eval vs.
+decomposition, not just one total number), `token_usage`
+(prompt/completion/total), and `llm_context` - the actual prompt sent to
+the LLM, for real debugging, not a black box. `eval_scores.groundedness`
+(0.0-1.0) and its verdict (GROUNDED/PARTIAL/HALLUCINATED) are computed live,
+by the same LLM-judge prompt the offline golden-dataset harness uses - so
+"is this answer actually supported by the retrieved context" is answered
+per-call, not just in CI. One deliberate, documented gap: `token_usage`
+tracks counts, not dollars - no verified per-model price table exists yet
+(see [BACKLOG.md](docs/agent-reference/BACKLOG.md)).
+
+## Testing strategy — three tiers, different trust levels
+
+- **Golden dataset** (`resources/golden_dataset/golden_dataset.json`) - 23
+  hand-curated cases, every expected answer pulled directly from the real
+  KB PDFs, not invented. Highest trust. Runs in CI via
+  `scripts/run_release_gate.py`, producing a PASS/REVIEW/BLOCK decision on
+  groundedness, completeness, and retrieval recall/precision/F1.
+- **Synthetic dataset** - programmatically-generated test cases, lower
+  trust than golden, meant for cheap coverage at scale. Honestly: the
+  storage and admin-read path are built (`synthetic_dataset_store.py`,
+  Admin Dashboard → Synthetic Dataset tab); the actual LLM-driven
+  *generation* step is a known, scoped gap, not yet built.
+- **Live-query capture** - real production queries are captured
+  automatically with their live `eval_scores` already attached
+  (`live_query_store.py`). A query gets flagged `is_ltm = true` when its
+  groundedness score clears a configurable threshold (0.6 by default,
+  editable at runtime via `app_settings`, no redeploy) - so the dataset of
+  "answers worth trusting as reference examples" grows from real usage,
+  not just what a human or a generator anticipated.
+
 ## Running in a container
 
 ```powershell
