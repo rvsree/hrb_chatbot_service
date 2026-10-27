@@ -32,8 +32,9 @@ copy was built from.
 - **Conversation memory** across turns (Redis-backed STM, Postgres-backed
   long-term capture of high-quality answers) - not a stateless Q&A bot.
 - **Human-in-the-loop workflow**: a real multi-day unpaid-leave approval -
-  request filed, a manager approves days later by email, the conversation
-  resumes exactly where it left off.
+  request filed, an `hr_support` identity resolves it (approve/reject) days
+  later, the employee is emailed the outcome, the conversation resumes
+  exactly where it left off.
 - **Input/output guardrails** and a shared evaluation harness (golden
   dataset, release-gate CI check, live-query quality sampling) running on
   every real query, not bolted on after the fact.
