@@ -9,7 +9,7 @@ from src.hrb_chatbot.ai.doc_processing.chunking.text_chunker import chunk_text
 # Long enough that chunk_size actually changes how many pieces it splits
 # into - short strings wouldn't exercise the comparison meaningfully.
 SAMPLE_POLICY_TEXT = (
-    "JPMorgan Chase provides 16 weeks of fully paid parental leave to all "
+    "Amazing Bank provides 16 weeks of fully paid parental leave to all "
     "eligible employees for the birth or placement of a child for adoption. "
     "This gender-neutral policy applies equally to all parents regardless "
     "of gender, marital status, or caregiver role. Employees must be "

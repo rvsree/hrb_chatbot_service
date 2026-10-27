@@ -490,7 +490,7 @@
                     {
                       "key": "payload",
                       "type": "text",
-                      "value": "{\"user_profile\": {\"employee_id\": \"EMP051\", \"full_name\": \"Hana Support\", \"role\": \"hr_support\"}, \"chunk_info\": {\"chunking_strategy\": \"recursive\", \"chunk_size\": 500, \"chunk_overlap\": 50}, \"document_metadata\": {\"doc_category\": \"benefits\", \"department\": \"HR\", \"doc_description\": \"healthcare\", \"owner\": \"HR Benefits Team\", \"purpose\": \"Summarizes AmazingBank's medical, dental, and vision plan options and eligibility.\", \"effective_date\": \"2026-01-01\", \"audience\": \"All full-time employees\", \"confidentiality_level\": \"Internal\", \"author\": \"HR Benefits Team\", \"doc_date\": \"December 2025\", \"doc_version\": \"1.0\"}}"
+                      "value": "{\"user_profile\": {\"employee_id\": \"EMP051\", \"full_name\": \"Hana Support\", \"role\": \"hr_support\"}, \"chunk_info\": {\"chunking_strategy\": \"recursive\", \"chunk_size\": 500, \"chunk_overlap\": 50}, \"document_metadata\": {\"doc_category\": \"benefits\", \"department\": \"HR\", \"doc_description\": \"healthcare\", \"owner\": \"HR Benefits Team\", \"purpose\": \"Summarizes Amazing Bank's medical, dental, and vision plan options and eligibility.\", \"effective_date\": \"2026-01-01\", \"audience\": \"All full-time employees\", \"confidentiality_level\": \"Internal\", \"author\": \"HR Benefits Team\", \"doc_date\": \"December 2025\", \"doc_version\": \"1.0\"}}"
                     }
                   ]
                 },
@@ -873,7 +873,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"user_profile\": {\"employee_id\": \"EMP052\", \"full_name\": \"Eddy Employee\", \"role\": \"employee\"},\n  \"query\": \"How many weeks of paid parental leave does JPMorgan Chase provide?\",\n  \"search_options\": {\"top_k\": 5}\n}"
+                  "raw": "{\n  \"user_profile\": {\"employee_id\": \"EMP052\", \"full_name\": \"Eddy Employee\", \"role\": \"employee\"},\n  \"query\": \"How many weeks of paid parental leave does Amazing Bank provide?\",\n  \"search_options\": {\"top_k\": 5}\n}"
                 },
                 "description": "Expect 200, a real answer grounded in whatever's actually indexed (retrieval_info.sources with real filename/chunk_index/score), and answer_info.model_used naming the model that generated it. If nothing relevant is indexed yet, expect a fixed \"I don't have any information about that\" answer with empty sources, not an error."
               }
@@ -901,7 +901,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"user_profile\": {\"employee_id\": \"EMP051\", \"full_name\": \"Hana Support\", \"role\": \"hr_support\"},\n  \"query\": \"How much tuition assistance does AmazingBank offer for undergraduate programs?\",\n  \"enable_conversation_memory\": true\n}"
+                  "raw": "{\n  \"user_profile\": {\"employee_id\": \"EMP051\", \"full_name\": \"Hana Support\", \"role\": \"hr_support\"},\n  \"query\": \"How much tuition assistance does Amazing Bank offer for undergraduate programs?\",\n  \"enable_conversation_memory\": true\n}"
                 },
                 "description": "Phase 58. Verified live 2026-09-25: response's conversation_id (server-generated, e.g. \"3d9280dc55ee4554b7cd43b55493f950\") must be copied into the next request's conversation_id field to continue this conversation - see the next request in this folder."
               }
@@ -957,7 +957,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"user_profile\": {\"employee_id\": \"EMP052\", \"full_name\": \"Eddy Employee\", \"role\": \"employee\"},\n  \"query\": \"How many weeks of paid parental leave does JPMorgan Chase provide?\",\n  \"search_options\": {\"search_strategy\": \"mmr\"}\n}"
+                  "raw": "{\n  \"user_profile\": {\"employee_id\": \"EMP052\", \"full_name\": \"Eddy Employee\", \"role\": \"employee\"},\n  \"query\": \"How many weeks of paid parental leave does Amazing Bank provide?\",\n  \"search_options\": {\"search_strategy\": \"mmr\"}\n}"
                 },
                 "description": "Max Marginal Relevance - more diverse sources than plain similarity search (module 2's own rule of thumb: use this when you want relevant AND non-redundant context). retrieval_info.search_strategy: \"mmr\" in the response; every source's score is null (LangChain's max_marginal_relevance_search() doesn't return a per-chunk score). This is the only way to select MMR now - the old dedicated /query/mmr endpoint was removed in Phase 21."
               }
@@ -1108,7 +1108,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"user_profile\": {\"employee_id\": \"EMP052\", \"full_name\": \"Eddy Employee\", \"role\": \"employee\"},\n  \"query\": \"How many weeks of paid parental leave does JPMorgan Chase provide?\"\n}"
+                  "raw": "{\n  \"user_profile\": {\"employee_id\": \"EMP052\", \"full_name\": \"Eddy Employee\", \"role\": \"employee\"},\n  \"query\": \"How many weeks of paid parental leave does Amazing Bank provide?\"\n}"
                 },
                 "description": "Verified live 2026-09-24: agent chose SearchKnowledgeBase, returned a real grounded answer from the indexed AmazingBank_Paid_TimeOff.pdf. Expect 200, tools_used containing SearchKnowledgeBase."
               }
@@ -1136,7 +1136,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"user_profile\": {\"employee_id\": \"EMP052\", \"full_name\": \"Eddy Employee\", \"role\": \"employee\"},\n  \"query\": \"What is the AmazingBank 401k match?\",\n  \"enable_conversation_memory\": true\n}"
+                  "raw": "{\n  \"user_profile\": {\"employee_id\": \"EMP052\", \"full_name\": \"Eddy Employee\", \"role\": \"employee\"},\n  \"query\": \"What is the Amazing Bank 401k match?\",\n  \"enable_conversation_memory\": true\n}"
                 },
                 "description": "Phase 58. Verified live 2026-09-25: response's conversation_id (server-generated, e.g. \"c389e3d6ec6b4357aaee216cd93826ac\") must be copied into the next request's conversation_id field to continue this conversation - see the next request in this folder."
               }
@@ -1566,7 +1566,7 @@
                 "description": "vote is \"helpful\" or \"not_quite\" (FeedbackVote enum). conversation_id can be null if conversation memory wasn't enabled for that chat. Expect 200, {\"id\": <int>}.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"user_profile\": {\n    \"employee_id\": \"EMP052\",\n    \"full_name\": \"Eddy Employee\",\n    \"role\": \"employee\"\n  },\n  \"conversation_id\": \"{{conversation_id}}\",\n  \"message_id\": \"msg-001\",\n  \"vote\": \"helpful\",\n  \"reason_tags\": [],\n  \"notes\": null,\n  \"question\": \"What is JPMorgan Chase's 401(k) match?\",\n  \"answer\": \"JPMorgan Chase matches 100% of the first 5% of eligible pay contributed.\"\n}"
+                  "raw": "{\n  \"user_profile\": {\n    \"employee_id\": \"EMP052\",\n    \"full_name\": \"Eddy Employee\",\n    \"role\": \"employee\"\n  },\n  \"conversation_id\": \"{{conversation_id}}\",\n  \"message_id\": \"msg-001\",\n  \"vote\": \"helpful\",\n  \"reason_tags\": [],\n  \"notes\": null,\n  \"question\": \"What is Amazing Bank's 401(k) match?\",\n  \"answer\": \"Amazing Bank matches 100% of the first 5% of eligible pay contributed.\"\n}"
                 }
               }
             },

@@ -43,7 +43,7 @@ def test_empty_text_returns_no_chunks():
 
 
 def test_long_text_is_split_into_multiple_chunks_each_within_the_limit():
-    sentence = "This is one sentence about JPMorgan Chase benefits policy. "
+    sentence = "This is one sentence about Amazing Bank benefits policy. "
     text = sentence * 40  # roughly 2,400 characters
 
     chunks = chunk_recursive(text, chunk_size=500, chunk_overlap=50)
@@ -56,7 +56,7 @@ def test_long_text_is_split_into_multiple_chunks_each_within_the_limit():
 
 
 def test_consecutive_chunks_share_overlapping_text_when_overlap_is_set():
-    sentence = "This is one sentence about JPMorgan Chase benefits policy. "
+    sentence = "This is one sentence about Amazing Bank benefits policy. "
     text = sentence * 40
 
     chunks = chunk_recursive(text, chunk_size=500, chunk_overlap=100)
@@ -167,7 +167,7 @@ def test_decide_chunking_strategy_picks_none_for_short_plain_text():
 
 
 def test_decide_chunking_strategy_picks_recursive_for_long_plain_text():
-    text = "This is one sentence about JPMorgan Chase benefits policy. " * 40
+    text = "This is one sentence about Amazing Bank benefits policy. " * 40
     assert decide_chunking_strategy(text) == "recursive"
 
 
@@ -195,7 +195,7 @@ def test_chunk_text_rejects_an_unknown_strategy():
 
 
 def test_decide_chunk_size_defaults_when_no_signal_applies():
-    text = "This is one sentence about JPMorgan Chase benefits policy. " * 40
+    text = "This is one sentence about Amazing Bank benefits policy. " * 40
     assert decide_chunk_size(text) == DEFAULT_CHUNK_SIZE
 
 
@@ -239,7 +239,7 @@ def test_chunk_text_handles_multiple_tables_as_separate_whole_chunks():
 
 
 def test_chunk_text_with_no_tables_behaves_exactly_as_before():
-    text = "This is one sentence about JPMorgan Chase benefits policy. " * 40
+    text = "This is one sentence about Amazing Bank benefits policy. " * 40
     chunks = chunk_text(text, chunking_strategy="recursive", chunk_size=500, chunk_overlap=50)
 
     assert len(chunks) > 1
@@ -300,7 +300,7 @@ def test_chunk_by_document_structure_renumbering_does_not_change_the_id():
 
 
 def test_chunk_text_with_sections_returns_none_ids_for_every_other_strategy():
-    text = "This is one sentence about JPMorgan Chase benefits policy. " * 40
+    text = "This is one sentence about Amazing Bank benefits policy. " * 40
 
     chunks, section_ids = chunk_text_with_sections(text, chunking_strategy="recursive", chunk_size=500, chunk_overlap=50)
 

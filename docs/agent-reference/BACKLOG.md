@@ -1364,7 +1364,7 @@ block before implementation, same as every other phase.
 ## Output guardrail false positive: "Roth" masked as a name (found 2026-10-06)
 
 Found live, through the new UI: asking "What is the 401(k) employer
-match?" returned *"JPMorgan Chase matches 100% of employee before-tax
+match?" returned *"Amazing Bank matches 100% of employee before-tax
 and/or **\<PERSON\>** contributions..."* - the NeMo Guardrails "mask
 sensitive data on output" rail (Presidio, Phase 7/82) misidentifies the
 word "Roth" as a person's name and redacts it. Confirmed reproducible -

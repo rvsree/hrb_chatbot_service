@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "hrb-chatbot-service"
 version = "0.1.0"
-description = "HR benefits chatbot - RAG pipeline over the AmazingBank benefits knowledge base."
+description = "HR benefits chatbot - RAG pipeline over the Amazing Bank benefits knowledge base."
 requires-python = ">=3.12,<3.13"
 # Runtime deps stay in requirements.txt (installed into the image before this
 # wheel is built) - this project's one existing source of truth for them.

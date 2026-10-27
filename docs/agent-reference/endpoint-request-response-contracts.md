@@ -275,7 +275,7 @@ needed.
     "full_name": "Hana Support",
     "role": "hr_support"
   },
-  "query": "How many weeks of paid parental leave does JPMorgan Chase provide?",
+  "query": "How many weeks of paid parental leave does Amazing Bank provide?",
   "search_options": {
     "top_k": 5,
     "vector_db": "chromadb",
@@ -308,7 +308,7 @@ Response:
 
 ```json
 {
-  "query": "How many weeks of paid parental leave does JPMorgan Chase provide?",
+  "query": "How many weeks of paid parental leave does Amazing Bank provide?",
   "answer_info": {
     "answer": "...",
     "model_used": "gpt-4.1-mini"
@@ -1176,13 +1176,13 @@ by `scripts/sync_golden_dataset.py`, not edited through the API.
       "case_key": "401k-01",
       "dataset": "genai_rag",
       "category": "happy",
-      "query": "What percentage does JPMorgan Chase match on my 401(k) contributions?",
+      "query": "What percentage does Amazing Bank match on my 401(k) contributions?",
       "raw_case": {
         "id": "401k-01",
         "category": "happy",
-        "query": "What percentage does JPMorgan Chase match on my 401(k) contributions?",
+        "query": "What percentage does Amazing Bank match on my 401(k) contributions?",
         "expected_source_document": "401k.pdf",
-        "expected_answer": "JPMorgan Chase matches 100% of employee contributions (dollar-for-dollar) up to 5% of Eligible Compensation, available after one year of service.",
+        "expected_answer": "Amazing Bank matches 100% of employee contributions (dollar-for-dollar) up to 5% of Eligible Compensation, available after one year of service.",
         "expected_keywords": ["100%", "dollar-for-dollar", "5%", "one year of service"],
         "call_type": "llm_call"
       },

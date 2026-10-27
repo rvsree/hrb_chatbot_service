@@ -14,7 +14,7 @@
       "persona": { "employee_id": "EMP052", "full_name": "Eddy Employee", "role": "employee" },
       "turns": [
         {
-          "query": "What percentage does JPMorgan Chase match on my 401(k) contributions?",
+          "query": "What percentage does Amazing Bank match on my 401(k) contributions?",
           "expects_keywords_any": ["100%", "dollar-for-dollar", "5%"],
           "requires_memory_of_turn": null
         },
@@ -32,7 +32,7 @@
       "persona": { "employee_id": "EMP001", "full_name": "John Doe", "role": "employee" },
       "turns": [
         {
-          "query": "Which medical plan carriers does JPMorgan Chase offer?",
+          "query": "Which medical plan carriers does Amazing Bank offer?",
           "expects_keywords_any": ["Aetna", "Cigna", "UnitedHealthcare", "Centivo"],
           "requires_memory_of_turn": null
         },
@@ -70,7 +70,7 @@
       "persona": { "employee_id": "EMP053", "full_name": "Mia Manager", "role": "manager" },
       "turns": [
         {
-          "query": "What is my current leave balance, and what is JPMorgan Chase's sick leave policy?",
+          "query": "What is my current leave balance, and what is Amazing Bank's sick leave policy?",
           "expects_keywords_any": ["balance", "10 sick days", "80 hours"],
           "requires_memory_of_turn": null,
           "note": "ReAct loop should both call the MCP leave-balance tool (real live data) and retrieve the KB sick-leave policy in one turn."
@@ -90,7 +90,7 @@
       "persona": { "employee_id": "EMP052", "full_name": "Eddy Employee", "role": "employee" },
       "turns": [
         {
-          "query": "What is the JPMorgan Chase parental leave policy, and what is my current leave balance?",
+          "query": "What is the Amazing Bank parental leave policy, and what is my current leave balance?",
           "expects_keywords_any": ["16 weeks", "paid", "balance"],
           "requires_memory_of_turn": null,
           "note": "Planner should dispatch to the KB domain agent (parental leave policy) and the MCP/leave domain agent (real balance) in parallel, Reviewer merges both."
@@ -110,7 +110,7 @@
       "persona": { "employee_id": "EMP021", "full_name": "Daniel Rodriguez", "role": "hr_support" },
       "turns": [
         {
-          "query": "What is the 401(k) match percentage, and how much tuition assistance does JPMorgan Chase provide for a master's degree program?",
+          "query": "What is the 401(k) match percentage, and how much tuition assistance does Amazing Bank provide for a master's degree program?",
           "expects_keywords_any": ["100%", "5%", "tuition"],
           "requires_memory_of_turn": null,
           "note": "Compound question, same domain (KB) - Planner splits within the vector_kb_agent, not across multiple domain agents."

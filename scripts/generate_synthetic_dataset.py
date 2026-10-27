@@ -4,10 +4,13 @@
 existed, but nothing ever generated a real case. This script does that:
 for each of the 6 real KB topics, prompts an LLM (grounded in one real,
 hand-verified golden-dataset case per topic - not inventing facts from
-nothing) to produce one paraphrased single-turn variant and one 3-turn
-conversational variant, plus 2 category-less edge cases (out-of-scope,
-adversarial). ~14 real LLM calls, meant to be run by hand, real cost -
-same convention as scripts/run_release_gate.py, not run in CI."""
+nothing) to produce one paraphrased single-turn variant and one 3-to-4-turn
+conversational variant (2026-10-27: widened from a fixed 3 turns, and one
+turn must now be a complex multi-part question - two sub-questions stacked
+in one message, not just a simple follow-up), plus 2 category-less edge
+cases (out-of-scope, adversarial). ~14 real LLM calls, meant to be run by
+hand, real cost - same convention as scripts/run_release_gate.py, not run
+in CI."""
 
 import asyncio
 import json
@@ -49,14 +52,21 @@ Generate two things about the SAME topic/document, grounded in the same real fac
 above - do not invent new facts not implied by the example:
 
 1. A single paraphrased question - same answer, different wording than the original.
-2. A realistic 3-turn conversation: an opening question, a natural human follow-up
-   that depends on the first answer (e.g. "what about X" or "does that apply if Y"),
-   and a second follow-up. All 3 turns must be about the same real facts above.
+2. A realistic 4-turn conversation (only use 3 if a 4th turn would clearly feel
+   padded/repetitive for this specific topic - default to 4): an opening question,
+   then 2-3 natural human follow-ups that each depend on an earlier answer
+   (e.g. "what about X" or "does that apply if Y").
+   At least one of these turns (your choice which) must be a complex multi-part
+   question - two distinct sub-questions stacked into a single message (e.g.
+   "What's the vesting schedule, and does it change if I transfer departments?"),
+   not just a single simple ask. All turns must be about the same real facts above.
 
-Return ONLY valid JSON, no other text, in exactly this shape:
+Return ONLY valid JSON, no other text, in exactly this shape - the "conversation"
+array must have 4 entries by default (3 only if a 4th would clearly feel padded
+for this topic - never fewer than 3 or more than 4):
 {{
   "single_turn": "the paraphrased question",
-  "conversation": ["turn 1 question", "turn 2 follow-up", "turn 3 follow-up"]
+  "conversation": ["turn 1 question", "turn 2 follow-up", "turn 3 follow-up", "turn 4 follow-up"]
 }}"""
 
 EDGE_CASE_PROMPT = """Generate one realistic {kind} question for an HR benefits chatbot
@@ -125,6 +135,11 @@ async def main() -> None:
         single_turn_query = parsed["single_turn"]
         conversation_turns = parsed["conversation"]
 
+        if not isinstance(conversation_turns, list) or len(conversation_turns) not in (3, 4):
+            print(f"FAIL {topic['key']}: expected a 3-4 turn conversation, got {conversation_turns!r}")
+            failed += 1
+            continue
+
         result = await store.upsert_case(
             case_key=f"syn-{topic['key']}-paraphrase",
             dataset=DATASET_LABEL,
@@ -148,6 +163,7 @@ async def main() -> None:
                 "paraphrase_of": topic["case_id"] or f"golden case for {topic['source']}",
                 "expected_source_document": topic["source"],
                 "turns": conversation_turns,
+                "turn_count": len(conversation_turns),
                 "generation_method": "LLM-generated, grounded in a real golden-dataset example",
             },
         )

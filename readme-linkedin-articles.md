@@ -9,10 +9,12 @@ project (hrb_chatbot_service / hrb_chatbot_ui / hrb_lms_mcp) - not generic RAG/A
 advice. Ordered simple -> moderate -> advanced.
 
 **Before publishing anything from this list:** genericize real company
-names (JPMorgan Chase, Empower Retirement, Guild Education, mySedgwick) -
-e.g. "a Fortune 500 HR benefits system" instead. This is a personal
-learning project built from real public document text, not a company
-deliverable, and the engineering lessons don't depend on the real names.
+names (the project's own docs/code already use "Amazing Bank" as the
+fictional stand-in; also check for Empower Retirement, Guild Education,
+mySedgwick) - e.g. "a Fortune 500 HR benefits system" instead. This is a
+personal learning project built from real public document text, not a
+company deliverable, and the engineering lessons don't depend on the real
+names.
 
 ## Simple
 

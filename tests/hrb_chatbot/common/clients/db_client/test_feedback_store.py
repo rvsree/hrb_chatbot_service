@@ -85,7 +85,7 @@ async def test_a_nul_byte_in_question_or_answer_is_stripped_before_the_insert(mo
 
     await store.save_feedback(
         "EMP052", "conv-1", "msg-1", "helpful", ["accurate"], None,
-        "What dental plans are o\x00ered?", "JPMorgan Chase o\x00ers two dental plan options",
+        "What dental plans are o\x00ered?", "Amazing Bank o\x00ers two dental plan options",
     )
 
     assert len(recorded_calls) == 1
@@ -94,7 +94,7 @@ async def test_a_nul_byte_in_question_or_answer_is_stripped_before_the_insert(mo
     assert "\x00" not in question
     assert "\x00" not in answer
     assert question == "What dental plans are oered?"
-    assert answer == "JPMorgan Chase oers two dental plan options"
+    assert answer == "Amazing Bank oers two dental plan options"
 
 
 async def test_question_and_answer_with_no_nul_byte_are_unchanged(monkeypatch):

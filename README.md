@@ -1,6 +1,6 @@
 # HRB Chatbot Service
 
-An HR benefits chatbot backed by a RAG pipeline over the AmazingBank benefits
+An HR benefits chatbot backed by a RAG pipeline over the Amazing Bank benefits
 knowledge base (`resources/kb_docs/`). Built AI-agent-assisted under a
 spec-first process (a PreToolUse hook blocks code changes without a written
 spec; implementer/reviewer subagents execute and check each phase), one
@@ -13,11 +13,20 @@ README doesn't repeat it).
 **2026-10-23: now one of 8 repos**, not the whole system - this repo is still
 the live production backend for retrieval traffic, but `hrb_api_gateway_service`
 now fronts everything, and `hrb_rag_ingestion_service`/`hrb_rag_retrieval_service`/
-`hrb_platform_components` have split off real functionality into their own
+`hrb_platform_components` have split off functionality into their own
 deployed services (see
 [../docs/architecture/microservices-rollout-plan.html](../docs/architecture/microservices-rollout-plan.html)
-for the full real status). This repo's own retrieval code stays live until
+for the full current status). This repo's own retrieval code stays live until
 `hrb_rag_retrieval_service`'s own cutover is approved - a separate, later decision.
+
+## Live demo
+
+This is the backend behind **[hrb-chatbot-ui.rvsree.dev](https://hrb-chatbot-ui.rvsree.dev)**
+- log in as any persona from
+[docs/agent-reference/KNOWN-PERSONAS.md](docs/agent-reference/KNOWN-PERSONAS.md)
+(e.g. `EMP052` / Eddy Employee / employee) and ask a benefits question. App
+Runner pauses this service by default for cost control - a slow first
+response means it's resuming, not broken.
 
 ## What this repo demonstrates
 
@@ -27,17 +36,17 @@ copy was built from.
 
 - **3 interchangeable answer modes**: direct retrieve-then-generate,
   single-agent ReAct tool-calling, and a multi-agent planner → domain-agent
-  → reviewer graph (LangGraph) - same question, three real architectures,
+  → reviewer graph (LangGraph) - same question, three distinct architectures,
   switchable per request.
 - **Conversation memory** across turns (Redis-backed STM, Postgres-backed
   long-term capture of high-quality answers) - not a stateless Q&A bot.
-- **Human-in-the-loop workflow**: a real multi-day unpaid-leave approval -
+- **Human-in-the-loop workflow**: a multi-day unpaid-leave approval -
   request filed, an `hr_support` identity resolves it (approve/reject) days
   later, the employee is emailed the outcome, the conversation resumes
   exactly where it left off.
 - **Input/output guardrails** and a shared evaluation harness (golden
   dataset, release-gate CI check, live-query quality sampling) running on
-  every real query, not bolted on after the fact.
+  every query, not bolted on after the fact.
 - **Built via Spec-Driven Development** - every non-trivial change has a
   written spec before code, reviewed, then implemented; the full phase-by-
   phase history is in [docs/agent-reference/RAG-ROADMAP.md](docs/agent-reference/RAG-ROADMAP.md),
@@ -70,16 +79,16 @@ This repo's own 3 diagrams:
 | App | Local | AWS (production) |
 | --- | --- | --- |
 | Backend (this repo, `hrb_chatbot_service`) | `http://127.0.0.1:8093` | `https://hrb-chatbot.rvsree.dev` |
-| Gateway (`hrb_api_gateway_service`, separate repo - the real public entry point now) | `http://127.0.0.1:8100` | `https://necxf9n7mv.us-east-1.awsapprunner.com` |
+| Gateway (`hrb_api_gateway_service`, separate repo - the public entry point now) | `http://127.0.0.1:8100` | `https://necxf9n7mv.us-east-1.awsapprunner.com` |
 | Frontend (`hrb_chatbot_ui`, separate repo) | `http://localhost:5173` (`npm run dev`) | `https://hrb-chatbot-ui.rvsree.dev` |
 | MCP server (`hrb_lms_mcp`, separate repo - leave balance/history tools) | `http://127.0.0.1:8190` | `https://hrb-lms-mcp.rvsree.dev` |
 
 The AWS backend runs on App Runner (Phase 10, see
 [AWS-DEVOPS-RUNBOOK.md](docs/agent-reference/AWS-DEVOPS-RUNBOOK.md)); the AWS
-frontend is a static build on S3 behind CloudFront, with a real CI/CD
-pipeline as of 2026-10-23 (build -> S3 sync -> CloudFront invalidation on
+frontend is a static build on S3 behind CloudFront, with a CI/CD pipeline
+live as of 2026-10-23 (build -> S3 sync -> CloudFront invalidation on
 every push to its own `master`); `hrb_lms_mcp` is its own App Runner service
-with a real `deploy.yml`. As of 2026-10-23, the frontend's own
+with its own `deploy.yml`. As of 2026-10-23, the frontend's own
 `.env.production` points at the **Gateway**, not this backend directly - the
 Gateway forwards 1:1 to this backend's `BACKEND_SERVICE_URL` secret. This
 backend's CORS config (`main.py`) still allows the production frontend
@@ -163,7 +172,7 @@ an attached debugger.
 # just confirms the process is up - no network call, no cost
 curl http://127.0.0.1:8093/ping
 
-# the real diagnostic - one real but free call per service (no chat completion, no tokens spent)
+# the actual diagnostic - one free, live call per service (no chat completion, no tokens spent)
 curl http://127.0.0.1:8093/health
 
 # check a specific LLM provider
@@ -188,13 +197,13 @@ suite, and `postman/hrb_chatbot.postman_collection.json` for every
 request/response case, happy path and edge case, importable into Postman):
 
 ```powershell
-# upload a real PDF - chunks, embeds, and indexes in the same call (no
+# upload a PDF - chunks, embeds, and indexes in the same call (no
 # separate index step since Phase 26); identity travels as a JSON string in
 # the payload form field, not headers - copy the document_id from the response
 curl -F "files=@resources/kb_docs/AmazingBank_Healthcare_Benefits.pdf;type=application/pdf" -F "payload={\"user_profile\": {\"employee_id\": \"EMP051\", \"full_name\": \"Hana Support\", \"role\": \"hr_support\"}}" http://127.0.0.1:8093/v1/genai-rag/ingest-document/documents
 
-# ask a question - real retrieval + grounded generation (spends: one real
-# embedding call + one real chat completion). Input/output guardrails and
+# ask a question - live retrieval + grounded generation (this spends: one
+# embedding call + one chat completion). Input/output guardrails and
 # conversation memory run on every call (Phase 98's shared guarded-pipeline
 # core) - see docs/agent-reference/RAG-ROADMAP.md for exactly what's in
 curl -X POST http://127.0.0.1:8093/v1/genai-rag-retrieval/query -H "Content-Type: application/json" -d "{\"user_profile\": {\"employee_id\": \"EMP052\", \"full_name\": \"Eddy Employee\", \"role\": \"employee\"}, \"query\": \"How many weeks of parental leave do I get?\"}"
@@ -213,9 +222,9 @@ into Postman - it covers the same happy-path and edge cases as
 README_TEST.md, ready to run against `{{base_url}}` (local or the deployed
 App Runner URL).
 [resources/golden_dataset/golden_dataset.json](resources/golden_dataset/golden_dataset.json)
-has 29 real question/expected-answer pairs grounded in the actual
-`resources/kb_docs/` PDFs, for evaluating whether real answers are grounded
-and correct rather than hallucinated - exercisable against the real query
+has 29 question/expected-answer pairs grounded in the actual
+`resources/kb_docs/` PDFs, for evaluating whether answers are grounded
+and correct rather than hallucinated - exercisable against the live query
 endpoint now.
 
 ### Logging in
@@ -250,7 +259,7 @@ auto-approving itself. `admin` can file requests and view every request
 (`GET /all`) the same way `hr_support` can, but deliberately cannot
 resolve/approve one - that stays an `hr_support`-only action. See
 [docs/dev-reference/hrb_chatbot_v3/agents-and-workflows/request-unpaid-leave/](docs/dev-reference/hrb_chatbot_v3/agents-and-workflows/request-unpaid-leave/)
-(the real built feature's own doc set) and
+(this feature's own doc set) and
 the relevant `docs/agent-reference/RAG-ROADMAP.md` phase entries (search
 for "HITL"/"A2A") for the design. *(Corrected 2026-10-24 - this link
 previously pointed at `docs/dev-reference/react_agents/`, a pre-build
@@ -264,7 +273,7 @@ just the answer text: a `request_id` for correlating with backend logs,
 a `latency_ms` breakdown (retrieval vs. generation vs. live-eval vs.
 decomposition, not just one total number), `token_usage`
 (prompt/completion/total), and `llm_context` - the actual prompt sent to
-the LLM, for real debugging, not a black box. `eval_scores.groundedness`
+the LLM, for actual debugging, not a black box. `eval_scores.groundedness`
 (0.0-1.0) and its verdict (GROUNDED/PARTIAL/HALLUCINATED) are computed live,
 by the same LLM-judge prompt the offline golden-dataset harness uses - so
 "is this answer actually supported by the retrieved context" is answered
@@ -275,7 +284,7 @@ tracks counts, not dollars - no verified per-model price table exists yet
 ## Testing strategy — three tiers, different trust levels
 
 - **Golden dataset** (`resources/golden_dataset/golden_dataset.json`) - 29
-  hand-curated cases, every expected answer pulled directly from the real
+  hand-curated cases, every expected answer pulled directly from the actual
   KB PDFs, not invented. Highest trust. Runs in CI via
   `scripts/run_release_gate.py`, producing a PASS/REVIEW/BLOCK decision on
   groundedness, completeness, and retrieval recall/precision/F1.
@@ -299,10 +308,10 @@ docker buildx build --provenance=false --sbom=false --output type=docker -t hrb-
 docker run --rm --env-file .env -p 8093:8093 hrb-chatbot:local
 ```
 
-Build- and run-verified, including a real deployment to AWS App Runner -
+Build- and run-verified, including a live deployment to AWS App Runner -
 see [docs/agent-reference/AWS-DEVOPS-RUNBOOK.md](docs/agent-reference/AWS-DEVOPS-RUNBOOK.md) for the full
 containerize → ECR → App Runner pipeline, exactly which build flags are
-required and why (three separate real bugs were found and fixed getting
+required and why (three separate bugs were found and fixed getting
 this image to actually run in App Runner, not just build locally), and how
 to review/validate every AWS resource this project provisions.
 
@@ -314,7 +323,7 @@ to review/validate every AWS resource this project provisions.
 branch roles, every CI gate and the threshold it enforces (test pass rate,
 coverage floor, security scanning, and the A/B-testing bar for once
 Phase 8's eval harness exists), and the deployment-testing step that now
-runs after every real deploy.
+runs after every deploy.
 
 ## Running the tests
 

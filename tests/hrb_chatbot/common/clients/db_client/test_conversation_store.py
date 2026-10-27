@@ -112,13 +112,13 @@ async def test_a_nul_byte_in_content_is_stripped_before_the_insert(monkeypatch):
     # Stripping only removes the NUL byte - it can't recover the "ff" the
     # ligature-decoding artifact actually lost, so "o\x00ers" becomes
     # "oers", not "offers". The point is Postgres-safety, not text repair.
-    await store.save_turn("conv-1", "EMP052", "ai", "JPMorgan Chase o\x00ers two dental plan options")
+    await store.save_turn("conv-1", "EMP052", "ai", "Amazing Bank o\x00ers two dental plan options")
 
     assert len(recorded_calls) == 1
     _sql, params = recorded_calls[0]
     saved_content = params[3]
     assert "\x00" not in saved_content
-    assert saved_content == "JPMorgan Chase oers two dental plan options"
+    assert saved_content == "Amazing Bank oers two dental plan options"
 
 
 async def test_content_with_no_nul_byte_is_unchanged(monkeypatch):

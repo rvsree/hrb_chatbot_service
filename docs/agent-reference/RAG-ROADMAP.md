@@ -303,7 +303,7 @@ bugs found the hard way" for why.
     in `db_gateway.vector_store()`.
 
   Verified live, real cost incurred (a few cents, embedding actual PDF
-  text): `POST /rag/documents/{id}/index` on `AmazingBank Healthcare Benefits.pdf`
+  text): `POST /rag/documents/{id}/index` on `Amazing Bank Healthcare Benefits.pdf`
   → 39 real chunks, `action: "insert"`. Re-running the identical call →
   `action: "update"`, `chunks_removed: 0` (nothing stale, same content).
   Then the case that actually proves the update logic, not just its
@@ -313,7 +313,7 @@ bugs found the hard way" for why.
   confirming the old chunks were actually deleted, not left behind
   alongside the new ones. Restored the document to its real 39-chunk
   content afterward. Switched `RAG_VECTOR_DB` to `pinecone`, indexed a
-  second document (`AmazingBank Paid TimeOff.pdf`) → 45 chunks landed in
+  second document (`Amazing Bank Paid TimeOff.pdf`) → 45 chunks landed in
   Pinecone's `hrb_chatbot_kb` namespace while ChromaDB's count stayed at
   39, untouched - confirming the switch actually isolates the two
   backends rather than one silently winning. Re-indexed that same
@@ -636,7 +636,7 @@ later, separate wave once this core is solid.
   **Verified live, real cost incurred** (one real embedding call + one real
   chat completion): asked "How many weeks of paid time off do employees
   get per year?" against a real indexed document
-  (`AmazingBank Paid TimeOff.pdf`) → a correct, grounded answer ("3 to 5 weeks of
+  (`Amazing Bank Paid TimeOff.pdf`) → a correct, grounded answer ("3 to 5 weeks of
   vacation annually based on years of service and pay grade"), traceable
   to the real retrieved chunk text, with `sources` correctly showing the
   real `filename`. Also unit-tested with fakes (no network): 9 tests
@@ -1414,7 +1414,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
   **Verified live, real cost incurred** (not just unit-tested): started
   the app with uvicorn, uploaded a real PDF
-  (`AmazingBank Guild Tuition Assistance.pdf`), then in sequence -
+  (`Amazing Bank Guild Tuition Assistance.pdf`), then in sequence -
   `POST .../index/recursive` → `action: "insert"`, 45 chunks,
   `chunking_strategy: "recursive"` in the response; `POST .../index` (no
   strategy) → `action: "update"`, auto-selected `"recursive"` again (same
@@ -1759,7 +1759,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       could hit, not because it needs a decision before implementing.
 
   **Verified:** the exact reported scenario reproduced live against a real
-  `TestClient` call (upload `AmazingBank Healthcare Benefits.pdf` twice, identical
+  `TestClient` call (upload `Amazing Bank Healthcare Benefits.pdf` twice, identical
   bytes) - first upload `status: "uploaded"`; second `status: "duplicate"`,
   `duplicate_count: 1`, pointing at the first upload's `document_id`, no
   second document created. Full test suite green (89/89 - was 88, minus the
@@ -2021,7 +2021,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   drops it - confirmed by direct test against a real ephemeral Chroma
   client). Live-verified end to end against the real OpenAI extraction
   call, a real Chroma collection, and the real SQLite metadata store
-  (`resources/kb_docs/AmazingBank Guild Tuition Assistance.pdf`): first index -
+  (`resources/kb_docs/Amazing Bank Guild Tuition Assistance.pdf`): first index -
   chunk metadata came back
   `{'doc_type': 'benefits', 'department': None, 'doc_classification':
   'Guild Education benefit program', 'is_current': True, 'chunk_index': 0}`
@@ -2138,7 +2138,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   un-overridable; plus 3 new route-level tests for `use_multi_query`/
   `use_self_query`/`llm_provider`/`applied_filter`). Live-verified against
   real OpenAI + a real indexed document
-  (`resources/kb_docs/AmazingBank Empower 401(k) Savings Plan.pdf`) through the
+  (`resources/kb_docs/Amazing Bank Empower 401(k) Savings Plan.pdf`) through the
   real `/v1/rag-retrieval/query` endpoint: `use_multi_query=true` alone
   retrieved 7 real chunks and generated a grounded answer; `use_self_query`
   alone correctly parsed `{"doc_type": {"$eq": "benefits"}}` and matched 5
@@ -2476,7 +2476,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       - `IndexResponse.document_id` already reports the real, resolved id
         - no contract change needed there; a caller using a filename
           finds out the real id from the response.
-    - **User-visible behavior:** `POST /documents/AmazingBank Healthcare
+    - **User-visible behavior:** `POST /documents/Amazing Bank Healthcare
       Benefits.pdf/index` (URL-encoded) behaves identically to using that
       document's real id, as long as exactly one current document has
       that name.
@@ -2494,7 +2494,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   a filename is 409 naming both ids; unknown filename is still 404;
   filename resolution ignores a superseded document's old name while id
   lookup still reaches it regardless). Live-verified on the real dev DB:
-  `AmazingBank Healthcare Benefits.pdf` genuinely resolves to 8 different current
+  `Amazing Bank Healthcare Benefits.pdf` genuinely resolves to 8 different current
   documents there (accumulated across this whole session's testing) and
   correctly 409s naming all 8 - confirming the ambiguity path against
   real, not synthetic, data. A fresh, unambiguous upload reindexed
@@ -4301,7 +4301,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     real answer, "11 days available" - matches the real data.
   - `"How many weeks of paid parental leave..."` -> agent chose
     `SearchKnowledgeBase` -> real, grounded, accurate answer from the
-    actually-indexed `AmazingBank Paid TimeOff.pdf`.
+    actually-indexed `Amazing Bank Paid TimeOff.pdf`.
   - `"How does the 401k employer match work?"` -> agent correctly chose
     `SearchKnowledgeBase`, searched twice with different phrasing, then
     honestly reported no information found - not a bug, confirmed the
@@ -4529,7 +4529,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
   **Verified live, both endpoints, real multi-turn resolution - not just
   unit tests:**
-  - `single-agentic-rag`: turn 1 asked "What is the AmazingBank 401k match?"
+  - `single-agentic-rag`: turn 1 asked "What is the Amazing Bank 401k match?"
     (2 tool calls, got a real conversation_id back). Turn 2, same
     conversation_id, asked "What was the phone number you just gave me?"
     - agent answered correctly with **0 tool calls, 1 iteration** - the
@@ -4556,7 +4556,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   - **Context:** part of a broader "multimodal chunking/indexing" request
     (text/tables/images) - this piece covers the metadata half. First
     investigated live against a real KB document
-    (`AmazingBank Guild Tuition Assistance.pdf`) before assuming a gap existed:
+    (`Amazing Bank Guild Tuition Assistance.pdf`) before assuming a gap existed:
     confirmed `pypdf`'s plain `extract_text()` already captures a document's
     closing "Document Version: 1.0 / Effective Date: .../ Last Updated:
     .../ Next Review Date: ..." colophon (found on page 20) - this text is
@@ -4613,7 +4613,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   SENT` (3000) characters to the LLM - fine for owner/department/
   doc_category, which are almost always on a title page, but
   author/doc_date/doc_version often sit in a closing colophon instead.
-  Confirmed live on `AmazingBank Guild Tuition Assistance.pdf` (20 pages): its
+  Confirmed live on `Amazing Bank Guild Tuition Assistance.pdf` (20 pages): its
   "Document Version: 1.0" line is on page 20, entirely outside the old
   head-only excerpt - the new fields would have stayed `null` on every
   real document shaped like this. Fixed: `extract_document_metadata()`
@@ -5284,14 +5284,14 @@ Explicitly deferred to a later, separate wave - not part of the above:
   the 401(k) match rate "is not specified in the available information."
   Traced this down, not assumed: isolated the retrieval call for the
   401k-focused sub-query alone, confirmed it returned the wrong document
-  (`AmazingBank Healthcare Benefits.pdf`); then re-ran the *original, already-
+  (`Amazing Bank Healthcare Benefits.pdf`); then re-ran the *original, already-
   verified* golden case 401k-01's exact query through genai-rag's own
   `pipeline.answer_query()` directly (no agents involved at all) and got
   the same wrong result - proving this had nothing to do with the Planner,
   multi-agentic-rag, or anything built in this session. Checked the local
   metadata store directly: only 3 of the 6 KB PDFs the golden dataset
-  assumes were actually indexed locally (`AmazingBank Guild Tuition
-  Assistance.pdf`, `AmazingBank Paid TimeOff.pdf`, `AmazingBank Healthcare
+  assumes were actually indexed locally (`Amazing Bank Guild Tuition
+  Assistance.pdf`, `Amazing Bank Paid TimeOff.pdf`, `Amazing Bank Healthcare
   Benefits.pdf`) - `401k.pdf`/`unpaid_leave.pdf`/`disability.pdf` were
   missing from this local dev index even though all 6 source files exist
   on disk under `resources/kb_docs/`. A local indexing gap, not a code
@@ -5350,7 +5350,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   Phase 67's indexing gap was fixed (see Phase 67's own Verified block),
   the Planner split `multi-agent-same-domain-01`'s same-domain compound
   question into two correctly-focused `vector_kb_agent` tasks
-  (`"JPMorgan Chase 401(k) match percentage policy"` and
+  (`"Amazing Bank 401(k) match percentage policy"` and
   `"tuition assistance amount per year for a master's degree in the Guild
   catalog"`) with **zero changes to `PLANNER_SYSTEM_PROMPT`** - the prompt
   already written in Phase 64 was enough. Both sub-queries then retrieved
@@ -6459,7 +6459,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   scores 0.4969-0.8229) and lowered to `0.45` as a confirmed, data-backed
   stop-gap (not a finished calibration - see `BACKLOG.md`). Final
   end-to-end confirmation: a real `POST /v1/genai-rag/retrieve-document
-  /query` call for "What percentage does JPMorgan Chase match on 401k
+  /query` call for "What percentage does Amazing Bank match on 401k
   contributions?" returned a correct, grounded answer ("matches 100% of
   employee contributions up to 5% of Eligible Compensation after one year
   of service") with 5 correctly-cited sources, scores 0.67-0.70. Milestone
@@ -7775,7 +7775,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     `/health` → `"status":"healthy"` with real OpenAI/Pinecone/SQLite
     checks; a real `POST /v1/genai-rag/retrieve-document/query` ("What
     dental plans are offered?") → correct grounded answer citing
-    `AmazingBank Healthcare Benefits.pdf, chunk 11.0` (MetLife/Delta Dental).
+    `Amazing Bank Healthcare Benefits.pdf, chunk 11.0` (MetLife/Delta Dental).
   - Done on `feature-hrb-chatbot-subdomain`, pushed, **not merged** into
     `develop`/`master` - per this phase's own declared scope.
 
@@ -7897,7 +7897,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     second of the two inserts `conversation_memory.save_turn()` makes).
   - **Root cause:** some PDFs in `resources/kb_docs/` extract ligatures
     (e.g. "offers" → "o\x00ers", already visible in earlier live
-    responses this session, like "JPMorgan Chase o\x00ers two dental
+    responses this session, like "Amazing Bank o\x00ers two dental
     plan options") with an embedded NUL byte instead of the real
     character - a PDF-text-extraction artifact, not a new bug. When an
     LLM's generated answer happens to quote or closely echo that exact
@@ -9046,7 +9046,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
   **Built and verified (not committed - local review pending):** all
   files built per spec, 12 new tests. Verified live via a real query
-  through the full guardrail pipeline: *"JPMorgan Chase provides a
+  through the full guardrail pipeline: *"Amazing Bank provides a
   dollar-for-dollar employer match on employee before-tax and/or Roth
   contributions..."* - no longer masked.
 
@@ -9154,7 +9154,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     too before the fix, same bug class as Phase 109/110's own).
   - Verified live against the real backend for both agentic endpoints,
     not just genai-rag: single-agentic-rag returned **3 real sources**
-    (`AmazingBank Healthcare Benefits.pdf`, real chunk indices) for a dental-plan
+    (`Amazing Bank Healthcare Benefits.pdf`, real chunk indices) for a dental-plan
     question; multi-agentic-rag returned the identical 3 sources for the
     same question (same underlying KB query, different orchestration) -
     both `served_from_cache: false` on the first ask, confirming live
@@ -9363,7 +9363,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     guesses. This repo's own findings: 4 empty dead packages
     (`repo/`, `ai/doc_processing/helper/`, `ai/rag_pipeline/prompts/`,
     `common/clients/mcp_client/`), a byte-identical duplicate KB PDF
-    (`AmazingBank Unpaid TimeOff v1.pdf`), several requirements.txt entries
+    (`Amazing Bank Unpaid TimeOff v1.pdf`), several requirements.txt entries
     with zero imports anywhere in `src/`, and stale/broken links in
     CLAUDE.md's dev-reference section (files moved in commit `967ee13`,
     links never updated). Postman collection and `GET /v1/conversations`
@@ -11935,7 +11935,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   pathologically oversized chunks, degrading retrieval for the one
   document using it.**
   - **Spec:** Reproduced directly, not assumed. User asked `genai-rag`
-    "What is the eligibility waiting period for AmazingBank's tuition
+    "What is the eligibility waiting period for Amazing Bank's tuition
     assistance program?" - got "I don't have that information" (and, in
     a different pipeline mode, a raw knowledge-base-dump response citing
     only unrelated documents - `ai/rag_pipeline/tools/agentic_tools.py`'s
@@ -12063,7 +12063,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       deliberately, not a performance regression worth preserving the
       bug for.
     - **Verification plan:** re-run the exact failing query
-      ("eligibility waiting period for AmazingBank's tuition assistance
+      ("eligibility waiting period for Amazing Bank's tuition assistance
       program") against the real `multi-agentic-rag-retrieval` endpoint,
       confirm the answer is a short synthesized response, not the raw
       dump. Add a unit test on `reviewer_agent.review()` with exactly 1
@@ -12105,7 +12105,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 151 — User-reported: genai-rag's MCP keyword fast-path
   silently drops half a compound query** (`"Look up my current PTO
-  balance, and also tell me if AmazingBank offers critical caregiver
+  balance, and also tell me if Amazing Bank offers critical caregiver
   leave."` answers only the PTO-balance half, with the raw MCP JSON as
   the entire response - the caregiver-leave question is never
   acknowledged at all).**
@@ -12182,7 +12182,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       `multi-agent-cross-domain-01`. That case's own `notes` field
       turned out to already document this exact bug as a **Phase 73
       finding, explicitly flagged and never fixed**: its query ("What is
-      the JPMorgan Chase parental leave policy, and what is my current
+      the Amazing Bank parental leave policy, and what is my current
       leave balance?") is genuinely compound, but was labeled
       `call_type: "agent_call"` - meaning "must fully bypass the LLM" -
       which only held true because the old top-level shortcut hijacked
@@ -12206,7 +12206,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     - Restarted the local backend to load the fix. Live-verified against
       the real `genai-rag-retrieval` endpoint: the exact originally-
       failing compound query ("Look up my current PTO balance, and also
-      tell me if AmazingBank offers critical caregiver leave.") now
+      tell me if Amazing Bank offers critical caregiver leave.") now
       correctly answers both halves in one response - PTO balance (11.0
       days available) and the real caregiver-leave policy detail (4
       continuous workweeks, eligibility criteria) - with
@@ -16706,7 +16706,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       BLOCK), while groundedness/completeness scored normally and varied
       (0.1-1.0) - a sign retrieval itself works but the metric comparison
       doesn't. Root cause, confirmed by listing `resources/kb_docs/`:
-      every document was re-ingested under a renamed file (`AmazingBank ...` ->
+      every document was re-ingested under a renamed file (`Amazing Bank ...` ->
       `AmazingBank_...`) on 2026-10-14, old files moved to
       `resources/kb_docs/archived/`, but `golden_dataset.json`'s own
       `_meta.source_documents` mapping was never updated - a real
@@ -18968,6 +18968,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     - **Open questions:** none - user confirmed 2026-10-25: reuse the existing per-call `judge_model` override (already a free-text string parameter) combined with the new `judge_provider` switch, no new env var. `.env`'s `ANTHROPIC_CHAT_MODEL=claude-haiku-4-5` stays the default when no `judge_model` override is given, same resolution pattern the OpenAI path already uses (`resolved_model = judge_model or get_client_gateway().openai_chat().model`, mirrored for Anthropic via `get_client_gateway().anthropic_chat().model`).
 
 - [x] **Phase 257 (done) — Live-query + synthetic-dataset capture, with LTM redefined as quality-gated promotion.** User-directed, 2026-10-26, part of the broader MVP-2 "data layer" milestone agreed this session. **Built and verified, 2026-10-26**: 866/866 tests pass (18 new: 6 for `maybe_capture_live_query()` in `test_eval_threshold.py`, 12 for the 4 new admin routes in `test_manage_admin.py`). `bandit -r src/hrb_chatbot -ll` clean (0 Medium+) - the initial f-string schema-qualified SQL across all 3 new stores tripped bandit's B608 rule (8 locations); rewritten using `psycopg.sql.Identifier`/`SQL` composition instead of a blanket `# nosec`, the real idiomatic-psycopg fix, not a workaround. Real correction found during implementation, not assumed: `eval_scores` are computed in each pipeline's own calling code *after* `run_guarded_pipeline()` returns, not inside it - the spec's original "single hook point inside `run_guarded_pipeline()`" was wrong; fixed by adding one shared `maybe_capture_live_query()` helper (in `ai/rag_core/eval_threshold.py`, alongside `build_eval_scores()`) called from all 3 pipelines' own call sites, same shared-helper pattern `build_eval_scores()` itself already established, not 3 separate implementations.
+  - **2026-10-27 addendum - generation step widened, user-directed:** the follow-up generator (`scripts/generate_synthetic_dataset.py`, added 2026-10-27, 14/14 cases run live successfully) originally produced a fixed 3-turn conversation per topic. Widened same day to 3-to-4 turns (LLM's own choice per topic), with one turn in each conversation required to be a complex multi-part question (two sub-questions stacked into one message) rather than only simple single-intent follow-ups - stored cases now carry `turn_count` in `raw_case` alongside `turns`. Access confirmed unchanged: `GET /v1/admin/manage-admin/synthetic-dataset` is `require_role(user_profile, Role.ADMIN)`-gated, and `admin` login needs the project owner's own secret code - no other identity can list or read this dataset.
   - **Spec:**
     - **Context:** this project has `golden_dataset_store.py` (hand-curated, human-verified test cases) but nothing for (a) real production queries, or (b) programmatically-generated synthetic test cases - both discussed this session as distinct dataset categories. Separately, the user wanted a quality-threshold (score > 0.8) capture mechanism under a new "Settings -> Memory -> STM/LTM" UI area. Investigation found STM (`stm_cache.py`, Phase 247) and LTM (today: just `conversation_store.py`, the durable record of *every* turn, good or bad) already mean something unrelated to answer quality - STM is a pure performance cache, LTM is "remember everything so the conversation stays coherent." Redefining LTM to mean "only save answers scoring >0.8" would break multi-turn coherence if applied to the real conversation-memory table (a turn that scored low would vanish from history, and the bot would lose context on what was actually said). **Resolved with the user, 2026-10-26:** `conversation_store.py` keeps its exact current behavior unchanged (every turn, unconditionally - this is NOT what gets renamed or touched); "LTM" becomes a new, separate, additive concept - a curated store holding only high-quality live queries, which is the same underlying feature as the "capture live queries into a dataset" idea from the MVP-2 plan. One feature, not two.
     - **Data/API contracts:** two new Postgres tables, new schema `hrb_query_capture` (continuing the schema-per-domain convention from Phase 251), each with its own `*_store.py` client following `golden_dataset_store.py`'s exact pattern (psycopg + `asyncio.to_thread()`, `CREATE TABLE IF NOT EXISTS`):
