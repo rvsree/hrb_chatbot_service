@@ -1,5 +1,6 @@
 """Checks a generated answer against NeMo Guardrails' output rails (Gate 6) - faithfulness is DeepEval's job."""
 
+from src.hrb_chatbot.ai.rag_core.company_name_filter import contains_real_company_reference
 from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import (
     activated_rails_to_dicts,
     get_rails,
@@ -39,6 +40,18 @@ async def check_output(query: str, answer: str, guardrails_model: str | None = N
         return SAFE_FALLBACK_ANSWER, {
             "status": "blocked",
             "rail": blocking_rail,
+            "activated_rails": activated_rails_to_dicts(activated_rails),
+            "model_used": resolved_model,
+        }
+
+    # Final gate, after NeMo's own rails have already run - catches a real
+    # company name the LLM volunteered even when nothing in the query
+    # triggered it (see RAG-ROADMAP.md Phase 263's own probe findings).
+    if contains_real_company_reference(result_content):
+        logger.warning("Output blocked by guardrail real_company_name_check")
+        return SAFE_FALLBACK_ANSWER, {
+            "status": "blocked",
+            "rail": "real_company_name_check",
             "activated_rails": activated_rails_to_dicts(activated_rails),
             "model_used": resolved_model,
         }

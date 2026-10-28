@@ -6,6 +6,7 @@ from pathlib import Path
 
 from nemoguardrails import LLMRails, RailsConfig
 
+from src.hrb_chatbot.ai.rag_core.company_name_filter import contains_real_company_reference
 from src.hrb_chatbot.ai.search_pre_processing.safe_terms import protect_known_safe_terms
 from src.hrb_chatbot.common.config.settings import read_setting
 from src.hrb_chatbot.common.logging.logger import get_logger
@@ -106,6 +107,10 @@ async def check_input(query: str, guardrails_model: str | None = None) -> tuple[
     activated rail with stop=True) replicates check_async()'s own real
     logic - verified simple and self-contained, not a dependency on NeMo's
     private helper functions."""
+    if contains_real_company_reference(query):
+        logger.warning("Input blocked by guardrail real_company_name_check")
+        raise GuardrailBlockedError("This request was blocked by a safety check (real_company_name_check).")
+
     resolved_model = resolve_guardrails_model(guardrails_model)
     protected_query = protect_known_safe_terms(query)
     response = await get_rails(resolved_model).generate_async(

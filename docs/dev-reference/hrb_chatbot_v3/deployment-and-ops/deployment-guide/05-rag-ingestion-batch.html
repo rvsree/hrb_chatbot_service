@@ -102,7 +102,7 @@ flowchart TD
 <script>mermaid.initialize({ startOnLoad: true, theme: "neutral" });</script>
 
 <h2>Presigned URLs — how they actually work</h2>
-<p>A presigned URL is a normal S3 URL with extra query-string parameters (a signature, an expiry timestamp, which AWS credential signed it) appended by AWS's own SDK — generated entirely <strong>server-side</strong>, using this project's own backend credentials, handed to the client as a plain string. The client then uploads directly to that URL with a plain HTTP <code>PUT</code> (or <code>POST</code> for the form-field variant) — no AWS SDK, no AWS credentials, nothing AWS-specific required on the client at all. It works exactly like you'd have built it at JPMorgan (DARCE/UMA) — same mechanism, same reason: keep large file bytes off your own application server.</p>
+<p>A presigned URL is a normal S3 URL with extra query-string parameters (a signature, an expiry timestamp, which AWS credential signed it) appended by AWS's own SDK — generated entirely <strong>server-side</strong>, using this project's own backend credentials, handed to the client as a plain string. The client then uploads directly to that URL with a plain HTTP <code>PUT</code> (or <code>POST</code> for the form-field variant) — no AWS SDK, no AWS credentials, nothing AWS-specific required on the client at all. It works exactly like you'd have built it at a large enterprise financial platform — same mechanism, same reason: keep large file bytes off your own application server.</p>
 
 <pre><code># Server-side (Lambda-free, just boto3 in the FastAPI app):
 import boto3
