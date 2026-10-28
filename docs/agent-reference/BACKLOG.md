@@ -124,7 +124,7 @@ resolved; `❖` marks something still genuinely open.
   the hosting platform. One thing surfaced worth remembering: the deep
   health check passed using an ambient personal AWS credential already on
   this machine (`~/.aws/credentials`, identity `BedrockAgentCore`,
-  account `418884736369`), not anything this project configured - see
+  account `<AWS_ACCOUNT_ID>`), not anything this project configured - see
   Phase 9 in `docs/agent-reference/RAG-ROADMAP.md` for the full account/permissions finding.
   `ask_with_tools()`'s tool-format conversion is still untested against a
   real tool call.

@@ -91,7 +91,7 @@ def build_deployment_view(prs):
          "hrb-chatbot-kb-uploads bucket \u2192 ObjectCreated \u2192 hrb-chatbot-ingest-queue/-dlq \u2192 the Lambda above \u2013 additive alongside the still-live synchronous upload (Phase 89)",
          SLATE_DARK, SLATE_MED),
     ]
-    y = zone_band(slide, "AWS \u2013 the real deployables (us-east-1, account 418884736369)", y, aws, panel_h=870000) + 100000
+    y = zone_band(slide, "AWS \u2013 the real deployables (us-east-1, account <AWS_ACCOUNT_ID>)", y, aws, panel_h=870000) + 100000
 
     xs, bw = even_columns(227000, 11938000, 5)
     external = [
@@ -135,7 +135,7 @@ def build_deploy_pipelines(prs):
         (xs[5], bw, AGENT_FILL, AGENT_LINE, "poll + smoke test", "poll Service.Status for RUNNING, then curl --fail /ping on the live URL", SLATE_DARK, SLATE_MED),
     ]
     bottom1 = [
-        (xs[2], (xs[3] + bw) - xs[2], "ECR", "418884736369.dkr.ecr.../hrb-chatbot"),
+        (xs[2], (xs[3] + bw) - xs[2], "ECR", "<AWS_ACCOUNT_ID>.dkr.ecr.../hrb-chatbot"),
         (xs[4], (xs[5] + bw) - xs[4], "App Runner", "hrb-chatbot, 1 running service"),
     ]
     y = swim_lane(slide, "1 \u00b7 hrb-chatbot \u2013 the one real, automated CI/CD pipeline", 870000, top1, bottom1)

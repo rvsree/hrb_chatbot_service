@@ -299,3 +299,27 @@ class McpToolSummary(BaseModel):
 class McpToolCatalogResponse(BaseModel):
     tools: list[McpToolSummary]
     error: str | None
+
+
+class AwsDemoServiceStatus(BaseModel):
+    """Phase 261 - one App Runner service's current state. `status` is
+    whatever aws apprunner describe-service reports verbatim (RUNNING/
+    PAUSED/OPERATION_IN_PROGRESS/etc.) - not remapped, so the UI shows the
+    same vocabulary the AWS CLI does. `error` is set only when this one
+    service's own AWS call failed - a per-service failure never blocks
+    the other 5 from reporting/acting."""
+
+    service_name: str
+    display_name: str
+    status: str
+    url: str | None
+    error: str | None = None
+
+
+class AwsDemoStatusResponse(BaseModel):
+    services: list[AwsDemoServiceStatus]
+
+
+class AwsDemoActionRequest(BaseModel):
+    user_profile: UserProfile
+    service_names: list[str] | None = None

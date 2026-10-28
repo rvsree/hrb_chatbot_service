@@ -59,11 +59,11 @@ docker buildx create --use
 aws ecr create-repository --repository-name ai-workflows/vacation-planner-observability-01 --region us-east-2
 
 # Login to ECR
-aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin 418884736369.dkr.ecr.us-east-2.amazonaws.com
+aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin <AWS_ACCOUNT_ID>.dkr.ecr.us-east-2.amazonaws.com
 
 # Build and push
-#docker buildx build --platform linux/arm64 -t 418884736369.dkr.ecr.us-east-2.amazonaws.com/ai-workflows/vacation-planner-01:latest --push .
-docker buildx build --platform linux/arm64 -t 418884736369.dkr.ecr.us-east-2.amazonaws.com/ai-workflows/vacation-planner-observability-01:latest --push .
+#docker buildx build --platform linux/arm64 -t <AWS_ACCOUNT_ID>.dkr.ecr.us-east-2.amazonaws.com/ai-workflows/vacation-planner-01:latest --push .
+docker buildx build --platform linux/arm64 -t <AWS_ACCOUNT_ID>.dkr.ecr.us-east-2.amazonaws.com/ai-workflows/vacation-planner-observability-01:latest --push .
 
 ```
 

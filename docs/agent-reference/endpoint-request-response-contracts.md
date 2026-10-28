@@ -1604,3 +1604,64 @@ instead of free text, with no value the backend would reject. Reaches the
 frontend through `hrb_api_gateway_service`'s existing Phase 7
 `checks.backend_service.backend_report` nesting unchanged - no Gateway
 code needed for this field specifically.
+
+## AWS Demo status/resume/pause (Phase 261, "LightSwitch"-style manual App Runner control) — Finalized, backend built and verified 2026-10-27
+
+Three new ADMIN-only routes under `router_manage_admin`, same
+`require_role(user_profile, Role.ADMIN)` gating as every other admin
+route. All 6 of this platform's App Runner services are controllable, not
+just this repo's own - the point is global cost control from one place,
+not a per-repo toggle.
+
+**`GET /v1/admin/manage-admin/aws-demo/status`** - identity via query
+params (Phase 96 pattern, same as every other admin `GET`):
+```json
+{
+  "services": [
+    {"service_name": "hrb-chatbot", "display_name": "Chatbot Backend", "status": "RUNNING", "url": "https://hrb-chatbot.rvsree.dev"},
+    {"service_name": "hrb-api-gateway", "display_name": "API Gateway", "status": "PAUSED", "url": null},
+    {"service_name": "hrb-lms-mcp", "display_name": "MCP Server (Leave Data)", "status": "RUNNING", "url": "https://hrb-lms-mcp.rvsree.dev"},
+    {"service_name": "rag-retrieval-service", "display_name": "RAG Retrieval (standalone)", "status": "PAUSED", "url": null},
+    {"service_name": "rag-ingestion-service", "display_name": "RAG Ingestion", "status": "PAUSED", "url": null},
+    {"service_name": "hrb-platform-components", "display_name": "Platform/Admin", "status": "PAUSED", "url": null}
+  ]
+}
+```
+`status` is whatever `aws apprunner describe-service` reports verbatim
+(`RUNNING`/`PAUSED`/`OPERATION_IN_PROGRESS`/`CREATE_FAILED`/etc.) - not
+remapped, so the UI shows the same vocabulary the AWS CLI does. `url` is
+null while paused (App Runner URLs don't resolve to anything useful in
+that state).
+
+**`POST /v1/admin/manage-admin/aws-demo/resume`** and **`.../pause`** -
+identity in body (standard non-`GET` pattern):
+```json
+{
+  "user_profile": {"employee_id": "...", "full_name": "...", "role": "admin"},
+  "service_names": ["hrb-chatbot"]
+}
+```
+`service_names` omitted or `null` means "all 6." Response is the same
+per-service shape as `/status`, reflecting each service's state
+immediately after the API call returns - which is `OPERATION_IN_PROGRESS`,
+not yet `RUNNING`/`PAUSED` (App Runner's resume/pause calls are
+asynchronous; the UI is expected to poll `/status` afterward, not treat
+this response as the final state).
+
+**Failure modes:** `401`/`403` from `require_role()`, unchanged pattern.
+A single service's AWS API call failing (e.g. `InvalidRequestException`
+from calling `resume` on an already-`RUNNING` service) is captured
+per-service in the response (`{"service_name": "...", "status": "ERROR",
+"error": "..."}`), not a hard `500` that blocks the other 5 services from
+acting. The one failure mode that *does* 500 the whole request: the
+backend's own IAM role lacking `apprunner:ResumeService`/`PauseService`/
+`DescribeService` permission - a real pre-condition for this feature to
+work at all, tracked as an explicit open item below, not assumed granted.
+
+**Config, not hardcoded:** the 6 service ARNs live in a new setting
+(`AWS_DEMO_SERVICE_ARNS`, JSON `{name: arn}`, read the same way every
+other provider config is - `read_setting()`), not as Python constants -
+this repo is public, and ARNs shouldn't be literal source code even
+though they're lower-sensitivity than a credential (same reasoning
+already applied to `docs/agent-reference/AWS-DEVOPS-RUNBOOK.md`'s
+redaction this session).

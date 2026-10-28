@@ -18,6 +18,7 @@ from src.hrb_chatbot.ai.rag_pipeline.tools.mcp_tools import _call_mcp_tool_json,
 from src.hrb_chatbot.api.dependencies import json_error
 from src.hrb_chatbot.api.gateway.rbac import identity_from_query_params, require_role
 from src.hrb_chatbot.common import error_codes
+from src.hrb_chatbot.common.clients.aws_client.apprunner_client import AppRunnerClient
 from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 from src.hrb_chatbot.common.clients.llm_client.client_gateway import get_client_gateway
 from src.hrb_chatbot.common.clients.storage_client.s3_upload_client import (
@@ -37,6 +38,8 @@ from src.hrb_chatbot.models.admin import (
     AdminDocListResponse,
     AdminDocSummary,
     AppSettingResponse,
+    AwsDemoActionRequest,
+    AwsDemoStatusResponse,
     CiStatusResponse,
     EvalRunCaseDetail,
     EvalRunDetail,
@@ -901,3 +904,39 @@ async def get_mcp_tools(user_profile: UserProfile | None = Depends(identity_from
 
     result = await get_mcp_tool_catalog()
     return McpToolCatalogResponse(tools=[McpToolSummary(**tool) for tool in result["tools"]], error=result["error"])
+
+
+@router_manage_admin.get("/aws-demo/status", response_model=AwsDemoStatusResponse)
+async def get_aws_demo_status(user_profile: UserProfile | None = Depends(identity_from_query_params)):
+    """Phase 261 - live status of all 6 App Runner services this platform
+    runs, for the Settings -> AWS Demo tab. Each service's own AWS error
+    is per-service in the response (see AppRunnerClient), never a hard
+    500 that hides the other 5."""
+    require_role(user_profile, Role.ADMIN)
+
+    statuses = await asyncio.to_thread(AppRunnerClient().describe_all)
+    return AwsDemoStatusResponse(services=statuses)
+
+
+@router_manage_admin.post("/aws-demo/resume", response_model=AwsDemoStatusResponse)
+async def resume_aws_demo_services(payload: AwsDemoActionRequest, request: Request):
+    """Phase 261 - resumes all 6 services (service_names omitted) or a
+    subset. App Runner's own resume call is asynchronous - the response
+    here reflects state immediately after the call returns
+    (OPERATION_IN_PROGRESS), not the final RUNNING state; the UI is
+    expected to poll /aws-demo/status afterward."""
+    require_role(payload.user_profile, Role.ADMIN)
+    await enforce_rate_limit(request)
+
+    statuses = await asyncio.to_thread(AppRunnerClient().resume, payload.service_names)
+    return AwsDemoStatusResponse(services=statuses)
+
+
+@router_manage_admin.post("/aws-demo/pause", response_model=AwsDemoStatusResponse)
+async def pause_aws_demo_services(payload: AwsDemoActionRequest, request: Request):
+    """Phase 261 - same contract as /aws-demo/resume, in the other direction."""
+    require_role(payload.user_profile, Role.ADMIN)
+    await enforce_rate_limit(request)
+
+    statuses = await asyncio.to_thread(AppRunnerClient().pause, payload.service_names)
+    return AwsDemoStatusResponse(services=statuses)

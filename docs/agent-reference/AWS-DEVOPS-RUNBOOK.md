@@ -4,7 +4,10 @@ How to review, validate, and reproduce this project's real AWS deployment - from
 local `uvicorn` process to a running container in App Runner - and what to check
 for each AWS service actually involved. Every command below was run for real
 while building Phase 10/11 (see `docs/agent-reference/RAG-ROADMAP.md`), not written from
-documentation alone.
+documentation alone. **Account ID, ARNs, and other real resource
+identifiers are redacted to `<AWS_ACCOUNT_ID>`/`<SERVICE_ID>`-style
+placeholders here on purpose** - this repo is public; the real values live
+in a private ops runbook one level up, not committed to any public repo.
 
 **Read this first if you only read one section**: [What's actually live vs. planned](#whats-actually-live-vs-planned)
 and [Three real bugs found the hard way](#three-real-bugs-found-the-hard-way) -
@@ -19,7 +22,7 @@ runbook doesn't imply something is deployed when it isn't:
 
 | Service | Status | Where |
 |---|---|---|
-| **ECR** | Live | `418884736369.dkr.ecr.us-east-1.amazonaws.com/hrb-chatbot` |
+| **ECR** | Live | `<AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/hrb-chatbot` |
 | **App Runner** | Live, `RUNNING` | see [Resource identifiers](#resource-identifiers) |
 | **Secrets Manager** | Live | 5 secrets, `hrb-chatbot/*` prefix |
 | **IAM (roles + users)** | Live | see [IAM](#iam-roles-and-users) |
@@ -37,12 +40,12 @@ Write these down - they are not derivable from the code, only from AWS itself.
 
 | What | Value |
 |---|---|
-| AWS account | `418884736369`, region `us-east-1` |
-| ECR repository | `418884736369.dkr.ecr.us-east-1.amazonaws.com/hrb-chatbot` |
-| App Runner service ARN | `arn:aws:apprunner:us-east-1:418884736369:service/hrb-chatbot/f957548202f343aa8ca91f341d71d85a` |
-| App Runner URL | `https://mrgysvt6ye.us-east-1.awsapprunner.com` |
-| App Runner access role (ECR pull) | `arn:aws:iam::418884736369:role/hrb-chatbot-apprunner-access-role` |
-| App Runner instance role (app's own AWS calls) | `arn:aws:iam::418884736369:role/hrb-chatbot-apprunner-instance-role` |
+| AWS account | `<AWS_ACCOUNT_ID>`, region `us-east-1` |
+| ECR repository | `<AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/hrb-chatbot` |
+| App Runner service ARN | `arn:aws:apprunner:us-east-1:<AWS_ACCOUNT_ID>:service/hrb-chatbot/<SERVICE_ID>` |
+| App Runner URL | `https://<app-runner-url>.us-east-1.awsapprunner.com` |
+| App Runner access role (ECR pull) | `arn:aws:iam::<AWS_ACCOUNT_ID>:role/hrb-chatbot-apprunner-access-role` |
+| App Runner instance role (app's own AWS calls) | `arn:aws:iam::<AWS_ACCOUNT_ID>:role/hrb-chatbot-apprunner-instance-role` |
 | GitHub Actions deploy user | `hrb-chatbot-github-actions-deploy` (static key, GitHub Secrets only) |
 | Secrets | `hrb-chatbot/OPENAI_API_KEY`, `hrb-chatbot/ANTHROPIC_API_KEY`, `hrb-chatbot/OPENROUTER_API_KEY`, `hrb-chatbot/TAVILY_API_KEY`, `hrb-chatbot/PINECONE_API_KEY` |
 
@@ -182,7 +185,7 @@ work either - don't skip straight to Docker.
 ```bash
 docker buildx build \
   --provenance=false --sbom=false \
-  --output type=image,name=418884736369.dkr.ecr.us-east-1.amazonaws.com/hrb-chatbot:latest,oci-mediatypes=false,push=true \
+  --output type=image,name=<AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/hrb-chatbot:latest,oci-mediatypes=false,push=true \
   .
 ```
 
@@ -202,7 +205,7 @@ docker image inspect hrb-chatbot:local --format "{{.Os}}/{{.Architecture}}"
 To validate what actually got pushed:
 
 ```bash
-docker manifest inspect 418884736369.dkr.ecr.us-east-1.amazonaws.com/hrb-chatbot:latest
+docker manifest inspect <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/hrb-chatbot:latest
 # expect mediaType: "application/vnd.docker.distribution.manifest.v2+json"
 # NOT "application/vnd.oci.image.manifest.v1+json" or an index/manifest-list
 ```
@@ -217,8 +220,8 @@ Manual login, if you need to push a differently-built image:
 
 ```bash
 aws ecr get-login-password --region us-east-1 \
-  | docker login --username AWS --password-stdin 418884736369.dkr.ecr.us-east-1.amazonaws.com
-docker push 418884736369.dkr.ecr.us-east-1.amazonaws.com/hrb-chatbot:latest
+  | docker login --username AWS --password-stdin <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com
+docker push <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/hrb-chatbot:latest
 ```
 
 ### 4. Deploy to App Runner
@@ -229,14 +232,14 @@ itself. Trigger a deployment explicitly:
 
 ```bash
 aws apprunner start-deployment \
-  --service-arn arn:aws:apprunner:us-east-1:418884736369:service/hrb-chatbot/f957548202f343aa8ca91f341d71d85a
+  --service-arn arn:aws:apprunner:us-east-1:<AWS_ACCOUNT_ID>:service/hrb-chatbot/<SERVICE_ID>
 ```
 
 Then watch it:
 
 ```bash
 aws apprunner describe-service \
-  --service-arn arn:aws:apprunner:us-east-1:418884736369:service/hrb-chatbot/f957548202f343aa8ca91f341d71d85a \
+  --service-arn arn:aws:apprunner:us-east-1:<AWS_ACCOUNT_ID>:service/hrb-chatbot/<SERVICE_ID> \
   --query 'Service.Status'
 ```
 

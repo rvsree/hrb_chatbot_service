@@ -2,6 +2,7 @@
 
 from fastapi import HTTPException, Query
 
+from src.hrb_chatbot.api.gateway.activity_tracker import track_activity_if_due
 from src.hrb_chatbot.common.enums import Role
 from src.hrb_chatbot.models.common import UserProfile
 
@@ -37,4 +38,11 @@ def require_role(user_profile: UserProfile | None, *allowed_roles: Role) -> User
             status_code=403,
             detail=f"Role {user_profile.role!r} is not permitted here - requires one of {allowed}",
         )
+    # Phase 262 - every protected route funnels through this point once
+    # identity is confirmed valid; this is the one chokepoint that lets
+    # the idle-timeout auto-pause feature see real usage across the whole
+    # app without instrumenting each route by hand. Deliberately placed
+    # after both checks above, not before - an invalid/unauthorized
+    # request shouldn't count as "someone using the app."
+    track_activity_if_due()
     return user_profile
