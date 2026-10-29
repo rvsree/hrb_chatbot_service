@@ -11,6 +11,7 @@ from src.hrb_chatbot.common.clients.db_client.base_vector_db_client import BaseV
 from src.hrb_chatbot.common.clients.db_client.chat_workflow_store import ChatWorkflowStore
 from src.hrb_chatbot.common.clients.db_client.chroma_client import ChromaDBClient
 from src.hrb_chatbot.common.clients.db_client.conversation_store import ConversationStore
+from src.hrb_chatbot.common.clients.db_client.demo_visitor_store import DemoVisitorStore
 from src.hrb_chatbot.common.clients.db_client.doc_metadata_store import DocMetadataStore
 from src.hrb_chatbot.common.clients.db_client.eval_run_store import EvalRunStore
 from src.hrb_chatbot.common.clients.db_client.faq_submission_store import FaqSubmissionStore
@@ -60,6 +61,7 @@ class DBGateway:
         self.live_query_store_client = None
         self.synthetic_dataset_store_client = None
         self.app_settings_store_client = None
+        self.demo_visitor_store_client = None
 
     def chroma(self) -> ChromaDBClient:
         # Return the shared ChromaDB client, building it on first use.
@@ -147,6 +149,12 @@ class DBGateway:
         if self.live_query_store_client is None:
             self.live_query_store_client = LiveQueryStore()
         return self.live_query_store_client
+
+    def demo_visitor_store(self) -> DemoVisitorStore:
+        """Return the shared demo-visitor tracking store, building it on first use (Phase 265)."""
+        if self.demo_visitor_store_client is None:
+            self.demo_visitor_store_client = DemoVisitorStore()
+        return self.demo_visitor_store_client
 
     def synthetic_dataset_store(self) -> SyntheticDatasetStore:
         """Return the shared synthetic-dataset store, building it on first use (Phase 257)."""

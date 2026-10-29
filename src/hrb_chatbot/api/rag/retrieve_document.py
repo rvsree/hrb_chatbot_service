@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Request
 
+from src.hrb_chatbot.ai.rag_core.demo_query_limiter import DemoQueryLimitExceededError
 from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import GuardrailBlockedError
 from src.hrb_chatbot.ai.rag_pipeline import pipeline
 from src.hrb_chatbot.api.dependencies import json_error
@@ -12,9 +13,11 @@ from src.hrb_chatbot.common.logging.logger import get_logger
 from src.hrb_chatbot.common.observability.response_metrics import time_and_log
 from src.hrb_chatbot.common.rag_query_params import RagQueryParams
 from src.hrb_chatbot.common.rate_limiting.rate_limiter import enforce_rate_limit
+from src.hrb_chatbot.common.utils.request_ip import resolve_client_ip
 from src.hrb_chatbot.models.common import ToolCallInfo
 from src.hrb_chatbot.models.rag import (
     AnswerInfo,
+    DemoLimitInfo,
     EvalScores,
     ExplainabilityInfo,
     LatencyInfo,
@@ -31,7 +34,8 @@ router_retrieve_document = APIRouter(tags=["query"])
 
 
 def _params_from_request(
-    payload: RagQueryRequest, employee_id: str | None = None, role: str | None = None, department: str | None = None
+    payload: RagQueryRequest, employee_id: str | None = None, role: str | None = None, department: str | None = None,
+    full_name: str | None = None, ip_address: str | None = None, timezone: str | None = None,
 ) -> RagQueryParams:
     """Map the nested request into the flat dataclass ai/rag_pipeline/ actually uses."""
     search_options = payload.search_options
@@ -54,6 +58,9 @@ def _params_from_request(
         employee_id=employee_id,
         role=role,
         department=department,
+        full_name=full_name,
+        ip_address=ip_address,
+        timezone=timezone,
         enable_conversation_memory=payload.enable_conversation_memory,
         conversation_id=payload.conversation_id,
         judge_model=eval_options.judge_model if eval_options else None,
@@ -64,9 +71,10 @@ def _params_from_request(
 
 
 async def _answer_query(
-    payload: RagQueryRequest, employee_id: str | None = None, role: str | None = None, department: str | None = None
+    payload: RagQueryRequest, employee_id: str | None = None, role: str | None = None, department: str | None = None,
+    full_name: str | None = None, ip_address: str | None = None, timezone: str | None = None,
 ) -> RagQueryResponse | object:
-    params = _params_from_request(payload, employee_id, role, department)
+    params = _params_from_request(payload, employee_id, role, department, full_name, ip_address, timezone)
     try:
         result = await time_and_log(
             "/v1/genai-rag-retrieval/query",
@@ -78,6 +86,8 @@ async def _answer_query(
         return json_error(501, str(error), code=error_codes.NOT_IMPLEMENTED)
     except GuardrailBlockedError as error:
         return json_error(422, str(error), code=error_codes.INPUT_GUARDRAIL_BLOCKED)
+    except DemoQueryLimitExceededError as error:
+        return json_error(429, str(error), code=error_codes.DEMO_QUERY_LIMIT_REACHED)
     except ValueError as error:
         return json_error(422, str(error), code=error_codes.VALIDATION_ERROR)
     except Exception as error:
@@ -114,6 +124,7 @@ async def _answer_query(
         ),
         tools_used=[ToolCallInfo(**call) for call in result.get("tools_used", [])],
         conversation_id=result.get("conversation_id"),
+        demo_limit=DemoLimitInfo(**result["demo_limit"]) if result.get("demo_limit") else None,
     )
 
 
@@ -122,5 +133,11 @@ async def query(payload: RagQueryRequest, request: Request):
     userProfile = require_role(payload.user_profile, Role.EMPLOYEE, Role.MANAGER, Role.HR_SUPPORT, Role.ADMIN)
     await enforce_rate_limit(request)
     return await _answer_query(
-        payload, employee_id=userProfile.employee_id, role=userProfile.role, department=userProfile.department
+        payload,
+        employee_id=userProfile.employee_id,
+        role=userProfile.role,
+        department=userProfile.department,
+        full_name=userProfile.full_name,
+        ip_address=resolve_client_ip(request),
+        timezone=userProfile.timezone,
     )

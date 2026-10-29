@@ -109,6 +109,48 @@ class LiveQueryListResponse(BaseModel):
     queries: list[LiveQuerySummary]
 
 
+class AdminDeleteLiveQueryResponse(BaseModel):
+    id: int
+    deleted: bool
+
+
+class DemoVisitorSummary(BaseModel):
+    """Phase 265 - one tracked demo-conversation visitor."""
+
+    conversation_id: str
+    employee_id: str | None
+    full_name: str | None
+    role: str | None
+    ip_address: str | None
+    timezone: str | None
+    query_count: int
+    waiver_count: int
+    effective_limit: int
+    last_query_at: str | None
+    created_at: str
+    updated_at: str
+
+
+class DemoVisitorListResponse(BaseModel):
+    count: int
+    visitors: list[DemoVisitorSummary]
+
+
+class AdminDeleteDemoVisitorResponse(BaseModel):
+    conversation_id: str
+    deleted: bool
+
+
+class GrantWaiverRequest(BaseModel):
+    user_profile: UserProfile
+
+
+class GrantWaiverResponse(BaseModel):
+    conversation_id: str
+    waiver_count: int
+    effective_limit: int
+
+
 class SyntheticDatasetCaseSummary(BaseModel):
     """Phase 257 - one synthetic (generated) test case. Same shape as
     GoldenDatasetCaseSummary deliberately - different source (generated,

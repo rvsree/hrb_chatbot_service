@@ -11,6 +11,7 @@ from tests.conftest import (
     FakeAppSettingsStore,
     FakeConversationStore,
     FakeDBGateway,
+    FakeDemoVisitorStore,
     FakeDocMetadataStore,
     FakeEvalRunStore,
     FakeFaqSubmissionStore,
@@ -1199,6 +1200,41 @@ def test_admin_lists_live_queries(monkeypatch):
     assert body["count"] == 2
 
 
+def test_non_admin_cannot_delete_a_live_query(monkeypatch):
+    response = client.request("DELETE", "/v1/admin/live-queries/1", json={"user_profile": EMPLOYEE_PROFILE})
+    assert response.status_code == 403
+
+
+def test_admin_deletes_a_live_query(monkeypatch):
+    store = FakeLiveQueryStore(
+        [
+            {
+                "id": 1, "query_text": "deductible?", "answer_text": "$500", "pipeline": "genai-rag",
+                "request_id": "req-1", "employee_id": "EMP052", "eval_score": 0.8, "is_ltm": True,
+                "category": None, "created_at": "2026-10-26T00:00:00Z",
+            },
+        ]
+    )
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(live_query_store=store))
+
+    response = client.request("DELETE", "/v1/admin/live-queries/1", json={"user_profile": ADMIN_PROFILE})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {"id": 1, "deleted": True}
+
+
+def test_admin_deleting_an_unknown_live_query_reports_not_deleted(monkeypatch):
+    store = FakeLiveQueryStore([])
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(live_query_store=store))
+
+    response = client.request("DELETE", "/v1/admin/live-queries/999", json={"user_profile": ADMIN_PROFILE})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {"id": 999, "deleted": False}
+
+
 def test_admin_filters_live_queries_by_is_ltm(monkeypatch):
     store = FakeLiveQueryStore(
         [
@@ -1222,6 +1258,104 @@ def test_admin_filters_live_queries_by_is_ltm(monkeypatch):
     body = response.json()
     assert body["count"] == 1
     assert body["queries"][0]["id"] == 1
+
+
+def test_non_admin_cannot_list_demo_visitors(monkeypatch):
+    response = client.get("/v1/admin/demo-visitors", params=EMPLOYEE_PROFILE)
+    assert response.status_code == 403
+
+
+def test_admin_lists_demo_visitors(monkeypatch):
+    store = FakeDemoVisitorStore(
+        {
+            "conv-1": {
+                "conversation_id": "conv-1", "employee_id": "EMP052", "full_name": "Eddy Employee",
+                "role": "employee", "ip_address": "1.2.3.4", "timezone": "America/New_York",
+                "query_count": 5, "waiver_count": 0,
+                "last_query_at": "2026-10-28T12:00:00Z",
+                "created_at": "2026-10-28T11:00:00Z", "updated_at": "2026-10-28T12:00:00Z",
+            }
+        }
+    )
+    monkeypatch.setattr(
+        manage_admin, "get_db_gateway",
+        lambda: FakeDBGateway(demo_visitor_store=store, app_settings_store=FakeAppSettingsStore({"demo_query_limit": 15})),
+    )
+
+    response = client.get("/v1/admin/demo-visitors", params=ADMIN_PROFILE)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] == 1
+    assert body["visitors"][0]["conversation_id"] == "conv-1"
+    assert body["visitors"][0]["query_count"] == 5
+    assert body["visitors"][0]["effective_limit"] == 15
+
+
+def test_non_admin_cannot_delete_a_demo_visitor(monkeypatch):
+    response = client.request("DELETE", "/v1/admin/demo-visitors/conv-1", json={"user_profile": EMPLOYEE_PROFILE})
+    assert response.status_code == 403
+
+
+def test_admin_deletes_a_demo_visitor(monkeypatch):
+    store = FakeDemoVisitorStore(
+        {
+            "conv-1": {
+                "conversation_id": "conv-1", "employee_id": "EMP052", "full_name": "Eddy Employee",
+                "role": "employee", "ip_address": "1.2.3.4", "timezone": "America/New_York",
+                "query_count": 5, "waiver_count": 0,
+                "last_query_at": "2026-10-28T12:00:00Z",
+                "created_at": "2026-10-28T11:00:00Z", "updated_at": "2026-10-28T12:00:00Z",
+            }
+        }
+    )
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(demo_visitor_store=store))
+
+    response = client.request("DELETE", "/v1/admin/demo-visitors/conv-1", json={"user_profile": ADMIN_PROFILE})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {"conversation_id": "conv-1", "deleted": True}
+
+
+def test_admin_deleting_an_unknown_demo_visitor_reports_not_deleted(monkeypatch):
+    store = FakeDemoVisitorStore({})
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(demo_visitor_store=store))
+
+    response = client.request("DELETE", "/v1/admin/demo-visitors/conv-unknown", json={"user_profile": ADMIN_PROFILE})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {"conversation_id": "conv-unknown", "deleted": False}
+
+
+def test_non_admin_cannot_grant_a_demo_waiver(monkeypatch):
+    response = client.post(
+        "/v1/admin/demo-visitors/conv-1/grant-waiver",
+        json={"user_profile": EMPLOYEE_PROFILE},
+    )
+    assert response.status_code == 403
+
+
+def test_admin_grants_a_demo_waiver(monkeypatch):
+    store = FakeDemoVisitorStore(
+        {"conv-1": {"conversation_id": "conv-1", "query_count": 15, "waiver_count": 0}}
+    )
+    monkeypatch.setattr(
+        manage_admin, "get_db_gateway",
+        lambda: FakeDBGateway(demo_visitor_store=store, app_settings_store=FakeAppSettingsStore({"demo_query_limit": 15})),
+    )
+
+    response = client.post(
+        "/v1/admin/demo-visitors/conv-1/grant-waiver",
+        json={"user_profile": ADMIN_PROFILE},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["conversation_id"] == "conv-1"
+    assert body["waiver_count"] == 15
+    assert body["effective_limit"] == 30
 
 
 def test_non_admin_cannot_list_synthetic_dataset(monkeypatch):

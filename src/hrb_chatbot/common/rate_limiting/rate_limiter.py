@@ -10,6 +10,7 @@ from fastapi import HTTPException, Request
 
 from src.hrb_chatbot.common.config.settings import read_setting
 from src.hrb_chatbot.common.logging.logger import get_logger
+from src.hrb_chatbot.common.utils.request_ip import resolve_client_ip
 
 logger = get_logger("rate_limiter")
 
@@ -103,10 +104,10 @@ def reset_rate_limiter() -> None:
 
 
 async def enforce_rate_limit(request: Request) -> None:
-    """Call directly from a route body to rate-limit it - keys on the caller's IP, or "unknown"."""
-    if request.client:
-        client_key = request.client.host
-    else:
-        client_key = "unknown"
-
+    """Call directly from a route body to rate-limit it - keys on the caller's
+    real IP (Phase 266 - resolve_client_ip(), not the bare request.client.host
+    this used before: behind a reverse proxy like AWS App Runner, that was the
+    proxy's own address, so every real caller behind it would have keyed to
+    the same bucket), or "unknown"."""
+    client_key = resolve_client_ip(request) or "unknown"
     await get_rate_limiter().check(client_key)

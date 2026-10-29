@@ -298,6 +298,9 @@ async def run_multi_agent(
     department: str | None = None,
     planner_model: str | None = None,
     guardrails_model: str | None = None,
+    full_name: str | None = None,
+    ip_address: str | None = None,
+    timezone: str | None = None,
 ) -> dict:
     """Runs the Planner -> Orchestration -> domain agents -> Reviewer graph for one query.
     Guardrails run here, same layer as genai-rag's pipeline.answer_query() - the route
@@ -442,6 +445,7 @@ async def run_multi_agent(
         checked_query, employee_id, enable_conversation_memory, conversation_id, generate,
         pre_checked_query=checked_query, pre_checked_input_status=input_guardrail_status,
         guardrails_model=guardrails_model,
+        full_name=full_name, role=role, ip_address=ip_address, timezone=timezone,
     )
     result["query"] = checked_query
 

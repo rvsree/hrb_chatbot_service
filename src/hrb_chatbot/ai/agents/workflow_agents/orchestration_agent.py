@@ -166,6 +166,9 @@ async def run_agent(
     role: str | None = None,
     department: str | None = None,
     guardrails_model: str | None = None,
+    full_name: str | None = None,
+    ip_address: str | None = None,
+    timezone: str | None = None,
 ) -> dict:
     """Runs the tool-calling loop for one query - guardrailed and memory-
     tracked via the Phase 98 shared core (previously had neither: no
@@ -341,6 +344,7 @@ async def run_agent(
     result = await run_guarded_pipeline(
         normalized_query, employee_id, enable_conversation_memory, conversation_id, generate,
         guardrails_model=guardrails_model,
+        full_name=full_name, role=role, ip_address=ip_address, timezone=timezone,
     )
 
     # Phase 173 - so a caller can show what was actually processed (post-

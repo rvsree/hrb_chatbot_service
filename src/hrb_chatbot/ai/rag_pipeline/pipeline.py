@@ -484,6 +484,10 @@ async def answer_query(params: RagQueryParams, request_id: str | None = None) ->
         pre_checked_query=checked_query,
         pre_checked_input_status=input_guardrail_status,
         guardrails_model=params.guardrails_model,
+        full_name=params.full_name,
+        role=params.role,
+        ip_address=params.ip_address,
+        timezone=params.timezone,
     )
     result["eval_scores"], result["latency_ms"]["eval"] = await _score_live_answer(
         checked_query, result["answer"], result["sources"],

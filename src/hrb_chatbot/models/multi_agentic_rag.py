@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from src.hrb_chatbot.models.common import ToolCallInfo
 from src.hrb_chatbot.models.common import UserProfile
-from src.hrb_chatbot.models.rag import ClassificationOptions, EvalOptions, ExplainabilityInfo, RetrievedChunk
+from src.hrb_chatbot.models.rag import ClassificationOptions, DemoLimitInfo, EvalOptions, ExplainabilityInfo, RetrievedChunk
 
 
 class MultiAgenticRagRequest(BaseModel):
@@ -82,4 +82,7 @@ class MultiAgenticRagResponse(BaseModel):
         description="Phase 240 - set only when this model is returned from POST /v1/rag-retrieval/query "
         "(the auto-router, including an escalation from single-agentic-rag). Null on this endpoint's own "
         "direct, forced-mode calls.",
+    )
+    demo_limit: DemoLimitInfo | None = Field(
+        None, description="Phase 265 - null for an exempt caller (ADMIN/EMPLOYEE_ADMIN/HR_SUPPORT)."
     )

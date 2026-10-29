@@ -1665,3 +1665,98 @@ this repo is public, and ARNs shouldn't be literal source code even
 though they're lower-sensitivity than a credential (same reasoning
 already applied to `docs/agent-reference/AWS-DEVOPS-RUNBOOK.md`'s
 redaction this session).
+
+## Demo query limit + visitor tracking (Phase 265) - Finalized
+
+**Why:** this project's live demo has no real authentication (gateway
+identity is self-asserted, per this file's own standing note elsewhere)
+and is linked from real outreach emails to recruiters/companies - an
+unbounded number of LLM calls per visitor is a real, unmanaged cost
+exposure. This phase adds a per-conversation query cap, a harder
+per-IP-per-day backstop (identity is spoofable, IP less so), an admin-only
+visibility view of who's using the demo, and an admin-only override to
+waive the cap for a specific visitor (e.g., during a live interview demo).
+
+**New Postgres table**, `hrb_query_capture.demo_visitors` - deliberately
+NOT an extension of the existing `live_queries` table. `live_queries`
+capture is fire-and-forget, gated on groundedness eval having actually run
+(`maybe_capture_live_query()` no-ops if `eval_scores`/`groundedness` is
+`None`, and silently swallows any capture failure) - confirmed by reading
+the function directly, not assumed. That's the right tradeoff for its own
+job (eval/LTM sampling) and the wrong one for enforcing a hard limit, which
+must count every attempt unconditionally. One row per `conversation_id`:
+
+```
+conversation_id    text PRIMARY KEY
+employee_id         text
+full_name           text   -- self-asserted, same as everywhere else
+role                 text
+ip_address           text
+timezone             text  NULL -- browser-reported, see frontend note below
+query_count          integer NOT NULL DEFAULT 0
+waiver_count         integer NOT NULL DEFAULT 0   -- total extra queries granted, +15 per admin click
+last_query_at         timestamptz
+created_at            timestamptz NOT NULL DEFAULT now()
+updated_at            timestamptz NOT NULL DEFAULT now()
+```
+
+`query_count` incremented via a single atomic
+`INSERT ... ON CONFLICT (conversation_id) DO UPDATE SET query_count = demo_visitors.query_count + 1 ... RETURNING query_count, waiver_count`
+- never read-then-write, so two near-simultaneous requests can't both slip
+through at the boundary.
+
+**Second, harder cap - Redis, not Postgres:** `demo_ip_limit:{ip}:{yyyy-mm-dd}`,
+atomic `INCR` + `EXPIRE` set explicitly to end-of-day on first increment
+(not the previous session's rate-limiter bug of never setting a TTL at
+all - found and flagged, not fixed, in Phase 263). Employee ID/name/role
+are self-asserted and free to change per conversation; IP is the one signal
+here that isn't.
+
+**New `app_settings` keys** (existing generic `GET/PUT /v1/admin/app-settings/{key}`
+route, same pattern as `ltm_score_threshold` - no new endpoint needed):
+`demo_query_limit` (int, default `15`), `demo_query_limit_per_ip_per_day`
+(int, default `50`).
+
+**`POST /v1/genai-rag-retrieval/query` (and the other 2 modes' own query
+routes) - unchanged request shape, response gains one field:**
+`"demo_limit": {"query_count": int, "effective_limit": int, "remaining": int} | null`
+- `null` when the demo-limit check is disabled/not applicable (e.g.,
+admin/hr_support roles are exempt - see Out of scope). Lets the frontend
+show "N questions remaining" proactively, not just react to a block.
+
+**Blocked response** - a new, distinct error, not reused from the
+guardrails path (this is a cost cap, not a safety check, and conflating
+the two in the message would mislead a legitimate visitor):
+`{"error": "You have reached the demo limit of N questions for this
+session. This is a demo environment with a capped number of questions per
+visitor.", "code": "DEMO_QUERY_LIMIT_REACHED"}`, HTTP 429. Decided:
+message states the limit is a *demo* constraint (honest), does not mention
+that an admin can override it (no reason to advertise that mechanism to
+an anonymous visitor).
+
+**New admin routes**, both ADMIN only, query-param identity (Phase 96,
+same as every other admin GET route - `grant-waiver` is the one exception
+needing a body since it's not idempotent-safe as a GET, same reasoning
+`ingest_document.py`'s own DELETE routes already established for body vs
+query-param identity):
+- `GET /v1/admin/demo-visitors` → `{"count": int, "visitors": [{"conversation_id", "employee_id", "full_name", "role", "ip_address", "timezone", "query_count", "waiver_count", "effective_limit", "last_query_at", "created_at"}]}`
+- `POST /v1/admin/demo-visitors/{conversation_id}/grant-waiver` (body: `{"user_profile": {...admin's own...}}`, same shape as every other POST/DELETE admin action) → `{"conversation_id": str, "waiver_count": int, "effective_limit": int}` - each call adds 15, repeatable.
+
+**Frontend - timezone:** captured once via `Intl.DateTimeFormat().resolvedOptions().timeZone`
+at login, sent as part of the existing `user_profile` payload (a new
+optional field, not a new request) - the only accurate source; there is no
+reliable server-side way to infer it (confirmed this session - it isn't in
+standard HTTP headers, and IP-geolocation is a third-party dependency for
+a rough guess, not the visitor's real timezone).
+
+**Frontend - Submit button:** deliberately stays enabled always, never
+disabled client-side. A blocked attempt renders through the same
+`.error-banner` path a guardrail block already uses (proven in
+`e2e/jpmc-leak-and-guardrails.spec.ts`), not a greyed-out control. Chosen
+specifically to avoid a real-time sync problem: the admin granting a
+waiver happens in a *different* browser session than the visitor's; if
+Submit were disabled client-side, re-enabling it after a waiver would need
+polling or a websocket push - real infrastructure for a personal-project
+demo gate. With Submit always clickable, the waiver takes effect the
+moment the visitor's next click reaches the server - no sync mechanism
+needed at all.

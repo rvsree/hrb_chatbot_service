@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 
 from langchain_core.messages import BaseMessage
 
+from src.hrb_chatbot.ai.rag_core.demo_query_limiter import DemoQueryLimitExceededError, check_and_record
 from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
 from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import check_input
 from src.hrb_chatbot.ai.rag_pipeline.response_generation.guardrails_output import check_output
@@ -27,6 +28,10 @@ async def run_guarded_pipeline(
     pre_checked_query: str | None = None,
     pre_checked_input_status: dict | None = None,
     guardrails_model: str | None = None,
+    full_name: str | None = None,
+    role: str | None = None,
+    ip_address: str | None = None,
+    timezone: str | None = None,
 ) -> dict:
     """Input guardrail -> load history -> generate (mode-specific) -> output
     guardrail -> save turn. `generate` returns at least {"answer": str} -
@@ -53,6 +58,19 @@ async def run_guarded_pipeline(
         resolved_conversation_id = conversation_id or conversation_memory.new_conversation_id()
     chat_history = await conversation_memory.load_history(resolved_conversation_id) if resolved_conversation_id else None
 
+    # Phase 265 - after the input guardrail (a blocked query never reaches
+    # here, so it never counts against the demo limit) and before
+    # generation (so an over-limit visitor never triggers a wasted LLM
+    # call). Keyed on conversation_id - falls back to a per-request id if
+    # conversation memory is off, since the demo limit still applies.
+    demo_limit_key = resolved_conversation_id or conversation_memory.new_conversation_id()
+    demo_limit_result = await check_and_record(demo_limit_key, employee_id, full_name, role, ip_address, timezone)
+    if demo_limit_result.blocked:
+        raise DemoQueryLimitExceededError(
+            f"You have reached the demo limit of {demo_limit_result.effective_limit} questions for this session. "
+            "This is a demo environment with a capped number of questions per visitor."
+        )
+
     with log_backend_call(logger, "rag_core", "generate"):
         result = await generate(checked_query, chat_history)
 
@@ -63,6 +81,7 @@ async def run_guarded_pipeline(
 
     result["answer"] = checked_answer
     result["conversation_id"] = resolved_conversation_id
+    result["demo_limit"] = demo_limit_result.to_response_dict()
     result["guardrails"] = {"input": input_status, "output": output_status}
     # Phase 244 - output_status always has a real model_used (check_output ran
     # unconditionally above); input_status may be the pre_checked_input_status
