@@ -1,0 +1,199 @@
+<title>RAG Ingestion - Interview FAQ</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --accent: #4a6fa5; --accent-bg: #e8eef6; --accent-border: #c3d2e5;
+    --built: #147a4a; --built-bg: #e3f5eb; --built-border: #b5e3c8;
+    --different: #9a5a0c; --different-bg: #fbf1dd; --different-border: #edd6a2;
+    --none: #6b7286; --none-bg: #eef0f4; --none-border: #d5d9e3;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+      --built: #52c98a; --built-bg: #12261a; --built-border: #1f4530;
+      --different: #e0ac48; --different-bg: #2c2311; --different-border: #4a3a17;
+      --none: #8991a8; --none-bg: #191d29; --none-border: #2a2f42;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+    --built: #52c98a; --built-bg: #12261a; --built-border: #1f4530;
+    --different: #e0ac48; --different-bg: #2c2311; --different-border: #4a3a17;
+    --none: #8991a8; --none-bg: #191d29; --none-border: #2a2f42;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band: #0b2b25;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; } .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(26px, 4.2vw, 36px); letter-spacing: -0.01em; text-wrap: balance; }
+  .lede { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.6; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); padding: 5px 10px 5px 8px; border-radius: 999px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot.built { background: var(--built); } .dot.different { background: var(--different); } .dot.none { background: var(--none); }
+
+  section.topic { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+  .topic-head { background: var(--band); color: #fff; padding: 11px 16px; display: flex; align-items: center; gap: 10px; }
+  .topic-head .t-name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 14px; }
+  .topic-head .t-count { margin-left: auto; font-size: 11px; opacity: 0.75; }
+  .topic-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+
+  .qa-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 7px; }
+  .qa-q { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13px; }
+  .qa-a { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--text-muted); line-height: 1.6; }
+  .qa-a li { margin-bottom: 2px; }
+  .qa-here { display: flex; align-items: flex-start; gap: 8px; font-size: 11.5px; padding-top: 4px; border-top: 1px dashed var(--border); }
+  .status-pill { font-size: 9.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; display: inline-block; flex: none; margin-top: 1px; }
+  .status-pill.built { color: var(--built); background: var(--built-bg); border: 1px solid var(--built-border); }
+  .status-pill.different { color: var(--different); background: var(--different-bg); border: 1px solid var(--different-border); }
+  .status-pill.none { color: var(--none); background: var(--none-bg); border: 1px solid var(--none-border); }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12px; color: var(--text-faint); line-height: 1.6; }
+</style>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">interview prep, grounded in this feature's real code - not a copy of any course material</div>
+    <h1 class="display">RAG Ingestion - Interview FAQ</h1>
+    <p class="lede">Chunking strategy, embedding, and the vector-store write - answered independently against <span class="mono">ai/doc_processing/chunking/text_chunker.py</span>, <span class="mono">indexing/vector_indexer.py</span>, and <span class="mono">pipeline.py</span>. Retrieval-side questions (how a chunk gets found once indexed) have their own <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=retrieval-strategies&type=faq" target="_blank" rel="noopener noreferrer">Retrieval Strategies FAQ</a>.</p>
+    <div class="doc-nav">
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=overview" target="_blank" rel="noopener noreferrer">Overview</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+<a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+      <span class="doc-nav-item current">Interview FAQ</span>
+    </div>
+    <div class="legend">
+      <span class="legend-item"><span class="dot built"></span>Built here</span>
+      <span class="legend-item"><span class="dot different"></span>Built, differently</span>
+      <span class="legend-item"><span class="dot none"></span>Not built here</span>
+    </div>
+  </header>
+
+  <section class="topic">
+    <div class="topic-head"><span class="t-name display">Chunking Strategy</span><span class="t-count">4 cards</span></div>
+    <div class="topic-body">
+
+      <div class="qa-card">
+        <div class="qa-q">Why does chunk size/overlap matter, and how do you pick a starting point?</div>
+        <ul class="qa-a">
+          <li>Too small loses context (a sentence makes no sense alone); too large dilutes the embedding (one vector now represents several ideas, matching none of them precisely) and wastes prompt budget. Overlap exists so a sentence split at a chunk boundary still appears whole in at least one chunk. Start around 500-1000 characters with ~15% overlap, then tune against real queries.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">1000-char default, 150-char overlap (<span class="mono">DEFAULT_CHUNK_SIZE</span>/<span class="mono">DEFAULT_CHUNK_OVERLAP</span>) - overlap is roughly a sentence, chosen so a boundary-split sentence still appears whole somewhere, not tuned against a held-out query set.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">Fixed-size vs. semantic vs. structure-aware chunking - what's the real tradeoff?</div>
+        <ul class="qa-a">
+          <li>Fixed-size is fast and predictable but blind to meaning - can cut a sentence or table row in half. Semantic chunking (embed each sentence, split where meaning shifts) respects topic boundaries but costs one embedding call per sentence. Structure-aware (split on real headings) is the cheapest "respects meaning" option when the source document actually has consistent structure.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">All 3 exist as real, independent functions in the same <span class="mono">CHUNKING_STRATEGIES</span> dict - <span class="mono">fixed</span>/<span class="mono">recursive</span> (fixed-size family), <span class="mono">semantic</span> (one OpenAI embedding call per sentence via LangChain's <span class="mono">SemanticChunker</span>), <span class="mono">document_structure</span> (this project's own "Section N:"/"N.N Subtitle" heading parser, Phase 124).</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">How should chunking strategy be chosen automatically, when a caller doesn't specify one?</div>
+        <ul class="qa-a">
+          <li>Inspect the document's own structure first (does it have real markdown/HTML headings?), fall back to document length (short enough to skip splitting entirely, or long enough that a general-purpose splitter is the safe default), and keep the decision deterministic and logged - never a silent guess.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note"><span class="mono">decide_chunking_strategy()</span> - markdown headings found -&gt; <span class="mono">markdown</span>; HTML heading tags -&gt; <span class="mono">html</span>; at/under a length threshold -&gt; <span class="mono">none</span>; otherwise -&gt; <span class="mono">recursive</span>. Every decision is logged with its rationale. Two strategies are deliberately explicit-only, never auto-selected: <span class="mono">semantic</span> (cost) and <span class="mono">document_structure</span> (would fire on every real KB document today, risking a silent golden-dataset score shift on a routine re-index).</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">A table in the source PDF keeps getting mangled across two chunks - how do you fix that?</div>
+        <ul class="qa-a">
+          <li>Detect and extract tables before running any text splitter, keep each table as its own atomic unit, and reinsert it after chunking rather than letting a generic splitter's size/boundary logic ever see it.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">Phase 75 - a separate table extractor pulls every table out before any of the 7 chunking strategies run (marked with <span class="mono">[TABLE]...[/TABLE]</span>), and each table becomes its own whole chunk afterward, regardless of strategy or chunk size.</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="topic">
+    <div class="topic-head"><span class="t-name display">Dedup, Versioning &amp; the Write Path</span><span class="t-count">3 cards</span></div>
+    <div class="topic-body">
+
+      <div class="qa-card">
+        <div class="qa-q">How do you stop the same document from being ingested twice?</div>
+        <ul class="qa-a">
+          <li>Hash the raw content and check that hash against every existing document before anything else runs - filename isn't a reliable signal (same name, different content is common; different name, same content should still be caught).</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note">Content-hash dedup, checked first, before extraction/chunking/embedding ever run - a match short-circuits the whole pipeline and returns the existing document's id.</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">A policy document gets replaced with a new version - how do you make sure search never serves the old one, and there's no window where neither is live?</div>
+        <ul class="qa-a">
+          <li>Write the new version's chunks first, confirm the write succeeded, then flip the old version's chunks to not-current - never delete-then-write, which would leave a gap where search returns nothing for that content.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill built">built</span><span class="note"><span class="mono">supersedes_document_id</span> + <span class="mono">is_current</span> metadata flag - the old document's chunks are only marked <span class="mono">is_current: false</span> after the new document's first index succeeds, and only once (never repeated on a later re-index of the new document).</span></div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q">Why index straight into LlamaIndex's VectorStoreIndex instead of LangChain's own indexing API, if the project otherwise prefers LangChain for retrieval?</div>
+        <ul class="qa-a">
+          <li>Not every stage of a RAG pipeline has to use the same library - a reasonable team picks the right tool per stage and documents why, rather than forcing one library's abstraction over a process it doesn't fit as well.</li>
+        </ul>
+        <div class="qa-here"><span class="status-pill different">different</span><span class="note">Real history, not a one-off choice: Phase 3 used LlamaIndex, Phase 17 moved to LangChain's <span class="mono">index()</span>/<span class="mono">SQLRecordManager</span> for its real skip-if-unchanged/cleanup behavior, Phase 44 reverted back to LlamaIndex per the user's own standing course-fidelity preference. See Decisions (RI-1) for the full trade-off - this project's own <span class="mono">is_current</span>/<span class="mono">supersedes</span> model now covers what LangChain's <span class="mono">index()</span> would have handled natively.</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <footer>Companions: <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=overview" target="_blank" rel="noopener noreferrer">Overview</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=design" target="_blank" rel="noopener noreferrer">Design</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>.</footer>
+</div>
+<!-- local-nav-fallback -->
+<script>
+(function () {
+  if (location.protocol !== "file:") return;
+  var LOCAL_DOCS = {
+    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/overview.html",
+    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/spec.html",
+architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/architecture.html",
+    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/design.html",
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/decisions.html",
+    "faq": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/interview-faq.html"
+  };
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    var match = a.href.match(/[?&]type=([^&]+)/);
+    if (!match) return;
+    var localPath = LOCAL_DOCS[match[1]];
+    if (localPath) {
+      a.href = localPath;
+      a.removeAttribute("target");
+    }
+  });
+})();
+</script>
+<!-- app-base-nav -->
+<script>
+(function () {
+  if (location.protocol === "file:") return;
+  var hashMatch = location.hash.match(/app_base=([^&]+)/);
+  if (!hashMatch) return;
+  var appBase = decodeURIComponent(hashMatch[1]).replace(/\/$/, "");
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      a.href = appBase + url.pathname + url.search + "#app_base=" + encodeURIComponent(appBase);
+    } catch (e) {}
+  });
+})();
+</script>

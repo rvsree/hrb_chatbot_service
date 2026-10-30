@@ -111,11 +111,17 @@ copy was built from.
 - **Input/output guardrails** and a shared evaluation harness (golden
   dataset, release-gate CI check, live-query quality sampling) running on
   every query, not bolted on after the fact.
+- **Retrieval quality**: LLM-based reranking (one call per batch, fails
+  safe to the original order) before any generation step sees a retrieved
+  chunk; single-agentic-rag's tool-calling loop validates every proposed
+  tool call against its own real schema before it runs, feeding a
+  malformed call back to the model as a correctable error instead of a
+  silent failure.
 - **Built via Spec-Driven Development** - every non-trivial change has a
   written spec before code, reviewed, then implemented; the full phase-by-
   phase history is in [docs/agent-reference/RAG-ROADMAP.md](docs/agent-reference/RAG-ROADMAP.md),
   not reconstructed after the fact.
-- **892 tests**, zero requiring a real API key or network call - every
+- **995+ tests**, zero requiring a real API key or network call - every
   external client is faked with the exact same method signature as the
   real one.
 

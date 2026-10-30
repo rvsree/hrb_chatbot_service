@@ -1,0 +1,161 @@
+<title>RAG Ingestion - Overview</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --accent: #4a6fa5; --accent-bg: #e8eef6; --accent-border: #c3d2e5;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(26px, 4.2vw, 36px); letter-spacing: -0.01em; text-wrap: balance; }
+  .lede { margin: 0; color: var(--text-muted); font-size: 15px; max-width: 72ch; line-height: 1.6; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  section.panel { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel h2 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 15px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.03em; }
+  .panel p { margin: 0; font-size: 14px; color: var(--text-muted); line-height: 1.7; }
+  .panel p + p { margin-top: 2px; }
+
+  .workflow { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .workflow li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; color: var(--text-muted); line-height: 1.55; }
+  .workflow .step-num { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); display: flex; align-items: center; justify-content: center; font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 12px; margin-top: 1px; }
+  .workflow .step-text { flex: 1; min-width: 0; }
+  .workflow strong { color: var(--text); }
+
+  .hub-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .hub-card { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--surface-alt); text-decoration: none; color: inherit; transition: border-color 0.15s; }
+  .hub-card:hover { border-color: var(--accent-border); }
+  .hub-card .label { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 14px; color: var(--accent); }
+  .hub-card .desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 14px; font-size: 11.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">overview</div>
+    <h1 class="display">RAG Ingestion</h1>
+    <p class="lede">PDF text extraction, 6 selectable chunking strategies, embedding, and the vector-store write - the pipeline that turns one uploaded document into searchable, indexed chunks before any retrieval mode can find it.</p>
+    <div class="doc-nav">
+      <span class="doc-nav-item current">Overview</span>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+<a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=faq" target="_blank" rel="noopener noreferrer">Interview FAQ</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <h2>Purpose</h2>
+    <p>Every retrieval mode (GenAI RAG Chat, Single-Agentic RAG, Multi-Agentic RAG) reads from the same vector index - this pipeline is what writes it. One call (<span class="mono">ai/doc_processing/pipeline.py::index_document()</span>) does extract -&gt; chunk -&gt; embed -&gt; index, synchronously, in-request, driven by <span class="mono">POST /v1/genai-rag/ingest-document/documents</span>.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Scope</h2>
+    <p>Covers PDF text extraction (<span class="mono">pypdf</span> + a separate table extractor, tables kept out of chunking entirely and appended as whole chunks), 6 chunking strategies (<strong>fixed</strong>, <strong>recursive</strong>, <strong>semantic</strong>, <strong>markdown</strong>, <strong>html</strong>, <strong>none</strong>, plus a 7th explicit-only <strong>document_structure</strong> strategy) behind one <span class="mono">CHUNKING_STRATEGIES</span> dict with auto-selection when no strategy is named, embedding generation, and the vector-store write itself (LlamaIndex's <span class="mono">VectorStoreIndex</span>, Phase 44). Also covers content-hash deduplication (identical bytes never create a second document) and the <span class="mono">supersedes</span>/<span class="mono">is_current</span> model for one document replacing another.</p>
+    <p>Does not cover what happens to a chunk once it's searchable (that's Retrieval Strategies), or how a search result gets reranked/turned into an answer (that's each retrieval mode's own generation step).</p>
+  </section>
+
+  <section class="panel">
+    <h2>High-level workflow</h2>
+    <ol class="workflow">
+      <li><span class="step-num">1</span><span class="step-text"><strong>Dedup check</strong> - a content-hash match against an existing document short-circuits the whole pipeline; no new document, no re-indexing.</span></li>
+      <li><span class="step-num">2</span><span class="step-text"><strong>Extract</strong> - PDF text + tables pulled out separately (<span class="mono">extract_text_from_pdf()</span>), tables appended as <span class="mono">[TABLE]...[/TABLE]</span> markers so a table is never split mid-chunk.</span></li>
+      <li><span class="step-num">3</span><span class="step-text"><strong>Chunk</strong> - the named (or auto-selected) strategy splits the table-free text; tables rejoin afterward as their own whole chunks.</span></li>
+      <li><span class="step-num">4</span><span class="step-text"><strong>Embed</strong> - one embedding call per chunk batch (<span class="mono">generate_embeddings()</span>), computed once here, not inside the indexing write itself.</span></li>
+      <li><span class="step-num">5</span><span class="step-text"><strong>Index</strong> - chunks + embeddings written into the active vector store (Chroma/Pinecone) via LlamaIndex's <span class="mono">VectorStoreIndex</span>; a re-index deletes the document's old chunk ids first, insert-only otherwise.</span></li>
+      <li><span class="step-num">6</span><span class="step-text"><strong>Metadata</strong> - document-level metadata (category/department/description) is extracted and patched onto the just-written chunks, first index only.</span></li>
+    </ol>
+  </section>
+
+  <section class="panel">
+    <h2>Where this fits in the HR Benefits RAG system</h2>
+    <p>This writes the index every retrieval mode later reads from through the shared Retrieval Strategies layer. Gateway-restricted to <span class="mono">HR_SUPPORT</span> only - employees/managers never call this directly. Status progresses through <span class="mono">parsing -&gt; chunking -&gt; embedding -&gt; indexing -&gt; indexed</span>, each stage written to the document's own metadata row so a stalled/failed upload is diagnosable mid-pipeline, not just pass/fail.</p>
+  </section>
+
+  <div class="hub-grid">
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=spec" target="_blank" rel="noopener noreferrer">
+      <span class="label">Spec</span>
+      <span class="desc">Intent, scope, personas, acceptance criteria.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=architecture" target="_blank" rel="noopener noreferrer">
+      <span class="label">Architecture</span>
+      <span class="desc">The 6-stage request lifecycle, by stage.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=design" target="_blank" rel="noopener noreferrer">
+      <span class="label">Design</span>
+      <span class="desc">API contract, key flow, real constraints.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=decisions" target="_blank" rel="noopener noreferrer">
+      <span class="label">Decisions</span>
+      <span class="desc">Why LlamaIndex, not LangChain, for the actual write - and the Qdrant question.</span>
+    </a>
+    <a class="hub-card" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=faq" target="_blank" rel="noopener noreferrer">
+      <span class="label">Interview FAQ</span>
+      <span class="desc">Chunking strategy and ingestion questions, grounded in the real code.</span>
+    </a>
+  </div>
+
+  <footer>RAG Ingestion — overview.html, spec.html, architecture.html, design.html, decisions.html, interview-faq.html.</footer>
+</div>
+<!-- local-nav-fallback -->
+<script>
+(function () {
+  if (location.protocol !== "file:") return;
+  var LOCAL_DOCS = {
+    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/overview.html",
+    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/spec.html",
+architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/architecture.html",
+    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/design.html",
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/decisions.html",
+    "faq": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/interview-faq.html"
+  };
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    var match = a.href.match(/[?&]type=([^&]+)/);
+    if (!match) return;
+    var localPath = LOCAL_DOCS[match[1]];
+    if (localPath) {
+      a.href = localPath;
+      a.removeAttribute("target");
+    }
+  });
+})();
+</script>
+<!-- app-base-nav -->
+<script>
+(function () {
+  if (location.protocol === "file:") return;
+  var hashMatch = location.hash.match(/app_base=([^&]+)/);
+  if (!hashMatch) return;
+  var appBase = decodeURIComponent(hashMatch[1]).replace(/\/$/, "");
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      a.href = appBase + url.pathname + url.search + "#app_base=" + encodeURIComponent(appBase);
+    } catch (e) {}
+  });
+})();
+</script>

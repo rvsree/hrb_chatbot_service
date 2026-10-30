@@ -122,6 +122,13 @@
         <div class="bug-row"><span class="bug-tag avoid">avoid next time</span><p>When a frontend/backend pair reports a generic connection failure, check the configured port against the actually-running process's port before assuming the server itself is broken.</p></div>
         <div class="bug-src">This session, 2026-10-14</div>
       </div>
+      <div class="bug-card">
+        <div class="bug-symptom">Admin Dashboard's Architecture Docs tab listed a document that 404'd when opened, and a different tab briefly showed 0 rows for data that really existed in production</div>
+        <div class="bug-row"><span class="bug-tag cause">cause</span><p>Local <span class="mono">.env</span>'s <span class="mono">REDIS_URL</span> and production's actual deployed App Runner secret resolve to the <span class="mono">same</span> shared Upstash host - confirmed by comparing both values directly, not assumed. A new 24h read-through cache for Admin Dashboard list routes had no environment scoping on its key prefix, so local manual testing (run minutes earlier) wrote locally-sourced list data into the exact cache key production itself read from.</p></div>
+        <div class="bug-row"><span class="bug-tag fix">fix</span><p>Scoped the cache's key prefix by environment (<span class="mono">HRB_CHATBOT_LOCAL</span>/<span class="mono">HRB_CHATBOT_PROD</span>, the same split <span class="mono">langsmith_tracing.py</span>'s own project-naming already used elsewhere in this codebase) so local and production can never write into the same key again.</p></div>
+        <div class="bug-row"><span class="bug-tag avoid">avoid next time</span><p>Shared infrastructure (one Redis instance for both environments) is a real, recurring trap whenever a new caching layer is added on top of it - check whether a new cache key is environment-scoped at the same time the cache itself is designed, not after a symptom surfaces in production.</p></div>
+        <div class="bug-src">RAG-ROADMAP.md Phase 280</div>
+      </div>
     </div>
   </section>
 

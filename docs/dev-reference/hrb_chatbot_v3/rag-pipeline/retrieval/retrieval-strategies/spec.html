@@ -168,6 +168,14 @@
           <li>Both need a real LangChain <span class="mono">BaseChatModel</span> - served via <span class="mono">GatewayChatModel</span>, this project's own adapter over its multi-provider <span class="mono">ask()</span> clients, not a per-provider LangChain package</li>
         </ul>
       </div>
+      <div class="card">
+        <div class="card-head"><span class="card-label">Live today - post-retrieval reranking</span><span class="status-pill live">built</span></div>
+        <ul>
+          <li>Phase 279, <span class="mono">query_retrieval/reranker.py::rerank_chunks()</span> - one LLM call for the whole retrieved batch, asked for a full ranked order (not per-chunk pairwise scoring like a cross-encoder)</li>
+          <li>Wired after any of the 4 strategies above settle on their final chunk set, before generation - applies regardless of which strategy or rewriting class was used</li>
+          <li>Kill switch: <span class="mono">RAG_RERANK_ENABLED</span> (default on). Fails safe to the original order on any error; never drops a chunk</li>
+        </ul>
+      </div>
     </div>
   </section>
 

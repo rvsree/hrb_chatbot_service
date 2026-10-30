@@ -57,7 +57,7 @@
   <header>
     <div class="eyebrow">overview</div>
     <h1 class="display">Retrieval Strategies</h1>
-    <p class="lede">4 search strategies and 2 optional LangChain rewriting classes - the shared "how do we find the right chunks" layer every retrieval mode uses.</p>
+    <p class="lede">4 search strategies, 2 optional LangChain rewriting classes, and one post-retrieval reranking step - the shared "how do we find the right chunks" layer every retrieval mode uses.</p>
     <div class="doc-nav">
       <span class="doc-nav-item current">Overview</span>
       <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=retrieval-strategies&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
@@ -85,7 +85,8 @@
       <li><span class="step-num">1</span><span class="step-text"><strong>Receive</strong> - a calling mode hands this layer a query and (optionally) a chosen strategy name.</span></li>
       <li><span class="step-num">2</span><span class="step-text"><strong>Optional rewrite</strong> - if <span class="mono">use_multi_query</span>/<span class="mono">use_self_query</span> is set, the query is expanded into variants or has metadata filters parsed out first.</span></li>
       <li><span class="step-num">3</span><span class="step-text"><strong>Strategy dispatch</strong> - the named (or default) strategy runs its own real search against the vector store.</span></li>
-      <li><span class="step-num">4</span><span class="step-text"><strong>Rank &amp; return</strong> - the matched chunks come back ranked, ready for the calling mode's own generation step.</span></li>
+      <li><span class="step-num">4</span><span class="step-text"><strong>Rerank</strong> - one extra LLM call (Phase 279, <span class="mono">reranker.py</span>) re-orders the whole retrieved batch by relevance to the query - fails safe to the original order on any error.</span></li>
+      <li><span class="step-num">5</span><span class="step-text"><strong>Return</strong> - the reranked chunks go to the calling mode's own generation step.</span></li>
     </ol>
   </section>
 

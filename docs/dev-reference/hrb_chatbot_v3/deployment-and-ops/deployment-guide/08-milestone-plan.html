@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Milestone Plan & Golden Dataset Gate</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .milestone { border-left: 3px solid var(--accent); padding-left: 16px; margin: 24px 0; }
+  .milestone h3 { color: var(--text); text-transform: none; letter-spacing: normal; font-size: 1.02rem; margin-top: 0; }
+  .gate-steps { counter-reset: step; list-style: none; padding-left: 0; }
+  .gate-steps li { counter-increment: step; padding: 8px 0 8px 36px; position: relative; border-bottom: 1px dashed var(--border); }
+  .gate-steps li:last-child { border-bottom: none; }
+  .gate-steps li::before {
+    content: counter(step); position: absolute; left: 0; top: 7px;
+    width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: white;
+    font-size: 0.75rem; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=index" target="_blank" rel="noopener noreferrer">&larr; Deployment Guide</a></div>
+
+<h1>Milestone Plan &amp; Golden Dataset Gate</h1>
+<p class="subtitle">The incremental, MVP-based delivery order for everything in this guide, and the one quality gate every milestone must clear before touching <code>master</code>.</p>
+
+<div class="flag"><strong>Direct answer to "did you cover golden dataset testing":</strong> no — it was a real gap in the first pass of this guide. This page fixes that, and makes the gate a standing rule for every milestone below, not a one-off from Phase 80.</div>
+
+<h2>The golden dataset gate, explained</h2>
+<p>This already exists and has already run successfully once (Phase 80) — it's not new work, just not previously documented here.</p>
+
+<table>
+<tr><th>Java / Spring Boot analogy</th><th>This project</th></tr>
+<tr><td>A SonarQube quality gate, or a contract-test suite, blocking a merge/release pipeline on failure</td><td><code>eval-gate.yml</code> — a GitHub Actions workflow that scores the app's real answers against a labeled dataset and fails the job on a bad verdict</td></tr>
+<tr><td>A curated regression test suite with expected outputs</td><td><code>resources/golden_dataset/golden_dataset.json</code> — 24 real HR-benefits questions, each with an expected source document and expected answer characteristics</td></tr>
+<tr><td>Fails the build if coverage/quality drops below a threshold</td><td><code>scripts/run_release_gate.py</code> computes <code>recall</code>, <code>groundedness</code>, <code>completeness</code> per case, averages them, and calls <code>get_release_decision()</code> — <code>BLOCK</code> fails the job (<code>exit 1</code>)</td></tr>
+</table>
+
+<h3>How to run it</h3>
+<pre><code># Manual trigger only — real LLM calls, real cost, never on every push
+gh workflow run eval-gate.yml
+gh run watch                       # follow it live
+gh run view &lt;run-id&gt; --log-failed  # if it fails, see exactly why</code></pre>
+<p>What it does, end to end: spins up a fresh Postgres service container, starts the real app, ingests every PDF in <code>resources/kb_docs/</code> through the real upload endpoint, runs all 24 golden-dataset questions through the real pipeline, and prints a per-case and aggregate score before passing/failing the job.</p>
+
+<div class="flag"><strong>Current scope limit, worth knowing:</strong> the gate only scores <strong>genai-rag</strong> (<code>POST /v1/genai-rag/retrieve-document/query</code>). Single-agentic-rag and multi-agentic-rag aren't gated yet — a natural, same-shape follow-up, not yet built. If a milestone below changes retrieval behavior for those endpoints, treat the genai-rag gate as a partial signal, not full coverage, until that follow-up lands.</div>
+
+<h2>The gate every milestone must clear</h2>
+<p>Applied uniformly to every feature below before it's considered done:</p>
+<ol class="gate-steps">
+<li>Implemented and tested locally — full suite green: <code>pytest -v</code></li>
+<li>Manually verified end to end locally (the feature actually works, not just "tests pass")</li>
+<li>Feature branch &rarr; <code>develop</code>, tests still green on <code>develop</code></li>
+<li><code>develop</code> &rarr; <code>master</code> (fast-forward where possible, matching this project's established pattern)</li>
+<li><code>deploy.yml</code> fires automatically on the push to <code>master</code> — confirm it reaches <code>RUNNING</code> and the smoke test passes</li>
+<li>Post-deploy live check: hit <code>/health</code> and the specific new/changed endpoint(s) against the real AWS URL</li>
+<li><strong>Run <code>eval-gate.yml</code> — require a <code>PASS</code> verdict</strong> before considering the milestone closed, not just before merging code</li>
+<li>Update <code>docs/agent-reference/RAG-ROADMAP.md</code>'s phase entry (spec + verified notes) and this guide if anything here is now stale</li>
+</ol>
+
+<h2>Incremental milestone order — revised 2026-10-05</h2>
+<p>Reordered from the original draft: Pinecone and Redis both move <em>before</em> the big ingestion build — Pinecone because it's a hard technical prerequisite (Lambda can't use ChromaDB's file-based mode), Redis because it independently fixes an already-broken rate limiter at App Runner's real scale, not just because it's convenient to settle first. See <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=pinecone-standard" target="_blank" rel="noopener noreferrer">doc 3</a> and <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=redis-cache" target="_blank" rel="noopener noreferrer">doc 4</a> for the full reasoning on each.</p>
+
+<div class="milestone">
+<h3>Milestone 1 — Pinecone as the standing AWS vector store</h3>
+<p>Smallest, fastest milestone, and a hard prerequisite for Milestone 3 — fixes the <code>ACTIVE_VECTOR_DB</code>/<code>RAG_VECTOR_DB</code> env var mismatch, confirms Pinecone is genuinely live, runs the full endpoint test matrix. See <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=pinecone-standard" target="_blank" rel="noopener noreferrer">doc 3</a>. Good first milestone — proves the gate process end to end on something small before the bigger work ahead.</p>
+</div>
+
+<div class="milestone">
+<h3>Milestone 2 — Redis cache migration</h3>
+<p>Moves <code>answer_cache</code>, <code>embedding_cache</code>, and the rate limiter onto Redis. See <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=redis-cache" target="_blank" rel="noopener noreferrer">doc 4</a> for why this comes before ingestion rather than after. Also the slot where retry/backoff on the 4 LLM clients is worth adding (see <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=nfr-reliability-resilience" target="_blank" rel="noopener noreferrer">doc 6</a>) — small, isolated, benefits every later milestone.</p>
+</div>
+
+<div class="milestone">
+<h3>Milestone 3 — S3 batch ingestion + Lambda</h3>
+<p>The biggest piece — presigned uploads, Lambda-driven indexing, SQS DLQ, CloudWatch alarms. Full architecture, NFR considerations, and testing plan in <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=rag-ingestion-batch" target="_blank" rel="noopener noreferrer">doc 5</a>. Recommend breaking this into its own sub-phases (spec'd individually): (1) S3 bucket + presigned URL endpoint, (2) Lambda handler + event wiring, (3) DLQ + status-machine wiring + CloudWatch alarms, (4) end-to-end test with a real batch upload bypassing the API.</p>
+</div>
+
+<div class="milestone">
+<h3>Milestone 4 — React UI (last)</h3>
+<p>Per <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=reactjs-ui" target="_blank" rel="noopener noreferrer">doc 7</a> — explicitly sequenced after Milestones 1-3 are all complete and deployed. Same repo, <code>frontend/</code> folder, its own SDD setup. CORS middleware is a small prerequisite inside this milestone, not a separate one.</p>
+</div>
+
+<p>Each milestone is its own MVP: smallest working version first (e.g., Milestone 3's MVP is "one document, uploaded via presigned URL, successfully indexed by Lambda" — before batch/retry/DLQ polish), verified through the full gate above, <em>then</em> the next layer of polish within that same milestone, re-gated again if the change is substantial enough to warrant it.</p>
+
+<div class="pager">
+<a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=reactjs-ui" target="_blank" rel="noopener noreferrer">&larr; React UI</a>
+<a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=custom-domain-setup" target="_blank" rel="noopener noreferrer">Next: Custom Domain Setup &rarr;</a>
+</div>
+
+</div>
+</body>
+</html>
+<!-- app-base-nav -->
+<script>
+(function () {
+  if (location.protocol === "file:") return;
+  var hashMatch = location.hash.match(/app_base=([^&]+)/);
+  if (!hashMatch) return;
+  var appBase = decodeURIComponent(hashMatch[1]).replace(/\/$/, "");
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      a.href = appBase + url.pathname + url.search + "#app_base=" + encodeURIComponent(appBase);
+    } catch (e) {}
+  });
+})();
+</script>
+<!-- local-nav-fallback -->
+<script>
+(function () {
+  if (location.protocol !== "file:") return;
+  var LOCAL_DOCS = {
+    "index": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/index.html",
+    "deployment-aws": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/01-deployment-aws.html",
+    "neon-postgres": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/02-neon-postgres.html",
+    "pinecone-standard": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/03-pinecone-standard.html",
+    "redis-cache": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/04-redis-cache.html",
+    "rag-ingestion-batch": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/05-rag-ingestion-batch.html",
+    "nfr-reliability-resilience": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/06-nfr-reliability-resilience.html",
+    "reactjs-ui": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/07-reactjs-ui.html",
+    "milestone-plan": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/08-milestone-plan.html",
+    "custom-domain-setup": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/09-custom-domain-setup.html",
+    "observability-howto": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/10-observability-howto.html"
+  };
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    var match = a.href.match(/[?&]type=([^&]+)/);
+    if (!match) return;
+    var localPath = LOCAL_DOCS[match[1]];
+    if (localPath) {
+      a.href = localPath;
+      a.removeAttribute("target");
+    }
+  });
+})();
+</script>

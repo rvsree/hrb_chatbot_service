@@ -143,7 +143,7 @@
         <ul class="qa-a">
           <li>A cross-encoder that reads the question and one chunk together, so it judges relevance more accurately than embedding search alone (which never sees them together). Sits between search and the prompt: retrieve wide, rerank, keep the best few - too slow to run over the whole corpus, which is why you still retrieve first.</li>
         </ul>
-        <div class="qa-here"><span class="status-pill none">none</span><span class="note">No cross-encoder reranking step exists. MMR (<span class="mono">search_mmr()</span>) is the closest built equivalent, but it optimizes for diversity among already-retrieved results, not relevance re-scoring - a genuinely different mechanism, not a lesser version of the same one.</span></div>
+        <div class="qa-here"><span class="status-pill different">different</span><span class="note">Real, live (Phase 279, <span class="mono">query_retrieval/reranker.py::rerank_chunks()</span>), but not a cross-encoder - one LLM call for the whole retrieved batch, asked for a full ranked order (most relevant first), not a per-chunk pairwise score. Same cost discipline as the course's own cross-encoder approach (one extra step before generation, not one call per chunk), chosen to reuse this project's existing multi-provider LLM clients instead of adding a new reranking-model dependency. Fails safe to the original retrieval order on any error, never drops a chunk. Wired into all 3 retrieval modes via 2 call sites (<span class="mono">agentic_tools.py::search_knowledge_base()</span>, <span class="mono">pipeline.py</span>). Kill switch: <span class="mono">RAG_RERANK_ENABLED</span>.</span></div>
       </div>
 
       <div class="qa-card">
@@ -245,7 +245,7 @@
         <ul class="qa-a">
           <li>Rerank and keep the top 10, remove near-duplicates (wasted slots), make sure not all 10 come from one document, put the strongest chunks at the start and end (the middle gets less model attention). Summarize-then-inject if it still doesn't fit.</li>
         </ul>
-        <div class="qa-here"><span class="status-pill different">different</span><span class="note"><span class="mono">top_k</span> (default 5) bounds the retrieval itself rather than over-fetching and trimming down - no reranking pass, no explicit single-document diversity cap. MMR (when selected as the search strategy) is the closest built mechanism for avoiding redundant results.</span></div>
+        <div class="qa-here"><span class="status-pill different">different</span><span class="note"><span class="mono">top_k</span> (default 5) bounds the retrieval itself rather than over-fetching a larger pool and trimming down. There is now a reranking pass (Phase 279, see the reranker card above) - it reorders the already-small <span class="mono">top_k</span> set by relevance, it doesn't over-fetch-then-cut. No explicit single-document diversity cap; MMR (when selected as the search strategy) is the closest built mechanism for avoiding redundant results.</span></div>
       </div>
 
       <div class="qa-card">

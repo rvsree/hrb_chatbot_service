@@ -367,19 +367,32 @@ DOCS_TO_SYNC = {
             "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/01-deployment-aws.html",
             "text/html",
         ),
+        # 2026-10-30 - these 6 ("neon-postgres" through "milestone-plan")
+        # had a stale "../docs/..." path left over from before the
+        # 2026-10-23 doc reorg - a real bug (would crash this whole script
+        # with FileNotFoundError on its first run since that reorg, before
+        # ever reaching any entry declared after this one), but NOT a dead
+        # link: production's real doc_metadata already has working rows
+        # for all 6 (confirmed via a direct, force_refresh=true query) and
+        # the real S3 objects exist too - only this git checkout's own
+        # local copies were missing (never committed after an earlier
+        # sync, or lost some other way). Recovered from the already-live
+        # S3 objects (content-identical, not rewritten) rather than
+        # fabricated, and the path fixed to match every other entry's own
+        # repo-root-relative convention.
         "neon-postgres": (
             "Neon Postgres",
-            "../docs/deployment-and-ops/deployment-guide/02-neon-postgres.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/02-neon-postgres.html",
             "text/html",
         ),
         "pinecone-standard": (
             "Pinecone as the Standing Vector Store",
-            "../docs/deployment-and-ops/deployment-guide/03-pinecone-standard.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/03-pinecone-standard.html",
             "text/html",
         ),
         "redis-cache": (
             "Redis Cache",
-            "../docs/deployment-and-ops/deployment-guide/04-redis-cache.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/04-redis-cache.html",
             "text/html",
         ),
         "rag-ingestion-batch": (
@@ -389,17 +402,17 @@ DOCS_TO_SYNC = {
         ),
         "nfr-reliability-resilience": (
             "NFR: Reliability & Resilience",
-            "../docs/deployment-and-ops/deployment-guide/06-nfr-reliability-resilience.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/06-nfr-reliability-resilience.html",
             "text/html",
         ),
         "reactjs-ui": (
             "React UI",
-            "../docs/deployment-and-ops/deployment-guide/07-reactjs-ui.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/07-reactjs-ui.html",
             "text/html",
         ),
         "milestone-plan": (
             "Milestone Plan & Golden Dataset Gate",
-            "../docs/deployment-and-ops/deployment-guide/08-milestone-plan.html",
+            "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/08-milestone-plan.html",
             "text/html",
         ),
         "custom-domain-setup": (
@@ -529,54 +542,96 @@ DOCS_TO_SYNC = {
             "text/html",
         ),
     },
-    # 2026-10-24 - real gap found while doing the MVP pilot pass for this
-    # feature: all 5 existing docs below (overview/spec/architecture/
-    # design/decisions) already existed on disk but had never been
-    # registered here at all, so they were never in S3 or doc_metadata.
-    # The 3 diagram-* entries are new .drawio files from the same pass -
-    # application/xml, not text/html, so the admin docs viewer offers them
-    # as a download rather than rendering them inline (a .drawio file is a
-    # download-and-open-in-draw.io artifact, not a displayable page).
+    # 2026-10-24 - all 8 entries here had a stale "../docs/..." path left
+    # over from before the 2026-10-23 doc reorg (would crash this whole
+    # script with FileNotFoundError on the "overview" entry, before ever
+    # reaching any entry declared after this one - confirmed 2026-10-30).
+    # Not dead links though: production's real doc_metadata simply never
+    # got these 8 rows (confirmed: 0 rows for this feature via a direct
+    # force_refresh=true query - the crash above is exactly why), but the
+    # real S3 objects for all 8 already exist, uploaded 2026-10-26.
+    # Recovered the 5 HTML files from S3 (content-identical, not
+    # fabricated) and fixed every path to the real dev-reference/
+    # hrb_chatbot_v3/ location, matching every other entry's own
+    # repo-root-relative convention.
     "api-gateway-service": {
         "overview": (
             "API Gateway Service - Overview",
-            "../docs/platform-and-admin/api-gateway-service/overview.html",
+            "docs/dev-reference/hrb_chatbot_v3/platform-and-admin/api-gateway-service/overview.html",
             "text/html",
         ),
         "spec": (
             "API Gateway Service - Spec",
-            "../docs/platform-and-admin/api-gateway-service/spec.html",
+            "docs/dev-reference/hrb_chatbot_v3/platform-and-admin/api-gateway-service/spec.html",
             "text/html",
         ),
         "architecture": (
             "API Gateway Service - Architecture",
-            "../docs/platform-and-admin/api-gateway-service/architecture.html",
+            "docs/dev-reference/hrb_chatbot_v3/platform-and-admin/api-gateway-service/architecture.html",
             "text/html",
         ),
         "design": (
             "API Gateway Service - Design",
-            "../docs/platform-and-admin/api-gateway-service/design.html",
+            "docs/dev-reference/hrb_chatbot_v3/platform-and-admin/api-gateway-service/design.html",
             "text/html",
         ),
         "decisions": (
             "API Gateway Service - Decisions",
-            "../docs/platform-and-admin/api-gateway-service/decisions.html",
+            "docs/dev-reference/hrb_chatbot_v3/platform-and-admin/api-gateway-service/decisions.html",
             "text/html",
         ),
         "diagram-current-state": (
             "API Gateway Service - Current State Architecture (draw.io)",
-            "../docs/architecture/diagrams/api-gateway-current-state-architecture.drawio",
+            "docs/dev-reference/hrb_chatbot_v3/architecture/diagrams/api-gateway-current-state-architecture.drawio",
             "application/xml",
         ),
         "diagram-target-state": (
             "API Gateway Service - Target State Scaling Architecture (draw.io)",
-            "../docs/architecture/diagrams/api-gateway-target-state-scaling-architecture.drawio",
+            "docs/dev-reference/hrb_chatbot_v3/architecture/diagrams/api-gateway-target-state-scaling-architecture.drawio",
             "application/xml",
         ),
         "diagram-deployment": (
             "API Gateway Service - Deployment Architecture (draw.io)",
-            "../docs/architecture/diagrams/api-gateway-deployment-architecture.drawio",
+            "docs/dev-reference/hrb_chatbot_v3/architecture/diagrams/api-gateway-deployment-architecture.drawio",
             "application/xml",
+        ),
+    },
+    # 2026-10-30 - detailed child doc set for RAG Ingestion, separated out
+    # of the old generic "RAG Ingestion/Retrieval/Response Generation"
+    # framing per user feedback that a single generic doc per pipeline
+    # stage omits real nuance (6 chunking strategies, content-hash dedup,
+    # the LlamaIndex/LangChain history). platform-overview.html already
+    # linked to this exact feature_name/path before any file existed here.
+    "rag-ingestion": {
+        "overview": (
+            "RAG Ingestion - Overview",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/overview.html",
+            "text/html",
+        ),
+        "spec": (
+            "RAG Ingestion - Spec",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/spec.html",
+            "text/html",
+        ),
+        "architecture": (
+            "RAG Ingestion - Architecture",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/architecture.html",
+            "text/html",
+        ),
+        "design": (
+            "RAG Ingestion - Design",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/design.html",
+            "text/html",
+        ),
+        "decisions": (
+            "RAG Ingestion - Decisions",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/decisions.html",
+            "text/html",
+        ),
+        "faq": (
+            "RAG Ingestion - Interview FAQ",
+            "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/interview-faq.html",
+            "text/html",
         ),
     },
 }

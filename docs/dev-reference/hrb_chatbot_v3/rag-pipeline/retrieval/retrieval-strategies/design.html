@@ -168,6 +168,8 @@
       <div class="flow-item"><span class="flow-num">1</span><span><span class="mono">SEARCH_STRATEGIES[search_strategy]</span> dict lookup - this is the "unknown provider -&gt; clean error" pattern this project applies to every backend choice, not a special case here.</span></div>
       <div class="flow-item"><span class="flow-num">2</span><span><span class="mono">keyword</span>/<span class="mono">hybrid</span> are registered into that same dict dynamically from <span class="mono">bm25_search.py</span> (<span class="mono">SEARCH_STRATEGIES["keyword"] = search_keyword</span>) rather than hand-added - a real module-import-time side effect, not hidden in the dict literal itself.</span></div>
       <div class="flow-item"><span class="flow-num">3</span><span>If <span class="mono">use_multi_query</span>/<span class="mono">use_self_query</span> is set, the chosen base strategy's retriever is wrapped by the LangChain class before the real search runs.</span></div>
+      <div class="flow-item"><span class="flow-num">4</span><span>Phase 226's corrective retry (<span class="mono">evaluate_retrieval_relevance()</span>) can re-fetch with more candidates if the first pass scores low, before this layer's final chunk set is settled.</span></div>
+      <div class="flow-item"><span class="flow-num">5</span><span>Phase 279's reranker (<span class="mono">rerank_chunks()</span>) runs once the chunk set is final - a single LLM call reorders the whole batch by relevance, applied identically regardless of which strategy produced it.</span></div>
     </div>
   </section>
 

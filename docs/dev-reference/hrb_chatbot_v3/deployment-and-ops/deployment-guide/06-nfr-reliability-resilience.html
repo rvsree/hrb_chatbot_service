@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NFR: Reliability & Resilience</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=index" target="_blank" rel="noopener noreferrer">&larr; Deployment Guide</a></div>
+
+<h1>Non-Functional Requirements: Reliability &amp; Resilience</h1>
+<p class="subtitle">A whole-system gap-check — scalability, reliability, resilience, logging/monitoring, error handling, retry, rate limiting, load balancing. Every finding below was verified against the real code or the live AWS account on 2026-10-05, not assumed.</p>
+
+<h2>Verified findings</h2>
+
+<div class="card">
+<span class="status bad">&#10007; No retry/backoff on any LLM call</span> — checked <code>openai_client.py</code>, <code>anthropic_client.py</code>, <code>bedrock_client.py</code>, <code>open_router_client.py</code>: zero retry logic. Only <code>tavily_client.py</code> has it (hand-rolled exponential backoff, no external library — the pattern to replicate, not something to introduce fresh with a new dependency).<br><br>
+
+<span class="status bad">&#10007; No explicit timeout on the primary LLM <code>ask()</code> calls</span> — relying entirely on each SDK's own default (OpenAI's default is generous, not something this project has deliberately tuned). Timeouts exist elsewhere (Postgres <code>connect_timeout=5</code>, Tavily's configurable timeout, OAuth's <code>httpx</code> client) but not on the calls that matter most for request latency.<br><br>
+
+<span class="status bad">&#10007; Rate limiter is broken across multiple instances, right now</span> — <code>rate_limiter.py</code>'s own docstring: <em>"in-memory, fixed window, single-process only."</em> Confirmed live: App Runner's auto-scaling config allows <strong>up to 25 instances</strong> (<code>MaxSize: 25</code>, <code>MaxConcurrency: 100</code> per instance before scaling triggers). Each instance counts independently, so the configured 100-requests/30s limit doesn't actually hold once App Runner scales past one instance. Fix: <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=redis-cache" target="_blank" rel="noopener noreferrer">Redis</a> — already the documented intended fix, now scheduled.<br><br>
+
+<span class="status bad">&#10007; Zero CloudWatch alarms configured</span> — confirmed via <code>aws cloudwatch describe-alarms</code>: empty list. No alerting today on error rate, latency, or anything else — a failure has to be noticed by a human checking manually.<br><br>
+
+<span class="status warn">&#9675; Logging is plain text, not structured</span> — <code>logger.py</code>'s format is <code>"%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"</code>. Fine to read directly, but CloudWatch Logs Insights queries need regex against free text instead of querying structured fields (e.g., "every ERROR for employee_id=X" isn't a clean query today).<br><br>
+
+<span class="status ok">&check; Load balancing is already handled — nothing to build</span> — App Runner provides a managed load balancer in front of however many instances are running, automatically. Worth knowing this explicitly so it's not mistaken for a gap: there's no ALB/NLB to configure by hand, no Spring Cloud LoadBalancer-equivalent code to write. This is managed infrastructure, invisible by design.<br><br>
+
+<span class="status ok">&check; Rate limiting and CSRF exist and are correctly wired</span> — just not scaling-aware yet (see above). The feature itself (<code>api/dependencies.py</code>, <code>APP_RATE_LIMITING</code>/<code>APP_RATE_LIMIT_REQUESTS</code>) is real, tested, and on by default.
+</div>
+
+<h2>Mapped to what you already know</h2>
+<table>
+<tr><th>Spring Boot / Java concept</th><th>This project's equivalent</th><th>State</th></tr>
+<tr><td>Resilience4j / Spring Retry (<code>@Retryable</code>)</td><td>Hand-rolled exponential backoff, same shape as <code>tavily_client.py</code> — not a new library, matches this project's "no library without explicit review" convention</td><td>Only on Tavily; missing from the 4 LLM providers + Postgres clients</td></tr>
+<tr><td>Resilience4j Circuit Breaker</td><td>Doesn't exist anywhere yet</td><td>Not built</td></tr>
+<tr><td><code>@Cacheable</code> backed by Redis, used for a sliding-window rate limiter (a very standard Redis use case)</td><td><code>rate_limiter.py</code>, once migrated per <a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=redis-cache" target="_blank" rel="noopener noreferrer">the Redis page</a></td><td>Spec'd, not built</td></tr>
+<tr><td>Micrometer + Prometheus/Grafana alerting rules</td><td>CloudWatch Alarms (the AWS-managed equivalent)</td><td>Not configured — 0 alarms exist</td></tr>
+<tr><td>Logback's JSON encoder (structured logging)</td><td>Plain-text <code>logging.Formatter</code> today; a JSON formatter is the direct equivalent</td><td>Not built — flagged, not yet prioritized</td></tr>
+<tr><td>An ALB/NLB + target group you configure by hand</td><td>App Runner's built-in load balancer</td><td>Already handled, fully managed</td></tr>
+<tr><td><code>application.yml</code> connection-pool/timeout tuning (<code>HikariCP</code>)</td><td><code>psycopg</code> connections today open/close per call (<code>with self._connect() as conn</code>) — no connection pool at all</td><td>Not built — fine at current traffic, a real gap at higher concurrency</td></tr>
+</table>
+
+<h2>Recommended sequencing for these fixes</h2>
+<p>Not a new standalone milestone — these fold into the milestones already planned, at the point each becomes relevant:</p>
+<ul class="checklist">
+<li><strong>Rate limiter fix</strong> — folds into Milestone 2 (Redis), already updated to include it</li>
+<li><strong>Retry/backoff on LLM clients</strong> — small, isolated, low-risk — a good candidate to slot in alongside Milestone 2 (Redis) or as its own quick pass before Milestone 3 (batch ingestion), since Lambda invocations specifically benefit from not failing an entire document's indexing over one transient API hiccup</li>
+<li><strong>CloudWatch alarms (DLQ depth, Lambda error rate)</strong> — introduced as part of Milestone 3 (batch ingestion) by design, since that's the first place in this system using SQS/Lambda at all</li>
+<li><strong>Structured JSON logging</strong> — worth starting with the new Lambda handler in Milestone 3 (clean slate, no existing format to migrate), then backfilling the rest of the app later as a separate, explicitly-scoped cleanup — not bundled into any feature milestone silently</li>
+<li><strong>Postgres connection pooling</strong> — not urgent at current traffic; worth revisiting once real production usage data exists, not before</li>
+<li><strong>Circuit breakers</strong> — lowest priority of this list; the existing timeout+retry combination covers most of the same real-world failure modes at this project's current scale</li>
+</ul>
+
+<div class="pager">
+<a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=rag-ingestion-batch" target="_blank" rel="noopener noreferrer">&larr; RAG Ingestion Batch Process</a>
+<a href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=deployment-guide&type=reactjs-ui" target="_blank" rel="noopener noreferrer">Next: React UI &rarr;</a>
+</div>
+
+</div>
+</body>
+</html>
+<!-- app-base-nav -->
+<script>
+(function () {
+  if (location.protocol === "file:") return;
+  var hashMatch = location.hash.match(/app_base=([^&]+)/);
+  if (!hashMatch) return;
+  var appBase = decodeURIComponent(hashMatch[1]).replace(/\/$/, "");
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      a.href = appBase + url.pathname + url.search + "#app_base=" + encodeURIComponent(appBase);
+    } catch (e) {}
+  });
+})();
+</script>
+<!-- local-nav-fallback -->
+<script>
+(function () {
+  if (location.protocol !== "file:") return;
+  var LOCAL_DOCS = {
+    "index": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/index.html",
+    "deployment-aws": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/01-deployment-aws.html",
+    "neon-postgres": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/02-neon-postgres.html",
+    "pinecone-standard": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/03-pinecone-standard.html",
+    "redis-cache": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/04-redis-cache.html",
+    "rag-ingestion-batch": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/05-rag-ingestion-batch.html",
+    "nfr-reliability-resilience": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/06-nfr-reliability-resilience.html",
+    "reactjs-ui": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/07-reactjs-ui.html",
+    "milestone-plan": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/08-milestone-plan.html",
+    "custom-domain-setup": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/09-custom-domain-setup.html",
+    "observability-howto": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/10-observability-howto.html"
+  };
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    var match = a.href.match(/[?&]type=([^&]+)/);
+    if (!match) return;
+    var localPath = LOCAL_DOCS[match[1]];
+    if (localPath) {
+      a.href = localPath;
+      a.removeAttribute("target");
+    }
+  });
+})();
+</script>

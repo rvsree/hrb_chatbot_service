@@ -1,0 +1,200 @@
+<title>RAG Ingestion - Spec</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --live: #147a4a; --live-bg: #e3f5eb; --live-border: #b5e3c8;
+    --design: #9a5a0c; --design-bg: #fbf1dd; --design-border: #edd6a2;
+    --accent: #4a6fa5; --accent-bg: #e8eef6; --accent-border: #c3d2e5;
+    --cost: #a4321f; --cost-bg: #fbe9e5; --cost-border: #f0c3b8;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+      --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+      --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+      --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+    --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+    --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+    --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0b2b25;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  section.panel { display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .panel-num { width: 30px; height: 30px; border-radius: 9px; background: var(--band-dark); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13px; }
+  .panel-title { display: flex; flex-direction: column; }
+  .panel-title .name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; }
+  .panel-title .sub { font-size: 12px; color: var(--text-faint); }
+  .panel p { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+  .panel ul { margin: 0; padding-left: 20px; font-size: 13px; color: var(--text-muted); line-height: 1.7; }
+  .panel li { margin-bottom: 4px; }
+
+  .grid.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  .card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 15px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 7px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .card-label { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 13.5px; }
+  .status-pill { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.03em; }
+  .status-pill.live { color: var(--live); background: var(--live-bg); border: 1px solid var(--live-border); }
+  .status-pill.design { color: var(--design); background: var(--design-bg); border: 1px solid var(--design-border); }
+  .status-pill.gap { color: var(--cost); background: var(--cost-bg); border: 1px solid var(--cost-border); }
+  .card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+  .callout { display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; border-radius: 10px; padding: 11px 14px; line-height: 1.55; }
+  .callout.cost { background: var(--cost-bg); border: 1px solid var(--cost-border); color: var(--cost); }
+  .callout.live { background: var(--live-bg); border: 1px solid var(--live-border); color: var(--live); }
+  .callout.design { background: var(--design-bg); border: 1px solid var(--design-border); color: var(--design); }
+
+  table.summary { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+  table.summary th { text-align: left; font-family: 'Archivo', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding: 10px 14px; background: var(--surface-alt); border-bottom: 1px solid var(--border); }
+  table.summary td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.summary tr:last-child td { border-bottom: none; }
+  table.summary td.id-cell { font-family: 'IBM Plex Mono', monospace; font-weight: 700; color: var(--accent); white-space: nowrap; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">spec - intent, scope, personas, acceptance criteria</div>
+    <h1 class="display">RAG Ingestion</h1>
+    <p class="subtitle">Extract -&gt; chunk -&gt; embed -&gt; index, one call, synchronous. The pipeline that writes the index Retrieval Strategies later reads from.</p>
+    <div class="doc-nav">
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=overview" target="_blank" rel="noopener noreferrer">Overview</a>
+      <span class="doc-nav-item current">Spec</span>
+<a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=design" target="_blank" rel="noopener noreferrer">Design</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=faq" target="_blank" rel="noopener noreferrer">Interview FAQ</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">1</div><div class="panel-title"><span class="name display">Intent</span></div></div>
+    <p>Turn one uploaded PDF into searchable, indexed chunks in a single synchronous call - extraction, chunking, embedding, and the vector-store write, with content-hash dedup and document-replacement (<span class="mono">supersedes</span>) handled as part of the same flow, not bolted on after.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">2</div><div class="panel-title"><span class="name display">Scope</span></div></div>
+    <div class="grid two">
+      <div class="card">
+        <div class="card-head"><span class="card-label">Live today - 7 chunking strategies</span><span class="status-pill live">built</span></div>
+        <ul>
+          <li><strong>fixed</strong> - single-separator split, fast, can cut a sentence in half</li>
+          <li><strong>recursive</strong> - paragraph -&gt; line -&gt; sentence fallback, the default for plain prose</li>
+          <li><strong>semantic</strong> - embeds each sentence, splits where meaning shifts (explicit-only, never auto-selected - one embedding call per sentence)</li>
+          <li><strong>markdown</strong> / <strong>html</strong> - splits on heading structure (#/##/### or h1/h2/h3)</li>
+          <li><strong>none</strong> - no deliberate split, for short content</li>
+          <li><strong>document_structure</strong> - splits on this project's real "Section N:"/"N.N Subtitle" headings, tags each chunk with a stable <span class="mono">section_id</span> (explicit-only, Phase 124 - would fire on every real KB document if auto-selected, so kept opt-in to avoid silently shifting golden-dataset scores on a routine re-index)</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-label">Live today - auto-selection</span><span class="status-pill live">built</span></div>
+        <ul>
+          <li><span class="mono">decide_chunking_strategy()</span> - markdown headings found -&gt; <span class="mono">markdown</span>; HTML heading tags found -&gt; <span class="mono">html</span>; at/under the whole-document threshold -&gt; <span class="mono">none</span>; otherwise -&gt; <span class="mono">recursive</span> (default)</li>
+          <li><span class="mono">decide_chunk_size()</span> - only grows past the 1000-char default (to 1500) for documents over 10,000 characters; never shrinks it</li>
+          <li>Both decided on table-free text - table content never influences prose-structure or size detection</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-label">Live today - dedup &amp; document replacement</span><span class="status-pill live">built</span></div>
+        <ul>
+          <li>Content-hash match on upload short-circuits the whole pipeline - identical bytes never create a second document, regardless of filename</li>
+          <li><span class="mono">supersedes_document_id</span> marks an old document <span class="mono">is_current=false</span> once the new one's first index completes - no window where neither version is live</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-label">Not built - Qdrant</span><span class="status-pill gap">flagged</span></div>
+        <ul>
+          <li>Today's vector store choice is Chroma (local) or Pinecone (managed), both via LlamaIndex's own vector-store wrappers - see Decisions. Qdrant is a planned future direction, not implemented anywhere in this pipeline today.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">3</div><div class="panel-title"><span class="name display">Personas</span></div></div>
+    <p>Gateway-restricted to <span class="mono">HR_SUPPORT</span> only (<span class="mono">POST /v1/genai-rag/ingest-document/documents</span>) - employees and managers never call this directly. Not a chat-facing feature; its only observable effect to other personas is that their later retrieval queries can find the newly-indexed content.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">4</div><div class="panel-title"><span class="name display">Acceptance criteria</span></div></div>
+    <div class="grid two">
+      <div class="card"><div class="card-head"><span class="card-label">Identical bytes never double-index</span><span class="status-pill live">met</span></div><p class="card-desc">A content-hash match returns the existing document's id with <span class="mono">status: "duplicate"</span>, no re-index.</p></div>
+      <div class="card"><div class="card-head"><span class="card-label">A table is never split across chunks</span><span class="status-pill live">met</span></div><p class="card-desc">Tables are pulled out before chunking and rejoined as whole chunks afterward, regardless of chunking strategy.</p></div>
+      <div class="card"><div class="card-head"><span class="card-label">An unknown chunking_strategy is rejected cleanly</span><span class="status-pill live">met</span></div><p class="card-desc">A 422 at the API boundary, not a silent fallback or a deep pipeline failure - same pattern every backend-choice parameter in this project follows.</p></div>
+      <div class="card"><div class="card-head"><span class="card-label">A document replacement never has a gap</span><span class="status-pill live">met</span></div><p class="card-desc">The old document is only marked superseded after the new one's first index succeeds - both versions are briefly current only in the "new one just wrote, old one not yet flipped" direction, never the reverse.</p></div>
+    </div>
+  </section>
+
+  <footer>
+    Companions: <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=overview" target="_blank" rel="noopener noreferrer">Overview</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=design" target="_blank" rel="noopener noreferrer">Design</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>.
+    <p style="margin-top:8px; font-size:11.5px;">Keep this in sync: any design, architecture, or major implementation change must be reflected in this doc set and re-synced to S3 (<code>python -m scripts.sync_admin_docs</code>, tracked by doc_version) before the work is considered done.</p>
+  </footer>
+</div>
+<!-- local-nav-fallback -->
+<script>
+(function () {
+  if (location.protocol !== "file:") return;
+  var LOCAL_DOCS = {
+    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/overview.html",
+    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/spec.html",
+architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/architecture.html",
+    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/design.html",
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/decisions.html",
+    "faq": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/interview-faq.html"
+  };
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    var match = a.href.match(/[?&]type=([^&]+)/);
+    if (!match) return;
+    var localPath = LOCAL_DOCS[match[1]];
+    if (localPath) {
+      a.href = localPath;
+      a.removeAttribute("target");
+    }
+  });
+})();
+</script>
+<!-- app-base-nav -->
+<script>
+(function () {
+  if (location.protocol === "file:") return;
+  var hashMatch = location.hash.match(/app_base=([^&]+)/);
+  if (!hashMatch) return;
+  var appBase = decodeURIComponent(hashMatch[1]).replace(/\/$/, "");
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      a.href = appBase + url.pathname + url.search + "#app_base=" + encodeURIComponent(appBase);
+    } catch (e) {}
+  });
+})();
+</script>

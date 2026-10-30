@@ -148,6 +148,7 @@
     <tbody>
       <tr><td class="id-cell">RS-1</td><td><a href="#rs-1">rank_bm25 for keyword search, not a managed hybrid-search vector DB feature</a></td><td class="source-cell">bm25_search.py docstring</td></tr>
       <tr><td class="id-cell">RS-2</td><td><a href="#rs-2">A GatewayChatModel adapter instead of LangChain's own per-provider packages</a></td><td class="source-cell">CLAUDE.md's own Phase 20 note</td></tr>
+      <tr><td class="id-cell">RS-3</td><td><a href="#rs-3">LLM-based full-batch reranking instead of a cross-encoder model</a></td><td class="source-cell">RAG-ROADMAP.md's Phase 279 entry</td></tr>
     </tbody>
   </table>
 
@@ -170,6 +171,17 @@
       <dt>Alternative</dt><dd>Add the real per-provider LangChain packages - more "native" to LangChain's own ecosystem, but per CLAUDE.md's own recorded reasoning, ran into a real dependency conflict that ruled them out (full detail in RAG-ROADMAP.md's Phase 20 entry, not re-derived here).</dd>
       <dt>Why</dt><dd>One adapter over this project's own existing gateway keeps provider selection consistent everywhere (the same <span class="mono">LlmProvider</span> enum, the same gateway pattern) instead of two separate provider-selection mechanisms existing side by side.</dd>
       <dt>Trade-off</dt><dd class="trade-off">The adapter only implements as much of LangChain's <span class="mono">BaseChatModel</span> interface as these 2 retriever classes actually need - not a general-purpose drop-in replacement for every LangChain integration this project might want later.</dd>
+    </dl>
+  </section>
+
+  <section class="decision" id="rs-3">
+    <div class="decision-head"><span class="decision-id">RS-3</span><span class="decision-title display">LLM-based full-batch reranking instead of a cross-encoder model</span></div>
+    <dl class="decision-grid">
+      <dt>Context</dt><dd>No reranking step existed at all until Phase 279 - confirmed by a project-wide grep for rerank/cross-encoder/Cohere-rank coming back empty. The textbook answer (see Interview FAQ) is a dedicated cross-encoder model scoring each chunk against the query individually.</dd>
+      <dt>Decision</dt><dd>One LLM call over the whole retrieved batch, asking for a full ranked order - reuses this project's existing multi-provider <span class="mono">ask()</span> clients, zero new dependency.</dd>
+      <dt>Alternative</dt><dd>A dedicated cross-encoder model (local or a commercial reranking API like Cohere) - would need explicit approval per this project's own "no unreviewed libraries" standing preference; not pursued since the LLM-based approach needed nothing new.</dd>
+      <dt>Why</dt><dd>A single call per batch (not per chunk) keeps the added latency/cost bounded, matching the same philosophy Phase 226's own corrective retry already established: one more LLM call before generation is an acceptable retrieval-quality tradeoff in this project.</dd>
+      <dt>Trade-off</dt><dd class="trade-off">A cross-encoder scores each chunk independently and more precisely; one LLM call judging the whole batch at once is less precise per-chunk but far cheaper (1 call vs. N), and this project chose cost over that extra precision.</dd>
     </dl>
   </section>
 

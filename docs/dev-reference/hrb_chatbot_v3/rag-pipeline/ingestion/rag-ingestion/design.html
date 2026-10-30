@@ -1,0 +1,175 @@
+<title>RAG Ingestion - Design</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --live: #147a4a; --live-bg: #e3f5eb; --live-border: #b5e3c8;
+    --design: #9a5a0c; --design-bg: #fbf1dd; --design-border: #edd6a2;
+    --accent: #4a6fa5; --accent-bg: #e8eef6; --accent-border: #c3d2e5;
+    --cost: #a4321f; --cost-bg: #fbe9e5; --cost-border: #f0c3b8;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0d3d34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+      --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+      --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+      --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0b2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --live: #52c98a; --live-bg: #12261a; --live-border: #1f4530;
+    --design: #e0ac48; --design-bg: #2c2311; --design-border: #4a3a17;
+    --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+    --cost: #e2795f; --cost-bg: #2c1712; --cost-border: #4a271e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0b2b25;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.55; }
+  .doc-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-nav a, .doc-nav-item { font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); text-decoration: none; display: inline-block; }
+  .doc-nav a.current, .doc-nav-item.current { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+  section.panel { display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .panel-num { width: 30px; height: 30px; border-radius: 9px; background: var(--band-dark); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13px; }
+  .panel-title { display: flex; flex-direction: column; }
+  .panel-title .name { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; }
+  .panel-title .sub { font-size: 12px; color: var(--text-faint); }
+  .panel p { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+  .endpoint { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .endpoint-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface-alt); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .http-verb { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
+  .http-verb.post { color: var(--live); background: var(--live-bg); border: 1px solid var(--live-border); }
+  .endpoint-path { font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; }
+  .endpoint-desc { font-size: 11.5px; color: var(--text-faint); margin-left: auto; }
+  .endpoint-body { padding: 14px; }
+  .schema-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); margin-bottom: 6px; }
+  pre.schema { margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; line-height: 1.6; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; color: var(--text); }
+
+  table.nfr-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.nfr-table th { text-align: left; font-family: 'Archivo', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  table.nfr-table td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text-muted); }
+  table.nfr-table td.nfr-name { color: var(--text); font-weight: 600; font-family: 'IBM Plex Mono', monospace; }
+
+  .flow-list { display: flex; flex-direction: column; gap: 8px; }
+  .flow-item { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
+  .flow-num { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 700; margin-top: 1px; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">design - API contract, key flow, narrow NFR</div>
+    <h1 class="display">RAG Ingestion</h1>
+    <p class="subtitle">Grounded in pipeline.py, text_chunker.py, and vector_indexer.py directly.</p>
+    <div class="doc-nav">
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=overview" target="_blank" rel="noopener noreferrer">Overview</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>
+<a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>
+      <span class="doc-nav-item current">Design</span>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>
+      <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=faq" target="_blank" rel="noopener noreferrer">Interview FAQ</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">1</div><div class="panel-title"><span class="name display">Endpoint</span></div></div>
+    <div class="endpoint">
+      <div class="endpoint-head"><span class="http-verb post">POST</span><span class="endpoint-path">/v1/genai-rag/ingest-document/documents</span><span class="endpoint-desc">multipart upload, HR_SUPPORT only</span></div>
+      <div class="endpoint-body">
+        <div class="schema-label">Key request fields</div>
+        <pre class="schema">files: UploadFile[]              // one or more PDFs, one call
+chunking_strategy: str | null     // one of CHUNKING_STRATEGIES, or auto-selected
+chunk_size: int | null            // or auto-selected via decide_chunk_size()
+vector_db: str | null             // "chroma" | "pinecone", or the active default
+supersedes_document_id: str | null  // marks an old document superseded on first index
+doc_category / department / doc_description: str | null  // overrides extraction's own guess</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">2</div><div class="panel-title"><span class="name display">Key flow</span></div></div>
+    <div class="flow-list">
+      <div class="flow-item"><span class="flow-num">1</span><span><span class="mono">compute_content_hash()</span> on the raw bytes, then <span class="mono">find_by_content_hash()</span> - a match returns <span class="mono">status: "duplicate"</span> immediately, nothing else in this flow runs.</span></div>
+      <div class="flow-item"><span class="flow-num">2</span><span><span class="mono">extract_text_from_pdf()</span> - page text joined, tables appended as <span class="mono">[TABLE]...[/TABLE]</span> blocks by a separate table extractor.</span></div>
+      <div class="flow-item"><span class="flow-num">3</span><span><span class="mono">chunk_text_with_sections()</span> pulls table blocks back out before chunking, runs the resolved strategy on table-free text, then rejoins the table blocks as whole chunks - a table is never a split target for any of the 7 strategies.</span></div>
+      <div class="flow-item"><span class="flow-num">4</span><span><span class="mono">generate_embeddings()</span> - one batch call for every chunk, computed once, passed into the indexing write rather than re-computed there.</span></div>
+      <div class="flow-item"><span class="flow-num">5</span><span><span class="mono">write_chunks()</span> - a re-index (<span class="mono">action: "update"</span>) deletes the document's old chunk ids from the vector store first (insert-only API, a reused id would silently no-op); a first index (<span class="mono">action: "insert"</span>) additionally flips <span class="mono">supersedes_document_id</span>'s old chunks to <span class="mono">is_current: false</span>, once, never repeated on later re-indexes.</span></div>
+      <div class="flow-item"><span class="flow-num">6</span><span>First index only: <span class="mono">extract_document_metadata()</span> (category/department/description) runs and is patched onto the already-written chunks - best-effort, a failure here is logged, never fails the index itself.</span></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-num">3</div><div class="panel-title"><span class="name display">NFR - narrow, feature-scoped</span></div></div>
+    <table class="nfr-table">
+      <tr><th>NFR</th><th>Built</th><th>Known gap</th></tr>
+      <tr><td class="nfr-name">Synchronous, in-request</td><td>Extract -&gt; chunk -&gt; embed -&gt; index all happen inside the same HTTP request</td><td>A large PDF or a large batch upload blocks the request for the full duration - no async/background path exists (see <span class="mono">S3-ASYNC-UPLOAD-DESIGN.md</span>, design only, not implemented)</td></tr>
+      <tr><td class="nfr-name">Chunking strategy auto-selection</td><td>Deterministic, logged rationale (<span class="mono">decide_chunking_strategy()</span>) - no guessing silently</td><td>Only 3 signals considered (markdown headings, HTML tags, length) - a PDF with neither heading style always falls to <span class="mono">recursive</span>, even if <span class="mono">document_structure</span> would fit better; that one stays explicit-only by design</td></tr>
+      <tr><td class="nfr-name">Vector store choice</td><td>Chroma (local) or Pinecone (managed), both via the same gateway/enum pattern this project uses for every backend</td><td>Qdrant is not implemented - see Decisions</td></tr>
+    </table>
+  </section>
+
+  <footer>
+    Companions: <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=overview" target="_blank" rel="noopener noreferrer">Overview</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=spec" target="_blank" rel="noopener noreferrer">Spec</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=architecture" target="_blank" rel="noopener noreferrer">Architecture</a>, <a class="doc-nav-item" href="https://hrb-chatbot-ui.rvsree.dev/admin/open-doc?feature=rag-ingestion&type=decisions" target="_blank" rel="noopener noreferrer">Decisions</a>.
+  </footer>
+</div>
+<!-- local-nav-fallback -->
+<script>
+(function () {
+  if (location.protocol !== "file:") return;
+  var LOCAL_DOCS = {
+    overview: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/overview.html",
+    spec: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/spec.html",
+architecture: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/architecture.html",
+    design: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/design.html",
+    decisions: "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/decisions.html",
+    "faq": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/rag-pipeline/ingestion/rag-ingestion/interview-faq.html"
+  };
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    var match = a.href.match(/[?&]type=([^&]+)/);
+    if (!match) return;
+    var localPath = LOCAL_DOCS[match[1]];
+    if (localPath) {
+      a.href = localPath;
+      a.removeAttribute("target");
+    }
+  });
+})();
+</script>
+<!-- app-base-nav -->
+<script>
+(function () {
+  if (location.protocol === "file:") return;
+  var hashMatch = location.hash.match(/app_base=([^&]+)/);
+  if (!hashMatch) return;
+  var appBase = decodeURIComponent(hashMatch[1]).replace(/\/$/, "");
+  document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      a.href = appBase + url.pathname + url.search + "#app_base=" + encodeURIComponent(appBase);
+    } catch (e) {}
+  });
+})();
+</script>
