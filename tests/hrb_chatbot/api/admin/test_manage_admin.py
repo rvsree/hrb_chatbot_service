@@ -1483,6 +1483,45 @@ def test_admin_lists_golden_dataset(monkeypatch):
     assert body["cases"][0]["source"] == "curated"
 
 
+def test_golden_dataset_list_is_cached_and_force_refresh_bypasses_it(monkeypatch):
+    """Phase 276 - the second identical call must not re-query the store
+    at all (a real cache hit), and force_refresh=true must bypass that
+    cache and re-query. Uses a spy wrapper around FakeGoldenDatasetStore's
+    own list_cases() to count real calls, not just assert response shape."""
+    store = FakeGoldenDatasetStore(
+        [
+            {
+                "id": 1, "case_key": "401k-001", "dataset": "golden_v1", "category": "benefits",
+                "query": "What's the 401k match?", "raw_case": {"expected_answer": "6%"},
+                "created_at": "2026-10-26T00:00:00Z", "updated_at": "2026-10-26T00:00:00Z",
+                "source": "curated", "source_live_query_id": None, "promoted_by": None, "promoted_at": None,
+            }
+        ]
+    )
+    call_count = {"n": 0}
+    real_list_cases = store.list_cases
+
+    async def _counting_list_cases():
+        call_count["n"] += 1
+        return await real_list_cases()
+
+    monkeypatch.setattr(store, "list_cases", _counting_list_cases)
+    # A single, pinned FakeDBGateway instance - not a lambda factory - so
+    # the same admin_dashboard_cache persists across both calls below.
+    gateway = FakeDBGateway(golden_dataset_store=store)
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: gateway)
+
+    first = client.get("/v1/admin/golden-dataset", params=ADMIN_PROFILE)
+    second = client.get("/v1/admin/golden-dataset", params=ADMIN_PROFILE)
+    third = client.get("/v1/admin/golden-dataset", params={**ADMIN_PROFILE, "force_refresh": "true"})
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert third.status_code == 200
+    assert second.json() == first.json()
+    assert call_count["n"] == 2  # first call (miss) + third call (force_refresh) - second was a real cache hit
+
+
 def test_non_admin_cannot_read_a_setting(monkeypatch):
     response = client.get("/v1/admin/app-settings/ltm_score_threshold", params=EMPLOYEE_PROFILE)
     assert response.status_code == 403

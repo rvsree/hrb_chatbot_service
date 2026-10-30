@@ -27,6 +27,7 @@ from src.hrb_chatbot.ai.search_pre_processing.query_normalize import normalize_q
 from src.hrb_chatbot.ai.rag_core.eval_threshold import (
     build_eval_scores,
     maybe_capture_live_query,
+    meets_cache_quality_threshold,
     record_eval_feedback,
     retrieval_relevance_enabled,
     run_enabled_eval_judges,
@@ -310,6 +311,7 @@ async def run_multi_agent(
     full_name: str | None = None,
     ip_address: str | None = None,
     timezone: str | None = None,
+    capture_as_live_query: bool = True,
 ) -> dict:
     """Runs the Planner -> Orchestration -> domain agents -> Reviewer graph for one query.
     Guardrails run here, same layer as genai-rag's pipeline.answer_query() - the route
@@ -481,12 +483,17 @@ async def run_multi_agent(
     result["latency_ms"]["eval"] = eval_ms
     result["latency_ms"]["total"] = _elapsed_ms(started_at)
 
-    await maybe_capture_live_query(
-        checked_query, result["answer"], eval_scores, "multi-agentic-rag", request_id, employee_id
-    )
+    # 2026-10-30, user-directed - see pipeline.py's own identical comment;
+    # scripts/run_release_gate.py passes capture_as_live_query=False.
+    if capture_as_live_query:
+        await maybe_capture_live_query(
+            checked_query, result["answer"], eval_scores, "multi-agentic-rag", request_id, employee_id
+        )
     await record_eval_feedback(eval_scores)
 
-    cache_eligible = not any(task["agent"] in LIVE_DATA_AGENTS for task in result["tasks"])
+    cache_eligible = not any(
+        task["agent"] in LIVE_DATA_AGENTS for task in result["tasks"]
+    ) and await meets_cache_quality_threshold(eval_scores)
     if cache_eligible:
         await get_db_gateway().answer_cache().set(cache_key, checked_query, result)
         if result.get("conversation_id"):

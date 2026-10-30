@@ -132,14 +132,21 @@ async def score_routing_case(case: dict) -> dict:
     scores = {}
     tokens = 0
     if case.get("expected_tool"):
-        result = await orchestration_agent.run_agent(case["query"], employee_id=None)
+        # 2026-10-30, user-directed - real production-data-integrity bug,
+        # found by direct investigation: this call used to write a fake
+        # row into live_queries (meant for real user traffic only) on
+        # every CI/local release-gate run. capture_as_live_query=False
+        # stops that at the source.
+        result = await orchestration_agent.run_agent(case["query"], employee_id=None, capture_as_live_query=False)
         tokens += _total_tokens(result)
         tool_names = [call["tool_name"] for call in result["tools_used"]]
         routing = evaluate_routing_accuracy(case["expected_tool"], tool_names)
         scores["single_agentic_routing"] = routing
 
     if case.get("expected_agent"):
-        result = await multi_agent_pipeline.run_multi_agent(case["query"], employee_id=None)
+        result = await multi_agent_pipeline.run_multi_agent(
+            case["query"], employee_id=None, capture_as_live_query=False
+        )
         tokens += _total_tokens(result)
         tool_names = [call["tool_name"] for call in result["tools_used"]]
         routing = evaluate_routing_accuracy(case["expected_agent"], tool_names)
@@ -152,7 +159,9 @@ async def ask_genai_rag(query: str) -> dict:
     """Same adapter shape test_golden_dataset_harness.py already established,
     with retrieved_ids corrected to the real filename (not document_id, a UUID
     that can never match expected_source_document regardless of retrieval quality)."""
-    result = await pipeline.answer_query(RagQueryParams(query=query))
+    # 2026-10-30, user-directed - see score_routing_case()'s own identical
+    # comment above - stops this call from polluting live_queries too.
+    result = await pipeline.answer_query(RagQueryParams(query=query), capture_as_live_query=False)
     retrieved_texts = [chunk["text"] for chunk in result["sources"]]
     retrieved_ids = [chunk["filename"] for chunk in result["sources"]]
     return {

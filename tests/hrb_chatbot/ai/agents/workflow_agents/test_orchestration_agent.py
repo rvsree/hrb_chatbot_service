@@ -28,6 +28,13 @@ def _fake_cache_and_eval_judges(monkeypatch):
     ~24s unfaked for 10 tests)."""
     gateway = FakeDBGateway()
     monkeypatch.setattr(orchestration_agent, "get_db_gateway", lambda: gateway)
+    # 2026-10-30, user-directed finding - eval_threshold.py's own
+    # maybe_capture_live_query()/meets_cache_quality_threshold() each call
+    # their own imported get_db_gateway(), never patched here before this
+    # fix - a real, production-shared Neon Postgres write on any test that
+    # crossed the 0.6 groundedness default. See test_pipeline.py's own
+    # identical fix/comment for the full account.
+    monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: gateway)
     monkeypatch.setattr(
         eval_threshold,
         "evaluate_groundedness",
@@ -208,6 +215,69 @@ async def test_tool_calls_across_separate_iterations_each_report_their_own_itera
     assert result["tools_used"][0]["iteration"] == 1
     assert result["tools_used"][1]["tool_name"] == "GetLeaveBalance"
     assert result["tools_used"][1]["iteration"] == 2
+
+
+async def test_dynamic_tool_router_rejects_a_malformed_call_without_running_the_tool(monkeypatch):
+    """Phase 277 - the Dynamic Tool Router: a call missing SearchKnowledgeBase's
+    own required 'input' field must never reach the real tool function at
+    all - validated and turned into a structured, self-correctable error
+    fed back as this iteration's ToolMessage instead."""
+    _patch_guardrails(monkeypatch)
+    search_was_called = {"value": False}
+
+    async def _fake_search(args):
+        search_was_called["value"] = True
+        return "should never run", []
+
+    monkeypatch.setattr(
+        orchestration_agent,
+        "TOOL_FUNCTIONS",
+        {"SearchKnowledgeBase": lambda args, employee_id, role=None, department=None: _fake_search(args)},
+    )
+    _patch_llm(
+        monkeypatch,
+        [
+            # No "input" key at all - violates SearchKnowledgeBase's own required field.
+            FakeResponse(tool_calls=[{"name": "SearchKnowledgeBase", "args": {}, "id": "call_1"}]),
+            FakeResponse(content="Final answer after self-correcting."),
+        ],
+    )
+
+    result = await orchestration_agent.run_agent("what is the dental plan?", employee_id="EMP052")
+
+    assert search_was_called["value"] is False
+    assert len(result["tools_used"]) == 1
+    assert result["tools_used"][0]["success"] is False
+    assert result["tools_used"][0]["validation_failed"] is True
+    assert result["answer"] == "Final answer after self-correcting."
+
+
+async def test_dynamic_tool_router_allows_a_well_formed_call_through(monkeypatch):
+    """Phase 277 - a call that satisfies the real schema must behave
+    exactly as before this phase: the tool function runs, success is True,
+    validation_failed is False."""
+    _patch_guardrails(monkeypatch)
+
+    async def _fake_search(args):
+        return "real result", []
+
+    monkeypatch.setattr(
+        orchestration_agent,
+        "TOOL_FUNCTIONS",
+        {"SearchKnowledgeBase": lambda args, employee_id, role=None, department=None: _fake_search(args)},
+    )
+    _patch_llm(
+        monkeypatch,
+        [
+            FakeResponse(tool_calls=[{"name": "SearchKnowledgeBase", "args": {"input": "dental plan"}, "id": "call_1"}]),
+            FakeResponse(content="Here's the dental plan."),
+        ],
+    )
+
+    result = await orchestration_agent.run_agent("what is the dental plan?", employee_id="EMP052")
+
+    assert result["tools_used"][0]["success"] is True
+    assert result["tools_used"][0]["validation_failed"] is False
 
 
 async def test_retrieval_judge_scopes_to_kb_sources_not_the_mixed_tool_output_text(monkeypatch):

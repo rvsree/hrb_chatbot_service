@@ -16,6 +16,7 @@ from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import (
     evaluate_groundedness,
     evaluate_retrieval_relevance,
 )
+from src.hrb_chatbot.ai.search_pre_processing.intent_classify import classify_query_intent
 from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 from src.hrb_chatbot.common.config.settings import read_setting
 from src.hrb_chatbot.common.logging.logger import get_logger
@@ -168,6 +169,18 @@ async def maybe_capture_live_query(
     groundedness = eval_scores.get("groundedness")
     if groundedness is None:
         return
+    # Phase 277 - intent classification, purely for observability: tags
+    # this trace and fills the live_queries table's own long-dormant
+    # category column. Never raised past this function - a classification
+    # failure must not block the capture it rides alongside.
+    category = None
+    try:
+        category = classify_query_intent(query)
+        run = get_current_run_tree()
+        if run is not None:
+            run.add_tags([f"intent:{category}"])
+    except Exception as error:
+        logger.warning("Could not classify query intent for pipeline=%s request_id=%s: %s", pipeline, request_id, error)
     try:
         gateway = get_db_gateway()
         threshold = await gateway.app_settings_store().get_setting("ltm_score_threshold", 0.6)
@@ -179,9 +192,27 @@ async def maybe_capture_live_query(
             employee_id=employee_id,
             eval_score=groundedness,
             is_ltm=groundedness >= threshold,
+            category=category,
         )
     except Exception as error:
         logger.warning("Could not capture live query for pipeline=%s request_id=%s: %s", pipeline, request_id, error)
+
+
+async def meets_cache_quality_threshold(eval_scores: dict | None) -> bool:
+    """2026-10-30, user-directed - an answer below the live-query LTM
+    threshold (same app_settings key ltm_score_threshold, default 0.6, as
+    maybe_capture_live_query() above) must not be cached: caching is what
+    makes a bad answer fast to repeat, which is worse than not caching it.
+    Returns True (don't block caching) when no groundedness score is
+    available at all - the eval-judge feature being off shouldn't silently
+    disable a different feature (caching)."""
+    if eval_scores is None:
+        return True
+    groundedness = eval_scores.get("groundedness")
+    if groundedness is None:
+        return True
+    threshold = await get_db_gateway().app_settings_store().get_setting("ltm_score_threshold", 0.6)
+    return groundedness >= threshold
 
 
 _LANGSMITH_CLIENT: Client | None = None

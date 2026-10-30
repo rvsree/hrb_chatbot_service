@@ -67,6 +67,7 @@ def test_well_formed_query_returns_answer_and_tools_used(monkeypatch):
             "success": True,
             "iteration": None,
             "search_strategy": None,
+            "validation_failed": False,
         }
     ]
     assert body["iterations"] == 2

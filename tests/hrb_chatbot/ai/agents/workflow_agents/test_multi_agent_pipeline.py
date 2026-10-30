@@ -20,6 +20,12 @@ def _fake_cache_and_eval_judges(monkeypatch):
     "Redis unreachable"/"Event loop is closed" errors on every call)."""
     gateway = FakeDBGateway()
     monkeypatch.setattr(multi_agent_pipeline, "get_db_gateway", lambda: gateway)
+    # 2026-10-30, user-directed finding - eval_threshold.py's own
+    # maybe_capture_live_query()/meets_cache_quality_threshold() each call
+    # their own imported get_db_gateway(), never patched here before this
+    # fix. See test_pipeline.py's own identical fix/comment for the full
+    # account (a real, production-shared Neon Postgres write, unnoticed).
+    monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: gateway)
 
     async def _fake_generate_follow_ups(query, answer):
         return []

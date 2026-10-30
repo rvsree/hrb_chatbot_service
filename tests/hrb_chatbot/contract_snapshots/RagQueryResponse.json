@@ -936,6 +936,12 @@
           "description": "Phase 126 - which kind of backend this hit: vector_db/mcp/web_search/sql_db/other.",
           "title": "Tool Type",
           "type": "string"
+        },
+        "validation_failed": {
+          "default": false,
+          "description": "Phase 277 - true if the Dynamic Tool Router rejected this call's own arguments before the tool ever ran (a self-correctable mistake, distinct from a real backend failure).",
+          "title": "Validation Failed",
+          "type": "boolean"
         }
       },
       "required": [

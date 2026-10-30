@@ -27,6 +27,16 @@ def _fake_answer_cache(monkeypatch):
     # its own get_db_gateway - same reason conversation_memory below needs
     # its own patch, this needs one too, or it falls through to the real thing.
     monkeypatch.setattr(cache_layer, "get_db_gateway", lambda: gateway)
+    # 2026-10-30, user-directed finding - eval_threshold.py's own
+    # maybe_capture_live_query()/meets_cache_quality_threshold() each call
+    # their own imported get_db_gateway(), never patched here before this
+    # fix - any test with non-empty fake chunks (groundedness >= 0.6 from
+    # the autouse judge fixture below) was silently writing a real row into
+    # the real, production-shared Neon Postgres live_queries table on every
+    # local test run. Confirmed live: a new test asserting on read-back
+    # state (added this same round) surfaced it - no earlier test in this
+    # file ever checked live_query_store state, so it went unnoticed.
+    monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: gateway)
 
 
 @pytest.fixture(autouse=True)
@@ -651,10 +661,14 @@ async def test_cache_hit_recomputes_below_threshold_against_this_calls_own_thres
     see it re-flagged against their own threshold, not a stale one."""
     _patch_guardrails(monkeypatch)
 
+    # 0.75 - at/above the answer cache's own quality gate (ltm_score_threshold,
+    # default 0.6, Phase 275) so this call still gets cached at all, but below
+    # this test's own eval_score_threshold=0.8 below, so below_threshold still
+    # trips the way this test means to exercise.
     monkeypatch.setattr(
         eval_threshold,
         "evaluate_groundedness",
-        lambda answer, context_texts, judge_model=None: {"score": 0.5, "verdict": "PARTIAL", "explanation": "fake", "prompt": "fake", "model_used": "fake-chat-model"},
+        lambda answer, context_texts, judge_model=None: {"score": 0.75, "verdict": "PARTIAL", "explanation": "fake", "prompt": "fake", "model_used": "fake-chat-model"},
     )
 
     async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
@@ -671,13 +685,42 @@ async def test_cache_hit_recomputes_below_threshold_against_this_calls_own_thres
     assert first["eval_scores"]["below_threshold"] is False
 
     # Same query/config (same cache key) but now with a threshold the
-    # 0.5 groundedness score should trip - must be cache-served (the judge
+    # 0.75 groundedness score should trip - must be cache-served (the judge
     # never runs again) yet still correctly flagged this time.
     second = await pipeline.answer_query(RagQueryParams(query="threshold recompute check", eval_score_threshold=0.8))
     assert second["served_from_cache"] is True
-    assert second["eval_scores"]["groundedness"] == 0.5  # the score itself is still reused, not re-judged
+    assert second["eval_scores"]["groundedness"] == 0.75  # the score itself is still reused, not re-judged
     assert second["eval_scores"]["below_threshold"] is True
     assert "groundedness" in second["eval_scores"]["below_threshold_metrics"]
+
+
+async def test_capture_as_live_query_false_skips_the_live_queries_write(monkeypatch):
+    """2026-10-30, user-directed - scripts/run_release_gate.py was writing
+    a fake row into live_queries (meant for real user traffic only) on
+    every CI/local golden-dataset test run. capture_as_live_query=False
+    must skip that write entirely, while the default (True) still writes -
+    same groundedness=0.9 default the autouse judge fixtures already give,
+    well above the 0.6 capture threshold."""
+    _patch_guardrails(monkeypatch)
+
+    async def _fake_retrieve(query, top_k=5, vector_db=None, search_strategy=None, **kwargs):
+        return ([{"filename": "x", "chunk_index": 0, "text": "y"}], None)
+
+    def _fake_generate(query, chunks, model_name=None, temperature=0.0, max_tokens=None, chat_history=None, request_id=None):
+        return {"answer": "fake answer", "model_used": "gpt-4.1-mini", "token_usage": None}
+
+    monkeypatch.setattr(pipeline, "retrieve_chunks", _fake_retrieve)
+    monkeypatch.setattr(pipeline, "generate_answer", _fake_generate)
+
+    gateway = pipeline.get_db_gateway()
+
+    await pipeline.answer_query(RagQueryParams(query="CI test case - should not be captured"), capture_as_live_query=False)
+    assert await gateway.live_query_store().list_queries() == []
+
+    await pipeline.answer_query(RagQueryParams(query="a real user question - should be captured"))
+    rows = await gateway.live_query_store().list_queries()
+    assert len(rows) == 1
+    assert rows[0]["query_text"] == "a real user question - should be captured"
 
 
 # Phase 130 - query decomposition

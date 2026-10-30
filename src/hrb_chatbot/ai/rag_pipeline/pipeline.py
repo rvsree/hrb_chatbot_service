@@ -25,6 +25,7 @@ from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import e
 from src.hrb_chatbot.ai.rag_pipeline.helper.access_control import build_acl_filter
 from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.dynamic_strategy_selector import resolve_dynamic_strategy
 from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.exact_knn_search import search_knn
+from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.reranker import rerank_chunks
 from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.retriever import retrieve_chunks
 from src.hrb_chatbot.ai.rag_pipeline.response_generation.response_generator import generate_answer
 from src.hrb_chatbot.ai.rag_pipeline.tools.mcp_tools import try_route_to_mcp
@@ -232,6 +233,17 @@ async def _answer_sub_question(
             if retried_chunks:
                 chunks, applied_filter = retried_chunks, retried_filter
                 retry_attempted = True
+
+    # Phase 279 - reorders by actual relevance to this query, not just
+    # similarity-search/MMR's own order (or the corrective retry's wider
+    # candidate pool above, if one ran) - applied once, after the retry
+    # block settles on its final chunk list, so it's never redone twice
+    # for the same chunks. Also reorders "sources" (returned below) -
+    # citations now show in relevance order too, a side benefit of doing
+    # this before generate_answer() rather than after.
+    if chunks:
+        chunks = await rerank_chunks(sub_question, chunks, judge_model)
+
     retrieval_ms = _elapsed_ms(retrieval_started_at)
 
     generation_started_at = time.perf_counter()
@@ -259,7 +271,9 @@ async def _answer_sub_question(
 
 
 @traceable(name="genai_rag_answer_query")
-async def answer_query(params: RagQueryParams, request_id: str | None = None) -> dict:
+async def answer_query(
+    params: RagQueryParams, request_id: str | None = None, capture_as_live_query: bool = True
+) -> dict:
     """Run the full pipeline: guardrail/decompose/(MCP-route-or-retrieve+
     generate per sub-question)/merge/guardrail/save via the Phase 98
     shared core - GuardrailBlockedError becomes a 422 upstream.
@@ -513,9 +527,15 @@ async def answer_query(params: RagQueryParams, request_id: str | None = None) ->
     if result["eval_scores"] is not None:
         result["eval_scores"]["retrieval_retry_attempted"] = result.get("retry_attempted", False)
 
-    await maybe_capture_live_query(
-        checked_query, result["answer"], result["eval_scores"], "genai-rag", request_id, params.employee_id
-    )
+    # 2026-10-30, user-directed - real finding, not assumed: scripts/
+    # run_release_gate.py calls this exact function for every golden-
+    # dataset case, which was writing fake rows into live_queries (meant
+    # for real user traffic only) on every CI/local test run.
+    # capture_as_live_query=False from that caller stops it at the source.
+    if capture_as_live_query:
+        await maybe_capture_live_query(
+            checked_query, result["answer"], result["eval_scores"], "genai-rag", request_id, params.employee_id
+        )
     await record_eval_feedback(result["eval_scores"])
 
     # total_ms covers the whole call (guardrails, cache check, retrieval,

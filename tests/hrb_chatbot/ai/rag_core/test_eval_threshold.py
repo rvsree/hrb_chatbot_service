@@ -290,6 +290,72 @@ class TestMaybeCaptureLiveQuery:
         # Must not raise.
         await eval_threshold.maybe_capture_live_query("q", "a", {"groundedness": 0.9}, "genai-rag", "req-4", None)
 
+    async def test_captured_row_carries_the_classified_intent(self, monkeypatch):
+        """Phase 277 - the long-dormant category column now gets a real
+        value, from ai/search_pre_processing/intent_classify.py."""
+        fake_gateway = FakeDBGateway()
+        monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: fake_gateway)
+
+        await eval_threshold.maybe_capture_live_query(
+            "What's my PTO balance?", "You have 10 days.", {"groundedness": 0.9}, "genai-rag", "req-5", "EMP001"
+        )
+
+        rows = await fake_gateway.live_query_store().list_queries()
+        assert rows[0]["category"] == "leave_balance"
+
+    async def test_classification_failure_does_not_block_the_capture(self, monkeypatch):
+        """A broken classifier must not take down the real capture it
+        rides alongside - same fire-and-forget discipline as everything
+        else in this function."""
+        fake_gateway = FakeDBGateway()
+        monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: fake_gateway)
+        monkeypatch.setattr(
+            eval_threshold, "classify_query_intent", lambda query: (_ for _ in ()).throw(RuntimeError("boom"))
+        )
+
+        await eval_threshold.maybe_capture_live_query(
+            "q", "a", {"groundedness": 0.9}, "genai-rag", "req-6", "EMP001"
+        )
+
+        rows = await fake_gateway.live_query_store().list_queries()
+        assert len(rows) == 1
+        assert rows[0]["category"] is None
+
+
+class TestMeetsCacheQualityThreshold:
+    """2026-10-30 - the answer-cache quality gate, same ltm_score_threshold
+    app_setting as TestMaybeCaptureLiveQuery above."""
+
+    async def test_none_eval_scores_does_not_block_caching(self, monkeypatch):
+        fake_gateway = FakeDBGateway()
+        monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: fake_gateway)
+
+        assert await eval_threshold.meets_cache_quality_threshold(None) is True
+
+    async def test_missing_groundedness_key_does_not_block_caching(self, monkeypatch):
+        fake_gateway = FakeDBGateway()
+        monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: fake_gateway)
+
+        assert await eval_threshold.meets_cache_quality_threshold({"completeness": 0.9}) is True
+
+    async def test_score_at_or_above_default_threshold_is_cache_worthy(self, monkeypatch):
+        fake_gateway = FakeDBGateway()
+        monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: fake_gateway)
+
+        assert await eval_threshold.meets_cache_quality_threshold({"groundedness": 0.6}) is True
+
+    async def test_score_below_default_threshold_is_not_cache_worthy(self, monkeypatch):
+        fake_gateway = FakeDBGateway()
+        monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: fake_gateway)
+
+        assert await eval_threshold.meets_cache_quality_threshold({"groundedness": 0.3}) is False
+
+    async def test_custom_threshold_from_app_settings_is_honored(self, monkeypatch):
+        fake_gateway = FakeDBGateway(app_settings_store=FakeAppSettingsStore({"ltm_score_threshold": 0.9}))
+        monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: fake_gateway)
+
+        assert await eval_threshold.meets_cache_quality_threshold({"groundedness": 0.7}) is False
+
 
 class _FakeRunTree:
     """Minimal stand-in for langsmith.run_trees.RunTree - just the surface

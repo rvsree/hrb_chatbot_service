@@ -692,6 +692,24 @@ class FakeAnswerCache:
         return {"provider": "redis", "status": "healthy"}
 
 
+class FakeAdminDashboardCache:
+    """Stands in for AdminDashboardCache (Phase 276, Redis-backed) - plain
+    in-memory dict keyed by cache_key, same async interface as the real
+    Redis-backed one, never touches a real cache."""
+
+    def __init__(self):
+        self._entries: dict[str, dict] = {}
+
+    async def get(self, cache_key):
+        return self._entries.get(cache_key)
+
+    async def set(self, cache_key, value):
+        self._entries[cache_key] = value
+
+    async def health_check(self):
+        return {"provider": "redis", "status": "healthy"}
+
+
 class FakeStmCache:
     """Stands in for StmCache (Phase 247, Redis-backed) - plain in-memory
     dict keyed by conversation_id, same async interface as the real
@@ -1101,7 +1119,7 @@ class FakeLiveQueryStore:
         self._queries = queries or []
         self._next_id = max((row["id"] for row in self._queries), default=0) + 1
 
-    async def capture(self, query_text, answer_text, pipeline, request_id, employee_id, eval_score, is_ltm):
+    async def capture(self, query_text, answer_text, pipeline, request_id, employee_id, eval_score, is_ltm, category=None):
         row = {
             "id": self._next_id,
             "query_text": query_text,
@@ -1111,7 +1129,7 @@ class FakeLiveQueryStore:
             "employee_id": employee_id,
             "eval_score": eval_score,
             "is_ltm": is_ltm,
-            "category": None,
+            "category": category,
             "created_at": "2026-10-26T00:00:00Z",
         }
         self._queries.append(row)
@@ -1267,6 +1285,7 @@ class FakeDBGateway:
         feedback_store: "FakeFeedbackStore | None" = None,
         embedding_cache: FakeEmbeddingCache | None = None,
         answer_cache: FakeAnswerCache | None = None,
+        admin_dashboard_cache: "FakeAdminDashboardCache | None" = None,
         stm_cache: "FakeStmCache | None" = None,
         admin_credential_store: "FakeAdminCredentialStore | None" = None,
         agent_thread_store: "FakeAgentThreadStore | None" = None,
@@ -1289,6 +1308,7 @@ class FakeDBGateway:
         self._feedback_store = feedback_store or FakeFeedbackStore()
         self._embedding_cache = embedding_cache or FakeEmbeddingCache()
         self._answer_cache = answer_cache or FakeAnswerCache()
+        self._admin_dashboard_cache = admin_dashboard_cache or FakeAdminDashboardCache()
         self._stm_cache = stm_cache or FakeStmCache()
         self._admin_credential_store = admin_credential_store or FakeAdminCredentialStore()
         self._agent_thread_store = agent_thread_store or FakeAgentThreadStore()
@@ -1324,6 +1344,9 @@ class FakeDBGateway:
 
     def answer_cache(self):
         return self._answer_cache
+
+    def admin_dashboard_cache(self):
+        return self._admin_dashboard_cache
 
     def stm_cache(self):
         return self._stm_cache

@@ -6,6 +6,7 @@ not a side-channel, a uniform contract across all three."""
 
 from langsmith import traceable
 
+from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.reranker import rerank_chunks
 from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.retriever import retrieve_chunks
 from src.hrb_chatbot.ai.rag_pipeline.tools.mcp_tools import get_leave_balance, get_leave_history
 from src.hrb_chatbot.common.logging.logger import get_logger
@@ -36,6 +37,11 @@ async def search_knowledge_base(
 
     if not chunks:
         return "No relevant knowledge base documents found.", []
+
+    # Phase 279 - reorders by actual relevance to this query, not just the
+    # vector store's own similarity/MMR order. Fails safe to the original
+    # order on any error - never blocks the real answer.
+    chunks = await rerank_chunks(query, chunks)
 
     output = "Found relevant knowledge base content:\n\n"
     for i, chunk in enumerate(chunks, 1):
@@ -125,7 +131,13 @@ AGENTIC_TOOL_DEFINITIONS = [
             "parameters": {
                 "type": "object",
                 "properties": {"input": {"type": "string", "description": "Not used - pass an empty string."}},
-                "required": ["input"],
+                # Phase 277 - deliberately NOT required: TOOL_FUNCTIONS' own
+                # GetLeaveBalance lambda never reads args at all (always
+                # uses the caller's own employee_id) - the schema used to
+                # claim "input" was required while the real implementation
+                # ignored it outright, a real mismatch the Dynamic Tool
+                # Router's own validation surfaced.
+                "required": [],
             },
         },
     },
@@ -141,7 +153,8 @@ AGENTIC_TOOL_DEFINITIONS = [
             "parameters": {
                 "type": "object",
                 "properties": {"input": {"type": "string", "description": "Not used - pass an empty string."}},
-                "required": ["input"],
+                # Phase 277 - same reasoning as GetLeaveBalance above.
+                "required": [],
             },
         },
     },

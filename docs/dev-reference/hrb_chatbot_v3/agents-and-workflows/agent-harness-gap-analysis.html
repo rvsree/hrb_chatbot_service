@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Harness Coverage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f2ec;
+    --surface: #ffffff;
+    --ink: #1c1d1a;
+    --ink-soft: #55564f;
+    --line: #dedad0;
+    --accent: #2b4b8f;
+    --green-bg: #e6f3e8; --green-ink: #1f7a39; --green-line: #a9d9b6;
+    --blue-bg: #e8f0fb;  --blue-ink: #2458b3;  --blue-line: #aecaf2;
+    --red-bg: #fbe9e7;   --red-ink: #b23c2e;   --red-line: #f0bdb4;
+    --font-display: "Space Grotesk", "Inter", sans-serif;
+    --font-mono: "IBM Plex Mono", monospace;
+    --font-body: "Inter", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17181a; --surface: #202225; --ink: #ece9e2; --ink-soft: #a7a79c; --line: #34363a;
+      --green-bg: #13301d; --green-ink: #7fe3a0; --green-line: #2d6b43;
+      --blue-bg: #122a44;  --blue-ink: #86b6f2;  --blue-line: #2b5a93;
+      --red-bg: #3a1a16;   --red-ink: #f0a79a;   --red-line: #7a3a30;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17181a; --surface: #202225; --ink: #ece9e2; --ink-soft: #a7a79c; --line: #34363a;
+    --green-bg: #13301d; --green-ink: #7fe3a0; --green-line: #2d6b43;
+    --blue-bg: #122a44;  --blue-ink: #86b6f2;  --blue-line: #2b5a93;
+    --red-bg: #3a1a16;   --red-ink: #f0a79a;   --red-line: #7a3a30;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    padding: 20px 16px 48px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  header.page-head {
+    display: flex; flex-direction: column; gap: 10px;
+    padding-bottom: 20px; margin-bottom: 24px;
+    border-bottom: 2px solid var(--line);
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(26px, 4vw, 38px);
+    margin: 0;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+  .subtitle { color: var(--ink-soft); font-size: 15px; max-width: 70ch; line-height: 1.5; }
+  .meta-row { font-family: var(--font-mono); font-size: 12px; color: var(--ink-soft); }
+  .meta-row b { color: var(--ink); }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px;
+  }
+  .legend-pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+    padding: 5px 11px; border-radius: 999px; border: 1px solid;
+  }
+  .legend-pill .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .legend-pill.full { background: var(--green-bg); color: var(--green-ink); border-color: var(--green-line); }
+  .legend-pill.full .dot { background: var(--green-ink); }
+  .legend-pill.partial { background: var(--blue-bg); color: var(--blue-ink); border-color: var(--blue-line); }
+  .legend-pill.partial .dot { background: var(--blue-ink); }
+  .legend-pill.none { background: var(--red-bg); color: var(--red-ink); border-color: var(--red-line); }
+  .legend-pill.none .dot { background: var(--red-ink); }
+
+  .scoreboard {
+    display: flex; gap: 14px; flex-wrap: wrap; margin-top: 16px;
+  }
+  .score-tile {
+    flex: 1 1 140px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .score-tile .num { font-family: var(--font-display); font-size: 28px; font-variant-numeric: tabular-nums; }
+  .score-tile .lbl { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+  .score-tile.full .num { color: var(--green-ink); }
+  .score-tile.partial .num { color: var(--blue-ink); }
+  .score-tile.none .num { color: var(--red-ink); }
+
+  section.category { margin-bottom: 30px; }
+  .category-head {
+    display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px;
+  }
+  .category-head .idx {
+    font-family: var(--font-mono); font-size: 12px; color: var(--ink-soft);
+    border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px;
+  }
+  .category-head h2 {
+    font-family: var(--font-display); font-size: 19px; margin: 0;
+  }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left-width: 4px;
+    border-radius: 10px;
+    padding: 13px 14px;
+    display: flex; flex-direction: column; gap: 7px;
+    min-width: 0;
+  }
+  .card.full { border-left-color: var(--green-ink); }
+  .card.partial { border-left-color: var(--blue-ink); }
+  .card.none { border-left-color: var(--red-ink); }
+
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .card-name { font-weight: 600; font-size: 14.5px; line-height: 1.3; }
+  .status-chip {
+    flex-shrink: 0;
+    font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    padding: 3px 7px; border-radius: 5px; white-space: nowrap;
+  }
+  .card.full .status-chip { background: var(--green-bg); color: var(--green-ink); }
+  .card.partial .status-chip { background: var(--blue-bg); color: var(--blue-ink); }
+  .card.none .status-chip { background: var(--red-bg); color: var(--red-ink); }
+
+  .card-evidence { font-size: 12.5px; color: var(--ink-soft); line-height: 1.45; }
+  .card-evidence code {
+    font-family: var(--font-mono); font-size: 11.5px;
+    background: var(--bg); border: 1px solid var(--line); border-radius: 4px;
+    padding: 0px 4px;
+  }
+
+  footer {
+    margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--line);
+    font-size: 12.5px; color: var(--ink-soft); line-height: 1.6; max-width: 80ch;
+  }
+  footer b { color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="page-head">
+    <h1>Agent Harness Coverage</h1>
+    <div class="subtitle">
+      hrb_chatbot_service's 3 retrieval pipelines (genai-rag, single-agentic-rag, multi-agentic-rag) mapped against the
+      4-part "enterprise agent harness" framework — deterministic execution, state persistence, safety/governance,
+      and telemetry — scored by what the source code actually does today, not by what the roadmap plans.
+    </div>
+    <div class="meta-row">Scored <b>2026-10-30</b> &middot; evidence = direct source reads this session, cited per card &middot; repo: <b>hrb_chatbot_service</b></div>
+    <div class="legend">
+      <span class="legend-pill full"><span class="dot"></span>Fully implemented</span>
+      <span class="legend-pill partial"><span class="dot"></span>Partially implemented</span>
+      <span class="legend-pill none"><span class="dot"></span>Not implemented</span>
+    </div>
+    <div class="scoreboard">
+      <div class="score-tile full"><div class="num">13</div><div class="lbl">fully implemented</div></div>
+      <div class="score-tile partial"><div class="num">9</div><div class="lbl">partially implemented</div></div>
+      <div class="score-tile none"><div class="num">4</div><div class="lbl">not implemented</div></div>
+    </div>
+  </header>
+
+  <section class="category">
+    <div class="category-head"><span class="idx">1</span><h2>Deterministic Execution Harness</h2></div>
+    <div class="card-grid">
+
+      <div class="card partial">
+        <div class="card-top"><div class="card-name">Intent classification</div><span class="status-chip">Partial</span></div>
+        <div class="card-evidence">The planner routes a query to domain agents by which tools it needs, not through a dedicated classifier stage. <code>planner_agent</code> (multi_agent_pipeline.py)</div>
+      </div>
+
+      <div class="card full">
+        <div class="card-top"><div class="card-name">Task decomposition</div><span class="status-chip">Full</span></div>
+        <div class="card-evidence">Planner emits a real task list (<code>PlannerOutput.tasks</code>) assigning sub-questions to specific domain agents.</div>
+      </div>
+
+      <div class="card partial">
+        <div class="card-top"><div class="card-name">DAG builder</div><span class="status-chip">Partial</span></div>
+        <div class="card-evidence">LangGraph gives a fixed graph topology (<code>add_conditional_edges</code>) — not a DAG assembled fresh per query.</div>
+      </div>
+
+      <div class="card full">
+        <div class="card-top"><div class="card-name">Dynamic tool/agent discovery</div><span class="status-chip">Full</span></div>
+        <div class="card-evidence">MCP registry resolves available tools at runtime (Phase 50), not a hardcoded tool list.</div>
+      </div>
+
+      <div class="card full">
+        <div class="card-top"><div class="card-name">Bounded ReAct loop</div><span class="status-chip">Full</span></div>
+        <div class="card-evidence">Hard iteration cap, configurable: <code>react_loop_max_iterations</code> (default 5). orchestration_agent.py</div>
+      </div>
+
+      <div class="card partial">
+        <div class="card-top"><div class="card-name">Dynamic tool router</div><span class="status-chip">Partial</span></div>
+        <div class="card-evidence">Tool args get type-safety from Python/LangChain function signatures — no dedicated validation/routing layer on top.</div>
+      </div>
+
+      <div class="card none">
+        <div class="card-top"><div class="card-name">Isolated sandbox (Docker/E2B/VM)</div><span class="status-chip">None</span></div>
+        <div class="card-evidence">No code-execution sandbox anywhere in the codebase — confirmed via a direct search, not inferred.</div>
+      </div>
+
+      <div class="card full">
+        <div class="card-top"><div class="card-name">Sub-agent spawner (parallel forks)</div><span class="status-chip">Full</span></div>
+        <div class="card-evidence">Real parallel dispatch via LangGraph's <code>Send()</code> fan-out to up to 4 domain agents at once, not <code>asyncio.gather</code>.</div>
+      </div>
+
+      <div class="card full">
+        <div class="card-top"><div class="card-name">Chain-of-thought verification</div><span class="status-chip">Full</span></div>
+        <div class="card-evidence"><code>reviewer_agent</code> independently reviews the planner's routing and the retrieved content before synthesis.</div>
+      </div>
+
+      <div class="card full">
+        <div class="card-top"><div class="card-name">Response synthesis</div><span class="status-chip">Full</span></div>
+        <div class="card-evidence">All 3 pipelines synthesize a final answer from retrieved/tool-returned content; multi-agentic-rag merges multiple domain agents' output.</div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="category">
+    <div class="category-head"><span class="idx">2</span><h2>State Persistence &amp; Context Engine</h2></div>
+    <div class="card-grid">
+
+      <div class="card full">
+        <div class="card-top"><div class="card-name">Tier 1 — active working context</div><span class="status-chip">Full</span></div>
+        <div class="card-evidence">Redis-backed short-term conversation memory, real and live (Phase 247 STM cache).</div>
+      </div>
+
+      <div class="card partial">
+        <div class="card-top"><div class="card-name">Tier 2 — durable state store</div><span class="status-chip">Partial</span></div>
+        <div class="card-evidence">Real LangGraph <code>AsyncPostgresSaver</code> checkpointing exists — but only for the Unpaid Leave HITL workflow, not the 3 main RAG pipelines.</div>
+      </div>
+
+      <div class="card partial">
+        <div class="card-top"><div class="card-name">Tier 3 — external knowledge &amp; skills</div><span class="status-chip">Partial</span></div>
+        <div class="card-evidence">RAG itself is the project's core (fully built) — but there's no "versioned skills" concept at all.</div>
+      </div>
+
+      <div class="card partial">
+        <div class="card-top"><div class="card-name">Durable checkpointing</div><span class="status-chip">Partial</span></div>
+        <div class="card-evidence">Same gap as Tier 2 — real, but scoped to one workflow (<code>unpaid_leave_agent.py</code>), not universal.</div>
+      </div>
+
+      <div class="card none">
+        <div class="card-top"><div class="card-name">Auto-compaction</div><span class="status-chip">None</span></div>
+        <div class="card-evidence">No summarization/compaction of conversation memory found anywhere in the memory layer.</div>
+      </div>
+
+      <div class="card none">
+        <div class="card-top"><div class="card-name">Time-travel (replay/rewind)</div><span class="status-chip">None</span></div>
+        <div class="card-evidence">No state replay or rewind capability found.</div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="category">
+    <div class="category-head"><span class="idx">3</span><h2>Safety, Sandboxing &amp; Governance</h2></div>
+    <div class="card-grid">
+
+      <div class="card full">
+        <div class="card-top"><div class="card-name">Input schema &amp; policy gate</div><span class="status-chip">Full</span></div>
+        <div class="card-evidence">NeMo Guardrails input checks run before every query reaches a pipeline. <code>guardrails_input.py</code></div>
+      </div>
+
+      <div class="card partial">
+        <div class="card-top"><div class="card-name">Permissioned sandbox gate</div><span class="status-chip">Partial</span></div>
+        <div class="card-evidence">OAuth2 scopes exist for MCP tools specifically (<code>mcp:get_leave_balance</code>, etc.) — not a general least-privilege policy for every tool.</div>
+      </div>
+
+      <div class="card none">
+        <div class="card-top"><div class="card-name">Isolation / resource-limited sandbox</div><span class="status-chip">None</span></div>
+        <div class="card-evidence">Same gap as the execution harness's sandbox row — no isolated execution environment exists.</div>
+      </div>
+
+      <div class="card full">
+        <div class="card-top"><div class="card-name">Output validator</div><span class="status-chip">Full</span></div>
+        <div class="card-evidence">Output guardrails run on every answer across all 3 pipelines via the shared guarded-pipeline core. <code>guardrails_output/</code></div>
+      </div>
+
+      <div class="card partial">
+        <div class="card-top"><div class="card-name">Human-in-the-loop gate</div><span class="status-chip">Partial</span></div>
+        <div class="card-evidence">Real <code>interrupt()</code>-based HITL exists — but only for Unpaid Leave requests, not general agent actions.</div>
+      </div>
+
+      <div class="card full">
+        <div class="card-top"><div class="card-name">Circuit breaker</div><span class="status-chip">Full</span></div>
+        <div class="card-evidence">Real failure-threshold/cooldown circuit breakers for both LLM providers and MCP calls (Phase 259/260).</div>
+      </div>
+
+      <div class="card partial">
+        <div class="card-top"><div class="card-name">Self-correction engine</div><span class="status-chip">Partial</span></div>
+        <div class="card-evidence">An iteration bound plus circuit-breaker retries exist — no structured parse-error/diff feedback loop on top.</div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="category">
+    <div class="category-head"><span class="idx">4</span><h2>Telemetry &amp; Eval Harness</h2></div>
+    <div class="card-grid">
+
+      <div class="card full">
+        <div class="card-top"><div class="card-name">Agent trace / spans</div><span class="status-chip">Full</span></div>
+        <div class="card-evidence"><code>@traceable</code> wraps every pipeline's top-level call, every tool call, and every eval-judge call (this session's own Phase 269-271 work).</div>
+      </div>
+
+      <div class="card full">
+        <div class="card-top"><div class="card-name">LangSmith integration</div><span class="status-chip">Full</span></div>
+        <div class="card-evidence">Live in production. Currently rate-limited on the monthly trace quota (a usage-cap issue, not a code gap — see today's own investigation).</div>
+      </div>
+
+      <div class="card full">
+        <div class="card-top"><div class="card-name">Production dashboards</div><span class="status-chip">Full</span></div>
+        <div class="card-evidence">Real Admin Dashboard: CI/CD pipeline status, request metrics, eval runs, live queries — all backed by real data, not mocked.</div>
+      </div>
+
+    </div>
+  </section>
+
+  <footer>
+    <b>Method:</b> every row is backed by a direct source-code read this session (grep/read, not assumed from docs or the roadmap's own stated intent) — files and phase numbers are cited inline where they fit.
+    "Partial" means a real, working implementation exists but is scoped narrower than the capability's full definition (e.g. one workflow instead of all three pipelines), not a stub or a placeholder.
+    This is a snapshot against one external framework's taxonomy, not this project's own roadmap — see <code>docs/agent-reference/RAG-ROADMAP.md</code> for the authoritative phase-by-phase history.
+  </footer>
+
+</div>
+</body>
+</html>

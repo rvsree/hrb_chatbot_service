@@ -40,3 +40,8 @@ class ToolCallInfo(BaseModel):
         description="Phase 216 - the agent's own strategy choice for a search_knowledge_base call "
         "('similarity'/'mmr'). Null for every other tool.",
     )
+    validation_failed: bool = Field(
+        False,
+        description="Phase 277 - true if the Dynamic Tool Router rejected this call's own arguments "
+        "before the tool ever ran (a self-correctable mistake, distinct from a real backend failure).",
+    )

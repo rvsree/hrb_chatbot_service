@@ -14,6 +14,7 @@ from src.hrb_chatbot.ai.prompts.agent_prompts import ORCHESTRATION_SYSTEM_PROMPT
 from src.hrb_chatbot.ai.rag_core.eval_threshold import (
     build_eval_scores,
     maybe_capture_live_query,
+    meets_cache_quality_threshold,
     record_eval_feedback,
     retrieval_relevance_enabled,
     run_enabled_eval_judges,
@@ -30,6 +31,7 @@ from src.hrb_chatbot.ai.rag_pipeline.tools.agentic_tools import (
     search_knowledge_base,
 )
 from src.hrb_chatbot.ai.rag_pipeline.tools.mcp_tools import is_leave_balance_query, is_leave_history_query
+from src.hrb_chatbot.ai.rag_pipeline.tools.tool_router import validate_tool_call
 from src.hrb_chatbot.common.clients.cache_client.answer_cache import build_cache_key
 from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 from src.hrb_chatbot.common.logging.call_logger import log_backend_call
@@ -173,6 +175,7 @@ async def run_agent(
     full_name: str | None = None,
     ip_address: str | None = None,
     timezone: str | None = None,
+    capture_as_live_query: bool = True,
 ) -> dict:
     """Runs the tool-calling loop for one query - guardrailed and memory-
     tracked via the Phase 98 shared core (previously had neither: no
@@ -312,9 +315,27 @@ async def run_agent(
                 if tool_name == "SearchKnowledgeBase" and "search_strategy" not in tool_args and search_strategy:
                     tool_args = {**tool_args, "search_strategy": search_strategy}
 
+                # Phase 277 - Dynamic Tool Router: validates tool_args against
+                # the real schema the LLM was given (AGENTIC_TOOL_DEFINITIONS)
+                # BEFORE calling the tool function, instead of letting a
+                # missing/malformed argument flow through silently via
+                # dict.get() defaults. A failure here never calls the tool at
+                # all - it's turned into a structured, retry-worthy message
+                # fed back as this iteration's ToolMessage (self-correction:
+                # the LLM sees exactly what was wrong and can fix it on its
+                # next turn, within this same bounded loop - no separate
+                # retry budget, no extra LLM call spent on the validation
+                # itself).
+                validation_error = validate_tool_call(tool_name, tool_args)
                 tool_function = TOOL_FUNCTIONS.get(tool_name)
                 tool_call_started_at = time.perf_counter()
-                if tool_function is None:
+                if validation_error is not None:
+                    tool_output, tool_chunks = (
+                        f"Error: invalid arguments for {tool_name} - {validation_error}. "
+                        "Correct the arguments and try again.",
+                        [],
+                    )
+                elif tool_function is None:
                     tool_output, tool_chunks = f"Error: unknown tool {tool_name!r}", []
                 else:
                     tool_output, tool_chunks = await tool_function(tool_args, employee_id, role, department)
@@ -331,6 +352,9 @@ async def run_agent(
                         "search_strategy": tool_args.get("search_strategy"),
                         "latency_ms": tool_call_latency_ms,
                         "success": not tool_output.startswith("Error:"),
+                        # Phase 277 - distinguishes "the LLM's own call was
+                        # malformed" (self-correctable, same iteration budget)
+                        "validation_failed": validation_error is not None,
                         "iteration": i + 1,
                     }
                 )
@@ -371,9 +395,12 @@ async def run_agent(
     result["latency_ms"]["eval"] = eval_ms
     result["latency_ms"]["total"] = _elapsed_ms(started_at)
 
-    await maybe_capture_live_query(
-        normalized_query, result["answer"], eval_scores, "single-agentic-rag", request_id, employee_id
-    )
+    # 2026-10-30, user-directed - see pipeline.py's own identical comment;
+    # scripts/run_release_gate.py passes capture_as_live_query=False.
+    if capture_as_live_query:
+        await maybe_capture_live_query(
+            normalized_query, result["answer"], eval_scores, "single-agentic-rag", request_id, employee_id
+        )
     await record_eval_feedback(eval_scores)
 
     # Phase 140: a non-deterministic LLM tool choice must not get a free
@@ -387,6 +414,9 @@ async def run_agent(
         not any(call["tool_name"] in LIVE_DATA_TOOLS for call in result["tools_used"])
         and not is_leave_balance_query(normalized_query)
         and not is_leave_history_query(normalized_query)
+        # 2026-10-30, user-directed - below the live-query LTM threshold
+        # (ltm_score_threshold, default 0.6) must not be cached.
+        and await meets_cache_quality_threshold(eval_scores)
     )
     if cache_eligible:
         await get_db_gateway().answer_cache().set(cache_key, normalized_query, result)

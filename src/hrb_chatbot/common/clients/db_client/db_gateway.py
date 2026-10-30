@@ -1,5 +1,6 @@
 """One place that hands out every database client the project uses."""
 
+from src.hrb_chatbot.common.clients.cache_client.admin_dashboard_cache import AdminDashboardCache
 from src.hrb_chatbot.common.clients.cache_client.answer_cache import AnswerCache
 from src.hrb_chatbot.common.clients.cache_client.embedding_cache import EmbeddingCache
 from src.hrb_chatbot.common.clients.cache_client.stm_cache import StmCache
@@ -48,6 +49,7 @@ class DBGateway:
         self.feedback_store_client = None
         self.embedding_cache_client = None
         self.answer_cache_client = None
+        self.admin_dashboard_cache_client = None
         self.stm_cache_client = None
         self.admin_credential_store_client = None
         self.agent_thread_store_client = None
@@ -210,6 +212,12 @@ class DBGateway:
         if self.answer_cache_client is None:
             self.answer_cache_client = AnswerCache()
         return self.answer_cache_client
+
+    def admin_dashboard_cache(self) -> AdminDashboardCache:
+        """Return the shared Admin Dashboard list-view cache, building it on first use (Phase 276)."""
+        if self.admin_dashboard_cache_client is None:
+            self.admin_dashboard_cache_client = AdminDashboardCache()
+        return self.admin_dashboard_cache_client
 
     def stm_cache(self) -> StmCache:
         """Return the shared STM cache, building it on first use (Phase 247)."""

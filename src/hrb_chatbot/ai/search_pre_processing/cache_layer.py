@@ -9,7 +9,7 @@ correctness bug (see this project's own established reasoning on that)."""
 
 import time
 
-from src.hrb_chatbot.ai.rag_core.eval_threshold import check_eval_threshold
+from src.hrb_chatbot.ai.rag_core.eval_threshold import check_eval_threshold, meets_cache_quality_threshold
 from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
 from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 from src.hrb_chatbot.common.logging.logger import get_logger
@@ -94,6 +94,10 @@ def is_cache_eligible(tools_used: list[dict]) -> bool:
 
 async def write_cache(cache_key: str, checked_query: str, result: dict) -> None:
     if not is_cache_eligible(result["tools_used"]):
+        return
+    # 2026-10-30, user-directed - an answer below the live-query LTM
+    # threshold (ltm_score_threshold, default 0.6) must not be cached.
+    if not await meets_cache_quality_threshold(result.get("eval_scores")):
         return
     await get_db_gateway().answer_cache().set(cache_key, checked_query, result)
     if result.get("conversation_id"):

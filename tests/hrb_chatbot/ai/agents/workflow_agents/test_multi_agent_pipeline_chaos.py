@@ -20,6 +20,10 @@ def _fake_cache_and_eval_judges(monkeypatch):
     its own fixtures, not shared with that one)."""
     gateway = FakeDBGateway()
     monkeypatch.setattr(multi_agent_pipeline, "get_db_gateway", lambda: gateway)
+    # 2026-10-30, user-directed finding - see test_pipeline.py's own
+    # identical fix/comment (a real, production-shared Neon Postgres
+    # write, unnoticed, from eval_threshold.py's own unpatched get_db_gateway).
+    monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: gateway)
 
     async def _fake_generate_follow_ups(query, answer):
         return []

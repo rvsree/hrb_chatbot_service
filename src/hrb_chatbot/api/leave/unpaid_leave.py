@@ -167,7 +167,12 @@ async def list_all_unpaid_leave_requests(user_profile: UserProfile | None = Depe
     accessible (round 3) - the admin dashboard's own Leave Requests tab
     reuses this exact route/shape rather than the narrower generic-HITL
     one /v1/admin/leave-requests returns, for the same richer popup.
-    Also EMPLOYEE_ADMIN (2026-10-15) - same tab, same two admin tiers."""
+    Also EMPLOYEE_ADMIN (2026-10-15) - same tab, same two admin tiers.
+    Phase 276 - deliberately NOT Redis-cached, unlike most Admin Dashboard
+    list routes: HR_SUPPORT's own dedicated leave-approval workflow relies
+    on this exact route to see a just-submitted request and act on it -
+    a 24h-stale view here would be an active workflow problem, same
+    reasoning as excluding demo-visitors/ci-status."""
     require_role(user_profile, Role.HR_SUPPORT, Role.ADMIN, Role.EMPLOYEE_ADMIN)
 
     try:

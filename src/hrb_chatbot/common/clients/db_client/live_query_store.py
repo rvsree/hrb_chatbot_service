@@ -94,15 +94,15 @@ class LiveQueryStore:
 
     def _capture_sync(
         self, query_text: str, answer_text: str | None, pipeline: str | None, request_id: str | None,
-        employee_id: str | None, eval_score: float | None, is_ltm: bool,
+        employee_id: str | None, eval_score: float | None, is_ltm: bool, category: str | None,
     ) -> int:
         with self._connect() as conn:
             cur = conn.execute(
                 sql.SQL(
-                    "INSERT INTO {table} (query_text, answer_text, pipeline, request_id, employee_id, eval_score, is_ltm) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id"
+                    "INSERT INTO {table} (query_text, answer_text, pipeline, request_id, employee_id, eval_score, is_ltm, category) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id"
                 ).format(table=_TABLE),
-                (query_text, answer_text, pipeline, request_id, employee_id, eval_score, is_ltm),
+                (query_text, answer_text, pipeline, request_id, employee_id, eval_score, is_ltm, category),
             )
             row_id = cur.fetchone()[0]
             conn.commit()
@@ -110,16 +110,20 @@ class LiveQueryStore:
 
     async def capture(
         self, query_text: str, answer_text: str | None, pipeline: str | None, request_id: str | None,
-        employee_id: str | None, eval_score: float | None, is_ltm: bool,
+        employee_id: str | None, eval_score: float | None, is_ltm: bool, category: str | None = None,
     ) -> None:
         """Fire-and-forget by design - callers must wrap this in try/except
         and never let a capture failure affect the real response. Mirrors
         response_metrics.py's own established convention for exactly this
-        kind of best-effort side-channel logging."""
+        kind of best-effort side-channel logging. Phase 277 - category was
+        always a real column here, never actually written to before this -
+        now carries ai/search_pre_processing/intent_classify.py's own
+        classification, via maybe_capture_live_query()."""
         await self._ensure_table()
         with log_backend_call(logger, "postgres", "live_queries.capture", pipeline=pipeline, request_id=request_id):
             await asyncio.to_thread(
-                self._capture_sync, query_text, answer_text, pipeline, request_id, employee_id, eval_score, is_ltm
+                self._capture_sync,
+                query_text, answer_text, pipeline, request_id, employee_id, eval_score, is_ltm, category,
             )
 
     def _list_sync(self, is_ltm: bool | None) -> list[dict]:
