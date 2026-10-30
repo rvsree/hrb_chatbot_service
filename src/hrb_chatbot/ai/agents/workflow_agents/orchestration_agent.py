@@ -5,6 +5,7 @@ import time
 
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
+from langsmith import traceable
 
 from src.hrb_chatbot.ai.agents._llm_helpers import AGENT_LLM_TIMEOUT_SECONDS, build_agent_llm
 from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
@@ -13,8 +14,10 @@ from src.hrb_chatbot.ai.prompts.agent_prompts import ORCHESTRATION_SYSTEM_PROMPT
 from src.hrb_chatbot.ai.rag_core.eval_threshold import (
     build_eval_scores,
     maybe_capture_live_query,
+    record_eval_feedback,
     retrieval_relevance_enabled,
     run_enabled_eval_judges,
+    tag_golden_match,
 )
 from src.hrb_chatbot.ai.rag_core.guarded_pipeline import run_guarded_pipeline
 from src.hrb_chatbot.ai.rag_core.response_format import TABULAR_FORMAT_INSTRUCTION, should_use_tabular_format
@@ -153,6 +156,7 @@ def _build_llm() -> ChatOpenAI:
     return build_agent_llm()
 
 
+@traceable(name="single_agentic_rag_run_agent")
 async def run_agent(
     query: str,
     employee_id: str | None,
@@ -176,6 +180,11 @@ async def run_agent(
     now saved to history, including the iteration-exhausted case - matches
     genai-rag's own behavior, which has no equivalent skip-save case.
 
+    Phase 271 - @traceable: same reasoning as genai-rag's own
+    answer_query() - keeps this function's own span open through the whole
+    generate-then-score sequence so record_eval_feedback() below resolves
+    the right run via get_current_run_tree().
+
     Phase 110: explainability/latency/token parity with genai-rag, plus
     caching for the correctness-safe subset of answers - see
     RAG-ROADMAP.md's Phase 110 entry for why GetLeaveBalance/
@@ -193,6 +202,7 @@ async def run_agent(
     per-call agent choice, so there's no "default vs. override" nuance here."""
     started_at = time.perf_counter()
     normalized_query = await normalize_query(query)
+    await tag_golden_match(normalized_query)
     # Phase 260 - an explicit per-call max_iterations always wins; otherwise
     # read fresh from app_settings on every real request (so a Settings UI
     # change takes effect on the next query, no restart), falling back to
@@ -364,6 +374,7 @@ async def run_agent(
     await maybe_capture_live_query(
         normalized_query, result["answer"], eval_scores, "single-agentic-rag", request_id, employee_id
     )
+    await record_eval_feedback(eval_scores)
 
     # Phase 140: a non-deterministic LLM tool choice must not get a free
     # pass into a 6h cache - if the query itself looks like it's asking for

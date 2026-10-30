@@ -80,6 +80,13 @@ class GoldenDatasetCaseSummary(BaseModel):
     raw_case: dict
     created_at: str
     updated_at: str
+    # Phase 272 - provenance: always "curated" here (this table has no
+    # write path from a live query, see golden_dataset_store.py's own
+    # docstring) - present for schema parity with SyntheticDatasetCaseSummary.
+    source: str
+    source_live_query_id: int | None
+    promoted_by: str | None
+    promoted_at: str | None
 
 
 class GoldenDatasetListResponse(BaseModel):
@@ -164,6 +171,13 @@ class SyntheticDatasetCaseSummary(BaseModel):
     raw_case: dict
     created_at: str
     updated_at: str
+    # Phase 272 - "curated" (generate_synthetic_dataset.py) vs
+    # "promoted_live_query" (promoted from a real live query via the admin
+    # UI) - the latter 3 fields are null for a "curated" row.
+    source: str
+    source_live_query_id: int | None
+    promoted_by: str | None
+    promoted_at: str | None
 
 
 class SyntheticDatasetListResponse(BaseModel):

@@ -10,8 +10,10 @@ add. This router exists for the 3 categories that didn't already have an
 admin-usable list+delete: conversations, feedback, leave requests/HITL."""
 
 import asyncio
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request
+from langsmith import traceable
 
 from src.hrb_chatbot.ai.search_pre_processing import conversation_memory
 from src.hrb_chatbot.ai.rag_pipeline.tools.mcp_tools import _call_mcp_tool_json, admin_delete_hitl_request, get_mcp_tool_catalog
@@ -278,6 +280,10 @@ async def list_golden_dataset(user_profile: UserProfile | None = Depends(identit
                 raw_case=case["raw_case"],
                 created_at=case["created_at"],
                 updated_at=case["updated_at"],
+                source=case["source"],
+                source_live_query_id=case["source_live_query_id"],
+                promoted_by=case["promoted_by"],
+                promoted_at=case["promoted_at"],
             )
             for case in cases
         ],
@@ -308,6 +314,43 @@ async def delete_live_query_entry(live_query_id: int, identity: IdentityPayload,
 
     rows_deleted = await get_db_gateway().live_query_store().delete_live_query(live_query_id)
     return AdminDeleteLiveQueryResponse(id=live_query_id, deleted=rows_deleted > 0)
+
+
+@router_manage_admin.post("/live-queries/{live_query_id}/promote-to-synthetic", response_model=SyntheticDatasetCaseSummary)
+async def promote_live_query_to_synthetic(live_query_id: int, identity: IdentityPayload, request: Request):
+    """Phase 272 - "grow your eval set from real failures/successes" made
+    real: builds a synthetic-dataset case from one real live query, after
+    an admin has reviewed it. Synthetic, not Golden - see
+    golden_dataset_store.py's own docstring (JSON files are that table's
+    only real write path) and this phase's own spec for why. Idempotent:
+    re-promoting the same live_query_id re-upserts the same case_key, not
+    a duplicate."""
+    require_role(identity.user_profile, Role.ADMIN)
+    await enforce_rate_limit(request)
+
+    gateway = get_db_gateway()
+    live_query = await gateway.live_query_store().get_query(live_query_id)
+    if live_query is None:
+        return json_error(404, f"No live query found with id {live_query_id}.", code=error_codes.ADMIN_LIVE_QUERY_NOT_FOUND)
+
+    result = await gateway.synthetic_dataset_store().upsert_case(
+        case_key=f"live-{live_query_id}",
+        dataset="promoted_live_queries_v1",
+        category=live_query.get("category"),
+        query=live_query["query_text"],
+        raw_case={
+            "answer": live_query["answer_text"],
+            "pipeline": live_query["pipeline"],
+            "eval_score": live_query["eval_score"],
+            "generation_method": "Promoted from a real live query, reviewed by an admin.",
+        },
+        source="promoted_live_query",
+        source_live_query_id=live_query_id,
+        promoted_by=identity.user_profile.employee_id,
+        promoted_at=datetime.now(timezone.utc),
+    )
+    case = await gateway.synthetic_dataset_store().get_case(result["id"])
+    return SyntheticDatasetCaseSummary(**case)
 
 
 @router_manage_admin.get("/demo-visitors", response_model=DemoVisitorListResponse)
@@ -841,6 +884,15 @@ async def list_faq_submissions(user_profile: UserProfile | None = Depends(identi
     return FaqSubmissionListResponse(count=len(rows), submissions=[FaqSubmissionRecord(**row) for row in rows])
 
 
+@traceable(name="faq_restructure")
+def _restructure_faq_answer(query: str, external_llm_answer: str) -> str:
+    """Phase 270 - @traceable: this raw Anthropic call was invisible in
+    LangSmith before - pulled into its own named function so there's a
+    function boundary to decorate (the call used to be inline inside the
+    route body below)."""
+    return get_client_gateway().anthropic_chat().ask(query, external_llm_answer, RESTRUCTURE_SYSTEM_PROMPT)
+
+
 @router_manage_admin.post("/faq-submissions/{submission_id}/restructure", response_model=FaqSubmissionRecord)
 async def restructure_faq_submission(submission_id: int, payload: FaqRestructureRequest):
     """Phase 186 - asks Claude to turn the raw real-time answer into a
@@ -863,10 +915,7 @@ async def restructure_faq_submission(submission_id: int, payload: FaqRestructure
         # ask() is a blocking SDK call (same as every other LLM client
         # here) - run off the event loop, not inline in an async route.
         restructured = await asyncio.to_thread(
-            get_client_gateway().anthropic_chat().ask,
-            submission["query"],
-            submission["external_llm_answer"],
-            RESTRUCTURE_SYSTEM_PROMPT,
+            _restructure_faq_answer, submission["query"], submission["external_llm_answer"]
         )
     except Exception as error:
         logger.error("FAQ restructuring failed for submission %s: %s: %s", submission_id, type(error).__name__, error)

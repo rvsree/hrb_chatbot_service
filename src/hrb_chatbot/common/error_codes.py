@@ -53,3 +53,6 @@ ADMIN_PIPELINE_SNAPSHOT_NOT_FOUND = "ADMIN_PIPELINE_SNAPSHOT_NOT_FOUND"
 
 # Phase 257 - live-query/synthetic-dataset capture, generic app settings
 ADMIN_SETTING_NOT_FOUND = "ADMIN_SETTING_NOT_FOUND"
+
+# Phase 272 - promoting a live query into the Synthetic Dataset
+ADMIN_LIVE_QUERY_NOT_FOUND = "ADMIN_LIVE_QUERY_NOT_FOUND"

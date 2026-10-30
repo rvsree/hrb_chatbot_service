@@ -842,6 +842,10 @@ class FakeGoldenDatasetStore:
     async def list_cases(self):
         return list(self._cases)
 
+    async def find_by_query(self, query_text):
+        normalized = query_text.strip().lower()
+        return next((dict(case) for case in self._cases if (case.get("query") or "").strip().lower() == normalized), None)
+
     def health_check(self):
         return {"provider": "postgres", "status": "healthy"}
 
@@ -1124,6 +1128,9 @@ class FakeLiveQueryStore:
         self._queries = [row for row in self._queries if row["id"] != live_query_id]
         return before - len(self._queries)
 
+    async def get_query(self, live_query_id):
+        return next((dict(row) for row in self._queries if row["id"] == live_query_id), None)
+
     def health_check(self):
         return {"provider": "postgres", "status": "healthy"}
 
@@ -1138,13 +1145,30 @@ class FakeSyntheticDatasetStore:
         self._next_id = max((case["id"] for case in self._cases), default=0) + 1
 
     async def list_cases(self):
-        return list(self._cases)
+        cases = [dict(case) for case in self._cases]
+        for case in cases:
+            if case["promoted_at"] is not None and not isinstance(case["promoted_at"], str):
+                case["promoted_at"] = case["promoted_at"].isoformat()
+        return cases
 
-    async def upsert_case(self, case_key, dataset, category, query, raw_case):
+    async def get_case(self, case_id):
+        case = next((dict(case) for case in self._cases if case["id"] == case_id), None)
+        if case is not None and case["promoted_at"] is not None and not isinstance(case["promoted_at"], str):
+            case["promoted_at"] = case["promoted_at"].isoformat()
+        return case
+
+    async def upsert_case(
+        self, case_key, dataset, category, query, raw_case,
+        source="curated", source_live_query_id=None, promoted_by=None, promoted_at=None,
+    ):
         for case in self._cases:
             if case["case_key"] == case_key and case["dataset"] == dataset:
                 changed = case["raw_case"] != raw_case
-                case.update(category=category, query=query, raw_case=raw_case)
+                case.update(
+                    category=category, query=query, raw_case=raw_case,
+                    source=source, source_live_query_id=source_live_query_id,
+                    promoted_by=promoted_by, promoted_at=promoted_at,
+                )
                 return {"id": case["id"], "case_key": case_key, "changed": changed}
         case = {
             "id": self._next_id,
@@ -1155,6 +1179,10 @@ class FakeSyntheticDatasetStore:
             "raw_case": raw_case,
             "created_at": "2026-10-26T00:00:00Z",
             "updated_at": "2026-10-26T00:00:00Z",
+            "source": source,
+            "source_live_query_id": source_live_query_id,
+            "promoted_by": promoted_by,
+            "promoted_at": promoted_at,
         }
         self._cases.append(case)
         self._next_id += 1

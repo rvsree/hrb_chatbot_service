@@ -3,6 +3,8 @@
 import asyncio
 import time
 
+from langsmith import traceable
+
 from src.hrb_chatbot.ai.agents._llm_helpers import resolve_agent_model
 from src.hrb_chatbot.ai.agents.workflow_agents import reviewer_agent
 from src.hrb_chatbot.ai.search_pre_processing import cache_layer, conversation_memory
@@ -12,8 +14,10 @@ from src.hrb_chatbot.ai.search_pre_processing.query_normalize import normalize_q
 from src.hrb_chatbot.ai.rag_core.eval_threshold import (
     build_eval_scores,
     maybe_capture_live_query,
+    record_eval_feedback,
     retrieval_relevance_enabled,
     run_enabled_eval_judges,
+    tag_golden_match,
 )
 from src.hrb_chatbot.ai.rag_core.guarded_pipeline import run_guarded_pipeline
 from src.hrb_chatbot.ai.rag_core.tool_classification import classify_tool
@@ -254,10 +258,18 @@ async def _answer_sub_question(
     }
 
 
+@traceable(name="genai_rag_answer_query")
 async def answer_query(params: RagQueryParams, request_id: str | None = None) -> dict:
     """Run the full pipeline: guardrail/decompose/(MCP-route-or-retrieve+
     generate per sub-question)/merge/guardrail/save via the Phase 98
     shared core - GuardrailBlockedError becomes a 422 upstream.
+
+    Phase 271 - @traceable: this function's own span stays open for the
+    whole generate-then-score sequence, so record_eval_feedback() below
+    can resolve the right run via get_current_run_tree() even after the
+    inner generation chain's own (now-closed) span has already returned -
+    the right trace to attach eval-score feedback to is this whole turn,
+    not just the generation sub-call.
 
     Phase 151: there used to be a second, top-level MCP fast-path here,
     checked against the whole undecomposed query before decompose() ever
@@ -275,6 +287,7 @@ async def answer_query(params: RagQueryParams, request_id: str | None = None) ->
     started_at = time.perf_counter()
     normalized_query = await normalize_query(params.query)
     checked_query, input_guardrail_status = await check_input(normalized_query, guardrails_model=params.guardrails_model)
+    await tag_golden_match(checked_query)
 
     resolved_conversation_id = None
     if params.enable_conversation_memory:
@@ -503,6 +516,7 @@ async def answer_query(params: RagQueryParams, request_id: str | None = None) ->
     await maybe_capture_live_query(
         checked_query, result["answer"], result["eval_scores"], "genai-rag", request_id, params.employee_id
     )
+    await record_eval_feedback(result["eval_scores"])
 
     # total_ms covers the whole call (guardrails, cache check, retrieval,
     # generation, eval scoring, conversation-memory save) -

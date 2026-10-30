@@ -20,13 +20,17 @@ PARTIAL - direct response to this project's own real $70 LLM-credit
 incident this session. A budget, not a precise cost calculator - token
 count, not dollars, since cost-per-token varies by model/provider."""
 
+import argparse
 import asyncio
 import json
 import sys
 import traceback
 
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+
 from src.hrb_chatbot.ai.agents.workflow_agents import multi_agent_pipeline, orchestration_agent
 from src.hrb_chatbot.ai.rag_pipeline import pipeline
+from src.hrb_chatbot.ai.rag_pipeline.response_generation import response_generator
 from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import (
     GOLDEN_DATASET_PATH,
     calculate_retrieval_metrics,
@@ -210,10 +214,13 @@ async def score_case_with_real_k(case: dict, judge_provider: LlmProvider | None 
     return {"case_id": case["id"], "category": case["category"], "scores": scores, "tokens": result["tokens"]}
 
 
-async def main() -> int:
-    scorable_cases = _load_scorable_cases()
-    judge_provider = await _resolve_judge_provider()
-
+async def _score_genai_rag_pass(scorable_cases: list[dict], judge_provider: LlmProvider | None) -> dict:
+    """Phase 273 - extracted out of main() (unchanged behavior/output there)
+    so run_prompt_experiment() below can run this same real scoring loop
+    twice - once against today's real prompt, once with
+    response_generator.RAG_PROMPT monkeypatched to a variant - without
+    duplicating it. Returns {"per_metric_scores", "failed_ids",
+    "case_results", "cumulative_tokens", "budget_exceeded"}."""
     per_metric_scores: dict[str, list[float]] = {metric: [] for metric in METRICS}
     failed_ids: list[str] = []
     case_results: list[dict] = []
@@ -246,6 +253,114 @@ async def main() -> int:
             {"case_id": result["case_id"], "category": result["category"], "scores": result["scores"], "status": "scored"}
         )
         print(f"  {case['id']}: {result['scores']} ({cumulative_tokens:,} tokens so far)", flush=True)
+
+    return {
+        "per_metric_scores": per_metric_scores,
+        "failed_ids": failed_ids,
+        "case_results": case_results,
+        "cumulative_tokens": cumulative_tokens,
+        "budget_exceeded": budget_exceeded,
+    }
+
+
+def _build_variant_rag_prompt(variant_path: str) -> ChatPromptTemplate:
+    """Phase 273 - same message structure RAG_PROMPT already uses (system/
+    chat_history/human), just the system text swapped for the variant
+    file's own content - keeps the {context}/{tabular_instruction}
+    placeholders generate_answer() always fills in, since that function
+    itself is completely unchanged."""
+    with open(variant_path, encoding="utf-8") as file:
+        variant_system_prompt = file.read()
+    return ChatPromptTemplate.from_messages(
+        [
+            ("system", variant_system_prompt),
+            MessagesPlaceholder("chat_history", optional=True),
+            ("human", "{question}"),
+        ]
+    )
+
+
+def _print_experiment_comparison(baseline: dict, variant: dict) -> None:
+    baseline_aggregated = {
+        metric: sum(scores) / len(scores) for metric, scores in baseline["per_metric_scores"].items() if scores
+    }
+    variant_aggregated = {
+        metric: sum(scores) / len(scores) for metric, scores in variant["per_metric_scores"].items() if scores
+    }
+    print("\n=== Prompt experiment: baseline vs variant ===")
+    print(f"{'metric':<22}{'baseline':>10}{'variant':>10}{'delta':>10}")
+    for metric in METRICS:
+        if metric not in baseline_aggregated and metric not in variant_aggregated:
+            continue
+        base_value = baseline_aggregated.get(metric)
+        variant_value = variant_aggregated.get(metric)
+        base_str = f"{base_value:.3f}" if base_value is not None else "-"
+        variant_str = f"{variant_value:.3f}" if variant_value is not None else "-"
+        delta_str = f"{variant_value - base_value:+.3f}" if base_value is not None and variant_value is not None else "-"
+        print(f"{metric:<22}{base_str:>10}{variant_str:>10}{delta_str:>10}")
+
+    baseline_by_id = {result["case_id"]: result["scores"] for result in baseline["case_results"]}
+    variant_by_id = {result["case_id"]: result["scores"] for result in variant["case_results"]}
+    print("\nPer-case scores that moved:")
+    for case_id in baseline_by_id:
+        if baseline_by_id[case_id] != variant_by_id.get(case_id):
+            print(f"  {case_id}: baseline={baseline_by_id[case_id]} variant={variant_by_id.get(case_id)}")
+
+    total_tokens = baseline["cumulative_tokens"] + variant["cumulative_tokens"]
+    print(f"\nTotal tokens used (both passes): {total_tokens:,}")
+
+
+async def run_prompt_experiment(scorable_cases: list[dict], judge_provider: LlmProvider | None, variant_path: str) -> int:
+    """Phase 273 - runs the real genai-rag scoring pass twice: once
+    unchanged (baseline), once with response_generator.RAG_PROMPT
+    monkeypatched to the variant file's text for the duration of this
+    process only - pipeline.answer_query() itself is never touched, and
+    nothing is ever written back to response_generator.py. Experiment
+    runs are never persisted to eval_run_store (not a release decision)
+    and never gate anything - stdout only."""
+    print(f"PROMPT EXPERIMENT MODE: doubles real LLM cost/token usage (2 full passes, not 1) - variant file: {variant_path}\n")
+
+    # Phase 273 - built and validated before Pass 1, not between passes: a
+    # missing/unreadable variant file must fail before any real LLM call
+    # (and its cost) happens, not after wasting the whole baseline pass.
+    variant_prompt = _build_variant_rag_prompt(variant_path)
+
+    original_prompt = response_generator.RAG_PROMPT
+    print("--- Pass 1/2: baseline (today's real prompt) ---")
+    baseline = await _score_genai_rag_pass(scorable_cases, judge_provider)
+
+    response_generator.RAG_PROMPT = variant_prompt
+    try:
+        print("\n--- Pass 2/2: variant ---")
+        variant = await _score_genai_rag_pass(scorable_cases, judge_provider)
+    finally:
+        response_generator.RAG_PROMPT = original_prompt
+
+    _print_experiment_comparison(baseline, variant)
+    return 0
+
+
+async def main() -> int:
+    scorable_cases = _load_scorable_cases()
+    judge_provider = await _resolve_judge_provider()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--prompt-variant",
+        help="Path to a text file whose content replaces genai-rag's real system prompt for one experimental run, "
+        "scored against the golden dataset twice (baseline vs variant) and printed as a comparison. "
+        "Never persisted, never gates a release - see RAG-ROADMAP.md Phase 273.",
+    )
+    args = parser.parse_args()
+    if args.prompt_variant:
+        return await run_prompt_experiment(scorable_cases, judge_provider, args.prompt_variant)
+
+    pass_result = await _score_genai_rag_pass(scorable_cases, judge_provider)
+    per_metric_scores = pass_result["per_metric_scores"]
+    failed_ids = pass_result["failed_ids"]
+    case_results = pass_result["case_results"]
+    cumulative_tokens = pass_result["cumulative_tokens"]
+    budget_exceeded = pass_result["budget_exceeded"]
 
     # Phase 258 - routing-accuracy extension: only the subset of cases with
     # expected_tool/expected_agent set pay for the extra single-agentic-rag/

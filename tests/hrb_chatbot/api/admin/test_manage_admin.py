@@ -16,6 +16,7 @@ from tests.conftest import (
     FakeEvalRunStore,
     FakeFaqSubmissionStore,
     FakeFeedbackStore,
+    FakeGoldenDatasetStore,
     FakeInterviewQaStore,
     FakeLiveQueryStore,
     FakePipelineRunStore,
@@ -1260,6 +1261,79 @@ def test_admin_filters_live_queries_by_is_ltm(monkeypatch):
     assert body["queries"][0]["id"] == 1
 
 
+def test_non_admin_cannot_promote_a_live_query(monkeypatch):
+    response = client.post("/v1/admin/live-queries/1/promote-to-synthetic", json={"user_profile": EMPLOYEE_PROFILE})
+    assert response.status_code == 403
+
+
+def test_admin_promotes_a_live_query_to_synthetic(monkeypatch):
+    live_store = FakeLiveQueryStore(
+        [
+            {
+                "id": 1, "query_text": "What is the dental plan?", "answer_text": "Two PPO options.",
+                "pipeline": "genai-rag", "request_id": "req-1", "employee_id": "EMP052", "eval_score": 0.9,
+                "is_ltm": True, "category": None, "created_at": "2026-10-26T00:00:00Z",
+            },
+        ]
+    )
+    synthetic_store = FakeSyntheticDatasetStore()
+    monkeypatch.setattr(
+        manage_admin, "get_db_gateway",
+        lambda: FakeDBGateway(live_query_store=live_store, synthetic_dataset_store=synthetic_store),
+    )
+
+    response = client.post("/v1/admin/live-queries/1/promote-to-synthetic", json={"user_profile": ADMIN_PROFILE})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["case_key"] == "live-1"
+    assert body["dataset"] == "promoted_live_queries_v1"
+    assert body["query"] == "What is the dental plan?"
+    assert body["source"] == "promoted_live_query"
+    assert body["source_live_query_id"] == 1
+    assert body["promoted_by"] == "ADM001"
+    assert body["promoted_at"] is not None
+    assert body["raw_case"]["answer"] == "Two PPO options."
+
+
+def test_admin_promoting_an_unknown_live_query_404s(monkeypatch):
+    monkeypatch.setattr(
+        manage_admin, "get_db_gateway",
+        lambda: FakeDBGateway(live_query_store=FakeLiveQueryStore(), synthetic_dataset_store=FakeSyntheticDatasetStore()),
+    )
+
+    response = client.post("/v1/admin/live-queries/999/promote-to-synthetic", json={"user_profile": ADMIN_PROFILE})
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "ADMIN_LIVE_QUERY_NOT_FOUND"
+
+
+def test_admin_promotes_the_same_live_query_twice_idempotently(monkeypatch):
+    live_store = FakeLiveQueryStore(
+        [
+            {
+                "id": 1, "query_text": "What is the dental plan?", "answer_text": "Two PPO options.",
+                "pipeline": "genai-rag", "request_id": "req-1", "employee_id": "EMP052", "eval_score": 0.9,
+                "is_ltm": True, "category": None, "created_at": "2026-10-26T00:00:00Z",
+            },
+        ]
+    )
+    synthetic_store = FakeSyntheticDatasetStore()
+    monkeypatch.setattr(
+        manage_admin, "get_db_gateway",
+        lambda: FakeDBGateway(live_query_store=live_store, synthetic_dataset_store=synthetic_store),
+    )
+
+    import asyncio
+
+    client.post("/v1/admin/live-queries/1/promote-to-synthetic", json={"user_profile": ADMIN_PROFILE})
+    response = client.post("/v1/admin/live-queries/1/promote-to-synthetic", json={"user_profile": ADMIN_PROFILE})
+
+    assert response.status_code == 200
+    cases = asyncio.run(synthetic_store.list_cases())
+    assert len(cases) == 1
+
+
 def test_non_admin_cannot_list_demo_visitors(monkeypatch):
     response = client.get("/v1/admin/demo-visitors", params=EMPLOYEE_PROFILE)
     assert response.status_code == 403
@@ -1370,6 +1444,7 @@ def test_admin_lists_synthetic_dataset(monkeypatch):
                 "id": 1, "case_key": "gen-001", "dataset": "synthetic_v1", "category": "rag",
                 "query": "What's the 401k match?", "raw_case": {"expected_answer": "6%"},
                 "created_at": "2026-10-26T00:00:00Z", "updated_at": "2026-10-26T00:00:00Z",
+                "source": "curated", "source_live_query_id": None, "promoted_by": None, "promoted_at": None,
             }
         ]
     )
@@ -1381,6 +1456,31 @@ def test_admin_lists_synthetic_dataset(monkeypatch):
     body = response.json()
     assert body["count"] == 1
     assert body["cases"][0]["case_key"] == "gen-001"
+
+
+def test_admin_lists_golden_dataset(monkeypatch):
+    """Phase 272 added source/source_live_query_id/promoted_by/promoted_at
+    to GoldenDatasetCaseSummary - this covers list_golden_dataset actually
+    passing them through (it didn't, until this fix)."""
+    store = FakeGoldenDatasetStore(
+        [
+            {
+                "id": 1, "case_key": "401k-001", "dataset": "golden_v1", "category": "benefits",
+                "query": "What's the 401k match?", "raw_case": {"expected_answer": "6%"},
+                "created_at": "2026-10-26T00:00:00Z", "updated_at": "2026-10-26T00:00:00Z",
+                "source": "curated", "source_live_query_id": None, "promoted_by": None, "promoted_at": None,
+            }
+        ]
+    )
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(golden_dataset_store=store))
+
+    response = client.get("/v1/admin/golden-dataset", params=ADMIN_PROFILE)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] == 1
+    assert body["cases"][0]["case_key"] == "401k-001"
+    assert body["cases"][0]["source"] == "curated"
 
 
 def test_non_admin_cannot_read_a_setting(monkeypatch):

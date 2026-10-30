@@ -17,6 +17,7 @@ matching the spec's own "no new config surface" decision."""
 import asyncio
 
 from deepeval.models import DeepEvalBaseLLM
+from langsmith import traceable
 
 from src.hrb_chatbot.common.clients.llm_client.client_gateway import get_client_gateway
 from src.hrb_chatbot.common.enums import LlmProvider
@@ -35,7 +36,14 @@ class GatewayDeepEvalModel(DeepEvalBaseLLM):
     def load_model(self):
         return self
 
+    @traceable(name="deepeval_judge_call")
     def generate(self, prompt: str) -> str:
+        """Phase 270 - @traceable: every DeepEval metric (groundedness/
+        completeness/answer-relevancy) calls raw .ask() here, not a
+        LangChain component, so without this it was invisible in LangSmith
+        on every live query that runs eval scoring - a_generate()'s
+        asyncio.to_thread() path routes through this same method, so one
+        decoration covers both (contextvars propagate into the thread)."""
         if self.judge_provider == LlmProvider.ANTHROPIC:
             return get_client_gateway().anthropic_chat().ask(prompt, temperature=0.0)
         client = get_client_gateway().openai_chat()
