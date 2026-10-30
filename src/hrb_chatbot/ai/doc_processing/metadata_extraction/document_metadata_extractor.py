@@ -2,6 +2,8 @@
 
 import json
 
+from langsmith import traceable
+
 from src.hrb_chatbot.ai.prompts.extraction_prompts import DOCUMENT_METADATA_EXTRACTION_PROMPT
 from src.hrb_chatbot.common.clients.llm_client.client_gateway import get_client_gateway
 from src.hrb_chatbot.common.config.settings import read_setting
@@ -38,8 +40,11 @@ EMPTY_RESULT = {
 EXTRACTION_QUESTION = DOCUMENT_METADATA_EXTRACTION_PROMPT
 
 
+@traceable(name="extract_document_metadata")
 def extract_document_metadata(text: str) -> dict:
-    """Return EMPTY_RESULT's 12 keys filled in where possible - never raises."""
+    """Return EMPTY_RESULT's 12 keys filled in where possible - never raises.
+    Phase 270 - @traceable: the real LLM call below is raw, not LangChain-
+    native - without this it was invisible in LangSmith at ingestion time."""
     if not text.strip():
         return dict(EMPTY_RESULT)
 

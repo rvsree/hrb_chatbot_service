@@ -4,6 +4,8 @@ that already exists, never raises. Phase 115: every tool now returns
 dicts, [] for the two non-retrieval tools) for the real citations list -
 not a side-channel, a uniform contract across all three."""
 
+from langsmith import traceable
+
 from src.hrb_chatbot.ai.rag_pipeline.query_retrieval.retriever import retrieve_chunks
 from src.hrb_chatbot.ai.rag_pipeline.tools.mcp_tools import get_leave_balance, get_leave_history
 from src.hrb_chatbot.common.logging.logger import get_logger
@@ -41,8 +43,13 @@ async def search_knowledge_base(
     return output, chunks
 
 
+@traceable(name="get_leave_balance_tool")
 async def get_leave_balance_tool(employee_id: str) -> tuple[str, list[dict]]:
-    """Wraps Phase 49's real MCP call - same live, OAuth2-secured call."""
+    """Wraps Phase 49's real MCP call - same live, OAuth2-secured call.
+    Phase 269 - @traceable: the real MCP call this makes is plain httpx,
+    not LangChain-native, so without this it was invisible as its own
+    span in LangSmith - only the calling agent's own opaque node timing
+    showed, with no visibility into the real tool call/its real input-output."""
     if not employee_id or not employee_id.strip():
         return "Error: please provide an employee ID.", []
 
@@ -59,8 +66,10 @@ async def get_leave_balance_tool(employee_id: str) -> tuple[str, list[dict]]:
     return "\n".join(result["content"]), []
 
 
+@traceable(name="get_leave_history_tool")
 async def get_leave_history_tool(employee_id: str) -> tuple[str, list[dict]]:
-    """Wraps Phase 49's real MCP call - same live, OAuth2-secured call."""
+    """Wraps Phase 49's real MCP call - same live, OAuth2-secured call.
+    Phase 269 - @traceable, same reasoning as get_leave_balance_tool above."""
     if not employee_id or not employee_id.strip():
         return "Error: please provide an employee ID.", []
 

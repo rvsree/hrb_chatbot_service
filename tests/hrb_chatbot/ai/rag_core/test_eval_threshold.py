@@ -5,7 +5,7 @@ alongside it."""
 
 from src.hrb_chatbot.ai.rag_core import eval_threshold
 from src.hrb_chatbot.ai.rag_core.eval_threshold import build_eval_scores, check_eval_threshold, run_enabled_eval_judges
-from tests.conftest import FakeAppSettingsStore, FakeDBGateway
+from tests.conftest import FakeAppSettingsStore, FakeDBGateway, FakeGoldenDatasetStore
 
 
 def test_no_threshold_given_means_no_check():
@@ -289,3 +289,133 @@ class TestMaybeCaptureLiveQuery:
 
         # Must not raise.
         await eval_threshold.maybe_capture_live_query("q", "a", {"groundedness": 0.9}, "genai-rag", "req-4", None)
+
+
+class _FakeRunTree:
+    """Minimal stand-in for langsmith.run_trees.RunTree - just the surface
+    record_eval_feedback()/tag_golden_match() actually touch."""
+
+    def __init__(self, run_id="run-1"):
+        self.id = run_id
+        self.tags: list[str] = []
+        self.metadata: dict = {}
+
+    def add_tags(self, tags):
+        self.tags.extend(tags)
+
+    def add_metadata(self, metadata):
+        self.metadata.update(metadata)
+
+
+class TestRecordEvalFeedback:
+    """Phase 271 - posts eval scores back to LangSmith as feedback on the current trace."""
+
+    async def test_no_eval_scores_is_a_no_op(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(eval_threshold, "get_current_run_tree", lambda: _FakeRunTree())
+        monkeypatch.setattr(eval_threshold, "_get_langsmith_client", lambda: type("C", (), {"create_feedback": lambda *a, **k: calls.append((a, k))})())
+
+        await eval_threshold.record_eval_feedback(None)
+        await eval_threshold.record_eval_feedback({})
+
+        assert calls == []
+
+    async def test_no_current_run_is_a_no_op(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(eval_threshold, "get_current_run_tree", lambda: None)
+        monkeypatch.setattr(eval_threshold, "_get_langsmith_client", lambda: type("C", (), {"create_feedback": lambda *a, **k: calls.append((a, k))})())
+
+        await eval_threshold.record_eval_feedback({"groundedness": 0.9})
+
+        assert calls == []
+
+    async def test_posts_one_feedback_call_per_non_null_metric(self, monkeypatch):
+        calls = []
+
+        class _FakeClient:
+            def create_feedback(self, run_id, key, score):
+                calls.append((run_id, key, score))
+
+        run = _FakeRunTree(run_id="run-42")
+        monkeypatch.setattr(eval_threshold, "get_current_run_tree", lambda: run)
+        monkeypatch.setattr(eval_threshold, "_get_langsmith_client", lambda: _FakeClient())
+
+        await eval_threshold.record_eval_feedback(
+            {"groundedness": 0.9, "completeness": 0.8, "retrieval_precision": None, "answer_relevancy": 0.7}
+        )
+
+        assert sorted(calls) == sorted(
+            [("run-42", "groundedness", 0.9), ("run-42", "completeness", 0.8), ("run-42", "answer_relevancy", 0.7)]
+        )
+
+    async def test_a_feedback_post_failure_is_swallowed_never_raises(self, monkeypatch):
+        class _BoomClient:
+            def create_feedback(self, *args, **kwargs):
+                raise RuntimeError("langsmith is down")
+
+        monkeypatch.setattr(eval_threshold, "get_current_run_tree", lambda: _FakeRunTree())
+        monkeypatch.setattr(eval_threshold, "_get_langsmith_client", lambda: _BoomClient())
+
+        # Must not raise.
+        await eval_threshold.record_eval_feedback({"groundedness": 0.9})
+
+
+class TestTagGoldenMatch:
+    """Phase 274 - tags + annotates the current trace when a live query
+    exactly matches a Golden Dataset case."""
+
+    async def test_no_current_run_is_a_no_op(self, monkeypatch):
+        fake_gateway = FakeDBGateway(golden_dataset_store=FakeGoldenDatasetStore())
+        monkeypatch.setattr(eval_threshold, "get_current_run_tree", lambda: None)
+        monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: fake_gateway)
+
+        # Must not raise, and must never even look up the golden store.
+        await eval_threshold.tag_golden_match("What is my deductible?")
+
+    async def test_no_match_tags_nothing(self, monkeypatch):
+        run = _FakeRunTree()
+        fake_gateway = FakeDBGateway(golden_dataset_store=FakeGoldenDatasetStore())
+        monkeypatch.setattr(eval_threshold, "get_current_run_tree", lambda: run)
+        monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: fake_gateway)
+
+        await eval_threshold.tag_golden_match("a totally unrelated question")
+
+        assert run.tags == []
+        assert run.metadata == {}
+
+    async def test_exact_match_tags_and_annotates_the_run(self, monkeypatch):
+        run = _FakeRunTree()
+        fake_gateway = FakeDBGateway(
+            golden_dataset_store=FakeGoldenDatasetStore(
+                [
+                    {
+                        "id": 1, "case_key": "deductible-01", "dataset": "golden_v1", "category": "rag",
+                        "query": "  What is my deductible?  ", "raw_case": {"expected_answer": "It's $500."},
+                        "created_at": "2026-10-26T00:00:00Z", "updated_at": "2026-10-26T00:00:00Z",
+                        "source": "curated", "source_live_query_id": None, "promoted_by": None, "promoted_at": None,
+                    }
+                ]
+            )
+        )
+        monkeypatch.setattr(eval_threshold, "get_current_run_tree", lambda: run)
+        monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: fake_gateway)
+
+        # Case/whitespace-insensitive - real submitted text differs trivially.
+        await eval_threshold.tag_golden_match("what is my deductible?")
+
+        assert run.tags == ["golden_match:deductible-01"]
+        assert run.metadata == {"golden_case_key": "deductible-01", "golden_expected_answer": "It's $500."}
+
+    async def test_a_lookup_failure_is_swallowed_never_raises(self, monkeypatch):
+        class _BoomStore:
+            async def find_by_query(self, *args, **kwargs):
+                raise RuntimeError("db is down")
+
+        run = _FakeRunTree()
+        fake_gateway = FakeDBGateway()
+        monkeypatch.setattr(fake_gateway, "golden_dataset_store", lambda: _BoomStore())
+        monkeypatch.setattr(eval_threshold, "get_current_run_tree", lambda: run)
+        monkeypatch.setattr(eval_threshold, "get_db_gateway", lambda: fake_gateway)
+
+        # Must not raise.
+        await eval_threshold.tag_golden_match("What is my deductible?")

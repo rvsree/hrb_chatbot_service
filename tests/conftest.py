@@ -44,6 +44,13 @@ Path(_TEST_SQLITE_DB_PATH).unlink(missing_ok=True)
 # this env default) with its own injected FakeRedisClient, not real Redis.
 os.environ["APP_RATE_LIMITING"] = "false"
 
+# Phase 265: same reasoning as APP_RATE_LIMITING above - without this,
+# every route test that passes through run_guarded_pipeline() would try a
+# real Redis/Postgres connection for the demo-query-limit check and hang
+# on connect-timeout instead of failing fast. test_demo_query_limiter.py
+# tests the enabled case directly with its own fakes, unaffected by this.
+os.environ["APP_DEMO_QUERY_LIMIT_ENABLED"] = "false"
+
 # Phase 44's LlamaIndex-based indexing (vector_indexer.py) constructs a
 # real llama_index OpenAIEmbedding unless LlamaIndex's own IS_TESTING
 # env var is set, in which case it uses MockEmbedding(embed_dim=8)
@@ -835,6 +842,10 @@ class FakeGoldenDatasetStore:
     async def list_cases(self):
         return list(self._cases)
 
+    async def find_by_query(self, query_text):
+        normalized = query_text.strip().lower()
+        return next((dict(case) for case in self._cases if (case.get("query") or "").strip().lower() == normalized), None)
+
     def health_check(self):
         return {"provider": "postgres", "status": "healthy"}
 
@@ -1112,6 +1123,14 @@ class FakeLiveQueryStore:
             rows = [row for row in rows if row["is_ltm"] == is_ltm]
         return list(reversed(rows))
 
+    async def delete_live_query(self, live_query_id):
+        before = len(self._queries)
+        self._queries = [row for row in self._queries if row["id"] != live_query_id]
+        return before - len(self._queries)
+
+    async def get_query(self, live_query_id):
+        return next((dict(row) for row in self._queries if row["id"] == live_query_id), None)
+
     def health_check(self):
         return {"provider": "postgres", "status": "healthy"}
 
@@ -1126,13 +1145,30 @@ class FakeSyntheticDatasetStore:
         self._next_id = max((case["id"] for case in self._cases), default=0) + 1
 
     async def list_cases(self):
-        return list(self._cases)
+        cases = [dict(case) for case in self._cases]
+        for case in cases:
+            if case["promoted_at"] is not None and not isinstance(case["promoted_at"], str):
+                case["promoted_at"] = case["promoted_at"].isoformat()
+        return cases
 
-    async def upsert_case(self, case_key, dataset, category, query, raw_case):
+    async def get_case(self, case_id):
+        case = next((dict(case) for case in self._cases if case["id"] == case_id), None)
+        if case is not None and case["promoted_at"] is not None and not isinstance(case["promoted_at"], str):
+            case["promoted_at"] = case["promoted_at"].isoformat()
+        return case
+
+    async def upsert_case(
+        self, case_key, dataset, category, query, raw_case,
+        source="curated", source_live_query_id=None, promoted_by=None, promoted_at=None,
+    ):
         for case in self._cases:
             if case["case_key"] == case_key and case["dataset"] == dataset:
                 changed = case["raw_case"] != raw_case
-                case.update(category=category, query=query, raw_case=raw_case)
+                case.update(
+                    category=category, query=query, raw_case=raw_case,
+                    source=source, source_live_query_id=source_live_query_id,
+                    promoted_by=promoted_by, promoted_at=promoted_at,
+                )
                 return {"id": case["id"], "case_key": case_key, "changed": changed}
         case = {
             "id": self._next_id,
@@ -1143,6 +1179,10 @@ class FakeSyntheticDatasetStore:
             "raw_case": raw_case,
             "created_at": "2026-10-26T00:00:00Z",
             "updated_at": "2026-10-26T00:00:00Z",
+            "source": source,
+            "source_live_query_id": source_live_query_id,
+            "promoted_by": promoted_by,
+            "promoted_at": promoted_at,
         }
         self._cases.append(case)
         self._next_id += 1
@@ -1150,6 +1190,44 @@ class FakeSyntheticDatasetStore:
 
     def health_check(self):
         return {"provider": "postgres", "status": "healthy"}
+
+
+class FakeDemoVisitorStore:
+    """Stands in for DemoVisitorStore (Phase 265) - plain in-memory dict
+    keyed by conversation_id, same async interface as the real
+    Postgres-backed one, never touches a real database."""
+
+    def __init__(self, visitors: dict[str, dict] | None = None):
+        self._visitors = visitors or {}
+
+    async def record_query(self, conversation_id, employee_id, full_name, role, ip_address, timezone):
+        row = self._visitors.setdefault(
+            conversation_id,
+            {
+                "conversation_id": conversation_id, "employee_id": employee_id, "full_name": full_name,
+                "role": role, "ip_address": ip_address, "timezone": timezone,
+                "query_count": 0, "waiver_count": 0,
+            },
+        )
+        row["query_count"] += 1
+        return {"query_count": row["query_count"], "waiver_count": row["waiver_count"]}
+
+    async def grant_waiver(self, conversation_id, increment=15):
+        row = self._visitors.setdefault(
+            conversation_id,
+            {"conversation_id": conversation_id, "query_count": 0, "waiver_count": 0},
+        )
+        row["waiver_count"] += increment
+        return {"conversation_id": conversation_id, "query_count": row["query_count"], "waiver_count": row["waiver_count"]}
+
+    async def list_visitors(self):
+        return list(self._visitors.values())
+
+    async def delete_visitor(self, conversation_id):
+        if conversation_id in self._visitors:
+            del self._visitors[conversation_id]
+            return 1
+        return 0
 
 
 class FakeAppSettingsStore:
@@ -1202,6 +1280,7 @@ class FakeDBGateway:
         live_query_store: "FakeLiveQueryStore | None" = None,
         synthetic_dataset_store: "FakeSyntheticDatasetStore | None" = None,
         app_settings_store: "FakeAppSettingsStore | None" = None,
+        demo_visitor_store: "FakeDemoVisitorStore | None" = None,
     ):
         self._vector_store = vector_store or FakeVectorStore()
         self._metadata_store = metadata_store or FakeMetadataStore()
@@ -1223,6 +1302,7 @@ class FakeDBGateway:
         self._live_query_store = live_query_store or FakeLiveQueryStore()
         self._synthetic_dataset_store = synthetic_dataset_store or FakeSyntheticDatasetStore()
         self._app_settings_store = app_settings_store or FakeAppSettingsStore()
+        self._demo_visitor_store = demo_visitor_store or FakeDemoVisitorStore()
 
     def vector_store(self, provider=None):
         return self._vector_store
@@ -1283,3 +1363,6 @@ class FakeDBGateway:
 
     def app_settings_store(self):
         return self._app_settings_store
+
+    def demo_visitor_store(self):
+        return self._demo_visitor_store

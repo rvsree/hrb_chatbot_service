@@ -36,6 +36,15 @@ CREATE_CASE_KEY_DATASET_INDEX = (
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_golden_dataset_case_key_dataset ON golden_dataset_cases(case_key, dataset)"
 )
 
+# Phase 272 - schema parity with synthetic_dataset_cases' own same 4
+# columns (see that store's own comment) - read-only here, no write path:
+# this table stays "never written to directly by the API" (see this
+# module's own docstring), so every row's source is always 'curated'.
+ADD_SOURCE_COLUMN = "ALTER TABLE golden_dataset_cases ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'curated'"
+ADD_SOURCE_LIVE_QUERY_ID_COLUMN = "ALTER TABLE golden_dataset_cases ADD COLUMN IF NOT EXISTS source_live_query_id INTEGER"
+ADD_PROMOTED_BY_COLUMN = "ALTER TABLE golden_dataset_cases ADD COLUMN IF NOT EXISTS promoted_by TEXT"
+ADD_PROMOTED_AT_COLUMN = "ALTER TABLE golden_dataset_cases ADD COLUMN IF NOT EXISTS promoted_at TIMESTAMPTZ"
+
 
 class GoldenDatasetStore:
     PROVIDER_NAME = "postgres"
@@ -71,6 +80,10 @@ class GoldenDatasetStore:
         with self._connect() as conn:
             conn.execute(CREATE_GOLDEN_DATASET_TABLE)
             conn.execute(CREATE_CASE_KEY_DATASET_INDEX)
+            conn.execute(ADD_SOURCE_COLUMN)
+            conn.execute(ADD_SOURCE_LIVE_QUERY_ID_COLUMN)
+            conn.execute(ADD_PROMOTED_BY_COLUMN)
+            conn.execute(ADD_PROMOTED_AT_COLUMN)
             conn.commit()
 
     async def _ensure_table(self) -> None:
@@ -92,12 +105,37 @@ class GoldenDatasetStore:
         for row in rows:
             row["created_at"] = row["created_at"].isoformat()
             row["updated_at"] = row["updated_at"].isoformat()
+            if row["promoted_at"] is not None:
+                row["promoted_at"] = row["promoted_at"].isoformat()
         return rows
 
     async def list_cases(self) -> list[dict]:
         await self._ensure_table()
         with log_backend_call(logger, "postgres", "golden_dataset_cases.list"):
             return await asyncio.to_thread(self._list_cases_sync)
+
+    def _find_by_query_sync(self, query_text: str) -> dict | None:
+        with self._connect() as conn:
+            with conn.cursor(row_factory=self._dict_row_factory) as cur:
+                cur.execute(
+                    "SELECT * FROM golden_dataset_cases WHERE LOWER(TRIM(query)) = LOWER(TRIM(%s)) LIMIT 1",
+                    (query_text,),
+                )
+                row = cur.fetchone()
+        if row is None:
+            return None
+        row["created_at"] = row["created_at"].isoformat()
+        row["updated_at"] = row["updated_at"].isoformat()
+        if row["promoted_at"] is not None:
+            row["promoted_at"] = row["promoted_at"].isoformat()
+        return row
+
+    async def find_by_query(self, query_text: str) -> dict | None:
+        """Phase 274 - exact match (case/whitespace-insensitive) against a
+        live query's own text, for tag_golden_match()."""
+        await self._ensure_table()
+        with log_backend_call(logger, "postgres", "golden_dataset_cases.find_by_query"):
+            return await asyncio.to_thread(self._find_by_query_sync, query_text)
 
     def _upsert_case_sync(self, case_key: str, dataset: str, category: str | None, query: str | None, raw_case: dict) -> dict:
         raw_case_json = json.dumps(raw_case, sort_keys=True)

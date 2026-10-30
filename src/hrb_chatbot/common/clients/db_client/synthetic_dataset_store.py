@@ -45,6 +45,22 @@ CREATE_CASE_KEY_DATASET_INDEX = sql.SQL(
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_synthetic_dataset_case_key_dataset ON {table}(case_key, dataset)"
 ).format(table=_TABLE)
 
+# Phase 272 - provenance columns, added to an existing table (not just the
+# CREATE TABLE above) via the same ALTER TABLE ... ADD COLUMN IF NOT EXISTS
+# migration pattern request_metrics_store.py/pipeline_run_store.py already
+# use. source defaults 'curated' so every pre-existing row (this table's
+# own LLM-generated cases) is correctly labeled for free, no backfill.
+ADD_SOURCE_COLUMN = sql.SQL("ALTER TABLE {table} ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'curated'").format(
+    table=_TABLE
+)
+ADD_SOURCE_LIVE_QUERY_ID_COLUMN = sql.SQL(
+    "ALTER TABLE {table} ADD COLUMN IF NOT EXISTS source_live_query_id INTEGER"
+).format(table=_TABLE)
+ADD_PROMOTED_BY_COLUMN = sql.SQL("ALTER TABLE {table} ADD COLUMN IF NOT EXISTS promoted_by TEXT").format(table=_TABLE)
+ADD_PROMOTED_AT_COLUMN = sql.SQL("ALTER TABLE {table} ADD COLUMN IF NOT EXISTS promoted_at TIMESTAMPTZ").format(
+    table=_TABLE
+)
+
 
 class SyntheticDatasetStore:
     PROVIDER_NAME = "postgres"
@@ -81,6 +97,10 @@ class SyntheticDatasetStore:
             conn.execute(CREATE_SCHEMA)
             conn.execute(CREATE_SYNTHETIC_DATASET_TABLE)
             conn.execute(CREATE_CASE_KEY_DATASET_INDEX)
+            conn.execute(ADD_SOURCE_COLUMN)
+            conn.execute(ADD_SOURCE_LIVE_QUERY_ID_COLUMN)
+            conn.execute(ADD_PROMOTED_BY_COLUMN)
+            conn.execute(ADD_PROMOTED_AT_COLUMN)
             conn.commit()
 
     async def _ensure_table(self) -> None:
@@ -102,6 +122,10 @@ class SyntheticDatasetStore:
         for row in rows:
             row["created_at"] = row["created_at"].isoformat()
             row["updated_at"] = row["updated_at"].isoformat()
+            # Phase 272 - nullable (only set for a promoted row), unlike
+            # created_at/updated_at above which are always present.
+            if row["promoted_at"] is not None:
+                row["promoted_at"] = row["promoted_at"].isoformat()
         return rows
 
     async def list_cases(self) -> list[dict]:
@@ -109,7 +133,31 @@ class SyntheticDatasetStore:
         with log_backend_call(logger, "postgres", "synthetic_dataset_cases.list"):
             return await asyncio.to_thread(self._list_cases_sync)
 
-    def _upsert_case_sync(self, case_key: str, dataset: str, category: str | None, query: str | None, raw_case: dict) -> dict:
+    def _get_case_sync(self, case_id: int) -> dict | None:
+        with self._connect() as conn:
+            with conn.cursor(row_factory=self._dict_row_factory) as cur:
+                cur.execute(sql.SQL("SELECT * FROM {table} WHERE id = %s").format(table=_TABLE), (case_id,))
+                row = cur.fetchone()
+        if row is None:
+            return None
+        row["created_at"] = row["created_at"].isoformat()
+        row["updated_at"] = row["updated_at"].isoformat()
+        if row["promoted_at"] is not None:
+            row["promoted_at"] = row["promoted_at"].isoformat()
+        return row
+
+    async def get_case(self, case_id: int) -> dict | None:
+        """Phase 272 - the one row shape the admin UI needs back right after
+        promote_live_query()'s own upsert_case() call, same None-if-missing
+        convention live_query_store.py's own get_query() uses."""
+        await self._ensure_table()
+        with log_backend_call(logger, "postgres", "synthetic_dataset_cases.get", case_id=case_id):
+            return await asyncio.to_thread(self._get_case_sync, case_id)
+
+    def _upsert_case_sync(
+        self, case_key: str, dataset: str, category: str | None, query: str | None, raw_case: dict,
+        source: str, source_live_query_id: int | None, promoted_by: str | None, promoted_at,
+    ) -> dict:
         raw_case_json = json.dumps(raw_case, sort_keys=True)
         with self._connect() as conn:
             existing = conn.execute(
@@ -120,10 +168,11 @@ class SyntheticDatasetStore:
             if existing is None:
                 cur = conn.execute(
                     sql.SQL(
-                        "INSERT INTO {table} (case_key, dataset, category, query, raw_case) "
-                        "VALUES (%s, %s, %s, %s, %s) RETURNING id"
+                        "INSERT INTO {table} "
+                        "(case_key, dataset, category, query, raw_case, source, source_live_query_id, promoted_by, promoted_at) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id"
                     ).format(table=_TABLE),
-                    (case_key, dataset, category, query, raw_case_json),
+                    (case_key, dataset, category, query, raw_case_json, source, source_live_query_id, promoted_by, promoted_at),
                 )
                 case_id = cur.fetchone()[0]
                 conn.commit()
@@ -135,15 +184,34 @@ class SyntheticDatasetStore:
 
             conn.execute(
                 sql.SQL(
-                    "UPDATE {table} SET category = %s, query = %s, raw_case = %s, updated_at = now() WHERE id = %s"
+                    "UPDATE {table} SET category = %s, query = %s, raw_case = %s, "
+                    "source = %s, source_live_query_id = %s, promoted_by = %s, promoted_at = %s, updated_at = now() "
+                    "WHERE id = %s"
                 ).format(table=_TABLE),
-                (category, query, raw_case_json, case_id),
+                (category, query, raw_case_json, source, source_live_query_id, promoted_by, promoted_at, case_id),
             )
             conn.commit()
             return {"id": case_id, "case_key": case_key, "changed": True}
 
-    async def upsert_case(self, case_key: str, dataset: str, category: str | None, query: str | None, raw_case: dict) -> dict:
-        """Idempotent by (case_key, dataset) - a re-sync of an unchanged case is a no-op."""
+    async def upsert_case(
+        self,
+        case_key: str,
+        dataset: str,
+        category: str | None,
+        query: str | None,
+        raw_case: dict,
+        source: str = "curated",
+        source_live_query_id: int | None = None,
+        promoted_by: str | None = None,
+        promoted_at=None,
+    ) -> dict:
+        """Idempotent by (case_key, dataset) - a re-sync of an unchanged case is a no-op.
+        Phase 272 - the 4 provenance kwargs default to the same values every
+        pre-existing caller (generate_synthetic_dataset.py) already gets
+        implicitly, so that script needed no changes."""
         await self._ensure_table()
         with log_backend_call(logger, "postgres", "synthetic_dataset_cases.upsert", case_key=case_key, dataset=dataset):
-            return await asyncio.to_thread(self._upsert_case_sync, case_key, dataset, category, query, raw_case)
+            return await asyncio.to_thread(
+                self._upsert_case_sync,
+                case_key, dataset, category, query, raw_case, source, source_live_query_id, promoted_by, promoted_at,
+            )

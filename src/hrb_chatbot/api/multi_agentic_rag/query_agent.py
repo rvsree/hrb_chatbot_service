@@ -5,6 +5,7 @@ ai/agents/workflow_agents/multi_agent_pipeline.py and RAG-ROADMAP.md Phase 64.""
 from fastapi import APIRouter, Request
 
 from src.hrb_chatbot.ai.agents.workflow_agents import multi_agent_pipeline
+from src.hrb_chatbot.ai.rag_core.demo_query_limiter import DemoQueryLimitExceededError
 from src.hrb_chatbot.ai.search_pre_processing.guardrails_input import GuardrailBlockedError
 from src.hrb_chatbot.api.dependencies import json_error
 from src.hrb_chatbot.api.gateway.rbac import require_role
@@ -13,9 +14,10 @@ from src.hrb_chatbot.common.enums import Role
 from src.hrb_chatbot.common.logging.logger import get_logger
 from src.hrb_chatbot.common.observability.response_metrics import time_and_log
 from src.hrb_chatbot.common.rate_limiting.rate_limiter import enforce_rate_limit
+from src.hrb_chatbot.common.utils.request_ip import resolve_client_ip
 from src.hrb_chatbot.models.common import ToolCallInfo
 from src.hrb_chatbot.models.multi_agentic_rag import AgentTaskInfo, MultiAgenticRagRequest, MultiAgenticRagResponse
-from src.hrb_chatbot.models.rag import EvalScores, ExplainabilityInfo, LatencyInfo, LlmContextInfo
+from src.hrb_chatbot.models.rag import DemoLimitInfo, EvalScores, ExplainabilityInfo, LatencyInfo, LlmContextInfo
 
 logger = get_logger("multi_agentic_rag.query_agent")
 
@@ -48,11 +50,16 @@ async def query(payload: MultiAgenticRagRequest, request: Request):
                 department=userProfile.department,
                 planner_model=payload.classification_options.planner_model if payload.classification_options else None,
                 guardrails_model=payload.guardrails_model,
+                full_name=userProfile.full_name,
+                ip_address=resolve_client_ip(request),
+                timezone=userProfile.timezone,
             ),
             lambda r: None,
         )
     except GuardrailBlockedError as error:
         return json_error(422, str(error), code=error_codes.INPUT_GUARDRAIL_BLOCKED)
+    except DemoQueryLimitExceededError as error:
+        return json_error(429, str(error), code=error_codes.DEMO_QUERY_LIMIT_REACHED)
     except ValueError as error:
         return json_error(422, str(error), code=error_codes.VALIDATION_ERROR)
 
@@ -80,4 +87,5 @@ async def query(payload: MultiAgenticRagRequest, request: Request):
             guardrails_model_used=result.get("guardrails_model_used"),
         ),
         conversation_id=result.get("conversation_id"),
+        demo_limit=DemoLimitInfo(**result["demo_limit"]) if result.get("demo_limit") else None,
     )

@@ -7,6 +7,9 @@ this code instead of each re-implementing it."""
 
 import asyncio
 
+from langsmith import Client
+from langsmith.run_helpers import get_current_run_tree
+
 from src.hrb_chatbot.ai.rag_pipeline.evaluations.golden_dataset_harness import (
     evaluate_answer_relevancy,
     evaluate_completeness,
@@ -179,3 +182,82 @@ async def maybe_capture_live_query(
         )
     except Exception as error:
         logger.warning("Could not capture live query for pipeline=%s request_id=%s: %s", pipeline, request_id, error)
+
+
+_LANGSMITH_CLIENT: Client | None = None
+
+
+def _get_langsmith_client() -> Client:
+    global _LANGSMITH_CLIENT
+    if _LANGSMITH_CLIENT is None:
+        _LANGSMITH_CLIENT = Client()
+    return _LANGSMITH_CLIENT
+
+
+# Phase 271 - which eval_scores keys are real feedback-worthy metrics, not
+# their own verdict/explanation/prompt sidecar fields (those stay visible
+# in the trace's own output/metadata, not duplicated as feedback scores).
+_FEEDBACK_METRICS = ("groundedness", "completeness", "retrieval_precision", "answer_relevancy")
+
+
+async def record_eval_feedback(eval_scores: dict | None) -> None:
+    """Phase 271 - posts each non-null metric in _FEEDBACK_METRICS to
+    LangSmith as feedback on the current trace, so traces become
+    filterable/sortable by eval score directly in LangSmith's own Tracing
+    view, not just visible per-trace in its metadata panel. Called from
+    each pipeline's own top-level function (answer_query()/run_agent()/
+    run_multi_agent()), all 3 now @traceable - get_current_run_tree()
+    needs their span still open to resolve correctly at this point (after
+    the inner chain.invoke()/graph.ainvoke()/tool-calling loop has already
+    returned).
+
+    No-ops cleanly when tracing is off (get_current_run_tree() returns
+    None then) or eval_scores is None/empty. Fire-and-forget, same
+    discipline as maybe_capture_live_query() right above - a feedback-post
+    failure must never affect the real response being scored."""
+    if not eval_scores:
+        return
+    run = get_current_run_tree()
+    if run is None:
+        return
+    client = _get_langsmith_client()
+    for metric in _FEEDBACK_METRICS:
+        value = eval_scores.get(metric)
+        if value is None:
+            continue
+        try:
+            await asyncio.to_thread(client.create_feedback, run_id=run.id, key=metric, score=value)
+        except Exception as error:
+            logger.warning("Could not post LangSmith feedback for key=%s run_id=%s: %s", metric, run.id, error)
+
+
+async def tag_golden_match(query: str) -> None:
+    """Phase 274 - if this live query's text exactly matches (case/
+    whitespace-insensitive) a Golden Dataset case, tags the current
+    LangSmith trace `golden_match:<case_key>` and attaches the golden
+    case's own expected_answer as trace metadata - so opening that trace
+    in LangSmith shows the submitted query, the real actual answer
+    (already the trace's own output), and the golden expected answer
+    (metadata) together, with no app-side wire-shape/UI change needed.
+
+    No-ops cleanly when tracing is off (get_current_run_tree() returns
+    None) or there's no match. Fire-and-forget, same discipline as
+    maybe_capture_live_query()/record_eval_feedback() above - a lookup or
+    tag/metadata-post failure must never affect the real response."""
+    run = get_current_run_tree()
+    if run is None:
+        return
+    try:
+        golden_case = await get_db_gateway().golden_dataset_store().find_by_query(query)
+        if golden_case is None:
+            return
+        expected_answer = golden_case["raw_case"].get("expected_answer")
+        run.add_tags([f"golden_match:{golden_case['case_key']}"])
+        run.add_metadata(
+            {
+                "golden_case_key": golden_case["case_key"],
+                "golden_expected_answer": expected_answer,
+            }
+        )
+    except Exception as error:
+        logger.warning("Could not tag golden-dataset match for query=%r: %s", query, error)

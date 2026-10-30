@@ -14,6 +14,7 @@ FORBIDDEN = "FORBIDDEN"
 AMBIGUOUS_DOCUMENT_IDENTIFIER = "AMBIGUOUS_DOCUMENT_IDENTIFIER"
 INPUT_GUARDRAIL_BLOCKED = "INPUT_GUARDRAIL_BLOCKED"
 UNKNOWN_PERSONA = "UNKNOWN_PERSONA"
+DEMO_QUERY_LIMIT_REACHED = "DEMO_QUERY_LIMIT_REACHED"
 
 # Per-file upload rejection reasons - a rejected file is still a 200 (see
 # DocumentUploadResult.status), same "branch on a code" reasoning applies.
@@ -52,3 +53,6 @@ ADMIN_PIPELINE_SNAPSHOT_NOT_FOUND = "ADMIN_PIPELINE_SNAPSHOT_NOT_FOUND"
 
 # Phase 257 - live-query/synthetic-dataset capture, generic app settings
 ADMIN_SETTING_NOT_FOUND = "ADMIN_SETTING_NOT_FOUND"
+
+# Phase 272 - promoting a live query into the Synthetic Dataset
+ADMIN_LIVE_QUERY_NOT_FOUND = "ADMIN_LIVE_QUERY_NOT_FOUND"

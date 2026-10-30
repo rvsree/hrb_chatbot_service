@@ -3,11 +3,6 @@
     "ActivatedRailInfo": {
       "description": "Phase 229 - one configured NeMo Guardrails flow that actually ran\nfor this check, with NeMo's own real decision log - live-verified to\ninclude every configured rail, not just the one that blocked/modified\nsomething, so a clean pass is still demonstrable, not just asserted.",
       "properties": {
-        "name": {
-          "description": "Which configured flow ran, e.g. 'self check input', 'mask sensitive data on input'.",
-          "title": "Name",
-          "type": "string"
-        },
         "decisions": {
           "description": "NeMo's own real sequence of actions this rail took, e.g. ['execute self_check_input'].",
           "items": {
@@ -15,6 +10,11 @@
           },
           "title": "Decisions",
           "type": "array"
+        },
+        "name": {
+          "description": "Which configured flow ran, e.g. 'self check input', 'mask sensitive data on input'.",
+          "title": "Name",
+          "type": "string"
         },
         "stop": {
           "default": false,
@@ -57,13 +57,13 @@
     },
     "ChatHistoryMessage": {
       "properties": {
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
         "role": {
           "description": "'human' or 'ai'.",
           "title": "Role",
-          "type": "string"
-        },
-        "content": {
-          "title": "Content",
           "type": "string"
         }
       },
@@ -74,20 +74,47 @@
       "title": "ChatHistoryMessage",
       "type": "object"
     },
+    "DemoLimitInfo": {
+      "description": "Phase 265 - lets the frontend show \"N questions remaining\" proactively,\nnot just react to a block. Null (not present) for an exempt caller\n(ADMIN/EMPLOYEE_ADMIN/HR_SUPPORT) - the demo limit doesn't apply to them.",
+      "properties": {
+        "effective_limit": {
+          "title": "Effective Limit",
+          "type": "integer"
+        },
+        "query_count": {
+          "title": "Query Count",
+          "type": "integer"
+        },
+        "remaining": {
+          "title": "Remaining",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "query_count",
+        "effective_limit",
+        "remaining"
+      ],
+      "title": "DemoLimitInfo",
+      "type": "object"
+    },
     "EvalScores": {
       "description": "Phase 109 - live LLM-as-judge scores, same prompts/parsing as the\noffline golden-dataset harness (golden_dataset_harness.py), run\nsynchronously per live response at the user's explicit request\n(accepted tradeoff: 2 extra judge LLM calls per live - not cached -\ngeneration). 0.0-1.0, not 0-10 - already normalized by the judge.",
       "properties": {
-        "groundedness": {
-          "description": "Is the answer supported by the retrieved context? 0.0-1.0.",
-          "title": "Groundedness",
-          "type": "number"
+        "answer_relevancy": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 250 - does the answer address what was actually asked (distinct from completeness's full-coverage check)? 0.0-1.0. Null unless EVAL_ANSWER_RELEVANCY_ENABLED=true (defaults false - a brand-new metric, opt-in not opt-out).",
+          "title": "Answer Relevancy"
         },
-        "groundedness_verdict": {
-          "description": "GROUNDED (>=0.7), PARTIAL (>=0.4), or HALLUCINATED.",
-          "title": "Groundedness Verdict",
-          "type": "string"
-        },
-        "groundedness_explanation": {
+        "answer_relevancy_explanation": {
           "anyOf": [
             {
               "type": "string"
@@ -97,10 +124,10 @@
             }
           ],
           "default": null,
-          "description": "Phase 202 - the judge LLM's raw 'Score: X / Reasoning: ...' response, verbatim.",
-          "title": "Groundedness Explanation"
+          "description": "Phase 250 - the judge's reasoning for the answer_relevancy score.",
+          "title": "Answer Relevancy Explanation"
         },
-        "groundedness_prompt": {
+        "answer_relevancy_prompt": {
           "anyOf": [
             {
               "type": "string"
@@ -110,18 +137,40 @@
             }
           ],
           "default": null,
-          "description": "Phase 212 - the exact prompt sent to the groundedness judge.",
-          "title": "Groundedness Prompt"
+          "description": "Phase 250 - DeepEval's own verbose_logs for this judge call.",
+          "title": "Answer Relevancy Prompt"
+        },
+        "answer_relevancy_verdict": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 250 - RELEVANT (>=0.7), PARTIAL (>=0.4), or IRRELEVANT. Null when not run.",
+          "title": "Answer Relevancy Verdict"
+        },
+        "below_threshold": {
+          "default": false,
+          "description": "Phase 215 - true if any live-computed score (groundedness/completeness/retrieval_precision, whichever are present) fell below the request's eval_options.eval_score_threshold. Always false when no threshold was given.",
+          "title": "Below Threshold",
+          "type": "boolean"
+        },
+        "below_threshold_metrics": {
+          "description": "Phase 215 - which metric name(s) triggered below_threshold, e.g. ['completeness'].",
+          "items": {
+            "type": "string"
+          },
+          "title": "Below Threshold Metrics",
+          "type": "array"
         },
         "completeness": {
           "description": "Does the answer fully address the question? 0.0-1.0.",
           "title": "Completeness",
           "type": "number"
-        },
-        "completeness_verdict": {
-          "description": "COMPLETE (>=0.7), PARTIAL (>=0.4), or INCOMPLETE.",
-          "title": "Completeness Verdict",
-          "type": "string"
         },
         "completeness_explanation": {
           "anyOf": [
@@ -149,6 +198,73 @@
           "description": "Phase 212 - the exact prompt sent to the completeness judge.",
           "title": "Completeness Prompt"
         },
+        "completeness_verdict": {
+          "description": "COMPLETE (>=0.7), PARTIAL (>=0.4), or INCOMPLETE.",
+          "title": "Completeness Verdict",
+          "type": "string"
+        },
+        "groundedness": {
+          "description": "Is the answer supported by the retrieved context? 0.0-1.0.",
+          "title": "Groundedness",
+          "type": "number"
+        },
+        "groundedness_explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 202 - the judge LLM's raw 'Score: X / Reasoning: ...' response, verbatim.",
+          "title": "Groundedness Explanation"
+        },
+        "groundedness_prompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 212 - the exact prompt sent to the groundedness judge.",
+          "title": "Groundedness Prompt"
+        },
+        "groundedness_verdict": {
+          "description": "GROUNDED (>=0.7), PARTIAL (>=0.4), or HALLUCINATED.",
+          "title": "Groundedness Verdict",
+          "type": "string"
+        },
+        "judge_model_used": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 215 - the real model every judge call this turn actually used (the override if given, else the default) - verifiable, not just trusted.",
+          "title": "Judge Model Used"
+        },
+        "retrieval_f1_estimate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 219 - harmonic mean of retrieval_precision and retrieval_recall_estimate. Same estimate caveat as that field.",
+          "title": "Retrieval F1 Estimate"
+        },
         "retrieval_precision": {
           "anyOf": [
             {
@@ -161,14 +277,6 @@
           "default": null,
           "description": "Phase 208 - live, computed-this-call: (chunks an LLM judge found relevant) / (chunks retrieved).",
           "title": "Retrieval Precision"
-        },
-        "retrieval_relevant_chunk_indices": {
-          "description": "Phase 208 - 1-indexed positions (within this call's retrieved chunks) the judge marked relevant.",
-          "items": {
-            "type": "integer"
-          },
-          "title": "Retrieval Relevant Chunk Indices",
-          "type": "array"
         },
         "retrieval_precision_explanation": {
           "anyOf": [
@@ -209,19 +317,6 @@
           "description": "Phase 219 - NOT true recall (that needs the total count of relevant documents that exist, still unknowable for an arbitrary live question). (chunks judged relevant within what was actually retrieved) / (chunks judged relevant across a wider exact-KNN candidate pool - see retrieval_recall_pool_size). Null when nothing in that pool was judged relevant (undefined, not fabricated as 0 or 1).",
           "title": "Retrieval Recall Estimate"
         },
-        "retrieval_f1_estimate": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Phase 219 - harmonic mean of retrieval_precision and retrieval_recall_estimate. Same estimate caveat as that field.",
-          "title": "Retrieval F1 Estimate"
-        },
         "retrieval_recall_pool_size": {
           "anyOf": [
             {
@@ -248,90 +343,19 @@
           "description": "Phase 225 - the real denominator of retrieval_recall_estimate: how many chunks the judge marked relevant across the whole wider candidate pool (retrieval_recall_pool_size chunks), before scoping down to just the originally-retrieved subset (retrieval_relevant_chunk_indices).",
           "title": "Retrieval Recall Relevant Count"
         },
+        "retrieval_relevant_chunk_indices": {
+          "description": "Phase 208 - 1-indexed positions (within this call's retrieved chunks) the judge marked relevant.",
+          "items": {
+            "type": "integer"
+          },
+          "title": "Retrieval Relevant Chunk Indices",
+          "type": "array"
+        },
         "retrieval_retry_attempted": {
           "default": false,
           "description": "Phase 226 - true when search_options.enable_corrective_retry was on AND the first retrieval's own precision fell below eval_score_threshold, so retrieval ran a second time (doubled top_k) before this answer was generated. Always false when the feature was off, threshold wasn't set, or the first retrieval already passed.",
           "title": "Retrieval Retry Attempted",
           "type": "boolean"
-        },
-        "answer_relevancy": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Phase 250 - does the answer address what was actually asked (distinct from completeness's full-coverage check)? 0.0-1.0. Null unless EVAL_ANSWER_RELEVANCY_ENABLED=true (defaults false - a brand-new metric, opt-in not opt-out).",
-          "title": "Answer Relevancy"
-        },
-        "answer_relevancy_verdict": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Phase 250 - RELEVANT (>=0.7), PARTIAL (>=0.4), or IRRELEVANT. Null when not run.",
-          "title": "Answer Relevancy Verdict"
-        },
-        "answer_relevancy_explanation": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Phase 250 - the judge's reasoning for the answer_relevancy score.",
-          "title": "Answer Relevancy Explanation"
-        },
-        "answer_relevancy_prompt": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Phase 250 - DeepEval's own verbose_logs for this judge call.",
-          "title": "Answer Relevancy Prompt"
-        },
-        "judge_model_used": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Phase 215 - the real model every judge call this turn actually used (the override if given, else the default) - verifiable, not just trusted.",
-          "title": "Judge Model Used"
-        },
-        "below_threshold": {
-          "default": false,
-          "description": "Phase 215 - true if any live-computed score (groundedness/completeness/retrieval_precision, whichever are present) fell below the request's eval_options.eval_score_threshold. Always false when no threshold was given.",
-          "title": "Below Threshold",
-          "type": "boolean"
-        },
-        "below_threshold_metrics": {
-          "description": "Phase 215 - which metric name(s) triggered below_threshold, e.g. ['completeness'].",
-          "items": {
-            "type": "string"
-          },
-          "title": "Below Threshold Metrics",
-          "type": "array"
         }
       },
       "required": [
@@ -346,49 +370,7 @@
     "ExplainabilityInfo": {
       "description": "Phase 107/109 - real latency/token/cache-vs-live/eval numbers,\ngenai-rag only. Dollar cost is deliberately excluded (see BACKLOG.md).",
       "properties": {
-        "request_id": {
-          "description": "Phase 201 - a UUID4 identifying this HTTP request/response pair, present on every call including cache hits. Correlates this response with backend logs, the request_metrics table, and (when LangSmith tracing is on) that call's trace metadata.",
-          "title": "Request Id",
-          "type": "string"
-        },
-        "served_from_cache": {
-          "description": "True if this answer came from the answer cache, not a live retrieval+generation call.",
-          "title": "Served From Cache",
-          "type": "boolean"
-        },
-        "llm_call_count": {
-          "description": "How many LLM calls this request made - 0 on a cache hit or MCP fast-path, 1 otherwise. Excludes eval-judge calls.",
-          "title": "Llm Call Count",
-          "type": "integer"
-        },
-        "latency_ms": {
-          "$ref": "#/$defs/LatencyInfo"
-        },
-        "token_usage": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TokenUsageInfo"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Null on a cache hit, MCP fast-path, or a no-context answer that never called the LLM."
-        },
-        "llm_context": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/LlmContextInfo"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Phase 132 (genai-rag), extended Phase 160 to single/multi-agentic-rag; null only on a cache hit (nothing was actually sent this call)."
-        },
-        "routed_to": {
+        "decompose_model_used": {
           "anyOf": [
             {
               "type": "string"
@@ -398,8 +380,8 @@
             }
           ],
           "default": null,
-          "description": "The MCP tool name if this answer was dynamically routed there instead of RAG (Phase 49/108). Null otherwise.",
-          "title": "Routed To"
+          "description": "Phase 243 - which model ran genai-rag's query decomposition (override if given, else the real default). Null for single-/multi-agentic-rag, or on a cache hit (that step didn't run).",
+          "title": "Decompose Model Used"
         },
         "eval_scores": {
           "anyOf": [
@@ -413,24 +395,11 @@
           "default": null,
           "description": "Null for an MCP answer or a no-context answer (nothing to check groundedness against). Reused as-is on a cache hit - same answer, same score, not re-judged."
         },
-        "temperature": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Phase 127 - genai-rag only; null for single/multi-agentic-rag, which hardcode temperature=0, not user-configurable.",
-          "title": "Temperature"
-        },
         "guardrails": {
           "$ref": "#/$defs/GuardrailInfo",
           "description": "Phase 224 - real input/output guardrail status for this answer. Reused as-is on a cache hit, same reasoning as eval_scores."
         },
-        "decompose_model_used": {
+        "guardrails_model_used": {
           "anyOf": [
             {
               "type": "string"
@@ -440,8 +409,28 @@
             }
           ],
           "default": null,
-          "description": "Phase 243 - which model ran genai-rag's query decomposition (override if given, else the real default). Null for single-/multi-agentic-rag, or on a cache hit (that step didn't run).",
-          "title": "Decompose Model Used"
+          "description": "Phase 244 - which model ran the input/output guardrail checks (override if given, else the real default). Always present for a real call, unlike decompose_model_used/planner_model_used - guardrails run on every mode. Reused as-is on a cache hit, same reasoning as eval_scores.",
+          "title": "Guardrails Model Used"
+        },
+        "latency_ms": {
+          "$ref": "#/$defs/LatencyInfo"
+        },
+        "llm_call_count": {
+          "description": "How many LLM calls this request made - 0 on a cache hit or MCP fast-path, 1 otherwise. Excludes eval-judge calls.",
+          "title": "Llm Call Count",
+          "type": "integer"
+        },
+        "llm_context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LlmContextInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 132 (genai-rag), extended Phase 160 to single/multi-agentic-rag; null only on a cache hit (nothing was actually sent this call)."
         },
         "planner_model_used": {
           "anyOf": [
@@ -456,7 +445,12 @@
           "description": "Phase 243 - which model ran multi-agentic-rag's Planner routing step (override if given, else the real default). Null for genai-rag/single-agentic-rag, or on a cache hit.",
           "title": "Planner Model Used"
         },
-        "guardrails_model_used": {
+        "request_id": {
+          "description": "Phase 201 - a UUID4 identifying this HTTP request/response pair, present on every call including cache hits. Correlates this response with backend logs, the request_metrics table, and (when LangSmith tracing is on) that call's trace metadata.",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "routed_to": {
           "anyOf": [
             {
               "type": "string"
@@ -466,8 +460,38 @@
             }
           ],
           "default": null,
-          "description": "Phase 244 - which model ran the input/output guardrail checks (override if given, else the real default). Always present for a real call, unlike decompose_model_used/planner_model_used - guardrails run on every mode. Reused as-is on a cache hit, same reasoning as eval_scores.",
-          "title": "Guardrails Model Used"
+          "description": "The MCP tool name if this answer was dynamically routed there instead of RAG (Phase 49/108). Null otherwise.",
+          "title": "Routed To"
+        },
+        "served_from_cache": {
+          "description": "True if this answer came from the answer cache, not a live retrieval+generation call.",
+          "title": "Served From Cache",
+          "type": "boolean"
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 127 - genai-rag only; null for single/multi-agentic-rag, which hardcode temperature=0, not user-configurable.",
+          "title": "Temperature"
+        },
+        "token_usage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TokenUsageInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Null on a cache hit, MCP fast-path, or a no-context answer that never called the LLM."
         }
       },
       "required": [
@@ -483,10 +507,13 @@
     "GuardrailCheckStatus": {
       "description": "Phase 224 - one guardrail check's real outcome. Before this, a\nMODIFIED (PII masked) result was indistinguishable from an untouched\nPASS to every caller, and a BLOCKED output silently swapped in a safe\nfallback answer with zero signal reaching anyone.",
       "properties": {
-        "status": {
-          "description": "'pass', 'modified' (NeMo masked something, e.g. PII), or 'blocked' (output check only - an input block raises a 422 before any response is built, so it never reaches here).",
-          "title": "Status",
-          "type": "string"
+        "activated_rails": {
+          "description": "Phase 229 - every configured rail that actually ran for this check, in order, with NeMo's own real decision log - not just the one rail that happened to matter.",
+          "items": {
+            "$ref": "#/$defs/ActivatedRailInfo"
+          },
+          "title": "Activated Rails",
+          "type": "array"
         },
         "rail": {
           "anyOf": [
@@ -501,13 +528,10 @@
           "description": "Which NeMo Guardrails rail fired. Null on a clean pass, and - confirmed against NeMo's own check_async() logic - also null on a 'modified' result (NeMo itself never attributes a MODIFIED outcome to one specific rail name); see activated_rails for the real per-rail detail.",
           "title": "Rail"
         },
-        "activated_rails": {
-          "description": "Phase 229 - every configured rail that actually ran for this check, in order, with NeMo's own real decision log - not just the one rail that happened to matter.",
-          "items": {
-            "$ref": "#/$defs/ActivatedRailInfo"
-          },
-          "title": "Activated Rails",
-          "type": "array"
+        "status": {
+          "description": "'pass', 'modified' (NeMo masked something, e.g. PII), or 'blocked' (output check only - an input block raises a 422 before any response is built, so it never reaches here).",
+          "title": "Status",
+          "type": "string"
         }
       },
       "required": [
@@ -535,12 +559,7 @@
     },
     "LatencyInfo": {
       "properties": {
-        "total": {
-          "description": "Total wall-clock time for this call, in milliseconds.",
-          "title": "Total",
-          "type": "number"
-        },
-        "retrieval": {
+        "decomposition": {
           "anyOf": [
             {
               "type": "number"
@@ -550,21 +569,8 @@
             }
           ],
           "default": null,
-          "description": "Time spent retrieving chunks, in milliseconds. Null on a cache hit.",
-          "title": "Retrieval"
-        },
-        "generation": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Time spent generating the answer, in milliseconds. Null on a cache hit.",
-          "title": "Generation"
+          "description": "Phase 130 - genai-rag only; time spent splitting the question into sub-questions. Null elsewhere.",
+          "title": "Decomposition"
         },
         "eval": {
           "anyOf": [
@@ -579,7 +585,7 @@
           "description": "Time spent on live eval-judge scoring, in milliseconds. Null when no eval ran this call (cache hit, MCP, or no context).",
           "title": "Eval"
         },
-        "decomposition": {
+        "generation": {
           "anyOf": [
             {
               "type": "number"
@@ -589,8 +595,26 @@
             }
           ],
           "default": null,
-          "description": "Phase 130 - genai-rag only; time spent splitting the question into sub-questions. Null elsewhere.",
-          "title": "Decomposition"
+          "description": "Time spent generating the answer, in milliseconds. Null on a cache hit.",
+          "title": "Generation"
+        },
+        "retrieval": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Time spent retrieving chunks, in milliseconds. Null on a cache hit.",
+          "title": "Retrieval"
+        },
+        "total": {
+          "description": "Total wall-clock time for this call, in milliseconds.",
+          "title": "Total",
+          "type": "number"
         }
       },
       "required": [
@@ -602,18 +626,18 @@
     "LlmContextInfo": {
       "description": "Phase 132 (genai-rag), extended Phase 160 to single/multi-agentic-rag -\nnull only on a cache hit, when nothing was actually sent that call.",
       "properties": {
-        "turns": {
-          "items": {
-            "$ref": "#/$defs/LlmContextTurn"
-          },
-          "title": "Turns",
-          "type": "array"
-        },
         "mcp_tool_calls": {
           "items": {
             "$ref": "#/$defs/McpToolCallDetail"
           },
           "title": "Mcp Tool Calls",
+          "type": "array"
+        },
+        "turns": {
+          "items": {
+            "$ref": "#/$defs/LlmContextTurn"
+          },
+          "title": "Turns",
           "type": "array"
         }
       },
@@ -623,6 +647,25 @@
     "LlmContextTurn": {
       "description": "Phase 132 - one real LLM call's actual rendered prompt, not a re-derived guess -\ncaptured from the exact same inputs the real chain.invoke() call used.",
       "properties": {
+        "chat_history": {
+          "items": {
+            "$ref": "#/$defs/ChatHistoryMessage"
+          },
+          "title": "Chat History",
+          "type": "array"
+        },
+        "human_message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Human Message"
+        },
         "label": {
           "description": "e.g. 'answer' (single question) or the sub-question text (decomposed).",
           "title": "Label",
@@ -641,37 +684,6 @@
           "description": "Phase 205 - wall-clock time of this one real LLM call, not the whole request.",
           "title": "Latency Ms"
         },
-        "system_prompt": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "System Prompt"
-        },
-        "human_message": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Human Message"
-        },
-        "chat_history": {
-          "items": {
-            "$ref": "#/$defs/ChatHistoryMessage"
-          },
-          "title": "Chat History",
-          "type": "array"
-        },
         "response": {
           "anyOf": [
             {
@@ -684,6 +696,18 @@
           "default": null,
           "description": "The raw answer text this turn's LLM call returned.",
           "title": "Response"
+        },
+        "system_prompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "System Prompt"
         }
       },
       "required": [
@@ -695,10 +719,6 @@
     "McpToolCallDetail": {
       "description": "Phase 132 - the raw MCP call, not just the summary ToolCallInfo already carries.",
       "properties": {
-        "tool_name": {
-          "title": "Tool Name",
-          "type": "string"
-        },
         "arguments": {
           "additionalProperties": true,
           "title": "Arguments",
@@ -711,6 +731,10 @@
           },
           "title": "Raw Result",
           "type": "array"
+        },
+        "tool_name": {
+          "title": "Tool Name",
+          "type": "string"
         }
       },
       "required": [
@@ -724,6 +748,11 @@
     "RetrievedChunk": {
       "description": "One chunk the retrieval step considered relevant to the query.",
       "properties": {
+        "chunk_index": {
+          "description": "This chunk's position within that document.",
+          "title": "Chunk Index",
+          "type": "integer"
+        },
         "document_id": {
           "description": "Which uploaded document this chunk came from.",
           "title": "Document Id",
@@ -733,29 +762,6 @@
           "description": "That document's original filename.",
           "title": "Filename",
           "type": "string"
-        },
-        "chunk_index": {
-          "description": "This chunk's position within that document.",
-          "title": "Chunk Index",
-          "type": "integer"
-        },
-        "text": {
-          "description": "The chunk's text, as stored at index time.",
-          "title": "Text",
-          "type": "string"
-        },
-        "score": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "The vector store's own similarity score, null for MMR results.",
-          "title": "Score"
         },
         "matched_by": {
           "anyOf": [
@@ -772,6 +778,24 @@
           "default": null,
           "description": "Phase 221 - hybrid search only: which underlying list(s) found this chunk - 'sparse' (BM25 keyword), 'dense' (vector similarity), or both. Null for every other search_strategy.",
           "title": "Matched By"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The vector store's own similarity score, null for MMR results.",
+          "title": "Score"
+        },
+        "text": {
+          "description": "The chunk's text, as stored at index time.",
+          "title": "Text",
+          "type": "string"
         }
       },
       "required": [
@@ -785,12 +809,12 @@
     },
     "TokenUsageInfo": {
       "properties": {
-        "prompt_tokens": {
-          "title": "Prompt Tokens",
-          "type": "integer"
-        },
         "completion_tokens": {
           "title": "Completion Tokens",
+          "type": "integer"
+        },
+        "prompt_tokens": {
+          "title": "Prompt Tokens",
           "type": "integer"
         },
         "total_tokens": {
@@ -809,21 +833,18 @@
     "ToolCallInfo": {
       "description": "Phase 126: moved here from models/agentic_rag.py - genai-rag's\nRagQueryResponse needs it too, and agentic_rag.py already imports\nFROM models/rag.py, so defining it there instead would circular-import.",
       "properties": {
-        "tool_name": {
-          "description": "Which tool the agent called.",
-          "title": "Tool Name",
-          "type": "string"
-        },
-        "tool_input": {
-          "description": "What the agent passed to it.",
-          "title": "Tool Input",
-          "type": "string"
-        },
-        "tool_type": {
-          "default": "other",
-          "description": "Phase 126 - which kind of backend this hit: vector_db/mcp/web_search/sql_db/other.",
-          "title": "Tool Type",
-          "type": "string"
+        "iteration": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 206 - which ReAct iteration (1-indexed) made this call. Single-agentic-rag only.",
+          "title": "Iteration"
         },
         "latency_ms": {
           "anyOf": [
@@ -838,25 +859,6 @@
           "description": "Phase 126 - how long this one call took, if measured.",
           "title": "Latency Ms"
         },
-        "success": {
-          "default": true,
-          "description": "Phase 126 - false if this call returned an 'Error: ...' result.",
-          "title": "Success",
-          "type": "boolean"
-        },
-        "iteration": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Phase 206 - which ReAct iteration (1-indexed) made this call. Single-agentic-rag only.",
-          "title": "Iteration"
-        },
         "search_strategy": {
           "anyOf": [
             {
@@ -869,6 +871,28 @@
           "default": null,
           "description": "Phase 216 - the agent's own strategy choice for a search_knowledge_base call ('similarity'/'mmr'). Null for every other tool.",
           "title": "Search Strategy"
+        },
+        "success": {
+          "default": true,
+          "description": "Phase 126 - false if this call returned an 'Error: ...' result.",
+          "title": "Success",
+          "type": "boolean"
+        },
+        "tool_input": {
+          "description": "What the agent passed to it.",
+          "title": "Tool Input",
+          "type": "string"
+        },
+        "tool_name": {
+          "description": "Which tool the agent called.",
+          "title": "Tool Name",
+          "type": "string"
+        },
+        "tool_type": {
+          "default": "other",
+          "description": "Phase 126 - which kind of backend this hit: vector_db/mcp/web_search/sql_db/other.",
+          "title": "Tool Type",
+          "type": "string"
         }
       },
       "required": [
@@ -881,56 +905,10 @@
   },
   "description": "What POST /query returns.",
   "properties": {
-    "query": {
-      "description": "The question that was asked.",
-      "title": "Query",
-      "type": "string"
-    },
     "answer": {
       "description": "The final, synthesized answer.",
       "title": "Answer",
       "type": "string"
-    },
-    "tasks": {
-      "description": "Which sub-agent(s) the router dispatched to, and why.",
-      "items": {
-        "$ref": "#/$defs/AgentTaskInfo"
-      },
-      "title": "Tasks",
-      "type": "array"
-    },
-    "suggested_follow_up_questions": {
-      "description": "Phase 123 - Reviewer Agent-generated, 2-3 questions. Empty when no domain agent ran.",
-      "items": {
-        "type": "string"
-      },
-      "title": "Suggested Follow Up Questions",
-      "type": "array"
-    },
-    "tools_used": {
-      "description": "Every tool call any sub-agent made, in order, aggregated across all of them.",
-      "items": {
-        "$ref": "#/$defs/ToolCallInfo"
-      },
-      "title": "Tools Used",
-      "type": "array"
-    },
-    "sources": {
-      "description": "Phase 115 - real chunks from vector_kb_agent dispatches, if any.",
-      "items": {
-        "$ref": "#/$defs/RetrievedChunk"
-      },
-      "title": "Sources",
-      "type": "array"
-    },
-    "iterations": {
-      "description": "How many domain agents the Planner dispatched to for this query - a one-shot fan-out, not a reasoning-round count (multi-agentic-rag has no retry loop, unlike single-agentic-rag's own iterations field).",
-      "title": "Iterations",
-      "type": "integer"
-    },
-    "explainability_info": {
-      "$ref": "#/$defs/ExplainabilityInfo",
-      "description": "Phase 110/115 - total latency + llm_call_count + eval scores + real caching (cache-eligible only when every dispatched task was vector_kb_agent, see RAG-ROADMAP.md Phase 115). token_usage is still always null - not yet captured per-domain-agent (BACKLOG.md)."
     },
     "conversation_id": {
       "anyOf": [
@@ -945,6 +923,32 @@
       "description": "Echoed/generated when enable_conversation_memory was true - pass it back on the next call to continue this conversation. Null when memory wasn't enabled.",
       "title": "Conversation Id"
     },
+    "demo_limit": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DemoLimitInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Phase 265 - null for an exempt caller (ADMIN/EMPLOYEE_ADMIN/HR_SUPPORT)."
+    },
+    "explainability_info": {
+      "$ref": "#/$defs/ExplainabilityInfo",
+      "description": "Phase 110/115 - total latency + llm_call_count + eval scores + real caching (cache-eligible only when every dispatched task was vector_kb_agent, see RAG-ROADMAP.md Phase 115). token_usage is still always null - not yet captured per-domain-agent (BACKLOG.md)."
+    },
+    "iterations": {
+      "description": "How many domain agents the Planner dispatched to for this query - a one-shot fan-out, not a reasoning-round count (multi-agentic-rag has no retry loop, unlike single-agentic-rag's own iterations field).",
+      "title": "Iterations",
+      "type": "integer"
+    },
+    "query": {
+      "description": "The question that was asked.",
+      "title": "Query",
+      "type": "string"
+    },
     "resolved_mode": {
       "anyOf": [
         {
@@ -957,6 +961,38 @@
       "default": null,
       "description": "Phase 240 - set only when this model is returned from POST /v1/rag-retrieval/query (the auto-router, including an escalation from single-agentic-rag). Null on this endpoint's own direct, forced-mode calls.",
       "title": "Resolved Mode"
+    },
+    "sources": {
+      "description": "Phase 115 - real chunks from vector_kb_agent dispatches, if any.",
+      "items": {
+        "$ref": "#/$defs/RetrievedChunk"
+      },
+      "title": "Sources",
+      "type": "array"
+    },
+    "suggested_follow_up_questions": {
+      "description": "Phase 123 - Reviewer Agent-generated, 2-3 questions. Empty when no domain agent ran.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Suggested Follow Up Questions",
+      "type": "array"
+    },
+    "tasks": {
+      "description": "Which sub-agent(s) the router dispatched to, and why.",
+      "items": {
+        "$ref": "#/$defs/AgentTaskInfo"
+      },
+      "title": "Tasks",
+      "type": "array"
+    },
+    "tools_used": {
+      "description": "Every tool call any sub-agent made, in order, aggregated across all of them.",
+      "items": {
+        "$ref": "#/$defs/ToolCallInfo"
+      },
+      "title": "Tools Used",
+      "type": "array"
     }
   },
   "required": [

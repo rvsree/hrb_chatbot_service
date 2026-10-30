@@ -1,0 +1,132 @@
+<mxfile host="app.diagrams.net" agent="claude-code" version="24.0.0">
+  <diagram name="API Gateway - Target State (Scaling)" id="api-gateway-target">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="760" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="hdr_bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#1A2744;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="20" y="20" width="1560" height="92" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr_title" value="hrb_api_gateway_service &#8212; Target State for 2,000&#8211;5,000 Users (NOT built)" style="text;html=1;fontColor=#FFFFFF;fontSize=26;fontStyle=1;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="28" width="1300" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr_sub" value="Nothing in the orange-bordered boxes below exists today. Grounded in the 2026-10-24 scaling-tier discussion, not invented fresh here." style="text;html=1;fontColor=#AFC6F0;fontSize=13;fontStyle=2;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="64" width="1300" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr_view_tag" value="VIEW &#183; target state, NOT built" style="rounded=1;arcSize=40;whiteSpace=wrap;html=1;fillColor=#F4B942;strokeColor=none;fontColor=#1A2744;fontSize=11;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="32" width="220" height="24" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n_warning" value="Target design, NOT built. Every orange-dashed box below is a proposed change grounded in a real, already-identified bottleneck &#8212; not a generic AWS checklist." style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C9792E;dashed=1;fontColor=#262B36;fontSize=11;fontStyle=2;align=center;" vertex="1" parent="1">
+          <mxGeometry x="40" y="130" width="1540" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Clients -->
+        <mxCell id="z_clients" value="Clients" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8C8C8C;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontColor=#595959;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="190" width="180" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="n_clients" value="Employees &#183; HR Admins&#10;up to 5,000, bursty, enrollment-season spikes" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontColor=#262B36;fontSize=10.5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="60" y="230" width="140" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Edge, new -->
+        <mxCell id="z_edge" value="Edge (new)" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#C9792E;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontColor=#7F3300;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="260" y="190" width="240" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="n_waf" value="WAF&#10;covers this gateway too &#8212; today only the UI's own CloudFront has one" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C9792E;fontColor=#262B36;fontStyle=1;fontSize=10;align=center;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="230" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_tuned_scaling" value="App Runner autoscaling, tuned&#10;per-service, not shared DEFAULT (min raised above 1 &#8212; avoids cold-start latency spikes)" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C9792E;fontColor=#262B36;fontStyle=1;fontSize=9.5;align=center;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="300" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Gateway logic, mostly unchanged -->
+        <mxCell id="z_logic" value="Gateway logic &#8212; mostly unchanged, already scale-ready" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#548235;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontColor=#375623;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="540" y="190" width="300" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ratelimit_keep" value="Rate limit: unchanged&#10;already Redis-backed (not in-process) &#8212; this already scales horizontally today" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#548235;fontColor=#262B36;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="560" y="230" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_cb" value="Circuit breaker on forward_request()&#10;extend the MCP circuit-breaker pattern already used elsewhere &#8212; not invented new" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C9792E;fontColor=#262B36;fontStyle=1;fontSize=9.5;align=center;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="300" width="260" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Backend, split -->
+        <mxCell id="z_backend" value="Downstream, finally split" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#C9792E;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontColor=#7F3300;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="880" y="190" width="340" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="n_retrieval_cutover" value="rag_retrieval_service&#10;cutover finally flipped &#8212; the split exists today, standalone; this is the decision, not new code" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C9792E;fontColor=#262B36;fontStyle=1;fontSize=9.5;align=center;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="900" y="230" width="300" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_provider_spread" value="LLM calls spread across providers&#10;use the existing LlmProvider gateway (OpenAI/Anthropic/Bedrock/OpenRouter) instead of one provider absorbing all load" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C9792E;fontColor=#262B36;fontStyle=1;fontSize=9;align=center;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="900" y="300" width="300" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Data, scaled -->
+        <mxCell id="z_data" value="Data, scaled" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#C9792E;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontColor=#7F3300;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="190" width="300" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="n_read_replica" value="Postgres read replica&#10;admin/eval-dashboard reads never compete with live conversation reads" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C9792E;fontColor=#262B36;fontStyle=1;fontSize=9.5;align=center;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="1280" y="230" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_pinecone_only" value="Pinecone only, production&#10;ChromaDB fallback fully retired &#8212; it can't scale across App Runner instances" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C9792E;fontColor=#262B36;fontStyle=1;fontSize=9.5;align=center;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="1280" y="300" width="260" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Comparison table -->
+        <mxCell id="n_compare_title" value="Built vs. target, at a glance" style="text;html=1;fontColor=#262B36;fontSize=14;fontStyle=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="420" width="400" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="tbl" value="" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;fillColor=#FFFFFF;strokeColor=#8C8C8C;" vertex="1" parent="1">
+          <mxGeometry x="40" y="450" width="1540" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="row0" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;fillColor=none;collapsible=0;" vertex="1" parent="tbl">
+          <mxGeometry y="30" width="1540" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c00" value="Aspect" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;fillColor=#F4F6FB;strokeColor=#8C8C8C;overflow=hidden;fontStyle=1;fontColor=#262B36;" vertex="1" parent="row0"><mxGeometry width="260" height="40" as="geometry" /></mxCell>
+        <mxCell id="c01" value="Built today" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;fillColor=#F4F6FB;strokeColor=#8C8C8C;overflow=hidden;fontStyle=1;fontColor=#262B36;" vertex="1" parent="row0"><mxGeometry x="260" width="640" height="40" as="geometry" /></mxCell>
+        <mxCell id="c02" value="Target (not built)" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;fillColor=#F4F6FB;strokeColor=#8C8C8C;overflow=hidden;fontStyle=1;fontColor=#262B36;" vertex="1" parent="row0"><mxGeometry x="900" width="640" height="40" as="geometry" /></mxCell>
+        <mxCell id="row1" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;fillColor=none;collapsible=0;" vertex="1" parent="tbl">
+          <mxGeometry y="70" width="1540" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="c10" value="Edge protection" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;fillColor=#FFFFFF;strokeColor=#8C8C8C;overflow=hidden;fontColor=#262B36;" vertex="1" parent="row1"><mxGeometry width="260" height="30" as="geometry" /></mxCell>
+        <mxCell id="c11" value="WAF only on the UI's CloudFront; the Gateway itself has none" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;fillColor=#FFFFFF;strokeColor=#8C8C8C;overflow=hidden;fontColor=#262B36;" vertex="1" parent="row1"><mxGeometry x="260" width="640" height="30" as="geometry" /></mxCell>
+        <mxCell id="c12" value="WAF in front of the Gateway too" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;fillColor=#FFFFFF;strokeColor=#8C8C8C;overflow=hidden;fontColor=#262B36;" vertex="1" parent="row1"><mxGeometry x="900" width="640" height="30" as="geometry" /></mxCell>
+        <mxCell id="row2" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;fillColor=none;collapsible=0;" vertex="1" parent="tbl">
+          <mxGeometry y="100" width="1540" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="c20" value="Autoscaling" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;fillColor=#FFFFFF;strokeColor=#8C8C8C;overflow=hidden;fontColor=#262B36;" vertex="1" parent="row2"><mxGeometry width="260" height="30" as="geometry" /></mxCell>
+        <mxCell id="c21" value="Shared DEFAULT config (min 1, max 25, concurrency 100) &#8212; not tuned per service" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;fillColor=#FFFFFF;strokeColor=#8C8C8C;overflow=hidden;fontColor=#262B36;" vertex="1" parent="row2"><mxGeometry x="260" width="640" height="30" as="geometry" /></mxCell>
+        <mxCell id="c22" value="Per-service tuned config, min raised above 1 to avoid cold-start latency" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;fillColor=#FFFFFF;strokeColor=#8C8C8C;overflow=hidden;fontColor=#262B36;" vertex="1" parent="row2"><mxGeometry x="900" width="640" height="30" as="geometry" /></mxCell>
+        <mxCell id="row3" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;fillColor=none;collapsible=0;" vertex="1" parent="tbl">
+          <mxGeometry y="130" width="1540" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="c30" value="Backend routing" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;fillColor=#FFFFFF;strokeColor=#8C8C8C;overflow=hidden;fontColor=#262B36;" vertex="1" parent="row3"><mxGeometry width="260" height="30" as="geometry" /></mxCell>
+        <mxCell id="c31" value="One backend (hrb_chatbot_service) handles chat + retrieval together" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;fillColor=#FFFFFF;strokeColor=#8C8C8C;overflow=hidden;fontColor=#262B36;" vertex="1" parent="row3"><mxGeometry x="260" width="640" height="30" as="geometry" /></mxCell>
+        <mxCell id="c32" value="rag_retrieval_service cutover flipped &#8212; chat and retrieval scale independently" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;fillColor=#FFFFFF;strokeColor=#8C8C8C;overflow=hidden;fontColor=#262B36;" vertex="1" parent="row3"><mxGeometry x="900" width="640" height="30" as="geometry" /></mxCell>
+        <mxCell id="row4" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;fillColor=none;collapsible=0;" vertex="1" parent="tbl">
+          <mxGeometry y="160" width="1540" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="c40" value="Postgres reads" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;fillColor=#FFFFFF;strokeColor=#8C8C8C;overflow=hidden;fontColor=#262B36;" vertex="1" parent="row4"><mxGeometry width="260" height="30" as="geometry" /></mxCell>
+        <mxCell id="c41" value="Single Neon instance for everything, including admin/eval dashboard queries" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;fillColor=#FFFFFF;strokeColor=#8C8C8C;overflow=hidden;fontColor=#262B36;" vertex="1" parent="row4"><mxGeometry x="260" width="640" height="30" as="geometry" /></mxCell>
+        <mxCell id="c42" value="Read replica for admin/eval traffic, protecting the primary from live-chat reads" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;fillColor=#FFFFFF;strokeColor=#8C8C8C;overflow=hidden;fontColor=#262B36;" vertex="1" parent="row4"><mxGeometry x="900" width="640" height="30" as="geometry" /></mxCell>
+
+        <mxCell id="n_footer" value="Grounded in the real 2026-10-24 scaling-tier analysis (100 &#8594; 1,000 &#8594; 2,000 &#8594; 5,000 users) &#8212; not a generic AWS Well-Architected checklist. Nothing orange-dashed above exists; green/navy boxes are unchanged real behavior." style="text;html=1;fontColor=#595959;fontSize=10;fontStyle=2;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="660" width="1500" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Edges -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="n_clients" target="n_waf"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;strokeColor=#C9792E;" edge="1" parent="1" source="n_waf" target="n_tuned_scaling"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="n_tuned_scaling" target="n_ratelimit_keep"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="n_ratelimit_keep" target="n_cb"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;strokeColor=#C9792E;" edge="1" parent="1" source="n_cb" target="n_retrieval_cutover"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;strokeColor=#C9792E;" edge="1" parent="1" source="n_retrieval_cutover" target="n_provider_spread"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;strokeColor=#C9792E;" edge="1" parent="1" source="n_retrieval_cutover" target="n_read_replica"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;strokeColor=#C9792E;" edge="1" parent="1" source="n_retrieval_cutover" target="n_pinecone_only"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

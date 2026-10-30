@@ -10,6 +10,7 @@ from typing import Annotated, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
+from langsmith import traceable
 
 from src.hrb_chatbot.ai.agents._llm_helpers import resolve_agent_model
 from src.hrb_chatbot.ai.agents.domain_agents import (
@@ -26,8 +27,10 @@ from src.hrb_chatbot.ai.search_pre_processing.query_normalize import normalize_q
 from src.hrb_chatbot.ai.rag_core.eval_threshold import (
     build_eval_scores,
     maybe_capture_live_query,
+    record_eval_feedback,
     retrieval_relevance_enabled,
     run_enabled_eval_judges,
+    tag_golden_match,
 )
 from src.hrb_chatbot.ai.rag_core.guarded_pipeline import run_guarded_pipeline
 from src.hrb_chatbot.ai.rag_core.tool_classification import classify_tool
@@ -152,9 +155,14 @@ async def planner_node(state: MultiAgentState) -> dict:
     return {"tasks": tasks, "planner_turn": turn}
 
 
-def dispatch_to_agents(state: MultiAgentState) -> list[Send]:
+def orchestration_agent(state: MultiAgentState) -> list[Send]:
     """The Orchestration Agent's dispatch step - fans each task out to its domain
-    agent in parallel via LangGraph's own Send() API, not asyncio.gather()."""
+    agent in parallel via LangGraph's own Send() API, not asyncio.gather().
+    Phase 269 - renamed from dispatch_to_agents: LangGraph traces a
+    conditional-edge routing function under its own Python function name,
+    so this is what shows up in LangSmith's trace tree - "orchestration"
+    is what this step actually does, confirmed by this docstring already
+    saying so before the rename."""
     return [
         Send(
             task["agent"],
@@ -258,19 +266,19 @@ async def reviewer_node(state: MultiAgentState) -> dict:
 
 def _build_graph():
     graph = StateGraph(MultiAgentState)
-    graph.add_node("planner", planner_node)
+    graph.add_node("planner_agent", planner_node)
     graph.add_node("vector_kb_agent", vector_kb_agent_node)
     graph.add_node("lms_ops_agent", lms_ops_agent_node)
     graph.add_node("sql_db_agent", sql_db_agent_node)
     graph.add_node("lms_analytics_agent", lms_analytics_agent_node)
     graph.add_node("web_search_agent", web_search_agent_node)
-    graph.add_node("reviewer", reviewer_node)
+    graph.add_node("reviewer_agent", reviewer_node)
 
-    graph.add_edge(START, "planner")
-    graph.add_conditional_edges("planner", dispatch_to_agents, DOMAIN_AGENT_NODES)
+    graph.add_edge(START, "planner_agent")
+    graph.add_conditional_edges("planner_agent", orchestration_agent, DOMAIN_AGENT_NODES)
     for node_name in DOMAIN_AGENT_NODES:
-        graph.add_edge(node_name, "reviewer")
-    graph.add_edge("reviewer", END)
+        graph.add_edge(node_name, "reviewer_agent")
+    graph.add_edge("reviewer_agent", END)
     return graph.compile()
 
 
@@ -285,6 +293,7 @@ def get_graph():
     return _GRAPH
 
 
+@traceable(name="multi_agentic_rag_run_multi_agent")
 async def run_multi_agent(
     query: str,
     employee_id: str | None,
@@ -298,10 +307,19 @@ async def run_multi_agent(
     department: str | None = None,
     planner_model: str | None = None,
     guardrails_model: str | None = None,
+    full_name: str | None = None,
+    ip_address: str | None = None,
+    timezone: str | None = None,
 ) -> dict:
     """Runs the Planner -> Orchestration -> domain agents -> Reviewer graph for one query.
     Guardrails run here, same layer as genai-rag's pipeline.answer_query() - the route
     (api/multi_agentic_rag/query_agent.py) only catches GuardrailBlockedError.
+
+    Phase 271 - @traceable: same reasoning as the other 2 pipelines' own
+    top-level functions - keeps this function's own span open (wrapping
+    the graph.ainvoke() call below) through the whole generate-then-score
+    sequence so record_eval_feedback() resolves the right run via
+    get_current_run_tree().
 
     Phase 110/115: total latency + llm_call_count + eval scores + real
     citations + caching, same shape as genai-rag/single-agentic-rag's own
@@ -318,6 +336,7 @@ async def run_multi_agent(
     started_at = time.perf_counter()
     normalized_query = await normalize_query(query)
     checked_query, input_guardrail_status = await check_input(normalized_query, guardrails_model=guardrails_model)
+    await tag_golden_match(checked_query)
 
     resolved_conversation_id = None
     if enable_conversation_memory:
@@ -376,6 +395,14 @@ async def run_multi_agent(
         graph_config = {"recursion_limit": GRAPH_RECURSION_LIMIT}
         if request_id:
             graph_config["metadata"] = {"request_id": request_id}
+        # Phase 269 - lets LangSmith's own Tracing view filter by these
+        # directly (its tag filter), not just inspect them per-trace via
+        # the metadata panel. role omitted when unset - an empty-string
+        # tag isn't a meaningful filter value.
+        tags = ["pipeline:multi-agentic-rag"]
+        if role:
+            tags.append(f"role:{role}")
+        graph_config["tags"] = tags
         final_state = await graph.ainvoke(
             {
                 "query": generate_query,
@@ -442,6 +469,7 @@ async def run_multi_agent(
         checked_query, employee_id, enable_conversation_memory, conversation_id, generate,
         pre_checked_query=checked_query, pre_checked_input_status=input_guardrail_status,
         guardrails_model=guardrails_model,
+        full_name=full_name, role=role, ip_address=ip_address, timezone=timezone,
     )
     result["query"] = checked_query
 
@@ -456,6 +484,7 @@ async def run_multi_agent(
     await maybe_capture_live_query(
         checked_query, result["answer"], eval_scores, "multi-agentic-rag", request_id, employee_id
     )
+    await record_eval_feedback(eval_scores)
 
     cache_eligible = not any(task["agent"] in LIVE_DATA_AGENTS for task in result["tasks"])
     if cache_eligible:

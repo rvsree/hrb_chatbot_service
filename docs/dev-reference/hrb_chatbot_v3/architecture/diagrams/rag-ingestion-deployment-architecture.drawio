@@ -1,0 +1,176 @@
+<mxfile host="app.diagrams.net" agent="claude-code">
+  <diagram name="RAG Ingestion - Deployment Architecture" id="rag-ingestion-deploy">
+    <mxGraphModel dx="1542" dy="849" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="hdr_bg" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#1A2744;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="92" width="1300" x="20" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr_title" parent="1" style="text;html=1;fontColor=#FFFFFF;fontSize=26;fontStyle=1;align=left;verticalAlign=top;" value="RAG Ingestion — AWS Deployment Architecture (rag_ingestion_service)" vertex="1">
+          <mxGeometry height="34" width="1260" x="40" y="28" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr_sub" parent="1" style="text;html=1;fontColor=#AFC6F0;fontSize=13;fontStyle=2;align=left;verticalAlign=top;" value="One repo, two real deploy targets: App Runner (sync) and Lambda (async) — same ECR account, same Secrets Manager entries, same downstream stores. Every fact below verified via AWS CLI, 2026-10-24." vertex="1">
+          <mxGeometry height="24" width="1260" x="40" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr_view_tag" parent="1" style="rounded=1;arcSize=40;whiteSpace=wrap;html=1;fillColor=#F4B942;strokeColor=none;fontColor=#1A2744;fontSize=11;fontStyle=1;align=center;" value="VIEW · rag_ingestion_service (AWS deployment)" vertex="1">
+          <mxGeometry height="24" width="260" x="990" y="38" as="geometry" />
+        </mxCell>
+        <mxCell id="z_cicd" parent="1" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8C8C8C;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontColor=#595959;fontSize=12;" value="CI/CD" vertex="1">
+          <mxGeometry height="280" width="250" x="10" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="n_gha" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontColor=#262B36;fontSize=10.5;align=center;" value="GitHub Actions&#xa;deploy.yml (sync, real)&#xa;deploy-lambda.yml (async, placeholder ECR var — flagged, not yet real)" vertex="1">
+          <mxGeometry height="90" width="220" x="20" y="175" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ecr" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontColor=#262B36;fontStyle=1;fontSize=10.5;align=center;" value="ECR — 2 repos&#xa;rag-ingestion-service&#xa;rag-ingestion-lambda&#xa;418884736369.dkr.ecr.us-east-1" vertex="1">
+          <mxGeometry height="60" width="220" x="20" y="317" as="geometry" />
+        </mxCell>
+        <mxCell id="badge_ecr" parent="1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#945DF2;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.elastic_container_registry;" vertex="1">
+          <mxGeometry height="24" width="24" x="226" y="267" as="geometry" />
+        </mxCell>
+        <mxCell id="z_apprunner" parent="1" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#1F3864;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontColor=#1F3864;fontSize=12;" value="Compute — sync path" vertex="1">
+          <mxGeometry height="320" width="340" x="300" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="n_apprunner" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontColor=#262B36;fontStyle=1;fontSize=10.5;align=center;" value="App Runner: rag-ingestion-service&#xa;256 CPU / 512 Memory&#xa;autoscaling: DEFAULT config — min 1, max 25, concurrency 100/instance (not yet tuned per-service)&#xa;GET /ping health check" vertex="1">
+          <mxGeometry height="100" width="280" x="320" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="pill_apprunner" parent="1" style="rounded=1;arcSize=100;whiteSpace=wrap;html=1;fillColor=#1A2744;strokeColor=none;fontColor=#FFFFFF;fontSize=8;fontStyle=1;align=center;verticalAlign=middle;" value="SERVICE" vertex="1">
+          <mxGeometry height="16" width="70" x="324" y="172" as="geometry" />
+        </mxCell>
+        <mxCell id="badge_apprunner" parent="1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#ED7100;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.app_runner;" vertex="1">
+          <mxGeometry height="24" width="24" x="576" y="172" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ar_access_role" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C9792E;fontColor=#262B36;fontSize=9.5;align=center;" value="Access role&#xa;rag-ingestion-service-apprunner-access-role&#xa;ECR pull only" vertex="1">
+          <mxGeometry height="60" width="130" x="320" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ar_instance_role" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C9792E;fontColor=#262B36;fontSize=9.5;align=center;" value="Instance role&#xa;rag-ingestion-service-apprunner-instance-role&#xa;Secrets Manager read" vertex="1">
+          <mxGeometry height="60" width="130" x="470" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="badge_iam1" parent="1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#DD344C;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.identity_and_access_management;" vertex="1">
+          <mxGeometry height="20" width="20" x="438" y="292" as="geometry" />
+        </mxCell>
+        <mxCell id="ol_WjVsjEtC06IQ3q4af-4" edge="1" parent="1" source="n_ar_url" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;" target="n_lambda_flag" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ar_url" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#F4F6FB;strokeColor=#1F3864;fontColor=#1F3864;fontSize=9.5;align=center;dashed=1;" value="https://wkfgxanevz.us-east-1.awsapprunner.com&#xa;POST /documents (presigned + direct multipart)" vertex="1">
+          <mxGeometry height="50" width="280" x="320" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="z_lambda" parent="1" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#C55A11;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontColor=#7F3300;fontSize=12;" value="Compute — async path" vertex="1">
+          <mxGeometry height="320" width="330" x="650" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="n_lambda" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C9792E;fontColor=#262B36;fontStyle=1;fontSize=10;align=center;" value="Lambda: rag-ingestion-index-document&#xa;3008 MB memory · 300s timeout · 512 MB /tmp&#xa;package type: Image · no reserved concurrency&#xa;event source: SQS, batch size 5, ReportBatchItemFailures" vertex="1">
+          <mxGeometry height="110" width="280" x="680" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="pill_lambda" parent="1" style="rounded=1;arcSize=100;whiteSpace=wrap;html=1;fillColor=#C9792E;strokeColor=none;fontColor=#FFFFFF;fontSize=8;fontStyle=1;align=center;verticalAlign=middle;" value="WORKER" vertex="1">
+          <mxGeometry height="16" width="70" x="684" y="172" as="geometry" />
+        </mxCell>
+        <mxCell id="badge_lambda" parent="1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#ED7100;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;" vertex="1">
+          <mxGeometry height="24" width="24" x="936" y="172" as="geometry" />
+        </mxCell>
+        <mxCell id="n_lambda_role" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C9792E;fontColor=#262B36;fontSize=9.5;align=center;" value="Execution role&#xa;rag-ingestion-lambda-execution-role&#xa;SQS consume + S3 read + Secrets Manager read" vertex="1">
+          <mxGeometry height="50" width="280" x="680" y="310" as="geometry" />
+        </mxCell>
+        <mxCell id="badge_iam2" parent="1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#DD344C;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.identity_and_access_management;" vertex="1">
+          <mxGeometry height="20" width="20" x="936" y="302" as="geometry" />
+        </mxCell>
+        <mxCell id="n_lambda_flag" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B23A2F;fontColor=#262B36;fontSize=9;fontStyle=2;align=center;" value="deploy-lambda.yml still has a placeholder&amp;nbsp;&lt;div&gt;ECR_REPOSITORY — this Lambda&#39;s real code was shipped by hand, not by CI. Flagged, not fixed.&lt;/div&gt;" vertex="1">
+          <mxGeometry height="50" width="280" x="680" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="z_msg" parent="1" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8C8C8C;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontColor=#595959;fontSize=12;" value="Messaging" vertex="1">
+          <mxGeometry height="320" width="290" x="1020" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="n_s3_trigger" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#548235;fontColor=#262B36;fontStyle=1;fontSize=10;align=center;" value="S3 bucket:&amp;nbsp;&lt;div&gt;hrb-chatbot-kb-uploads&lt;br&gt;notification:direct SQS&lt;/div&gt;" vertex="1">
+          <mxGeometry height="70" width="220" x="1040" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="badge_s3dep" parent="1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#7AA116;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.s3;" vertex="1">
+          <mxGeometry height="24" width="24" x="1236" y="162" as="geometry" />
+        </mxCell>
+        <mxCell id="n_queue_dep" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B8962E;fontColor=#262B36;fontStyle=1;fontSize=10;align=center;" value="SQS: hrb-chatbot-ingest-queue&#xa;VisibilityTimeout: 360s" vertex="1">
+          <mxGeometry height="60" width="220" x="1040" y="270" as="geometry" />
+        </mxCell>
+        <mxCell id="badge_sqs" parent="1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#E7157B;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.simple_queue_service;" vertex="1">
+          <mxGeometry height="24" width="24" x="1236" y="262" as="geometry" />
+        </mxCell>
+        <mxCell id="ol_WjVsjEtC06IQ3q4af-3" edge="1" parent="1" source="n_dlq_dep" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;" target="n_lambda_flag" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n_dlq_dep" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C9792E;fontColor=#262B36;fontSize=10;align=center;dashed=1;" value="DLQ: hrb-chatbot-ingest-dlq&#xa;RedrivePolicy.maxReceiveCount: 3" vertex="1">
+          <mxGeometry height="60" width="220" x="1040" y="370" as="geometry" />
+        </mxCell>
+        <mxCell id="n_secrets" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C9792E;fontColor=#262B36;fontStyle=1;fontSize=10.5;align=center;" value="Secrets Manager&#xa;OPENAI_API_KEY, PINECONE_API_KEY, POSTGRES_DB_*&#xa;read by both App Runner instance role and Lambda execution role" vertex="1">
+          <mxGeometry height="60" width="400" x="420" y="500" as="geometry" />
+        </mxCell>
+        <mxCell id="badge_secrets" parent="1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#DD344C;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.secrets_manager;" vertex="1">
+          <mxGeometry height="24" width="24" x="786" y="492" as="geometry" />
+        </mxCell>
+        <mxCell id="z_ext" parent="1" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8C8C8C;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontColor=#595959;fontSize=12;" value="External, outbound calls from both paths" vertex="1">
+          <mxGeometry height="110" width="660" x="320" y="600" as="geometry" />
+        </mxCell>
+        <mxCell id="n_pinecone" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5B2D8E;fontColor=#262B36;fontStyle=1;fontSize=10.5;align=center;" value="Pinecone&#xa;production vector index" vertex="1">
+          <mxGeometry height="50" width="280" x="350" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="n_neon" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5B2D8E;fontColor=#262B36;fontStyle=1;fontSize=10.5;align=center;" value="Neon Postgres&#xa;documents (status, is_current, supersedes) · chunks" vertex="1">
+          <mxGeometry height="50" width="310" x="650" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="n_footer" parent="1" style="text;html=1;fontColor=#595959;fontSize=10;fontStyle=2;align=left;" value="&lt;font style=&quot;font-size: 11px;&quot;&gt;Verified via real AWS CLI calls, 2026-10-24 (describe-service, get-function-configuration, describe-auto-scaling-configuration, get-queue-attributes,&amp;nbsp;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(89, 89, 89), rgb(161, 161, 161));&quot;&gt;get-bucket-notification-configuration, describe-repositories) —&amp;nbsp;&lt;/span&gt;&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px;&quot;&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(89, 89, 89), rgb(161, 161, 161));&quot;&gt;not assumed from older docs. AWS icon badges use draw.io&#39;s bundled aws4 shape library&amp;nbsp;&lt;/span&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(89, 89, 89), rgb(161, 161, 161));&quot;&gt;(best-effort stencil names, not independently render-verified this session) —&amp;nbsp;&lt;/span&gt;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px;&quot;&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(89, 89, 89), rgb(161, 161, 161));&quot;&gt;if a badge shows blank, search the service name in the left shape panel and drag it over.&lt;/span&gt;&lt;/font&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="1090" x="40" y="770" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="n_gha" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" target="n_ecr">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="n_ecr" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;labelBackgroundColor=#FFFFFF;" target="n_ar_access_role" value="pull">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="z_cicd" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="n_lambda_role" value="pull">
+          <mxGeometry relative="1" x="-0.1494" as="geometry">
+            <Array as="points">
+              <mxPoint x="135" y="740" />
+              <mxPoint x="1000" y="740" />
+              <mxPoint x="1000" y="335" />
+            </Array>
+            <mxPoint x="140" y="345" as="sourcePoint" />
+            <mxPoint x="950" y="345" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="n_ar_url" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#548235;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="n_s3_trigger">
+          <mxGeometry relative="1" x="-0.2018" as="geometry">
+            <Array as="points">
+              <mxPoint x="460" y="450" />
+              <mxPoint x="1280" y="450" />
+              <mxPoint x="1280" y="205" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="z_msg" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#BF8F00;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="n_queue_dep">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1150" y="130" />
+              <mxPoint x="1290" y="130" />
+              <mxPoint x="1290" y="300" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="n_queue_dep" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#C55A11;fontSize=9;dashed=1;labelBackgroundColor=#FFFFFF;" target="n_dlq_dep" value="3 failed receives">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="n_queue_dep" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;labelBackgroundColor=#FFFFFF;" target="n_lambda" value="event source mapping">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" edge="1" parent="1" source="n_ar_instance_role" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;">
+          <mxGeometry relative="1" x="0.0556" as="geometry">
+            <mxPoint x="620" y="490" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="n_lambda_role" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;dashed=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.603;entryY=-0.067;entryDx=0;entryDy=0;entryPerimeter=0;" target="n_secrets">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" edge="1" parent="1" source="n_secrets" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" target="n_pinecone">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" edge="1" parent="1" source="n_secrets" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" target="n_neon">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
