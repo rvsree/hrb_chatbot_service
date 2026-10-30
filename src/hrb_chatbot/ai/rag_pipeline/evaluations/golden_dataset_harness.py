@@ -9,6 +9,7 @@ import json
 
 from deepeval.metrics import AnswerRelevancyMetric, ContextualPrecisionMetric, ContextualRecallMetric, FaithfulnessMetric, GEval
 from deepeval.test_case import LLMTestCase, SingleTurnParams
+from langsmith import traceable
 
 from src.hrb_chatbot.ai.rag_core.deepeval_judge_model import GatewayDeepEvalModel
 from src.hrb_chatbot.common.clients.llm_client.client_gateway import get_client_gateway
@@ -217,13 +218,18 @@ def evaluate_contextual_recall(
         return {"score": 0.5, "explanation": str(error), "prompt": None, "model_used": resolved_model}
 
 
+@traceable(name="evaluate_retrieval_relevance")
 def evaluate_retrieval_relevance(
     query: str,
     chunk_texts: list[str],
     judge_model: str | None = None,
     wider_pool_texts: list[str] | None = None,
 ) -> dict:
-    """Live (per-query) retrieval precision - the piece calculate_retrieval_metrics()
+    """Phase 270 - @traceable: the only remaining hand-rolled (non-DeepEval)
+    judge metric, calls raw .ask() below - without this it was invisible in
+    LangSmith on every live query that runs retrieval-relevance scoring.
+
+    Live (per-query) retrieval precision - the piece calculate_retrieval_metrics()
     can't do for a live question, which has no pre-known "correct" document to
     exact-match against. One LLM call judges every retrieved chunk at once (not one
     call per chunk - real cost, kept to a single call), asked which chunks actually

@@ -1,0 +1,73 @@
+<mxfile host="app.diagrams.net" agent="claude-code" version="24.0.0">
+  <diagram name="rag_retrieval_service - Deployment" id="rrs-deploy">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="520" math="0" shadow="0">
+      <root>
+        <mxCell id="0" /><mxCell id="1" parent="0" />
+        <mxCell id="hdr_bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#1A2744;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="20" y="20" width="1160" height="92" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr_title" value="rag_retrieval_service &#8212; AWS Deployment Architecture" style="text;html=1;fontColor=#FFFFFF;fontSize=24;fontStyle=1;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="28" width="1000" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr_sub" value="Real, live, standalone App Runner service. Verified via AWS CLI, 2026-10-24." style="text;html=1;fontColor=#AFC6F0;fontSize=13;fontStyle=2;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="64" width="1000" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr_view_tag" value="VIEW &#183; AWS deployment" style="rounded=1;arcSize=40;whiteSpace=wrap;html=1;fillColor=#F4B942;strokeColor=none;fontColor=#1A2744;fontSize=11;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="960" y="32" width="180" height="24" as="geometry" />
+        </mxCell>
+
+        <mxCell id="z_compute" value="Compute" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#1F3864;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontColor=#1F3864;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="140" width="400" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="pill_service" value="SERVICE" style="rounded=1;arcSize=100;whiteSpace=wrap;html=1;fillColor=#1A2744;strokeColor=none;fontColor=#FFFFFF;fontSize=8;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="64" y="172" width="70" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="n_apprunner" value="App Runner: rag-retrieval-service&#10;1024 CPU / 2048 Memory &#8212; same size as hrb_chatbot_service's real LLM workload&#10;autoscaling: DEFAULT" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontColor=#262B36;fontStyle=1;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="60" y="180" width="360" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="badge_apprunner" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#ED7100;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.app_runner;" vertex="1" parent="1">
+          <mxGeometry x="376" y="172" width="24" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="n_role" value="Instance role: rag-retrieval-service-apprunner-instance-role&#10;Access role: rag-retrieval-service-apprunner-access-role" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C9792E;fontColor=#262B36;fontSize=9.5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="60" y="290" width="360" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="n_url" value="https://mpm3qjkbkc.us-east-1.awsapprunner.com" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontColor=#262B36;fontSize=10;align=center;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="365" width="360" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="z_ecr" value="CI/CD" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8C8C8C;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontColor=#595959;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="480" y="140" width="320" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ecr" value="ECR: rag-retrieval-service&#10;418884736369.dkr.ecr.us-east-1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontColor=#262B36;fontStyle=1;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="500" y="180" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="badge_ecr" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#945DF2;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.elastic_container_registry;" vertex="1" parent="1">
+          <mxGeometry x="766" y="172" width="24" height="24" as="geometry" />
+        </mxCell>
+
+        <mxCell id="z_data" value="Shared stores" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8C8C8C;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontColor=#595959;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="840" y="140" width="320" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="n_secrets" value="Secrets Manager&#10;same backend secrets as hrb_chatbot_service" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C9792E;fontColor=#262B36;fontSize=9.5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="860" y="180" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_pinecone" value="Pinecone + Neon Postgres + Redis" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#548235;fontColor=#262B36;fontSize=9.5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="860" y="255" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_lmsmcp" value="hrb_lms_mcp (OAuth2)" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5B2D8E;fontColor=#262B36;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="860" y="330" width="280" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n_footer" value="Verified via real AWS CLI calls, 2026-10-24 (describe-service, describe-repositories). Status: live, deployed, deliberately not cut over to real traffic." style="text;html=1;fontColor=#595959;fontSize=10;fontStyle=2;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="440" width="1100" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="n_apprunner" target="n_url"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="n_ecr" target="n_apprunner"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;dashed=1;" edge="1" parent="1" source="n_role" target="n_secrets"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="n_secrets" target="n_pinecone"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="n_secrets" target="n_lmsmcp"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

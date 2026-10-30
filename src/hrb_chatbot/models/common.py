@@ -8,6 +8,10 @@ class UserProfile(BaseModel):
     full_name: str = Field(..., max_length=200)
     role: str = Field(..., max_length=50)
     department: str | None = Field(None, max_length=100, description="Phase 231 - self-asserted, like role.")
+    timezone: str | None = Field(
+        None, max_length=100,
+        description="Phase 265 - browser-reported (Intl.DateTimeFormat), not server-inferred - there is no reliable way to get this from HTTP alone.",
+    )
 
 
 class IdentityPayload(BaseModel):

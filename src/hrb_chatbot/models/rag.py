@@ -320,6 +320,16 @@ class GuardrailInfo(BaseModel):
     output: GuardrailCheckStatus
 
 
+class DemoLimitInfo(BaseModel):
+    """Phase 265 - lets the frontend show "N questions remaining" proactively,
+    not just react to a block. Null (not present) for an exempt caller
+    (ADMIN/EMPLOYEE_ADMIN/HR_SUPPORT) - the demo limit doesn't apply to them."""
+
+    query_count: int
+    effective_limit: int
+    remaining: int
+
+
 class ExplainabilityInfo(BaseModel):
     """Phase 107/109 - real latency/token/cache-vs-live/eval numbers,
     genai-rag only. Dollar cost is deliberately excluded (see BACKLOG.md)."""
@@ -364,4 +374,7 @@ class RagQueryResponse(BaseModel):
         None,
         description="Echoed/generated when enable_conversation_memory was true - pass it back on the next "
         "call to continue this conversation. Null when memory wasn't enabled.",
+    )
+    demo_limit: DemoLimitInfo | None = Field(
+        None, description="Phase 265 - null for an exempt caller (ADMIN/EMPLOYEE_ADMIN/HR_SUPPORT)."
     )

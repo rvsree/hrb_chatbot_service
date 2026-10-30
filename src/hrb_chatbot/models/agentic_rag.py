@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from src.hrb_chatbot.models.common import ToolCallInfo, UserProfile
-from src.hrb_chatbot.models.rag import EvalOptions, ExplainabilityInfo, RetrievedChunk
+from src.hrb_chatbot.models.rag import DemoLimitInfo, EvalOptions, ExplainabilityInfo, RetrievedChunk
 
 
 class AgenticRagRequest(BaseModel):
@@ -60,4 +60,7 @@ class AgenticRagResponse(BaseModel):
         None,
         description="Phase 240 - set only when this model is returned from POST /v1/rag-retrieval/query "
         "(the auto-router). Null on this endpoint's own direct, forced-mode calls.",
+    )
+    demo_limit: DemoLimitInfo | None = Field(
+        None, description="Phase 265 - null for an exempt caller (ADMIN/EMPLOYEE_ADMIN/HR_SUPPORT)."
     )

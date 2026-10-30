@@ -19,6 +19,9 @@ class RagQueryParams:
     employee_id: str | None = None  # Phase 49: caller's own id, for MCP tool routing
     role: str | None = None  # Phase 231: Document ACL
     department: str | None = None  # Phase 231: Document ACL
+    full_name: str | None = None  # Phase 265: demo-visitor tracking
+    ip_address: str | None = None  # Phase 265: demo-visitor tracking
+    timezone: str | None = None  # Phase 265: demo-visitor tracking
     enable_conversation_memory: bool = False  # Phase 58
     conversation_id: str | None = None  # Phase 58
     judge_model: str | None = None  # Phase 215

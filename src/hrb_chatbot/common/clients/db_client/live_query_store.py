@@ -141,3 +141,35 @@ class LiveQueryStore:
         await self._ensure_table()
         with log_backend_call(logger, "postgres", "live_queries.list"):
             return await asyncio.to_thread(self._list_sync, is_ltm)
+
+    def _get_query_sync(self, live_query_id: int) -> dict | None:
+        with self._connect() as conn:
+            with conn.cursor(row_factory=self._dict_row_factory) as cur:
+                cur.execute(sql.SQL("SELECT * FROM {table} WHERE id = %s").format(table=_TABLE), (live_query_id,))
+                row = cur.fetchone()
+        if row is None:
+            return None
+        row["created_at"] = row["created_at"].isoformat()
+        return row
+
+    async def get_query(self, live_query_id: int) -> dict | None:
+        """Phase 272 - didn't exist before: only list_queries()/capture()/
+        delete_live_query() did. Needed by the new promote-to-synthetic
+        route, which operates on one specific row, not the whole list."""
+        await self._ensure_table()
+        with log_backend_call(logger, "postgres", "live_queries.get", live_query_id=live_query_id):
+            return await asyncio.to_thread(self._get_query_sync, live_query_id)
+
+    def _delete_live_query_sync(self, live_query_id: int) -> int:
+        with self._connect() as conn:
+            cur = conn.execute(sql.SQL("DELETE FROM {table} WHERE id = %s").format(table=_TABLE), (live_query_id,))
+            conn.commit()
+            return cur.rowcount
+
+    async def delete_live_query(self, live_query_id: int) -> int:
+        """Phase 267 - admin-only hard delete. Nothing in this store could
+        delete anything before this - list_queries()/capture() were the
+        only 2 operations that existed."""
+        await self._ensure_table()
+        with log_backend_call(logger, "postgres", "live_queries.delete", live_query_id=live_query_id):
+            return await asyncio.to_thread(self._delete_live_query_sync, live_query_id)

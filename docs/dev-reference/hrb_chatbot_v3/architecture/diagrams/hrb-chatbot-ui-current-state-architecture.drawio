@@ -1,0 +1,70 @@
+<mxfile host="app.diagrams.net" agent="claude-code" version="24.0.0">
+  <diagram name="hrb_chatbot_ui - Current State" id="ui-current">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="560" math="0" shadow="0">
+      <root>
+        <mxCell id="0" /><mxCell id="1" parent="0" />
+        <mxCell id="hdr_bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#1A2744;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="20" y="20" width="1360" height="92" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr_title" value="hrb_chatbot_ui &#8212; Current Application Architecture (built, live)" style="text;html=1;fontColor=#FFFFFF;fontSize=24;fontStyle=1;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="28" width="1200" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr_sub" value="React SPA, 12 real pages, one API client. No state management library &#8212; React state + localStorage for session." style="text;html=1;fontColor=#AFC6F0;fontSize=13;fontStyle=2;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="64" width="1200" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr_view_tag" value="VIEW &#183; current state (built)" style="rounded=1;arcSize=40;whiteSpace=wrap;html=1;fillColor=#F4B942;strokeColor=none;fontColor=#1A2744;fontSize=11;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="32" width="200" height="24" as="geometry" />
+        </mxCell>
+
+        <mxCell id="z_employee" value="Employee pages" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#1F3864;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontColor=#1F3864;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="140" width="300" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="n_login" value="LoginPage" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontColor=#262B36;fontSize=10.5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="60" y="180" width="260" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="n_chat" value="ChatPage &#8212; 4 modes (genai/single/multi/auto), SSE streaming, mode/strategy settings panel" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontColor=#262B36;fontStyle=1;fontSize=9.5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="60" y="230" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_leave" value="MyLeaveRequestsPage / LeaveApprovalsPage" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontColor=#262B36;fontSize=9.5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="60" y="300" width="260" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="z_admin" value="Admin pages" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#5B2D8E;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontColor=#3B1A63;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="140" width="340" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="n_admindash" value="AdminDashboardPage &#8212; CI/CD pipeline (Phase 255), golden dataset, eval runs, architecture docs viewer" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5B2D8E;fontColor=#262B36;fontStyle=1;fontSize=9.5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="400" y="180" width="300" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_docs" value="DocumentsPage / UploadPage &#8212; KB document management" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5B2D8E;fontColor=#262B36;fontSize=9.5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="400" y="250" width="300" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n_faq" value="FaqPage / FaqReviewPage / ViewFeedbackPage / OpenDocPage / ResetSecretCodePage" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5B2D8E;fontColor=#262B36;fontSize=9.5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="400" y="310" width="300" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="z_core" value="Shared core" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8C8C8C;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontColor=#595959;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="760" y="140" width="280" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="n_apiclient" value="api/client.ts&#10;one fetch wrapper, all backend calls&#10;VITE_API_BASE_URL baked in at build time" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontColor=#262B36;fontStyle=1;fontSize=9.5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="780" y="180" width="240" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="n_localstorage" value="localStorage&#10;session identity, remembered settings" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8C8C8C;fontColor=#262B36;fontSize=9.5;align=center;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="780" y="270" width="240" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n_backend" value="hrb_api_gateway_service&#10;necxf9n7mv.us-east-1.awsapprunner.com &#8212; every real request goes here" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontColor=#262B36;fontStyle=1;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="190" width="260" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n_footer" value="Note: client.ts's own fallback default (used only if VITE_API_BASE_URL is unset) still points at https://hrb-chatbot.rvsree.dev directly - a dev-time convenience, overridden by .env.production in the real build. Not a bug, worth knowing." style="text;html=1;fontColor=#595959;fontSize=10;fontStyle=2;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="400" width="1300" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="n_chat" target="n_apiclient"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="n_admindash" target="n_apiclient"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="n_apiclient" target="n_backend"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;dashed=1;" edge="1" parent="1" source="n_login" target="n_localstorage"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

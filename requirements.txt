@@ -130,6 +130,11 @@ boto3==1.43.89
 langchain==0.3.20
 # 0.3.9 -> 0.3.35 - see the openai==2.54.0 note above; same forcing chain.
 langchain-openai==0.3.35
+# Phase 269 - already a transitive dep of langchain, pinned explicitly now
+# that ai/agents/domain_agents/web_search_agent.py and
+# ai/rag_pipeline/tools/agentic_tools.py import @traceable from it directly,
+# not just via langchain's own internals.
+langsmith==0.3.45
 langgraph==0.3.21
 # Phase 172 - the Postgres-backed checkpointer, for real interrupt()/
 # Command(resume=...) pause/resume on the "Request Unpaid Leave" graph.
