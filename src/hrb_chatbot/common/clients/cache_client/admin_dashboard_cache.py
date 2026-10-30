@@ -17,8 +17,29 @@ from src.hrb_chatbot.common.logging.logger import get_logger
 
 logger = get_logger("admin_dashboard_cache")
 
-KEY_PREFIX = "admin_dashboard_cache:"
 DEFAULT_TTL_SECONDS = 60 * 60 * 24  # 24h - user-specified
+
+
+def _setting_is_true(value: str) -> bool:
+    return str(value).strip().lower() in ("1", "true", "yes")
+
+
+def _resolve_key_prefix() -> str:
+    """Phase 280 - local dev and production share the same Redis instance
+    (confirmed: local .env's REDIS_URL and production's App Runner REDIS_URL
+    secret resolve to the same Upstash host), so local testing was silently
+    writing locally-sourced list data into the cache production itself
+    reads from. Same HRB_CHATBOT_LOCAL/HRB_CHATBOT_PROD split
+    langsmith_tracing.py's _resolve_project_name() already uses, applied
+    here for the same reason - keep local and prod cache entries from ever
+    colliding. Prod wins if both are somehow true."""
+    is_prod = _setting_is_true(read_setting(None, "HRB_CHATBOT_PROD", "false"))
+    is_local = _setting_is_true(read_setting(None, "HRB_CHATBOT_LOCAL", "true"))
+    if is_prod:
+        return "admin_dashboard_cache_prod:"
+    if is_local:
+        return "admin_dashboard_cache_local:"
+    return "admin_dashboard_cache:"
 
 
 class AdminDashboardCache:
@@ -27,6 +48,7 @@ class AdminDashboardCache:
 
     def __init__(self, url: str | None = None):
         self.url = read_setting(url, "REDIS_URL")
+        self.key_prefix = _resolve_key_prefix()
         self.ttl_seconds = int(
             read_setting(None, "REDIS_ADMIN_DASHBOARD_CACHE_TTL_SECONDS", DEFAULT_TTL_SECONDS)
         )
@@ -50,7 +72,7 @@ class AdminDashboardCache:
         so a down cache degrades to "no caching", not a broken request."""
         try:
             with log_backend_call(logger, "redis", "admin_dashboard_cache.get", cache_key=cache_key):
-                raw = await self._client_or_raise().get(KEY_PREFIX + cache_key)
+                raw = await self._client_or_raise().get(self.key_prefix + cache_key)
                 return json.loads(raw) if raw else None
         except Exception as error:
             logger.warning("[admin_dashboard_cache] Redis unreachable on get, treating as a miss: %s", error)
@@ -60,7 +82,7 @@ class AdminDashboardCache:
         """Best-effort - a failed cache write must never break the response that was already computed."""
         try:
             with log_backend_call(logger, "redis", "admin_dashboard_cache.set", cache_key=cache_key):
-                await self._client_or_raise().set(KEY_PREFIX + cache_key, json.dumps(value), ex=self.ttl_seconds)
+                await self._client_or_raise().set(self.key_prefix + cache_key, json.dumps(value), ex=self.ttl_seconds)
         except Exception as error:
             logger.warning("[admin_dashboard_cache] Redis unreachable on set, skipping cache write: %s", error)
 
@@ -78,7 +100,7 @@ class AdminDashboardCache:
             client = self._client_or_raise()
             await client.ping()
             count = 0
-            async for _ in client.scan_iter(match=KEY_PREFIX + "*"):
+            async for _ in client.scan_iter(match=self.key_prefix + "*"):
                 count += 1
             result["status"] = "healthy"
             result["entries_cached"] = count
