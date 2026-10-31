@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <title>Documentation Review</title>
-<meta name="description" content="A friend's-eye review of the HRB Chatbot GitHub repos and live demo before sharing with reviewers.">
+<meta name="description" content="A friend's-eye review of the HRB Chatbot GitHub repos and live demo - all findings now resolved and confirmed live.">
 <style>
   :root {
     --bg: #f4f4f7; --surface: #ffffff; --surface-alt: #f0f0f5; --border: #dcdce6;
@@ -77,8 +77,6 @@
   .finding dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 10px 0 0; font-size: 0.9rem; }
   .finding dt { color: var(--text-faint); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; padding-top: 2px; }
   .finding dd { margin: 0; min-width: 0; }
-  .finding ul.evidence { margin: 4px 0 0; padding-left: 18px; font-size: 0.88rem; color: var(--text-muted); }
-  .finding ul.evidence li { margin-bottom: 2px; }
 
   table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin: 10px 0; }
   table.scroll-wrap { display: block; overflow-x: auto; }
@@ -95,7 +93,7 @@
 
 <div class="wrap">
   <h1>Documentation &amp; Live Demo Review</h1>
-  <p class="subtitle">Reviewed as a first-time visitor would see it - GitHub repos (<span class="mono">hrb_chatbot_service</span>, <span class="mono">hrb_chatbot_ui</span>, the shared <span class="mono">hrb_emp_assist</span> docs tree) plus the live demo at <span class="mono">hrb-chatbot-ui.rvsree.dev</span>. 2026-10-30.</p>
+  <p class="subtitle">Reviewed as a first-time visitor would see it - GitHub repos (<span class="mono">hrb_chatbot_service</span>, <span class="mono">hrb_chatbot_ui</span>, the shared <span class="mono">hrb_emp_assist</span> docs tree) plus the live demo at <span class="mono">hrb-chatbot-ui.rvsree.dev</span>. First pass 2026-10-30, a second pass 2026-10-31 after fixes shipped - this version reflects the current, resolved state.</p>
 
   <div class="persona-box">
     <span class="emoji">🙋</span>
@@ -103,92 +101,93 @@
   </div>
 
   <div class="sev-row">
-    <span class="sev-chip crit">2 critical - hit on the very first README read</span>
-    <span class="sev-chip warn">3 medium - hit while exploring deeper docs</span>
-    <span class="sev-chip ok">Already fixed this session, confirmed live</span>
+    <span class="sev-chip ok">All findings below: fixed, deployed, and verified live</span>
   </div>
 
-  <h2><span class="h2-eyebrow">Critical · Root Cause</span>Links that only ever worked on your own machine</h2>
-  <div class="finding crit">
+  <h2><span class="h2-eyebrow">Resolved · Root Cause</span>Links that only ever worked on your own machine</h2>
+  <div class="finding ok">
     <div class="finding-head">
-      <span class="finding-title">README.md in both repos links "up and out" to a folder that doesn't exist on GitHub</span>
-      <span class="finding-tag">Breaks on first click</span>
+      <span class="finding-title">README.md in both repos linked "up and out" to a folder that didn't exist on GitHub</span>
+      <span class="finding-tag">Fixed</span>
     </div>
-    <p>Both repos' README.md use relative links like <span class="mono">../docs/architecture/platform-overview.html</span>. Locally this resolves fine because <span class="mono">hrb_chatbot_service</span> happens to sit as a subfolder of a shared <span class="mono">hrb_emp_assist</span> folder on your own disk. But on GitHub, <span class="mono">hrb_chatbot_service</span>, <span class="mono">hrb_chatbot_ui</span>, and <span class="mono">hrb_emp_assist</span> are three <em>separate, independent</em> repositories - there is no parent folder to go "up" into. The link is simply dead.</p>
-    <p><strong>This is almost certainly the exact thing your friends hit</strong> - it's the first set of doc/diagram links in the README, and every one of them fails the same way.</p>
+    <p>Both repos' READMEs used relative links like <span class="mono">../docs/architecture/platform-overview.html</span>, which only resolved locally - on GitHub, <span class="mono">hrb_chatbot_service</span>, <span class="mono">hrb_chatbot_ui</span>, and <span class="mono">hrb_emp_assist</span> are three separate repos with no parent to go "up" into.</p>
     <dl>
-      <dt>Confirmed by</dt><dd>Walking every relative link in both READMEs and checking whether it resolves inside the repo's own git root; 6 in <span class="mono">hrb_chatbot_service/README.md</span>, 6 in <span class="mono">hrb_chatbot_ui/README.md</span>, all of the form <span class="mono">../docs/...</span> or <span class="mono">../hrb_chatbot_service/docs/...</span>.</dd>
-      <dt>Where</dt><dd>Both repos' README.md and CLAUDE.md, plus <span class="mono">docs/agent-reference/testing-strategies.md</span> (one link).</dd>
+      <dt>Fix</dt><dd><span class="mono">hrb_emp_assist</span> made public (scanned clean first - no secrets, no key files), then all ~12 escaping links across both READMEs/CLAUDE.md converted to absolute <span class="mono">https://github.com/rvsree/hrb_emp_assist/blob/master/...</span> URLs.</dd>
+      <dt>Verified</dt><dd>Every converted URL spot-checked with a direct fetch - real 200, not 404.</dd>
     </dl>
   </div>
 
-  <div class="finding crit">
+  <div class="finding ok">
     <div class="finding-head">
-      <span class="finding-title">Even a correctly-linked .html or .drawio file opens as source code on GitHub</span>
-      <span class="finding-tag">Not a bug - a hosting limit</span>
+      <span class="finding-title">Even a correctly-linked .html opened as source code on GitHub</span>
+      <span class="finding-tag">Fixed - with a caveat on .drawio, see below</span>
     </div>
-    <p>This is the "opening the code instead of actual diagrams" symptom, and it's not fixable by changing a link - GitHub's blob viewer shows <span class="mono">.html</span> files as syntax-highlighted source text, never as a rendered page. Clicking "raw" doesn't help either: GitHub forces <span class="mono">Content-Type: text/plain</span> on every raw file (their own anti-XSS hardening), confirmed directly against <span class="mono">raw.githubusercontent.com</span>. The same applies to <span class="mono">.drawio</span> diagrams - GitHub has no native renderer for them at all, so they show as raw XML.</p>
-    <p>The project's own docs already serve these correctly <em>when viewed through the live Admin Dashboard</em> (presigned S3 URLs, confirmed working all session) - the gap is that nothing tells a GitHub-only visitor that's where to look.</p>
+    <p>GitHub's blob viewer shows <span class="mono">.html</span> files as syntax-highlighted source, never a rendered page - confirmed, GitHub forces <span class="mono">Content-Type: text/plain</span> on every raw file, including on <span class="mono">raw.githubusercontent.com</span> (their own anti-XSS hardening, not fixable from this project's side).</p>
     <dl>
-      <dt>Confirmed by</dt><dd>Direct <span class="mono">curl</span> against both the GitHub blob URL and the raw URL for a real doc file - headers show <span class="mono">Content-Type: text/plain</span> on the raw file every time.</dd>
-      <dt>Fix is a choice, not a patch</dt><dd>Point reviewers at the live Admin Dashboard's doc viewer instead of raw GitHub browsing, and/or stand up GitHub Pages for the docs tree so <span class="mono">.html</span> files actually render as pages. Mermaid diagrams are unaffected - GitHub renders those natively already (confirmed: the README's tech-stack diagram is Mermaid and displays fine).</dd>
+      <dt>Fix</dt><dd>Added a "Viewing the architecture docs" note near the top of both READMEs, pointing reviewers at the live Admin Dashboard's doc viewer (which renders these correctly via presigned S3 URLs) instead of raw GitHub browsing.</dd>
     </dl>
   </div>
 
-  <h2><span class="h2-eyebrow">Medium · Stale Since the Oct 23 Reorg</span>Cross-links inside the docs themselves</h2>
-  <div class="finding warn">
+  <div class="finding ok">
     <div class="finding-head">
-      <span class="finding-title">HANDOFF.md - 5 of its own links are broken</span>
-      <span class="finding-tag">First doc a new session/reviewer is told to read</span>
+      <span class="finding-title">.drawio diagrams opened as raw XML even through the app's own, working doc viewer</span>
+      <span class="finding-tag">Fixed - the deeper layer of "opening code instead of diagrams"</span>
     </div>
+    <p>Found on the 2nd review pass: every diagram's link already worked (all 86 registered docs confirmed loading real content) - the actual gap was what the browser does with a successful response. S3 serves <span class="mono">.drawio</span> files as <span class="mono">Content-Type: application/xml</span> with no <span class="mono">Content-Disposition</span>, so the browser displays raw XML inline instead of downloading it - true inside this app's own admin-docs viewer, not just on GitHub.</p>
     <dl>
-      <dt>Links</dt><dd><span class="mono">../README.md</span> (one <span class="mono">../</span> short - needs two to reach the real repo-root README), plus 4 links to <span class="mono">docs/dev-reference/developer-onboarding/</span>, <span class="mono">build-guide/</span>, <span class="mono">deployment-verification-guide/</span>, <span class="mono">production-monitoring-guide/</span> - all missing the <span class="mono">hrb_chatbot_v3/deployment-and-ops/</span> segment the Oct 23 reorg added.</dd>
-      <dt>Real location</dt><dd><span class="mono">docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/{developer-onboarding,build-guide,deployment-verification-guide,production-monitoring-guide}/guide.html</span> - confirmed these files exist there now.</dd>
+      <dt>Fix</dt><dd>The presigned URL now forces a real file download for <span class="mono">.drawio</span> (<span class="mono">ResponseContentDisposition=attachment</span>) - matching this project's own already-documented intent ("a .drawio file is a download-and-open-in-draw.io artifact") that had never actually been implemented. <span class="mono">.html</span> docs are unaffected.</dd>
+      <dt>Verified</dt><dd>Live header check post-deploy: the diagram doc now returns <span class="mono">Content-Disposition: attachment; filename="diagram-current-state.drawio"</span>; an HTML doc checked the same way shows no such header, confirmed unaffected.</dd>
     </dl>
   </div>
 
-  <div class="finding warn">
+  <h2><span class="h2-eyebrow">Resolved</span>Stale cross-links left over from the Oct 23/26 reorgs</h2>
+  <div class="finding ok">
     <div class="finding-head">
-      <span class="finding-title">2 more stale post-reorg links, same pattern</span>
-      <span class="finding-tag">Smaller blast radius</span>
+      <span class="finding-title">9 stale cross-links across HANDOFF.md, sample-validation-gateway-queries.md, and _archive/rag-pipeline-status.md</span>
+      <span class="finding-tag">Fixed</span>
     </div>
-    <dl>
-      <dt><span class="mono">sample-validation-gateway-queries.md</span></dt><dd>Links to <span class="mono">../rag-pipeline-status.md</span> and <span class="mono">../rag-validation-gates.html</span> - real files now live under <span class="mono">docs/dev-reference/_archive/</span>, one level further up than the link expects.</dd>
-      <dt><span class="mono">_archive/rag-pipeline-status.md</span></dt><dd>Links to <span class="mono">rag-guardrails-design.html</span> in its own folder - the real file moved to <span class="mono">docs/dev-reference/hrb_chatbot_v3/architecture/rag-guardrails-design.html</span> when it was updated out of the archive.</dd>
-    </dl>
+    <p>All pointed at pre-reorg paths missing the <span class="mono">hrb_chatbot_v3/deployment-and-ops/</span> segment, or one directory level short to reach their real, moved destination. All corrected to their real current locations.</p>
   </div>
 
-  <div class="finding warn">
+  <div class="finding ok">
     <div class="finding-head">
-      <span class="finding-title">4 docs CLAUDE.md references don't exist anywhere - not even in S3</span>
-      <span class="finding-tag">Content loss, not a path bug</span>
+      <span class="finding-title">"4 missing CLAUDE.md docs" - turned out to be a false alarm</span>
+      <span class="finding-tag">Corrected, not recreated</span>
     </div>
-    <p>CLAUDE.md's "Docs worth reading" section links <span class="mono">db-model-overview.html</span>, <span class="mono">oauth2-auth-architecture.html</span>, <span class="mono">oauth2-cot-feasibility.html</span>, and <span class="mono">auth-server-project-scope.html</span>, each with a real, specific description (schemas, the MCP OAuth2 flow, a separate auth-server design). Unlike the <span class="mono">api-gateway-service</span> docs fixed earlier this session, these 4 aren't recoverable from the shared S3 bucket either - they're genuinely gone, or were never actually written. This one needs your own call (recreate, or remove the references) since there's no source to recover from.</p>
+    <p>The first pass concluded these 4 docs (DB schemas, OAuth2 flow, auth-server scope) were genuinely lost - wrong. They'd simply moved to the shared <span class="mono">hrb_emp_assist</span> repo on 2026-10-26, same as the other platform docs. Caught before 4 docs' worth of duplicate content got written for no reason - fixed their links instead.</p>
   </div>
 
-  <h2><span class="h2-eyebrow">Already handled</span>What this session already fixed and confirmed live</h2>
+  <h2><span class="h2-eyebrow">Found and resolved on the 2nd pass</span>Issues not visible from link-checking alone</h2>
+  <div class="finding ok">
+    <div class="finding-head">
+      <span class="finding-title">27 stale duplicate docs/diagrams, one of which had silently drifted from the real version</span>
+      <span class="finding-tag">Fixed</span>
+    </div>
+    <p>The Oct 26 platform/service split left 27 files behind in <span class="mono">hrb_chatbot_service</span>'s own repo with zero functional role (confirmed via a cross-check against <span class="mono">sync_admin_docs.py</span>'s real registrations) - one of them, <span class="mono">platform-overview.html</span>, had drifted out of sync with the real, current version in the shared repo, which caused an earlier same-day fix to land on the wrong, orphaned copy. All 27 dead duplicates removed; the 9 that <em>are</em> load-bearing (feed the live Admin Dashboard) were refreshed to current content instead of deleted, and re-synced to production.</p>
+  </div>
+
+  <div class="finding ok">
+    <div class="finding-head">
+      <span class="finding-title">Internal AI-session handoff docs were sitting in a now-public repo</span>
+      <span class="finding-tag">Removed</span>
+    </div>
+    <p><span class="mono">HANDOFF.md</span>, <span class="mono">PLATFORM-HANDOFF.md</span>, and <span class="mono">sree-handoff.md</span> were written for AI-session continuity (or, in the last case, personal task tracking) - a different register of writing than external-facing docs, not meant for a reviewer's eyes. Removed, and the 7 references to them across other docs fixed or cleanly dropped.</p>
+  </div>
+
+  <h2><span class="h2-eyebrow">Confirmed intact</span>Application features vs. documentation</h2>
   <table class="scroll-wrap">
-    <thead><tr><th>Item</th><th>Status</th><th>Confirmed via</th></tr></thead>
+    <thead><tr><th>Check</th><th>Result</th></tr></thead>
     <tbody>
-      <tr><td>Admin Dashboard doc links showing stale/missing data (the original complaint that kicked off today's work)</td><td><span class="status-pill fixed">Fixed</span></td><td>Root cause was a shared local/prod Redis cache with no environment separation - fixed and deployed.</td></tr>
-      <tr><td>14 broken <span class="mono">scripts/sync_admin_docs.py</span> registrations (wrong path, pre-dated the Oct 23 reorg)</td><td><span class="status-pill fixed">Fixed</span></td><td>Recovered real content from the already-live S3 objects rather than guessing; re-synced to production.</td></tr>
-      <tr><td>1 broken link on the architecture hub page (<span class="mono">platform-overview.html</span>)</td><td><span class="status-pill fixed">Fixed</span></td><td>Pointed at the same real doc every sibling node already uses.</td></tr>
-      <tr><td>34 orphan S3 files (pre-subdirectory-scheme legacy uploads)</td><td><span class="status-pill fixed">Fixed</span></td><td>Deleted; bucket count confirmed 114 → 80.</td></tr>
-      <tr><td>Production now has all 86 real admin docs, including the newly-recovered/added ones</td><td><span class="status-pill fixed">Fixed</span></td><td>Live <span class="mono">GET /v1/admin/docs</span> count confirmed 62 → 86.</td></tr>
+      <tr><td>Full backend test suite</td><td><span class="status-pill fixed">997 passed</span> (1 pre-existing, documented, unrelated flake)</td></tr>
+      <tr><td>bandit security scan</td><td><span class="status-pill fixed">Clean</span></td></tr>
+      <tr><td>Frontend build + lint</td><td><span class="status-pill fixed">Clean</span> (same 1 pre-existing, documented, unrelated lint error)</td></tr>
+      <tr><td>All 86 registered admin docs</td><td><span class="status-pill fixed">Load real content</span> - checked every single one, not a sample</td></tr>
+      <tr><td>Live chat query (production)</td><td><span class="status-pill fixed">Correct, detailed answer</span> - confirmed post-deploy</td></tr>
+      <tr><td>Stale feature references (e.g. the removed mic icon)</td><td><span class="status-pill fixed">None found</span> in any current README/CLAUDE.md</td></tr>
+      <tr><td>Frontend bundle live = latest build</td><td><span class="status-pill fixed">Confirmed</span> by exact asset-hash match</td></tr>
     </tbody>
   </table>
 
-  <h2><span class="h2-eyebrow">Recommendation</span>What to do before your friends look again</h2>
-  <table class="scroll-wrap">
-    <thead><tr><th>#</th><th>Fix</th><th>Effort</th></tr></thead>
-    <tbody>
-      <tr><td>1</td><td>Rewrite the ~12 escaping <span class="mono">../docs/...</span> links in both READMEs (and CLAUDE.md) as absolute <span class="mono">https://github.com/rvsree/hrb_emp_assist/blob/master/docs/...</span> URLs - these at least resolve to <em>something</em> real on GitHub, even though point 2 below still applies to them.</td><td>Small, mechanical</td></tr>
-      <tr><td>2</td><td>Add one clear line near the top of both READMEs: "Architecture docs/diagrams render correctly only inside the live Admin Dashboard's docs viewer or draw.io itself - GitHub's own file preview shows raw source for these." Saves every future reviewer the same confusion.</td><td>Small</td></tr>
-      <tr><td>3</td><td>Fix the 7 stale post-reorg cross-links (HANDOFF.md ×5, sample-validation-gateway-queries.md ×2, _archive/rag-pipeline-status.md ×1) to their real current paths.</td><td>Small, mechanical</td></tr>
-      <tr><td>4</td><td>Decide what to do about the 4 genuinely-missing CLAUDE.md-referenced docs - recreate them or remove the references.</td><td>Your call - needs a decision, not just an edit</td></tr>
-    </tbody>
-  </table>
-
-  <footer>Compiled 2026-10-30 by walking every relative link in both repos' markdown/HTML docs programmatically (not a manual click-through), then verifying the structural GitHub cross-repo issue and the raw-content-type behavior directly against github.com and raw.githubusercontent.com. Nothing in this document has been fixed yet except where the "Already handled" table says so explicitly.</footer>
+  <footer>First pass compiled 2026-10-30 by walking every relative link in both repos' markdown/HTML docs programmatically, then verifying the GitHub cross-repo and raw-content-type behavior directly. Second pass 2026-10-31, same method plus a presigned-URL content-type/header audit and a full functional regression check, after every finding from the first pass was fixed, committed, pushed, and deployed. Every "Fixed"/"Confirmed" status above was independently verified against the live site or a live test run, not just asserted.</footer>
 </div>
 </html>
