@@ -4,8 +4,10 @@ from pydantic import BaseModel, Field
 
 
 class UserProfile(BaseModel):
-    employee_id: str = Field(..., max_length=50)
-    full_name: str = Field(..., max_length=200)
+    # Phase 282 - character-class restriction, defense-in-depth - the real
+    # gate is login.py's own known-personas allowlist, not this pattern.
+    employee_id: str = Field(..., max_length=50, pattern=r"^[A-Za-z0-9]+$")
+    full_name: str = Field(..., max_length=200, pattern=r"^[A-Za-z\s'\-]+$")
     role: str = Field(..., max_length=50)
     department: str | None = Field(None, max_length=100, description="Phase 231 - self-asserted, like role.")
     timezone: str | None = Field(

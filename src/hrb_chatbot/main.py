@@ -6,10 +6,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.hrb_chatbot.api.adhoc_chat import adhoc_document_chat
-from src.hrb_chatbot.api.admin import manage_admin, routes_health
+from src.hrb_chatbot.api.admin import finops, manage_admin, routes_health
 from src.hrb_chatbot.api.agentic_rag import query_agent
 from src.hrb_chatbot.api.auth import login
 from src.hrb_chatbot.api.conversations import manage_conversations
+from src.hrb_chatbot.api.explainability import testing_strategy_sample
 from src.hrb_chatbot.api.faq import faq_submission
 from src.hrb_chatbot.api.feedback import manage_feedback
 from src.hrb_chatbot.api.leave import unpaid_leave
@@ -87,7 +88,9 @@ app.include_router(manage_feedback.router_manage_feedback, prefix="/v1/feedback"
 app.include_router(adhoc_document_chat.router_adhoc_document_chat, prefix="/v1/adhoc-document-chat")
 app.include_router(unpaid_leave.router_unpaid_leave, prefix="/v1/unpaid-leave")
 app.include_router(manage_admin.router_manage_admin, prefix="/v1/admin")
+app.include_router(finops.router_finops, prefix="/v1/admin/finops")
 app.include_router(faq_submission.router_faq_submission, prefix="/v1/faq")
+app.include_router(testing_strategy_sample.router_testing_strategy_sample, prefix="/v1/explainability/testing-strategy")
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):

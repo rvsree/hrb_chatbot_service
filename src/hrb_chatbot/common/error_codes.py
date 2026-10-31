@@ -56,3 +56,12 @@ ADMIN_SETTING_NOT_FOUND = "ADMIN_SETTING_NOT_FOUND"
 
 # Phase 272 - promoting a live query into the Synthetic Dataset
 ADMIN_LIVE_QUERY_NOT_FOUND = "ADMIN_LIVE_QUERY_NOT_FOUND"
+
+# Phase 283 - FinOps Monitoring (AWS Cost Explorer / LangSmith usage)
+FINOPS_PROVIDER_UNAVAILABLE = "FINOPS_PROVIDER_UNAVAILABLE"
+
+# Phase 284 - public backend-activation resume, per-IP-per-day cap
+BACKEND_ACTIVATION_RATE_LIMITED = "BACKEND_ACTIVATION_RATE_LIMITED"
+
+# Phase 285 - public Testing Strategy sample endpoint
+EXPLAINABILITY_SAMPLE_FAILED = "EXPLAINABILITY_SAMPLE_FAILED"

@@ -4,17 +4,28 @@ accepting anything typed into the login form. Still not real
 authentication - role stays self-asserted on every request after this,
 unchanged from this project's documented RBAC-is-a-formality design."""
 
+import asyncio
+
 from fastapi import APIRouter, Request
 
 from src.hrb_chatbot.api.dependencies import json_error
 from src.hrb_chatbot.api.gateway.rbac import require_role
 from src.hrb_chatbot.common import error_codes
+from src.hrb_chatbot.common.clients.aws_client.apprunner_client import AppRunnerClient
 from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
-from src.hrb_chatbot.common.config.settings import read_setting
+from src.hrb_chatbot.common.config.settings import get_app_environment, read_setting
 from src.hrb_chatbot.common.enums import Role
 from src.hrb_chatbot.common.known_personas import is_known_persona
+from src.hrb_chatbot.common.rate_limiting import backend_activation_limiter
 from src.hrb_chatbot.common.rate_limiting.rate_limiter import enforce_rate_limit
-from src.hrb_chatbot.models.auth import LoginRequest, LoginResponse, ResetSecretCodeRequest, ResetSecretCodeResponse
+from src.hrb_chatbot.common.utils.request_ip import resolve_client_ip
+from src.hrb_chatbot.models.auth import (
+    BackendActivationStatusResponse,
+    LoginRequest,
+    LoginResponse,
+    ResetSecretCodeRequest,
+    ResetSecretCodeResponse,
+)
 from src.hrb_chatbot.models.common import UserProfile
 
 router_login = APIRouter(tags=["auth"])
@@ -112,3 +123,40 @@ async def reset_admin_secret_code(payload: ResetSecretCodeRequest):
 
     await credential_store.set_secret_code(payload.user_profile.employee_id, payload.new_secret_code)
     return ResetSecretCodeResponse(employee_id=payload.user_profile.employee_id, reset=True)
+
+
+@router_login.get("/backend-activation/status", response_model=BackendActivationStatusResponse)
+async def backend_activation_status():
+    """Phase 284 - public status check for a visitor hitting a paused AWS
+    demo environment. No-op outside production - never touches AWS."""
+    if get_app_environment() != "production":
+        return BackendActivationStatusResponse(all_running=True, services=[])
+
+    statuses = await asyncio.to_thread(AppRunnerClient().describe_all)
+    all_running = all(service["status"] == "RUNNING" for service in statuses)
+    return BackendActivationStatusResponse(all_running=all_running, services=statuses)
+
+
+@router_login.post("/backend-activation/resume", response_model=BackendActivationStatusResponse)
+async def backend_activation_resume(request: Request):
+    """Phase 284 - public resume counterpart to the status check above.
+    Skips the rate limiter entirely when nothing needs resuming."""
+    if get_app_environment() != "production":
+        return BackendActivationStatusResponse(all_running=True, services=[])
+
+    statuses = await asyncio.to_thread(AppRunnerClient().describe_all)
+    non_running_names = [service["service_name"] for service in statuses if service["status"] != "RUNNING"]
+    if not non_running_names:
+        return BackendActivationStatusResponse(all_running=True, services=statuses)
+
+    under_cap = await backend_activation_limiter.check_and_record(resolve_client_ip(request))
+    if not under_cap:
+        return json_error(
+            429,
+            "Too many backend-activation attempts from this address today - try again tomorrow.",
+            code=error_codes.BACKEND_ACTIVATION_RATE_LIMITED,
+        )
+
+    resumed = await asyncio.to_thread(AppRunnerClient().resume, non_running_names)
+    all_running = all(service["status"] == "RUNNING" for service in resumed)
+    return BackendActivationStatusResponse(all_running=all_running, services=resumed)

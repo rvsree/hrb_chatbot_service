@@ -2,12 +2,15 @@
 
 from pydantic import BaseModel, Field
 
+from src.hrb_chatbot.models.admin import AwsDemoServiceStatus
 from src.hrb_chatbot.models.common import UserProfile
 
 
 class LoginRequest(BaseModel):
-    employee_id: str = Field(..., max_length=50)
-    full_name: str = Field(..., max_length=200)
+    # Phase 282 - character-class restriction, defense-in-depth - the real
+    # gate is this file's own known-personas allowlist check, not this pattern.
+    employee_id: str = Field(..., max_length=50, pattern=r"^[A-Za-z0-9]+$")
+    full_name: str = Field(..., max_length=200, pattern=r"^[A-Za-z\s'\-]+$")
     role: str = Field(..., max_length=50)
     # Phase 169 - only read/checked when role == "admin".
     secret_code: str | None = Field(default=None, max_length=50)
@@ -36,3 +39,11 @@ class ResetSecretCodeRequest(BaseModel):
 class ResetSecretCodeResponse(BaseModel):
     employee_id: str
     reset: bool
+
+
+class BackendActivationStatusResponse(BaseModel):
+    """Phase 284 - public status/resume contract, reusing the admin-only
+    AwsDemoStatusResponse's own per-service shape (Phase 261)."""
+
+    all_running: bool
+    services: list[AwsDemoServiceStatus]

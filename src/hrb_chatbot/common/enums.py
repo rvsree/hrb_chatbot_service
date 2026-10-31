@@ -48,6 +48,16 @@ class LlmProvider(StrEnum):
     BEDROCK = "bedrock"
 
 
+class FinopsProvider(StrEnum):
+    """Which backend the FinOps Monitoring tab is asking about - see
+    api/admin/finops.py. Pinecone/Upstash/Neon have no cost/pause API
+    (see RAG-ROADMAP.md's Phase 283 entry), so they're not members here -
+    /v1/admin/finops/other-services covers those 3 as static content."""
+
+    AWS = "aws"
+    LANGSMITH = "langsmith"
+
+
 class ChunkingStrategy(StrEnum):
     """How to split text into chunks - must keep matching text_chunker.CHUNKING_STRATEGIES."""
 
@@ -90,6 +100,15 @@ class Role(StrEnum):
     HR_SUPPORT = "hr_support"
     ADMIN = "admin"
     EMPLOYEE_ADMIN = "employee_admin"
+
+
+class TestingStrategyDataset(StrEnum):
+    """Phase 285 - which real-data store the public Testing Strategy
+    sample endpoint reads from - see api/explainability/testing_strategy_sample.py."""
+
+    GOLDEN = "golden"
+    SYNTHETIC = "synthetic"
+    LIVE_QUERIES = "live-queries"
 
 
 class FeedbackVote(StrEnum):

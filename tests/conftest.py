@@ -1248,6 +1248,41 @@ class FakeDemoVisitorStore:
         return 0
 
 
+class FakeFinopsSnapshotStore:
+    """Stands in for FinopsSnapshotStore (Phase 283) - plain in-memory
+    list, same async interface as the real Postgres-backed one, never
+    touches a real database."""
+
+    def __init__(self, snapshots: list[dict] | None = None):
+        self._snapshots = snapshots or []
+        self._next_id = max((row["id"] for row in self._snapshots), default=0) + 1
+
+    async def insert_snapshot(self, provider, period_start, period_end, total_cost, cost_breakdown, created_by):
+        row = {
+            "id": self._next_id,
+            "provider": provider,
+            "captured_at": "2026-10-31T00:00:00+00:00",
+            "period_start": period_start,
+            "period_end": period_end,
+            "total_cost": total_cost,
+            "cost_breakdown": cost_breakdown,
+            "created_by": created_by,
+        }
+        self._snapshots.append(row)
+        self._next_id += 1
+        return dict(row)
+
+    async def get_latest_snapshot(self, provider):
+        matches = [row for row in self._snapshots if row["provider"] == provider]
+        if not matches:
+            return None
+        return dict(matches[-1])
+
+    async def list_history(self, provider, limit=30):
+        matches = [dict(row) for row in self._snapshots if row["provider"] == provider]
+        return list(reversed(matches))[:limit]
+
+
 class FakeAppSettingsStore:
     """Stands in for AppSettingsStore (Phase 257) - plain in-memory dict,
     same async interface as the real Postgres-backed one, never touches a
@@ -1300,6 +1335,7 @@ class FakeDBGateway:
         synthetic_dataset_store: "FakeSyntheticDatasetStore | None" = None,
         app_settings_store: "FakeAppSettingsStore | None" = None,
         demo_visitor_store: "FakeDemoVisitorStore | None" = None,
+        finops_snapshot_store: "FakeFinopsSnapshotStore | None" = None,
     ):
         self._vector_store = vector_store or FakeVectorStore()
         self._metadata_store = metadata_store or FakeMetadataStore()
@@ -1323,6 +1359,7 @@ class FakeDBGateway:
         self._synthetic_dataset_store = synthetic_dataset_store or FakeSyntheticDatasetStore()
         self._app_settings_store = app_settings_store or FakeAppSettingsStore()
         self._demo_visitor_store = demo_visitor_store or FakeDemoVisitorStore()
+        self._finops_snapshot_store = finops_snapshot_store or FakeFinopsSnapshotStore()
 
     def vector_store(self, provider=None):
         return self._vector_store
@@ -1389,3 +1426,6 @@ class FakeDBGateway:
 
     def demo_visitor_store(self):
         return self._demo_visitor_store
+
+    def finops_snapshot_store(self):
+        return self._finops_snapshot_store

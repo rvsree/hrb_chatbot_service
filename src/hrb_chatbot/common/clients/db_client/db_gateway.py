@@ -16,6 +16,7 @@ from src.hrb_chatbot.common.clients.db_client.demo_visitor_store import DemoVisi
 from src.hrb_chatbot.common.clients.db_client.doc_metadata_store import DocMetadataStore
 from src.hrb_chatbot.common.clients.db_client.eval_run_store import EvalRunStore
 from src.hrb_chatbot.common.clients.db_client.faq_submission_store import FaqSubmissionStore
+from src.hrb_chatbot.common.clients.db_client.finops_snapshot_store import FinopsSnapshotStore
 from src.hrb_chatbot.common.clients.db_client.golden_dataset_store import GoldenDatasetStore
 from src.hrb_chatbot.common.clients.db_client.interview_qa_store import InterviewQaStore
 from src.hrb_chatbot.common.clients.db_client.live_query_store import LiveQueryStore
@@ -64,6 +65,7 @@ class DBGateway:
         self.synthetic_dataset_store_client = None
         self.app_settings_store_client = None
         self.demo_visitor_store_client = None
+        self.finops_snapshot_store_client = None
 
     def chroma(self) -> ChromaDBClient:
         # Return the shared ChromaDB client, building it on first use.
@@ -157,6 +159,12 @@ class DBGateway:
         if self.demo_visitor_store_client is None:
             self.demo_visitor_store_client = DemoVisitorStore()
         return self.demo_visitor_store_client
+
+    def finops_snapshot_store(self) -> FinopsSnapshotStore:
+        """Return the shared FinOps cost/usage snapshot store, building it on first use (Phase 283)."""
+        if self.finops_snapshot_store_client is None:
+            self.finops_snapshot_store_client = FinopsSnapshotStore()
+        return self.finops_snapshot_store_client
 
     def synthetic_dataset_store(self) -> SyntheticDatasetStore:
         """Return the shared synthetic-dataset store, building it on first use (Phase 257)."""

@@ -42,6 +42,37 @@ def test_right_employee_id_wrong_role_is_401():
     assert response.json()["code"] == "UNKNOWN_PERSONA"
 
 
+# Phase 282 - character-class restriction, defense-in-depth. The real gate
+# is the known-personas allowlist check above - this just confirms a
+# clearly-malicious or malformed value never reaches it at all.
+
+
+def test_employee_id_with_disallowed_characters_is_422():
+    response = client.post(
+        "/v1/auth/login",
+        json={"employee_id": "<script>", "full_name": "Eddy Employee", "role": "employee"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_full_name_with_disallowed_characters_is_422():
+    response = client.post(
+        "/v1/auth/login",
+        json={"employee_id": "EMP052", "full_name": "'; DROP TABLE users; --", "role": "employee"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_every_real_known_persona_passes_the_character_pattern():
+    from src.hrb_chatbot.common.known_personas import KNOWN_PERSONAS
+    from src.hrb_chatbot.models.auth import LoginRequest
+
+    for employee_id, persona in KNOWN_PERSONAS.items():
+        LoginRequest(employee_id=employee_id, full_name=persona["full_name"], role=persona["role"])
+
+
 # Phase 169/171 - admin role also requires a correct secret_code, now
 # verified against AdminCredentialStore's salted hash (seeded one-time via
 # get_or_seed()), not a plaintext literal.

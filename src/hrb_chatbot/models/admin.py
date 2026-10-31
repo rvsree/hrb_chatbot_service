@@ -9,7 +9,7 @@ equivalent anywhere)."""
 
 from pydantic import BaseModel
 
-from src.hrb_chatbot.common.enums import Application
+from src.hrb_chatbot.common.enums import Application, FinopsProvider
 from src.hrb_chatbot.models.common import UserProfile
 
 
@@ -379,3 +379,38 @@ class AwsDemoStatusResponse(BaseModel):
 class AwsDemoActionRequest(BaseModel):
     user_profile: UserProfile
     service_names: list[str] | None = None
+
+
+class FinopsCostSnapshot(BaseModel):
+    """Phase 283 - one stored cost/usage snapshot row. total_cost is None
+    for LangSmith (no dollar figure, trace counts only)."""
+
+    id: int
+    provider: FinopsProvider
+    captured_at: str
+    period_start: str
+    period_end: str
+    total_cost: float | None
+    cost_breakdown: dict
+    created_by: str | None
+
+
+class FinopsHistoryResponse(BaseModel):
+    count: int
+    snapshots: list[FinopsCostSnapshot]
+
+
+class FinopsOtherServiceInfo(BaseModel):
+    """Phase 283 - static, no live call: why Pinecone/Upstash/Neon don't
+    get a cost tab or a pause control, per the research recorded in
+    RAG-ROADMAP.md's Phase 283 entry."""
+
+    provider: str
+    display_name: str
+    billing_model: str
+    why_no_pause_needed: str
+    pause_available: bool
+
+
+class FinopsOtherServicesResponse(BaseModel):
+    services: list[FinopsOtherServiceInfo]
