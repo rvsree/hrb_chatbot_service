@@ -7,7 +7,7 @@ delete a row when it's done.
 ## Why this split exists
 
 This project is being built by hand, deliberately, to apply what's being
-learned in the Interview Kickstart FDE cohort's RAG modules (the instructor's
+learned in the course's RAG modules (the instructor's
 own workshop, `support_desk_rag_workshop/SupportDesk-RAG-Workshop`, was
 reviewed to inform this roadmap: embeddings → chunking → indexing strategies
 → RAG pipeline with anti-hallucination → two-layer evaluation → agentic RAG).
@@ -659,7 +659,7 @@ later, separate wave once this core is solid.
   empty) - validates/filters the generated answer before it's returned.
 
   **Spec (added 2026-09-22):**
-  - **Context:** self-audit against IK FDE cohort material plus a real
+  - **Context:** self-audit against course material plus a real
     library-selection process found three candidates (Guardrails AI, LLM
     Guard, NVIDIA NeMo Guardrails) - `pip install --dry-run` against this
     project's actual `requirements.txt` (not in isolation) eliminated the
@@ -2818,7 +2818,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   attributes: effective_date, audience, confidentiality_level.**
 
   - **Spec:** User-requested, following up on the earlier metadata-schema
-    discussion (Interview Kickstart ticket-schema comparison). Three
+    discussion (the course's own ticket-schema comparison). Three
     document-level attributes added, same best-effort LLM-extraction
     contract as the existing 5 (`owner`/`department`/`doc_type`/`purpose`/
     `doc_classification`) - free-text strings, null when the model can't
@@ -3779,7 +3779,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   genai-rag generation.**
 
   **Spec:**
-  - **Context:** self-audit against IK FDE cohort Module 4's "Prompt
+  - **Context:** self-audit against the course's Module 4 "Prompt
     Engineering for RAG" section found few-shot examples and Chain-of-
     Thought had been identified twice already (once in the user's own
     early batch request, once in a later Module 4 comparison) but never
@@ -4213,7 +4213,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   supersede business logic inline.
 
 - [x] **Phase 55 (2026-09-24) — User-directed: single-agentic-rag - a
-  tool-calling agent endpoint, following the IK FDE cohort's Module 6
+  tool-calling agent endpoint, following the course's Module 6
   ("agentic_rag") reference pattern from `SupportDesk-RAG-Workshop`.**
 
   **Spec:**
@@ -4686,7 +4686,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   pipeline, no orchestration logic yet.**
 
   **Spec:**
-  - **Context:** user reviewed the IK FDE cohort's Multi-Agent Travel
+  - **Context:** user reviewed the course's Multi-Agent Travel
     Planner class (LangGraph orchestrator/parallel-workers/synthesizer,
     `docs/id-fde-cohort/multi-agentic-system/Multi-Agent Travel
     Planner.ipynb`) and asked for this project's own placeholder
@@ -4769,7 +4769,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   about either existing endpoint.
 
 - [x] **Phase 62 (2026-09-29) — User-directed: rebuild the golden-dataset
-  eval harness to match the IK FDE cohort's own `5_evaluation/demo.py`
+  eval harness to match the course's own `5_evaluation/demo.py`
   implementation directly, not DeepEval's built-in metrics as a proxy for it.**
 
   **Spec:**
@@ -8721,7 +8721,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
   **Spec:**
   - **Context:** `golden_dataset_harness.py` already has real LLM-as-judge
     scoring functions (`evaluate_groundedness`/`evaluate_completeness`,
-    ported from the IK FDE course, Phase 62) - run today only offline
+    ported from the course, Phase 62) - run today only offline
     against the 23-case golden dataset (`pytest -m eval`). User asked for
     an eval score on every live response; given the explicit tradeoff
     (2 extra judge LLM calls per live generation = real added cost and
@@ -10798,7 +10798,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     Tasks + Latency & Tokens + Eval Scores, expanded by default) - Eval
     Scores gained two honest lines instead of a fabricated F1 Score: the
     real judge mechanism (hand-rolled LLM-as-judge prompts matching the
-    IK FDE cohort's own Module 5 demo - confirmed from that module's own
+    the course's own Module 5 demo - confirmed from that module's own
     docstring, not DeepEval or any third-party library) and why F1 isn't
     computed live (needs a known relevant-chunk set, which only exists
     offline). "LLM Context" ("(what was actually sent)" removed from the
@@ -11269,8 +11269,8 @@ Explicitly deferred to a later, separate wave - not part of the above:
     - **Problem 6:** eval (judge) LLM calls are real and already separate
       from answer-generation calls in every pipeline (`_score_live_answer`
       makes exactly 2 calls - groundedness + completeness - confirmed by
-      reading `golden_dataset_harness.py`, not DeepEval, matching the IK
-      FDE Module 5 pattern already documented in the UI), but today's
+      reading `golden_dataset_harness.py`, not DeepEval, matching the
+      course's Module 5 pattern already documented in the UI), but today's
       single `llm_call_count` number doesn't separate them from
       generation/decomposition calls. **Fix:** add an explicit
       `eval_llm_call_count` (0 or 2, derived from whether `eval_scores` is
@@ -14701,7 +14701,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 - [ ] **Phase 174 — User-directed design proposal (spec + design doc only,
   implementation explicitly held): standardize eval scoring on DeepEval,
   for both live queries and the offline golden dataset.**
-  - **Context**: a deliberate deviation from this project's own IK FDE
+  - **Context**: a deliberate deviation from this project's own course-derived
     Module 5 courseware-fidelity default (hand-rolled LLM-as-judge
     prompts) - the user named that tradeoff themselves and chose to
     standardize on DeepEval anyway ("let's standardize this"), an
@@ -18656,7 +18656,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
       of `evaluate_retrieval_relevance()`, the LIVE per-message method
       genai-rag's own real-time Explainability panel uses). The golden-
       dataset gate (`scripts/run_release_gate.py`) actually calls
-      `calculate_retrieval_metrics()` - the IK FDE course's own exact-
+      `calculate_retrieval_metrics()` - the course's own exact-
       match method: each case has exactly 1 labeled
       `expected_source_document`, compared by filename against the top-k
       retrieved chunks. Confirmed by reading both functions directly, not
@@ -18679,7 +18679,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 - [x] **Phase 239 - real MCP tool discovery (`session.list_tools()`), replacing
   the current hardcoded-function-per-tool pattern, structured so a second
   MCP server could be merged into the same catalog later. User-directed,
-  explicitly grounded in the real IK FDE cohort course code
+  explicitly grounded in the real course code
   (`github.com/jeev1992/real-estate-negotiation-simulator/m1_mcp/
   sse_agent_client.py`, re-fetched directly for this phase, not from
   memory).**
@@ -18893,7 +18893,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
 
 - [x] **Phase 249 (done) — Real DeepEval integration, part 1: swap evaluate_groundedness()/evaluate_completeness()'s internals onto DeepEval, same signatures.** 827/827 tests pass (16 new: 7 for `GatewayDeepEvalModel`, 9 for the new `evaluate_groundedness`/`evaluate_completeness` logic against faked DeepEval metric classes; 6 obsolete hand-rolled-prompt tests removed from `test_llm_judge_scoring.py`, which now covers only the untouched `evaluate_retrieval_relevance`). `bandit -ll` clean. Live-verified against the real OpenAI API (not just faked) - both functions return correct, sensible scores/verdicts/explanations. **Real finding from that live verification, correcting this spec's own "Conservative = same live cost" assumption**: DeepEval's `FaithfulnessMetric` makes 4 real LLM calls per invocation (truths extraction, claims extraction, verdict generation, reason generation), not 1 - `GEval`/Completeness makes 2. Total live judge-call volume for just these 2 metrics went from 2 calls (today's hand-rolled, 1 each) to 6 calls - a 3x increase, not the "no live cost increase" this phase's own spec assumed before measuring. Flagged directly to the user as a correction, not buried - this phase's `EVAL_GROUNDEDNESS_ENABLED`/`EVAL_COMPLETENESS_ENABLED` toggles (Phase 246) still work identically to disable either if the new cost isn't acceptable.
   - **Spec:**
-    - **Context:** `docs/dev-reference/deepeval-standardization-design.html` - a deliberate, user-approved deviation from the IK FDE Module 5 courseware's hand-rolled LLM-as-judge prompts (`golden_dataset_harness.py`'s own docstring already says so). User-directed, 2026-10-22: proceed with install + implementation; the §05 cost/scope decision defaulted to the design doc's own "Conservative" option (not explicitly re-confirmed in this exact session turn, but the lower-risk, flagged default) - live query judge calls stay at 2 (same as today), no live cost increase. AnswerRelevancy/ContextualPrecision/ContextualRecall/golden-dataset F1-via-DeepEval are explicitly deferred to a follow-on phase, not built here - this phase's entire scope is "same 2 live judges, DeepEval-powered instead of hand-rolled."
+    - **Context:** `docs/dev-reference/deepeval-standardization-design.html` - a deliberate, user-approved deviation from the course's Module 5 courseware's hand-rolled LLM-as-judge prompts (`golden_dataset_harness.py`'s own docstring already says so). User-directed, 2026-10-22: proceed with install + implementation; the §05 cost/scope decision defaulted to the design doc's own "Conservative" option (not explicitly re-confirmed in this exact session turn, but the lower-risk, flagged default) - live query judge calls stay at 2 (same as today), no live cost increase. AnswerRelevancy/ContextualPrecision/ContextualRecall/golden-dataset F1-via-DeepEval are explicitly deferred to a follow-on phase, not built here - this phase's entire scope is "same 2 live judges, DeepEval-powered instead of hand-rolled."
     - **Real dependency conflicts found and resolved before any code** (not assumed clean): `deepeval` hard-requires `posthog>=7.0.0` on Python 3.12; `chromadb==1.3.5` required `posthog<6.0.0` - a genuine, non-resolver-glitch conflict. Fixed by bumping `chromadb` 1.3.5 -> 1.5.9 (drops the `posthog` dependency entirely in that release - confirmed by downloading and inspecting its wheel METADATA directly, not assumed). That bump pulled a newer `huggingface-hub` (1.30.0, not imported anywhere in `src/`, purely transitive via `tokenizers`) requiring `click>=8.4.2`, conflicting with `deepeval`'s own `click<8.4.0` - fixed by pinning `huggingface-hub==1.0.0` (no `click` dependency at all) and `click==8.3.3`. `pip check` clean, full 817-test suite + a real `chromadb.EphemeralClient()` add/get round-trip + a full `FastAPI` app import all verified passing after the bump, before any DeepEval code was written.
     - **A second real bug found via direct smoke-testing, not assumed working**: `deepeval` itself crashed on import with a `pydantic_core.ValidationError` on `OPENROUTER_BASE_URL` - `deepeval`'s own internal `pydantic-settings`-based `Settings` class happens to define a field with the exact same name as this project's own `.env` var, typed `Optional[AnyUrl]`; this project's `.env` had it set to an empty string (the OpenRouter provider isn't actively used), which `AnyUrl` rejects as invalid even though the field is Optional. Fixed by setting `OPENROUTER_BASE_URL` to its real value (`https://openrouter.ai/api/v1`, the same default `open_router_client.py`'s own `DEFAULT_BASE_URL` already falls back to when empty) in both `.env`/`.env.example` - zero behavior change for this project's own OpenRouter client, which already treated empty the same way. `DEEPEVAL_TELEMETRY_OPT_OUT=YES` was already present in both env files (pre-seeded by an earlier session), confirmed correct, no change needed.
     - **Data/API contracts:** none - `evaluate_groundedness()`/`evaluate_completeness()` keep their exact existing signatures and return dict shapes (`score`, `verdict`, `explanation`, `prompt`, `model_used`), so every call site (`eval_threshold.py`'s `run_enabled_eval_judges()`, `pipeline.py`'s corrective-retry path, the golden-dataset harness's own `score_case()`) needs zero changes. N/A for `docs/agent-reference/endpoint-request-response-contracts.md`.
@@ -18946,7 +18946,7 @@ Explicitly deferred to a later, separate wave - not part of the above:
     - **Out of scope:** `knn` is deliberately excluded from Dynamic's candidate set - its own docstring frames it as an exact-correctness baseline, not a production default (slower, full-corpus walk, especially costly on Pinecone) - not something a "pick the best one automatically" router should ever auto-select. `AgentSearchStrategy`/agentic-mode retrieval (see above). Any ML/embedding-based classifier for strategy selection - heuristic only, this phase. Hybrid search's own underlying implementation (BM25-at-query-time, no persisted sparse index, no Qdrant) - unchanged by this phase; it already exists and Dynamic can route to it as-is.
     - **Open questions:** none blocking - the heuristic's exact rules are a judgment call, flagged above with reasoning, adjustable later without any wire-shape change.
 
-- [ ] **Phase 253 (planned) — Hybrid search / ingestion refactor per IK FDE Cohort coursework (dense+sparse+Qdrant+RRF+agentic integration).** Not yet spec'd in detail - sequenced after Phase 252 lands and is verified, per the user's own explicit ordering. **Scope correction already found, recorded here before the detailed spec is written:** this project already has a working hybrid strategy (`query_retrieval/bm25_search.py::search_hybrid()`, Phase 221) - BM25 computed live over the full corpus at query time (`rank_bm25`, no persisted sparse index) fused with dense similarity via Reciprocal Rank Fusion, registered in `SEARCH_STRATEGIES["hybrid"]` and already reachable today. The IK FDE course material's own version is a different design: dense AND sparse embeddings generated and persisted at **ingestion** time, stored/queried in **Qdrant** (not Chroma/Pinecone, neither of which this project uses sparse vectors with today), fused with RRF, then integrated into the agentic RAG workflow specifically. Whether this phase (a) replaces the existing live-BM25 hybrid with a persisted-sparse-index design, (b) adds Qdrant as a third vector-store option alongside Chroma/Pinecone, and (c) how ingestion (`hrb_rag_ingestion_service`, already split out and live in production as of this session) picks up the new sparse-indexing responsibility, are real open scope questions - not decided here, need the user's own call before implementation starts, same as every other phase in this file.
+- [ ] **Phase 253 (planned) — Hybrid search / ingestion refactor per the course's own coursework (dense+sparse+Qdrant+RRF+agentic integration).** Not yet spec'd in detail - sequenced after Phase 252 lands and is verified, per the user's own explicit ordering. **Scope correction already found, recorded here before the detailed spec is written:** this project already has a working hybrid strategy (`query_retrieval/bm25_search.py::search_hybrid()`, Phase 221) - BM25 computed live over the full corpus at query time (`rank_bm25`, no persisted sparse index) fused with dense similarity via Reciprocal Rank Fusion, registered in `SEARCH_STRATEGIES["hybrid"]` and already reachable today. The course material's own version is a different design: dense AND sparse embeddings generated and persisted at **ingestion** time, stored/queried in **Qdrant** (not Chroma/Pinecone, neither of which this project uses sparse vectors with today), fused with RRF, then integrated into the agentic RAG workflow specifically. Whether this phase (a) replaces the existing live-BM25 hybrid with a persisted-sparse-index design, (b) adds Qdrant as a third vector-store option alongside Chroma/Pinecone, and (c) how ingestion (`hrb_rag_ingestion_service`, already split out and live in production as of this session) picks up the new sparse-indexing responsibility, are real open scope questions - not decided here, need the user's own call before implementation starts, same as every other phase in this file.
 - [x] **Phase 254 (done) — Wheel-based Docker build, pilot on hrb_chatbot_service only.** User-directed, 2026-10-24 - closer parity with a Java/Spring Boot build (`mvn package` → JAR → Docker COPYs the JAR) than the previous source-copy pattern. New root `pyproject.toml` (setuptools, `packages.find` over `src*`, `package-data` for `ai/guardrails_config/*.yml` since setuptools skips dirs with no `__init__.py`); `Dockerfile`'s builder stage now runs `pip wheel . --no-deps --no-build-isolation` then `pip install --no-deps` the resulting wheel into `/opt/venv`, and the runtime stage no longer `COPY`s `src/` at all - the code ships as an installed package inside `/opt/venv`'s site-packages, carried over by the existing `COPY --from=builder /opt/venv /opt/venv` line. `requirements.txt` stays the one source of truth for runtime dependencies (`dependencies = []` in `pyproject.toml`, deliberately) - this step packages only this project's own code, the same split Maven keeps between your `.class` files and the dependency JARs it downloads separately. Verified for real, not just read: `docker buildx build` succeeds, the wheel installs cleanly, a running container's `GET /ping` returns 200 and `GET /health` correctly reaches every backend check (guardrails config's `*.yml` loaded from inside the installed wheel, not a loose file - confirmed via `guardrails_supported_models` populating in the response), and the full local suite still passes unmodified (849/849) since nothing about local dev/test ever touched `src/` via anything but `Path(__file__)`-relative or `from src.hrb_chatbot...` imports, both unaffected by this change. **Scoped to this repo only** - the other 4 Python services (`hrb_api_gateway_service`, `hrb_rag_ingestion_service`, `hrb_rag_retrieval_service`, `hrb_platform_components`) still use the source-copy pattern; rolling this out to them is a separate, not-yet-approved task.
 - [x] **Phase 255 (done) — CI/CD Pipeline Visibility, re-grounded for the real 7-repo split (`Application` enum rebuild).** User-directed, 2026-10-24 - Phase 233's own `Application` enum (`backend`/`ingestion_lambda`/`lms_mcp`/`frontend`) was written before the microservices split and is now stale against the real system. **Built and verified, 2026-10-24**: backend full suite 850/850 (one new test added net - `test_ci_status_common_libs_shows_only_ci_no_deploy_workflow`); `hrb_chatbot_ui`'s `tsc -b` clean (exit 0) after `types.ts`/`AdminDashboardPage.tsx`/`PipelineStepper.tsx`/`App.css` all updated for the new 8-member enum - including removing the now-wrong `frontend`-only quiet-error treatment in `PipelineStepper.tsx` (a real GitHub-side error for `frontend` would have silently rendered as a non-error note, not a red banner, now that it has a real workflow) and the now-wrong `selectedApplication !== "frontend"` hide-the-whole-section condition in `AdminDashboardPage.tsx`. Not run against live GitHub this session (mocked/typed verification only, consistent with "implement and self-verify locally, stop before anything that touches what's live" - this phase changes no AWS/GitHub state itself, only how existing read-only API calls are routed).
   - **Context:** Live-verified against real GitHub remotes and real AWS state before writing this spec, not assumed: `hrb_chatbot_ui`, `hrb_api_gateway_service`, `hrb_rag_ingestion_service`, `hrb_rag_retrieval_service`, `hrb_platform_components`, and `hrb_common_libs` are all now genuinely separate `rvsree/*` GitHub repos, each with its own `.github/workflows/` (`hrb_common_libs` has only `ci.yml` - no deploy workflow, since it ships via git tag, not App Runner, per Phase 254's own note). The existing `GITHUB_TOKEN` already has confirmed read access to every one of them (`GET /repos/rvsree/<repo>/actions/workflows` → 200 for all 6, checked directly). `hrb_chatbot_ui` specifically now has a real `deploy.yml` (shipped this session) - the dashboard's current `frontend` early-return ("no automated CI/CD yet - deployed manually") is actively wrong, not just stale.

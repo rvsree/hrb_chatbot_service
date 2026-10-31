@@ -21,7 +21,7 @@ EMBEDS = {
     "docs/dev-reference/deployment-guide/01-deployment-aws.html": "deployment-aws-slide.png",
     "docs/dev-reference/rag-validation-gates.html": "rag-validation-gates-slide.png",
     "docs/dev-reference/database/db-model-overview.html": "db-model-overview-slide.png",
-    "docs/dev-reference/IK-FDE/course-topic-coverage-review.html": "course-topic-coverage-review-slide.png",
+    "docs/dev-reference/course-material/course-topic-coverage-review.html": "course-topic-coverage-review-slide.png",
     "docs/dev-reference/genai-rag-chat/architecture.html": "architecture-slide.png",
     # 2 images in one doc (high-level + low-level deployment diagrams) -
     # a list value, unlike every single-image entry above.

@@ -14,7 +14,7 @@ output. Keeps the RAG core untouched; the new work is a transport layer in
 front of it.
 
 **Course alignment requested, not yet actioned:** user wants this aligned to
-an IK FDE cohort topic covered "last week." Checked
+a course topic covered "last week." Checked
 `docs/id-fde-cohort/` - only `multi-agentic-system/Multi-Agent Travel
 Planner.ipynb` exists there; no audio/voice/speech material has been saved
 into this repo yet. **Need the actual notebook/material pointed to or
@@ -141,8 +141,8 @@ reimbursement rate for 2026" successfully.
 
 ## Follow-up: "Did we implement Harness Engineering silently?" (2026-10-09)
 
-Checked `docs/dev-reference/IK-FDE/course-topic-coverage-review.html` (the
-doc that catalogs all 69 named IK FDE techniques against this project's real
+Checked `docs/dev-reference/course-material/course-topic-coverage-review.html` (the
+doc that catalogs all 69 named course techniques against this project's real
 code) and the rest of `docs/` for the literal term "Harness Engineering" -
 **no exact match anywhere**, and it isn't one of the 69 named topics in that
 coverage review either.
@@ -158,7 +158,7 @@ What *does* exist, and was built deliberately across named, tracked phases
 
 If "Harness Engineering" refers to this eval-harness tooling: it exists,
 and it was built on purpose across tracked phases, not as a silent
-byproduct. If it refers to a different, specifically-named IK FDE module -
+byproduct. If it refers to a different, specifically-named course module -
 need the exact term or course material to check against, same as the Audio
 Agent item above.
 

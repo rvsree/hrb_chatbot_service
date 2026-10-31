@@ -1309,8 +1309,8 @@ One real duplicate found and fixed (see RAG-ROADMAP.md Phase 93 - a
   not something to silently delete): `scratch_gates.txt` (looks like a
   scrape/paste leftover), `docs/dev-reference/production-readiness-
   scorecard.html` (a real, styled page - not obviously disposable),
-  `docs/ik-fde-course-docs/` (a whole directory of unrelated IK FDE
-  course material, one 820KB notebook). None of these are something
+  `docs/ik-fde-course-docs/` (a whole directory of unrelated course
+  material, one 820KB notebook). None of these are something
   this session created - flagged for the user's own call.
 - **`docs/dev-reference/hrb-chatbot-github-actions-deploy_accessKeys.csv`
   re-confirmed still present and still contains a live-looking plaintext
@@ -1465,7 +1465,7 @@ return the connection-issue fallback now returns a real PTO balance.
 ## MCP gaps found by reviewing a cohort-mate's M1 MCP submission (2026-10-15)
 
 Compared `hrb_chatbot_service`'s MCP client (`ai/rag_pipeline/tools/mcp_tools/
-__init__.py`) and `hrb_lms_mcp`'s MCP server against the FDE cohort's M1
+__init__.py`) and `hrb_lms_mcp`'s MCP server against the course's M1
 MCP module as submitted by a cohort-mate (`jeev1992/real-estate-
 negotiation-simulator`, `m1_mcp/` - two `FastMCP` servers, a stdio client,
 an SSE client). Full table (transport, tool registration, auth, Resources/

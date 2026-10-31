@@ -11,7 +11,7 @@ golden datasets/A/B testing/eval tooling plus a diagnostic table for
 turning "the metric is bad" into "here's the specific layer to fix" (5),
 and REST API contract-first design - versioning, idempotency, rate
 limiting, validation, error handling, guardrails, pre-flight checks (6) -
-the kind of question an FDE interview round tends to probe hardest.
+the kind of question a tough technical interview round tends to probe hardest.
 
 ---
 
@@ -186,7 +186,7 @@ which is exactly the position this project is in.
 
 ## 4. Mock interview: performance, faithfulness, and evaluation metrics
 
-Framed as an actual FDE interview round would go - a question, then the
+Framed as an actual technical interview round would go - a question, then the
 answer you'd want to give, grounded in this project's real specifics
 wherever it can be rather than textbook definitions alone. Worth
 practicing saying these out loud, not just reading them.

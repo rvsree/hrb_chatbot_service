@@ -24,7 +24,7 @@ SLIDE_EXPORTS = {
     "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/deployment-aws-slide.png": 24,
     "docs/dev-reference/_archive/rag-validation-gates-slide.png": 25,
     "docs/dev-reference/hrb_chatbot_v3/architecture/database/db-model-overview-slide.png": 26,
-    "docs/dev-reference/IK-FDE/course-topic-coverage-review-slide.png": 27,
+    "docs/dev-reference/course-material/course-topic-coverage-review-slide.png": 27,
     "docs/dev-reference/hrb_chatbot_v3/rag-pipeline/retrieval/genai-rag-chat/architecture-slide.png": 28,
     "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/developer-onboarding/deployment-view-slide.png": 29,
     "docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/developer-onboarding/deploy-pipelines-slide.png": 30,

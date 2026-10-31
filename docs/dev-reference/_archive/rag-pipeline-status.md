@@ -3,13 +3,13 @@
 Snapshot: 2026-09-21. Two things this file tracks together, since they were
 reviewed together:
 
-1. **IK FDE cohort Modules 4/5/6** (RAG pipeline, evaluation, agentic RAG) -
+1. **The course's Modules 4/5/6** (RAG pipeline, evaluation, agentic RAG) -
    what's built here against the workshop's own samples.
 2. **The full request lifecycle** for `POST /v1/genai-rag/retrieve-document/query`
    ("the rag-search endpoint"), traced stage by stage, overlaid with the
    **six-layer validation gateway** framework (Input Firewall -> Access
    Control -> Retrieval Strategy Gate -> Context Gate -> Grounding Gate ->
-   Delivery Gate) - **not part of the FDE course**, this project's own
+   Delivery Gate) - **not part of the course**, this project's own
    addition, included here because it's the framework used to review
    api-gateway/guardrails/validation coverage end to end.
 
@@ -186,7 +186,7 @@ an oversight. See `docs/RAG-ROADMAP.md`'s Phase 44 entry.
 twice before it actually got built - once in an early batch request, once
 in a module comparison - and both times it went into a chat response
 instead of a table row here, which is how it sat unflagged. The rule now:
-any gap found against IK FDE cohort material gets a row in this file the
+any gap found against course material gets a row in this file the
 same turn it's found, not just a mention in conversation - table rows
 persist, chat responses don't.
 
@@ -202,7 +202,7 @@ persist, chat responses don't.
 
 **Real finding from running the harness (2026-09-22):** only 3 of 6 KB documents are currently indexed (401(k), Unpaid TimeOff, Sedgwick missing) - contextual precision/recall scored 0.00 on a 401(k) question because retrieval found zero 401(k) content. Not a harness bug - flagged, not yet fixed (re-upload is a separate action).
 
-## Observability (not an FDE course module - this project's own addition)
+## Observability (not a course module - this project's own addition)
 
 | Concept | Status | Notes |
 |---|---|---|

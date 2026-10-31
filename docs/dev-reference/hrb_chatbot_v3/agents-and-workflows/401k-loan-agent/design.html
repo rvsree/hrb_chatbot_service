@@ -87,7 +87,7 @@ footer.doc-foot { text-align: center; color: var(--fg-muted); font-size: 12px; p
 <header class="doc-head">
   <span class="eyebrow">design exploration &middot; not a scoped phase</span>
   <h1>401(k) Loan Agent — A2A Protocol Design</h1>
-  <p class="subtitle">What it would actually take to let an employee request a 401(k) plan loan through a real Agent-to-Agent (A2A) exchange with a separate "Empower Retirement" agent — grounded in this project's own real plan-loan policy text, the real IK FDE course material on Google ADK + A2A, and the architecture reasoning already recorded in two prior design docs.</p>
+  <p class="subtitle">What it would actually take to let an employee request a 401(k) plan loan through a real Agent-to-Agent (A2A) exchange with a separate "Empower Retirement" agent — grounded in this project's own real plan-loan policy text, the real course material on Google ADK + A2A, and the architecture reasoning already recorded in two prior design docs.</p>
   <div class="status-row">
     <span class="chip warn">Status: design only — no code, no new repo created</span>
     <span class="chip">Verdict: yes, a separate project (see &sect;01)</span>
@@ -102,7 +102,7 @@ footer.doc-foot { text-align: center; color: var(--fg-muted); font-size: 12px; p
   <ul class="spec-list">
     <li><strong>Is this a different project?</strong> Yes. Not a style preference — the real A2A wire protocol (Agent Cards, JSON-RPC, a server listening on its own port) only makes sense between <em>separate, independently-deployed</em> services. Nothing in <code class="inline">hrb_chatbot_service</code> today is deployed separately from the rest of itself. See &sect;01.</li>
     <li><strong>Should it use Google ADK?</strong> Yes — and this is the first real case where that's actually justified in this project's own history (see the callout in &sect;01). A new, standalone service has no existing agent framework to collide with.</li>
-    <li><strong>Should it follow the IK FDE course material?</strong> Yes, directly — <code class="inline">github.com/jeev1992/real-estate-negotiation-simulator</code>'s <code class="inline">m2_adk_multiagents</code> module, re-fetched live via the GitHub API for this doc (not from memory). &sect;03 maps its demos/exercises onto this use case's own design decisions, concept by concept.</li>
+    <li><strong>Should it follow the course material?</strong> Yes, directly — <code class="inline">github.com/jeev1992/real-estate-negotiation-simulator</code>'s <code class="inline">m2_adk_multiagents</code> module, re-fetched live via the GitHub API for this doc (not from memory). &sect;03 maps its demos/exercises onto this use case's own design decisions, concept by concept.</li>
   </ul>
 </section>
 
@@ -328,7 +328,7 @@ sequenceDiagram
   </table>
 </section>
 
-<footer class="doc-foot">hrb_chatbot_service &middot; design exploration &middot; grounded in real KB text + the real IK FDE m2_adk_multiagents module, not invented</footer>
+<footer class="doc-foot">hrb_chatbot_service &middot; design exploration &middot; grounded in real KB text + the real course's m2_adk_multiagents module, not invented</footer>
 
 </div>
 <script>mermaid.initialize({ startOnLoad: true, theme: "neutral" });</script>

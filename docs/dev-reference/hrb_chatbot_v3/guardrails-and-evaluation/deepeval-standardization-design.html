@@ -69,7 +69,7 @@ footer.doc-foot { text-align: center; color: var(--fg-muted); font-size: 12px; p
 <header class="doc-head">
   <span class="eyebrow">hrb_chatbot_service &middot; design proposal, not yet built</span>
   <h1>DeepEval Standardization</h1>
-  <p class="subtitle">Replacing the hand-rolled LLM-as-judge prompts with DeepEval, for both live queries and the offline golden dataset - a deliberate, user-approved deviation from the IK FDE Module 5 courseware pattern.</p>
+  <p class="subtitle">Replacing the hand-rolled LLM-as-judge prompts with DeepEval, for both live queries and the offline golden dataset - a deliberate, user-approved deviation from the course's Module 5 courseware pattern.</p>
   <div class="status-row">
     <span class="chip warn">Spec only - implementation explicitly held</span>
     <span class="chip bad">New dependency, needs approval before any code</span>
@@ -79,7 +79,7 @@ footer.doc-foot { text-align: center; color: var(--fg-muted); font-size: 12px; p
 
 <section>
   <div class="section-head"><span class="section-num">01</span><h2>Why this is a deviation, and why it's fine</h2></div>
-  <p>This project's own standing rule is implementation fidelity to the IK FDE Module 5 courseware, which teaches hand-rolled LLM-as-judge prompts, not a third-party eval library - <code class="inline">golden_dataset_harness.py</code>'s own docstring says so explicitly: "ported directly from the IK FDE cohort's modules/5_evaluation/demo.py, not DeepEval's built-in metrics." Introducing DeepEval reverses that, on both the live path and the offline harness.</p>
+  <p>This project's own standing rule was implementation fidelity to the course's Module 5 material, which teaches hand-rolled LLM-as-judge prompts, not a third-party eval library - <code class="inline">golden_dataset_harness.py</code>'s own docstring described it as ported directly from that module's own evaluation demo script, not DeepEval's built-in metrics. Introducing DeepEval reverses that, on both the live path and the offline harness.</p>
   <div class="callout good">
     <span class="callout-label">Why this is still the right call</span>
     <p>The user asked for this explicitly, named the courseware-fidelity tradeoff themselves, and chose to standardize on DeepEval anyway - "let's standardize this." That's an informed, deliberate override, not a silent drift this project's own rules would otherwise flag. Recorded here so the reasoning survives past this conversation.</p>

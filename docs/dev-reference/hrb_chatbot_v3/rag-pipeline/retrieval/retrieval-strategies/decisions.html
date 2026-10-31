@@ -158,7 +158,7 @@
       <dt>Context</dt><dd>Some vector DBs (Pinecone included) offer their own managed hybrid/sparse-dense search. This project built keyword/hybrid search itself instead, with the standalone <span class="mono">rank_bm25</span> library.</dd>
       <dt>Decision</dt><dd>Plain BM25 lexical ranking via <span class="mono">rank_bm25</span>, combined with vector results via Reciprocal Rank Fusion, computed in this project's own code - not a vector DB's built-in hybrid feature.</dd>
       <dt>Alternative</dt><dd>Use Pinecone's own sparse-dense hybrid search support - would remove the need to load the full corpus per query, but ties the implementation to one specific vector DB's own API, breaking the gateway-backed "swap providers freely" pattern this project uses everywhere else.</dd>
-      <dt>Why</dt><dd>Matches the IK FDE course's own workshop approach (per the module's docstring: "the workshop's own choice") - courseware fidelity, not re-derived independently this round.</dd>
+      <dt>Why</dt><dd>Matches the course's own workshop approach (per the module's docstring: "the workshop's own choice") - courseware fidelity, not re-derived independently this round.</dd>
       <dt>Trade-off</dt><dd class="trade-off">Real cost: BM25 needs the full corpus text per call, re-tokenized every time, rather than a persistent index a managed hybrid feature would maintain - a genuine scaling concern flagged in Design, not hidden.</dd>
     </dl>
   </section>

@@ -1,4 +1,4 @@
-"""Builds the Course Topic Coverage slide for docs/dev-reference/IK-FDE/
+"""Builds the Course Topic Coverage slide for docs/dev-reference/course-material/
 course-topic-coverage-review.html - that doc had only a status-pill table,
 no real diagram (milestone 2, doc-gap pass, 2026-10-14). Counts are read
 straight from the HTML's own status pills, not re-derived or guessed.
@@ -22,7 +22,7 @@ DST = r"C:\Users\sreed\Downloads\HRB_V2_Architecture_Deck_v11.pptx"
 DST_TMP = r"C:\Users\sreed\Downloads\HRB_V2_Architecture_Deck_v11_wip.pptx"
 SRC = DST if os.path.exists(DST) else DST_TMP
 
-HTML_PATH = "docs/dev-reference/IK-FDE/course-topic-coverage-review.html"
+HTML_PATH = "docs/dev-reference/course-material/course-topic-coverage-review.html"
 
 PARTIAL_FILL, PARTIAL_LINE = RGBColor(0xFB, 0xF1, 0xDD), RGBColor(0xED, 0xD6, 0xA2)
 GAP_FILL, GAP_LINE = RGBColor(0xEE, 0xF0, 0xF4), RGBColor(0xD5, 0xD9, 0xE3)
