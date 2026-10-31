@@ -20,9 +20,9 @@ class _FakeResponse:
 
 
 def _build_client(monkeypatch, fake_response, captured_calls=None):
-    def _fake_get(url, headers=None, timeout=None):
+    def _fake_get(url, headers=None, params=None, timeout=None):
         if captured_calls is not None:
-            captured_calls.append({"url": url, "headers": headers})
+            captured_calls.append({"url": url, "headers": headers, "params": params})
         return fake_response
 
     monkeypatch.setattr(langsmith_usage_client_module.requests, "get", _fake_get)
@@ -49,6 +49,10 @@ def test_get_current_month_usage_sends_the_api_key_header(monkeypatch):
 
     assert calls[0]["headers"] == {"x-api-key": "fake-key"}
     assert "granular-usage" in calls[0]["url"]
+    # Confirmed live this session: LangSmith 422s without these - a past
+    # version of this client computed them and never sent them.
+    assert "start_time" in calls[0]["params"]
+    assert "end_time" in calls[0]["params"]
 
 
 def test_get_current_month_usage_falls_back_to_raw_body_on_unrecognized_shape(monkeypatch):

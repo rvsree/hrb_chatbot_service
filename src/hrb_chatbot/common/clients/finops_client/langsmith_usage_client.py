@@ -92,7 +92,12 @@ class LangSmithUsageClient:
         try:
             with log_backend_call(logger, self.PROVIDER_NAME, "granular_usage"):
                 response = requests.get(
-                    url, headers={"x-api-key": self.api_key}, timeout=self.DEFAULT_TIMEOUT_SECONDS
+                    url,
+                    headers={"x-api-key": self.api_key},
+                    # Required by LangSmith's own API - confirmed live this
+                    # session: a bare GET with no start_time/end_time 422s.
+                    params={"start_time": period_start, "end_time": period_end},
+                    timeout=self.DEFAULT_TIMEOUT_SECONDS,
                 )
                 response.raise_for_status()
                 data = response.json()
