@@ -15,8 +15,11 @@ the live production backend for retrieval traffic, but `hrb_api_gateway_service`
 now fronts everything, and `hrb_rag_ingestion_service`/`hrb_rag_retrieval_service`/
 `hrb_platform_components` have split off functionality into their own
 deployed services (see
-[../docs/architecture/microservices-rollout-plan.html](../docs/architecture/microservices-rollout-plan.html)
-for the full current status). This repo's own retrieval code stays live until
+[microservices-rollout-plan.html](https://github.com/rvsree/hrb_emp_assist/blob/master/docs/architecture/microservices-rollout-plan.html)
+in the shared `hrb_emp_assist` repo for the full current status - GitHub
+shows `.html` docs as raw source, not a rendered page; see
+["Viewing the architecture docs"](#viewing-the-architecture-docs) below for
+where they actually render). This repo's own retrieval code stays live until
 `hrb_rag_retrieval_service`'s own cutover is approved - a separate, later decision.
 
 ## Live demo
@@ -27,6 +30,19 @@ This is the backend behind **[hrb-chatbot-ui.rvsree.dev](https://hrb-chatbot-ui.
 (e.g. `EMP052` / Eddy Employee / employee) and ask a benefits question. App
 Runner pauses this service by default for cost control - a slow first
 response means it's resuming, not broken.
+
+### Viewing the architecture docs
+
+This repo's `.html`/`.drawio` architecture docs (and the shared ones in
+`hrb_emp_assist`) **render correctly only through the live Admin
+Dashboard's docs viewer, or opened directly in a browser/draw.io** -
+GitHub's own file preview always shows these as raw source text, never a
+rendered page (confirmed: GitHub forces `Content-Type: text/plain` on
+every raw file, including `.html`, as an anti-XSS measure - it isn't a bug
+in this project). To see them rendered: log in to the live demo's Admin
+Dashboard as `ADM001` (per `docs/agent-reference/KNOWN-PERSONAS.md`) and
+open the **Architecture Docs** tab, or clone the repo and open the file
+locally.
 
 ## Tech Stack
 
@@ -128,21 +144,24 @@ copy was built from.
 ## Diagrams and cross-service docs
 
 **Moved 2026-10-26**: platform-level docs (architecture, diagrams, auth,
-build-and-deploy) now live one level up, at `hrb_emp_assist/docs/` - this
-repo keeps only its own service-specific docs under
-`docs/dev-reference/hrb_chatbot_v3/`.
+build-and-deploy) now live one level up, at `hrb_emp_assist/docs/` - a
+**separate GitHub repo** from this one, this repo keeps only its own
+service-specific docs under `docs/dev-reference/hrb_chatbot_v3/`. The
+links below point into that sibling repo (see
+["Viewing the architecture docs"](#viewing-the-architecture-docs) above
+for why they show as raw source on GitHub).
 
 Start at
-[../docs/architecture/platform-overview.html](../docs/architecture/platform-overview.html)
+[platform-overview.html](https://github.com/rvsree/hrb_emp_assist/blob/master/docs/architecture/platform-overview.html)
 - the one-page hub: business capabilities, all 8 repos, one diagram, links
 to everything else. Every application's own current-state, target-state
 (scaling), and deployment architecture - as real, editable `.drawio` files,
 not static images - is indexed at
-[../docs/architecture/diagrams/README.md](../docs/architecture/diagrams/README.md).
+[docs/architecture/diagrams/README.md](https://github.com/rvsree/hrb_emp_assist/blob/master/docs/architecture/diagrams/README.md).
 This repo's own 3 diagrams:
-[current state](../docs/architecture/diagrams/hrb-chatbot-service-current-state-architecture.drawio),
-[target state](../docs/architecture/diagrams/hrb-chatbot-service-target-state-scaling-architecture.drawio),
-[deployment](../docs/architecture/diagrams/hrb-chatbot-service-deployment-architecture.drawio).
+[current state](https://github.com/rvsree/hrb_emp_assist/blob/master/docs/architecture/diagrams/hrb-chatbot-service-current-state-architecture.drawio),
+[target state](https://github.com/rvsree/hrb_emp_assist/blob/master/docs/architecture/diagrams/hrb-chatbot-service-target-state-scaling-architecture.drawio),
+[deployment](https://github.com/rvsree/hrb_emp_assist/blob/master/docs/architecture/diagrams/hrb-chatbot-service-deployment-architecture.drawio).
 
 ## Environments
 

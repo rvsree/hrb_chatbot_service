@@ -26,7 +26,7 @@ Two companion diagrams, different purposes:
 - [rag-architecture-layers.html](rag-architecture-layers.html) - the same
   request traced by system layer instead of validation gate, with the
   actual library and model named per stage.
-- [rag-guardrails-design.html](rag-guardrails-design.html) - a **design
+- [rag-guardrails-design.html](../hrb_chatbot_v3/architecture/rag-guardrails-design.html) - a **design
   blueprint** for the still-unbuilt input/output guardrails (everything on
   that page is red), not a status page - what each check would actually do.
 

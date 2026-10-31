@@ -85,7 +85,8 @@ project's own Postgres, viewed through its own Admin Dashboard, not
 LangSmith's UI. For which *other* services across the platform have (or
 don't have) LangSmith wired, and what tracing data does/doesn't support
 for audit purposes, see the parent folder's own
-[docs/observability-governance.md](../../../docs/observability-governance.md).
+[observability-governance.md](https://github.com/rvsree/hrb_emp_assist/blob/master/docs/observability-governance.md)
+in the shared `hrb_emp_assist` repo.
 
 They *can* be connected - LangSmith supports building a "Dataset" from
 real captured traces (its own "add to dataset" feature), which is

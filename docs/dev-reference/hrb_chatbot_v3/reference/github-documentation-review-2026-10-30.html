@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<title>Documentation Review</title>
+<meta name="description" content="A friend's-eye review of the HRB Chatbot GitHub repos and live demo before sharing with reviewers.">
+<style>
+  :root {
+    --bg: #f4f4f7; --surface: #ffffff; --surface-alt: #f0f0f5; --border: #dcdce6;
+    --text: #181a24; --text-muted: #565c70; --text-faint: #888da0;
+    --crit: #b42318; --crit-bg: #fde8e6; --crit-border: #f5c2bc;
+    --warn: #9a5a0c; --warn-bg: #fdf1e0; --warn-border: #f3d4a0;
+    --ok: #2f6f4f; --ok-bg: #e6f1ea; --ok-border: #b7dcc5;
+    --accent: #3a5bd9; --accent-soft: #e8ecfb;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15161c; --surface: #1d1f28; --surface-alt: #23252f; --border: #343745;
+      --text: #e8e9ee; --text-muted: #a2a6b8; --text-faint: #767b8f;
+      --crit: #ff8a80; --crit-bg: #3a1f1f; --crit-border: #5c2b28;
+      --warn: #f0b457; --warn-bg: #3a2f1a; --warn-border: #5c4726;
+      --ok: #7ed9a8; --ok-bg: #1c3528; --ok-border: #2d5540;
+      --accent: #8fa8ff; --accent-soft: #232a4a;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15161c; --surface: #1d1f28; --surface-alt: #23252f; --border: #343745;
+    --text: #e8e9ee; --text-muted: #a2a6b8; --text-faint: #767b8f;
+    --crit: #ff8a80; --crit-bg: #3a1f1f; --crit-border: #5c2b28;
+    --warn: #f0b457; --warn-bg: #3a2f1a; --warn-border: #5c4726;
+    --ok: #7ed9a8; --ok-bg: #1c3528; --ok-border: #2d5540;
+    --accent: #8fa8ff; --accent-soft: #232a4a;
+    color-scheme: dark;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: 'IBM Plex Sans', system-ui, sans-serif; line-height: 1.55;
+    padding-inline: 16px;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding-block: 28px 60px; }
+  h1 { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: clamp(1.5rem, 4vw, 2rem); margin: 0 0 6px; text-wrap: balance; }
+  .subtitle { color: var(--text-muted); font-size: 0.95rem; margin: 0 0 28px; max-width: 65ch; }
+  h2 { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 1.15rem; margin: 40px 0 6px; border-bottom: 2px solid var(--border); padding-bottom: 8px; }
+  .h2-eyebrow { display: block; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 2px; }
+  p { margin: 0 0 12px; }
+  .mono { font-family: var(--mono); font-size: 0.92em; background: var(--surface-alt); padding: 1px 5px; border-radius: 4px; }
+  a { color: var(--accent); }
+
+  .persona-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 18px; margin: 18px 0 30px; display: flex; gap: 14px; align-items: flex-start;
+  }
+  .persona-box .emoji { font-size: 1.6rem; line-height: 1; }
+  .persona-box p { margin: 0; color: var(--text-muted); font-size: 0.92rem; }
+
+  .sev-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 28px; }
+  .sev-chip { font-size: 0.78rem; font-weight: 700; padding: 5px 12px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+  .sev-chip.crit { color: var(--crit); background: var(--crit-bg); border-color: var(--crit-border); }
+  .sev-chip.warn { color: var(--warn); background: var(--warn-bg); border-color: var(--warn-border); }
+  .sev-chip.ok { color: var(--ok); background: var(--ok-bg); border-color: var(--ok-border); }
+
+  .finding {
+    background: var(--surface); border: 1px solid var(--border); border-left-width: 4px;
+    border-radius: 0 10px 10px 0; padding: 16px 18px; margin: 14px 0;
+  }
+  .finding.crit { border-left-color: var(--crit); }
+  .finding.warn { border-left-color: var(--warn); }
+  .finding.ok { border-left-color: var(--ok); }
+  .finding-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .finding-title { font-weight: 700; font-size: 1rem; }
+  .finding-tag { font-size: 0.72rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .finding.crit .finding-tag { color: var(--crit); background: var(--crit-bg); }
+  .finding.warn .finding-tag { color: var(--warn); background: var(--warn-bg); }
+  .finding.ok .finding-tag { color: var(--ok); background: var(--ok-bg); }
+  .finding dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 10px 0 0; font-size: 0.9rem; }
+  .finding dt { color: var(--text-faint); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; padding-top: 2px; }
+  .finding dd { margin: 0; min-width: 0; }
+  .finding ul.evidence { margin: 4px 0 0; padding-left: 18px; font-size: 0.88rem; color: var(--text-muted); }
+  .finding ul.evidence li { margin-bottom: 2px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin: 10px 0; }
+  table.scroll-wrap { display: block; overflow-x: auto; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-faint); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; font-weight: 600; }
+
+  .status-pill { display: inline-block; font-size: 0.72rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+  .status-pill.not-yet { color: var(--crit); background: var(--crit-bg); }
+  .status-pill.fixed { color: var(--ok); background: var(--ok-bg); }
+  .status-pill.needs-call { color: var(--warn); background: var(--warn-bg); }
+
+  footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--text-faint); font-size: 0.82rem; }
+</style>
+
+<div class="wrap">
+  <h1>Documentation &amp; Live Demo Review</h1>
+  <p class="subtitle">Reviewed as a first-time visitor would see it - GitHub repos (<span class="mono">hrb_chatbot_service</span>, <span class="mono">hrb_chatbot_ui</span>, the shared <span class="mono">hrb_emp_assist</span> docs tree) plus the live demo at <span class="mono">hrb-chatbot-ui.rvsree.dev</span>. 2026-10-30.</p>
+
+  <div class="persona-box">
+    <span class="emoji">🙋</span>
+    <p><strong>Acting as the friend being asked to review:</strong> opens the GitHub repo link from WhatsApp, reads the README top to bottom, clicks every doc/diagram link it offers, then opens the live demo. Every finding below is something that view would actually hit - not a theoretical code smell.</p>
+  </div>
+
+  <div class="sev-row">
+    <span class="sev-chip crit">2 critical - hit on the very first README read</span>
+    <span class="sev-chip warn">3 medium - hit while exploring deeper docs</span>
+    <span class="sev-chip ok">Already fixed this session, confirmed live</span>
+  </div>
+
+  <h2><span class="h2-eyebrow">Critical · Root Cause</span>Links that only ever worked on your own machine</h2>
+  <div class="finding crit">
+    <div class="finding-head">
+      <span class="finding-title">README.md in both repos links "up and out" to a folder that doesn't exist on GitHub</span>
+      <span class="finding-tag">Breaks on first click</span>
+    </div>
+    <p>Both repos' README.md use relative links like <span class="mono">../docs/architecture/platform-overview.html</span>. Locally this resolves fine because <span class="mono">hrb_chatbot_service</span> happens to sit as a subfolder of a shared <span class="mono">hrb_emp_assist</span> folder on your own disk. But on GitHub, <span class="mono">hrb_chatbot_service</span>, <span class="mono">hrb_chatbot_ui</span>, and <span class="mono">hrb_emp_assist</span> are three <em>separate, independent</em> repositories - there is no parent folder to go "up" into. The link is simply dead.</p>
+    <p><strong>This is almost certainly the exact thing your friends hit</strong> - it's the first set of doc/diagram links in the README, and every one of them fails the same way.</p>
+    <dl>
+      <dt>Confirmed by</dt><dd>Walking every relative link in both READMEs and checking whether it resolves inside the repo's own git root; 6 in <span class="mono">hrb_chatbot_service/README.md</span>, 6 in <span class="mono">hrb_chatbot_ui/README.md</span>, all of the form <span class="mono">../docs/...</span> or <span class="mono">../hrb_chatbot_service/docs/...</span>.</dd>
+      <dt>Where</dt><dd>Both repos' README.md and CLAUDE.md, plus <span class="mono">docs/agent-reference/testing-strategies.md</span> (one link).</dd>
+    </dl>
+  </div>
+
+  <div class="finding crit">
+    <div class="finding-head">
+      <span class="finding-title">Even a correctly-linked .html or .drawio file opens as source code on GitHub</span>
+      <span class="finding-tag">Not a bug - a hosting limit</span>
+    </div>
+    <p>This is the "opening the code instead of actual diagrams" symptom, and it's not fixable by changing a link - GitHub's blob viewer shows <span class="mono">.html</span> files as syntax-highlighted source text, never as a rendered page. Clicking "raw" doesn't help either: GitHub forces <span class="mono">Content-Type: text/plain</span> on every raw file (their own anti-XSS hardening), confirmed directly against <span class="mono">raw.githubusercontent.com</span>. The same applies to <span class="mono">.drawio</span> diagrams - GitHub has no native renderer for them at all, so they show as raw XML.</p>
+    <p>The project's own docs already serve these correctly <em>when viewed through the live Admin Dashboard</em> (presigned S3 URLs, confirmed working all session) - the gap is that nothing tells a GitHub-only visitor that's where to look.</p>
+    <dl>
+      <dt>Confirmed by</dt><dd>Direct <span class="mono">curl</span> against both the GitHub blob URL and the raw URL for a real doc file - headers show <span class="mono">Content-Type: text/plain</span> on the raw file every time.</dd>
+      <dt>Fix is a choice, not a patch</dt><dd>Point reviewers at the live Admin Dashboard's doc viewer instead of raw GitHub browsing, and/or stand up GitHub Pages for the docs tree so <span class="mono">.html</span> files actually render as pages. Mermaid diagrams are unaffected - GitHub renders those natively already (confirmed: the README's tech-stack diagram is Mermaid and displays fine).</dd>
+    </dl>
+  </div>
+
+  <h2><span class="h2-eyebrow">Medium · Stale Since the Oct 23 Reorg</span>Cross-links inside the docs themselves</h2>
+  <div class="finding warn">
+    <div class="finding-head">
+      <span class="finding-title">HANDOFF.md - 5 of its own links are broken</span>
+      <span class="finding-tag">First doc a new session/reviewer is told to read</span>
+    </div>
+    <dl>
+      <dt>Links</dt><dd><span class="mono">../README.md</span> (one <span class="mono">../</span> short - needs two to reach the real repo-root README), plus 4 links to <span class="mono">docs/dev-reference/developer-onboarding/</span>, <span class="mono">build-guide/</span>, <span class="mono">deployment-verification-guide/</span>, <span class="mono">production-monitoring-guide/</span> - all missing the <span class="mono">hrb_chatbot_v3/deployment-and-ops/</span> segment the Oct 23 reorg added.</dd>
+      <dt>Real location</dt><dd><span class="mono">docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/{developer-onboarding,build-guide,deployment-verification-guide,production-monitoring-guide}/guide.html</span> - confirmed these files exist there now.</dd>
+    </dl>
+  </div>
+
+  <div class="finding warn">
+    <div class="finding-head">
+      <span class="finding-title">2 more stale post-reorg links, same pattern</span>
+      <span class="finding-tag">Smaller blast radius</span>
+    </div>
+    <dl>
+      <dt><span class="mono">sample-validation-gateway-queries.md</span></dt><dd>Links to <span class="mono">../rag-pipeline-status.md</span> and <span class="mono">../rag-validation-gates.html</span> - real files now live under <span class="mono">docs/dev-reference/_archive/</span>, one level further up than the link expects.</dd>
+      <dt><span class="mono">_archive/rag-pipeline-status.md</span></dt><dd>Links to <span class="mono">rag-guardrails-design.html</span> in its own folder - the real file moved to <span class="mono">docs/dev-reference/hrb_chatbot_v3/architecture/rag-guardrails-design.html</span> when it was updated out of the archive.</dd>
+    </dl>
+  </div>
+
+  <div class="finding warn">
+    <div class="finding-head">
+      <span class="finding-title">4 docs CLAUDE.md references don't exist anywhere - not even in S3</span>
+      <span class="finding-tag">Content loss, not a path bug</span>
+    </div>
+    <p>CLAUDE.md's "Docs worth reading" section links <span class="mono">db-model-overview.html</span>, <span class="mono">oauth2-auth-architecture.html</span>, <span class="mono">oauth2-cot-feasibility.html</span>, and <span class="mono">auth-server-project-scope.html</span>, each with a real, specific description (schemas, the MCP OAuth2 flow, a separate auth-server design). Unlike the <span class="mono">api-gateway-service</span> docs fixed earlier this session, these 4 aren't recoverable from the shared S3 bucket either - they're genuinely gone, or were never actually written. This one needs your own call (recreate, or remove the references) since there's no source to recover from.</p>
+  </div>
+
+  <h2><span class="h2-eyebrow">Already handled</span>What this session already fixed and confirmed live</h2>
+  <table class="scroll-wrap">
+    <thead><tr><th>Item</th><th>Status</th><th>Confirmed via</th></tr></thead>
+    <tbody>
+      <tr><td>Admin Dashboard doc links showing stale/missing data (the original complaint that kicked off today's work)</td><td><span class="status-pill fixed">Fixed</span></td><td>Root cause was a shared local/prod Redis cache with no environment separation - fixed and deployed.</td></tr>
+      <tr><td>14 broken <span class="mono">scripts/sync_admin_docs.py</span> registrations (wrong path, pre-dated the Oct 23 reorg)</td><td><span class="status-pill fixed">Fixed</span></td><td>Recovered real content from the already-live S3 objects rather than guessing; re-synced to production.</td></tr>
+      <tr><td>1 broken link on the architecture hub page (<span class="mono">platform-overview.html</span>)</td><td><span class="status-pill fixed">Fixed</span></td><td>Pointed at the same real doc every sibling node already uses.</td></tr>
+      <tr><td>34 orphan S3 files (pre-subdirectory-scheme legacy uploads)</td><td><span class="status-pill fixed">Fixed</span></td><td>Deleted; bucket count confirmed 114 → 80.</td></tr>
+      <tr><td>Production now has all 86 real admin docs, including the newly-recovered/added ones</td><td><span class="status-pill fixed">Fixed</span></td><td>Live <span class="mono">GET /v1/admin/docs</span> count confirmed 62 → 86.</td></tr>
+    </tbody>
+  </table>
+
+  <h2><span class="h2-eyebrow">Recommendation</span>What to do before your friends look again</h2>
+  <table class="scroll-wrap">
+    <thead><tr><th>#</th><th>Fix</th><th>Effort</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Rewrite the ~12 escaping <span class="mono">../docs/...</span> links in both READMEs (and CLAUDE.md) as absolute <span class="mono">https://github.com/rvsree/hrb_emp_assist/blob/master/docs/...</span> URLs - these at least resolve to <em>something</em> real on GitHub, even though point 2 below still applies to them.</td><td>Small, mechanical</td></tr>
+      <tr><td>2</td><td>Add one clear line near the top of both READMEs: "Architecture docs/diagrams render correctly only inside the live Admin Dashboard's docs viewer or draw.io itself - GitHub's own file preview shows raw source for these." Saves every future reviewer the same confusion.</td><td>Small</td></tr>
+      <tr><td>3</td><td>Fix the 7 stale post-reorg cross-links (HANDOFF.md ×5, sample-validation-gateway-queries.md ×2, _archive/rag-pipeline-status.md ×1) to their real current paths.</td><td>Small, mechanical</td></tr>
+      <tr><td>4</td><td>Decide what to do about the 4 genuinely-missing CLAUDE.md-referenced docs - recreate them or remove the references.</td><td>Your call - needs a decision, not just an edit</td></tr>
+    </tbody>
+  </table>
+
+  <footer>Compiled 2026-10-30 by walking every relative link in both repos' markdown/HTML docs programmatically (not a manual click-through), then verifying the structural GitHub cross-repo issue and the raw-content-type behavior directly against github.com and raw.githubusercontent.com. Nothing in this document has been fixed yet except where the "Already handled" table says so explicitly.</footer>
+</div>
+</html>

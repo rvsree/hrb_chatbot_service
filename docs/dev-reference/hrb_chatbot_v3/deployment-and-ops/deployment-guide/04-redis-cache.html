@@ -91,17 +91,17 @@ common/clients/cache_client/cache_gateway.py   # singleton, same lazy-build patt
 (function () {
   if (location.protocol !== "file:") return;
   var LOCAL_DOCS = {
-    "index": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/index.html",
-    "deployment-aws": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/01-deployment-aws.html",
-    "neon-postgres": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/02-neon-postgres.html",
-    "pinecone-standard": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/03-pinecone-standard.html",
-    "redis-cache": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/04-redis-cache.html",
-    "rag-ingestion-batch": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/05-rag-ingestion-batch.html",
-    "nfr-reliability-resilience": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/06-nfr-reliability-resilience.html",
-    "reactjs-ui": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/07-reactjs-ui.html",
-    "milestone-plan": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/08-milestone-plan.html",
-    "custom-domain-setup": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/09-custom-domain-setup.html",
-    "observability-howto": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_chatbot_service/docs/dev-reference/deployment-guide/10-observability-howto.html"
+    "index": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/index.html",
+    "deployment-aws": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/01-deployment-aws.html",
+    "neon-postgres": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/docs/deployment-and-ops/deployment-guide/02-neon-postgres.html",
+    "pinecone-standard": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/docs/deployment-and-ops/deployment-guide/03-pinecone-standard.html",
+    "redis-cache": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/docs/deployment-and-ops/deployment-guide/04-redis-cache.html",
+    "rag-ingestion-batch": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/05-rag-ingestion-batch.html",
+    "nfr-reliability-resilience": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/docs/deployment-and-ops/deployment-guide/06-nfr-reliability-resilience.html",
+    "reactjs-ui": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/docs/deployment-and-ops/deployment-guide/07-reactjs-ui.html",
+    "milestone-plan": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/docs/deployment-and-ops/deployment-guide/08-milestone-plan.html",
+    "custom-domain-setup": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/09-custom-domain-setup.html",
+    "observability-howto": "file:///C:/workspace/2026-v1/interview-kickstart/hrb_emp_assist/hrb_chatbot_service/docs/dev-reference/hrb_chatbot_v3/deployment-and-ops/deployment-guide/10-observability-howto.html"
   };
   document.querySelectorAll('a[href*="/admin/open-doc"]').forEach(function (a) {
     var match = a.href.match(/[?&]type=([^&]+)/);

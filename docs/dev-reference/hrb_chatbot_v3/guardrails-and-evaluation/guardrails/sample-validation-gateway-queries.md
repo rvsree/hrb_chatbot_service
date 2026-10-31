@@ -2,8 +2,8 @@
 
 10 multi-part (compound) questions for exercising this project's 6-gate
 validation framework in the live app - companion to
-[rag-pipeline-status.md](../rag-pipeline-status.md) and
-[rag-validation-gates.html](../rag-validation-gates.html), same "safe to
+[rag-pipeline-status.md](../../../_archive/rag-pipeline-status.md) and
+[rag-validation-gates.html](../../../_archive/rag-validation-gates.html), same "safe to
 skim, not load-bearing" status per `CLAUDE.md`. Each question is either
 pulled directly from this project's own golden datasets
 (`resources/golden_dataset/golden_dataset.json`,
