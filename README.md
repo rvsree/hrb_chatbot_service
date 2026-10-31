@@ -5,7 +5,8 @@ knowledge base (`resources/kb_docs/`). Built AI-agent-assisted under a
 spec-first process (a PreToolUse hook blocks code changes without a written
 spec; implementer/reviewer subagents execute and check each phase), one
 feature at a
-time, to apply RAG concepts from the Interview Kickstart FDE cohort - see
+time, as a personal project to learn agentic AI systems hands-on and pair
+that with my software engineering background - see
 [docs/agent-reference/RAG-ROADMAP.md](docs/agent-reference/RAG-ROADMAP.md) for the phase-by-phase plan and
 current status (that file is the source of truth for "what's done" - this
 README doesn't repeat it).
