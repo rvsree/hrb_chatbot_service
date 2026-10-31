@@ -77,7 +77,8 @@ noticing what's actually being asked versus what was guessed at.
 
 **These three stores and LangSmith are two separate systems, not one.**
 LangSmith (this project's tracing tool, see
-[HANDOFF.md](HANDOFF.md)/this session's own LangSmith work) captures
+[production-monitoring-guide](../dev-reference/hrb_chatbot_v3/deployment-and-ops/production-monitoring-guide/guide.html)
+for reading a real trace) captures
 *traces* - the step-by-step record of one request (every LLM call,
 latency, tokens). The three stores on this page capture *questions and
 their quality scores* - a different kind of record, held in this

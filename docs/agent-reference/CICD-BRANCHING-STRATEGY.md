@@ -231,8 +231,7 @@ from there) - here's the honest trade-off rather than quietly picking one:
 
 **Not implemented - this is a decision for you, not a code change I made
 unprompted**, since it's an ongoing AWS cost, the same category of
-decision as the Neon Postgres signup already tracked in
-[`HANDOFF.md`](HANDOFF.md). Say the word and Option B is straightforward
+decision as the Neon Postgres signup. Say the word and Option B is straightforward
 to build: a second App Runner service (same image, same IAM pattern as
 today's), a `develop`-triggered job in `deploy.yml` (or a sibling
 `deploy-staging.yml`) pointed at its ARN/URL instead of production's.

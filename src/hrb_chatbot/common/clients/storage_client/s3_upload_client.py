@@ -140,19 +140,31 @@ def upload_admin_doc_file(local_path: str, s3_key: str, content_type: str) -> No
             s3_client.put_object(Bucket=bucket, Key=s3_key, Body=file_handle.read(), ContentType=content_type)
 
 
+# Phase 281 - extensions no browser can render as a page. S3 serves these
+# as application/xml (or similar) with no Content-Disposition, so without
+# forcing a download the browser just shows raw source text - never the
+# actual diagram.
+NON_RENDERABLE_DOC_EXTENSIONS = {".drawio"}
+
+
 def generate_admin_doc_download_url(s3_key: str) -> dict:
     """Phase 170 (round 1) - presigned-GET for the admin doc viewer,
-    symmetric to generate_leave_document_download_url()."""
+    symmetric to generate_leave_document_download_url(). Phase 281 - a
+    non-renderable file type (.drawio) forces a real download instead of
+    displaying as raw text in the browser."""
     bucket = read_setting(None, "LEAVE_DOCS_S3_BUCKET")
     region = read_setting(None, "AWS_REGION", DEFAULT_REGION)
     expiry_seconds = int(read_setting(None, "S3_PRESIGNED_URL_EXPIRY_SECONDS", DEFAULT_EXPIRY_SECONDS))
 
     s3_client = boto3.client("s3", region_name=region)
+    params = {"Bucket": bucket, "Key": s3_key}
+    if Path(s3_key).suffix.lower() in NON_RENDERABLE_DOC_EXTENSIONS:
+        params["ResponseContentDisposition"] = f'attachment; filename="{Path(s3_key).name}"'
 
     with log_backend_call(logger, "s3", "generate_presigned_url", s3_key=s3_key):
         download_url = s3_client.generate_presigned_url(
             "get_object",
-            Params={"Bucket": bucket, "Key": s3_key},
+            Params=params,
             ExpiresIn=expiry_seconds,
         )
 

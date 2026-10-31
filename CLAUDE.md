@@ -90,8 +90,7 @@ Client layer (`common/clients/**`) returns errors as data (`{"status": "unhealth
 
 ## Docs worth reading before non-trivial changes
 
-- [docs/agent-reference/HANDOFF.md](docs/agent-reference/HANDOFF.md) - **read this one first** if picking up the project with no prior context; it's the orientation layer everything else points into (also has the real current branch names - `master`/`develop`/`feature-langchain-rag-pipeline` - after a GitHub rename that left stale `main`/`developer` references elsewhere in git history).
-- [docs/agent-reference/RAG-ROADMAP.md](docs/agent-reference/RAG-ROADMAP.md) - phase-by-phase history and current status; historical, not updated retroactively.
+- [docs/agent-reference/RAG-ROADMAP.md](docs/agent-reference/RAG-ROADMAP.md) - phase-by-phase history and current status; historical, not updated retroactively. Real current branch names: `master`/`develop`/`feature-langchain-rag-pipeline` - a GitHub rename left stale `main`/`developer` references elsewhere in older git history.
 - [docs/agent-reference/CODING-STANDARDS.md](docs/agent-reference/CODING-STANDARDS.md) - error handling, logging, comment style, naming, API contract conventions.
 - [docs/agent-reference/FAQ.md](docs/agent-reference/FAQ.md) - design-decision rationale (document update strategy, where RAG metadata lives, indexing/categorization).
 - [docs/agent-reference/BACKLOG.md](docs/agent-reference/BACKLOG.md) - known gaps, deliberately deferred work.
