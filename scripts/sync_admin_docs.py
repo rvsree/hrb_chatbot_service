@@ -596,6 +596,21 @@ DOCS_TO_SYNC = {
             "application/xml",
         ),
     },
+    # 2026-11-01 - beginner-friendly, single-page overview (not the usual
+    # 5-file Spec/Architecture/Design/Decisions set - just one colored,
+    # diagram-heavy page) covering RAG-ROADMAP.md Phases 261/262/284/286/
+    # 287/288: the App Runner RUNNING/PAUSED/OPERATION_IN_PROGRESS state
+    # machine, every pause/resume trigger, the real self-lockout incident,
+    # and why hrb-wake-up has to be a Lambda rather than an always-on
+    # service. Written for the user directly, who asked for AWS-specific
+    # docs tailored to someone newer to this stack.
+    "aws-pause-resume-lifecycle": {
+        "overview": (
+            "AWS Pause/Resume Lifecycle - Overview",
+            "docs/dev-reference/hrb_chatbot_v3/platform-and-admin/aws-pause-resume-lifecycle/overview.html",
+            "text/html",
+        ),
+    },
     # 2026-10-30 - detailed child doc set for RAG Ingestion, separated out
     # of the old generic "RAG Ingestion/Retrieval/Response Generation"
     # framing per user feedback that a single generic doc per pipeline

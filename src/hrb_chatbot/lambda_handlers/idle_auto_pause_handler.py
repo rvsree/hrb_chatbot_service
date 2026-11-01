@@ -26,7 +26,11 @@ Phase 262/286 originally added that exclusion as a stopgap after
 hrb-chatbot auto-pausing itself left no application-level way to resume
 anything; Phase 287's new, standalone wake-up Lambda (its own Function
 URL, independent of hrb-chatbot's own runtime state) is the real fix, so
-hrb-chatbot goes back to being a normal, auto-pausable service here."""
+hrb-chatbot goes back to being a normal, auto-pausable service here.
+
+Phase 288 - the idle threshold itself (`idle_auto_pause_threshold_minutes`)
+now reads from the shared Postgres app_settings table, not a Lambda env
+var - changeable from the Settings UI at runtime, no redeploy needed."""
 
 import asyncio
 import json
@@ -36,7 +40,6 @@ from datetime import UTC, datetime
 from src.hrb_chatbot.common.clients.aws_client.apprunner_client import AppRunnerClient
 from src.hrb_chatbot.common.clients.aws_client.lambda_secrets_bootstrap import load_secrets_into_env
 from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
-from src.hrb_chatbot.common.config.settings import read_setting
 
 ACTIVITY_SETTING_KEY = "active_user_last_seen_at"
 DEFAULT_IDLE_THRESHOLD_MINUTES = 60
@@ -80,8 +83,15 @@ def _get_logger() -> logging.Logger:
 logger = _get_logger()
 
 
-def _read_idle_threshold_minutes() -> int:
-    return int(read_setting(None, "IDLE_AUTO_PAUSE_THRESHOLD_MINUTES", str(DEFAULT_IDLE_THRESHOLD_MINUTES)))
+async def _read_idle_threshold_minutes() -> int:
+    """Phase 288 - reads from the shared app_settings table, same as every
+    other rate-limit/threshold setting in this project, instead of this
+    Lambda's own plaintext env var. Configurable at runtime via the
+    Settings UI, no redeploy needed. get_setting() never raises, falling
+    back to DEFAULT_IDLE_THRESHOLD_MINUTES on any Postgres read failure."""
+    return await get_db_gateway().app_settings_store().get_setting(
+        "idle_auto_pause_threshold_minutes", DEFAULT_IDLE_THRESHOLD_MINUTES
+    )
 
 
 async def _get_last_activity_timestamp() -> datetime | None:
@@ -105,7 +115,7 @@ async def _get_last_activity_timestamp() -> datetime | None:
 
 
 async def _check_and_pause_if_idle() -> dict:
-    threshold_minutes = _read_idle_threshold_minutes()
+    threshold_minutes = await _read_idle_threshold_minutes()
     last_seen = await _get_last_activity_timestamp()
     now = datetime.now(UTC)
 

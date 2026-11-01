@@ -41,12 +41,12 @@ class _FakeAppRunnerClient:
 
 def _wire(monkeypatch, last_seen_iso, apprunner_client=None, threshold_minutes=None):
     settings = {"active_user_last_seen_at": last_seen_iso} if last_seen_iso is not None else {}
+    if threshold_minutes is not None:
+        settings["idle_auto_pause_threshold_minutes"] = threshold_minutes
     gateway = FakeDBGateway(app_settings_store=FakeAppSettingsStore(settings))
     monkeypatch.setattr(idle_auto_pause_handler, "get_db_gateway", lambda: gateway)
     if apprunner_client is not None:
         monkeypatch.setattr(idle_auto_pause_handler, "AppRunnerClient", lambda: apprunner_client)
-    if threshold_minutes is not None:
-        monkeypatch.setenv("IDLE_AUTO_PAUSE_THRESHOLD_MINUTES", str(threshold_minutes))
 
 
 def test_no_activity_signal_skips_without_constructing_apprunner_client(monkeypatch):
@@ -143,6 +143,34 @@ def test_a_failed_pause_call_is_reported_in_the_result_but_does_not_raise(monkey
 
     assert result["action"] == "paused"
     assert result["results"][0]["error"] == "boom"
+
+
+def test_threshold_reads_from_app_settings_not_an_env_var(monkeypatch):
+    """Phase 288 - configurable via the Settings UI (app_settings table)
+    now, not a Lambda env var. 30-minute threshold + 45-minute idle gap
+    triggers a pause; the old default (60) would not have."""
+    stale = (datetime.now(UTC) - timedelta(minutes=45)).isoformat()
+    fake_client = _FakeAppRunnerClient(describe_result=[_RUNNING_A], pause_result=[{**_RUNNING_A, "status": "OPERATION_IN_PROGRESS", "error": None}])
+    _wire(monkeypatch, last_seen_iso=stale, apprunner_client=fake_client, threshold_minutes=30)
+
+    result = idle_auto_pause_handler.lambda_handler({}, None)
+
+    assert result["action"] == "paused"
+
+
+def test_threshold_falls_back_to_the_documented_default_when_unset(monkeypatch):
+    recent = (datetime.now(UTC) - timedelta(minutes=45)).isoformat()
+
+    class _ExplodingClient:
+        def __init__(self):
+            raise AssertionError("AppRunnerClient must not be constructed - still active against the 60 min default")
+
+    _wire(monkeypatch, last_seen_iso=recent)  # no threshold_minutes -> app_settings has no key -> default 60
+    monkeypatch.setattr(idle_auto_pause_handler, "AppRunnerClient", _ExplodingClient)
+
+    result = idle_auto_pause_handler.lambda_handler({}, None)
+
+    assert result["reason"] == "not_idle"
 
 
 def test_malformed_timestamp_is_treated_as_missing_not_an_error(monkeypatch):

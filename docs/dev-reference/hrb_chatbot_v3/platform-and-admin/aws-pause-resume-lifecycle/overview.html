@@ -1,0 +1,291 @@
+<title>AWS Pause/Resume Lifecycle</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef3f1; --surface: #ffffff; --surface-alt: #f2f6f4; --border: #d7e1dd;
+    --text: #131b18; --text-muted: #526059; --text-faint: #85958c;
+    --accent: #4a6fa5; --accent-bg: #e8eef6; --accent-border: #c3d2e5;
+    --shadow: 0 2px 4px rgba(15,25,20,0.06), 0 12px 26px rgba(15,25,20,0.08);
+    --band-dark: #0d3d34;
+    --running: #1f9d55; --running-bg: #e4f6ea; --running-border: #a9e2bd;
+    --paused: #5b6b78; --paused-bg: #e9edf0; --paused-border: #c3ccd3;
+    --progress: #c8860a; --progress-bg: #fdf0d8; --progress-border: #f0cd8a;
+    --danger: #c0392b; --danger-bg: #fbe7e4; --danger-border: #eeb6ac;
+    --wake: #2566a8; --wake-bg: #e4eef8; --wake-border: #add0e9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+      --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+      --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      --band-dark: #0b2b25;
+      --running: #4fd587; --running-bg: #11291a; --running-border: #1f4a30;
+      --paused: #9fb0bb; --paused-bg: #1b2328; --paused-border: #2d3a42;
+      --progress: #e8b84b; --progress-bg: #2c2410; --progress-border: #4a3c15;
+      --danger: #e87464; --danger-bg: #2c1512; --danger-border: #4a211b;
+      --wake: #6fb1e8; --wake-bg: #112233; --wake-border: #1d3c57;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1310; --surface: #161f1a; --surface-alt: #17211c; --border: #263329;
+    --text: #e6ece8; --text-muted: #9fb0a5; --text-faint: #67766c;
+    --accent: #8fb0d9; --accent-bg: #1c2636; --accent-border: #2f4258;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    --band-dark: #0b2b25;
+    --running: #4fd587; --running-bg: #11291a; --running-border: #1f4a30;
+    --paused: #9fb0bb; --paused-bg: #1b2328; --paused-border: #2d3a42;
+    --progress: #e8b84b; --progress-bg: #2c2410; --progress-border: #4a3c15;
+    --danger: #e87464; --danger-bg: #2c1512; --danger-border: #4a211b;
+    --wake: #6fb1e8; --wake-bg: #112233; --wake-border: #1d3c57;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding-inline: 16px; padding-block: 32px 56px; }
+  .display { font-family: 'Archivo', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 0.93em; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 0; font-weight: 900; font-size: clamp(24px, 4.2vw, 34px); letter-spacing: -0.01em; text-wrap: balance; }
+  .lede { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 76ch; line-height: 1.65; }
+  .badge-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .badge { font-size: 11.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-muted); font-family: 'IBM Plex Mono', monospace; }
+
+  section.panel { display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; gap: 12px; }
+  .panel-num { width: 28px; height: 28px; border-radius: 8px; background: var(--band-dark); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 12.5px; }
+  .panel-title { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 16px; }
+  .panel p { margin: 0; font-size: 13.8px; color: var(--text-muted); line-height: 1.65; }
+  .panel p + p { margin-top: 2px; }
+  .panel ul, .panel ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 13.8px; color: var(--text-muted); line-height: 1.6; }
+  .panel li b, .panel p b { color: var(--text); }
+
+  /* Glossary */
+  .glossary { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+  .gloss-card { border: 1px solid var(--border); background: var(--surface-alt); border-radius: 10px; padding: 11px 13px; display: flex; flex-direction: column; gap: 4px; }
+  .gloss-card .term { font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 13px; color: var(--accent); }
+  .gloss-card .def { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
+
+  /* State machine diagram */
+  .state-stage { display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap; justify-content: center; margin: 6px 0; }
+  .state-box { border-radius: 14px; padding: 16px 20px; min-width: 150px; text-align: center; display: flex; flex-direction: column; gap: 4px; justify-content: center; border: 2px solid; }
+  .state-box .state-label { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 14.5px; }
+  .state-box .state-sub { font-size: 11px; opacity: 0.85; }
+  .state-running { background: var(--running-bg); border-color: var(--running-border); color: var(--running); }
+  .state-paused { background: var(--paused-bg); border-color: var(--paused-border); color: var(--paused); }
+  .state-progress { background: var(--progress-bg); border-color: var(--progress-border); color: var(--progress); }
+  .state-arrow-col { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 110px; }
+  .state-arrow-col .arrow-glyph { font-size: 20px; color: var(--text-faint); font-family: 'IBM Plex Mono', monospace; }
+  .state-arrow-col .arrow-label { font-size: 10.5px; font-weight: 700; text-align: center; color: var(--text-muted); line-height: 1.3; max-width: 120px; }
+
+  /* Trigger chips */
+  .trigger-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+  .trigger-card { border-radius: 12px; padding: 13px 15px; border: 1px solid; display: flex; flex-direction: column; gap: 5px; }
+  .trigger-card.pause { background: var(--danger-bg); border-color: var(--danger-border); }
+  .trigger-card.resume { background: var(--wake-bg); border-color: var(--wake-border); }
+  .trigger-card .t-head { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  .trigger-card.pause .t-head { color: var(--danger); }
+  .trigger-card.resume .t-head { color: var(--wake); }
+  .trigger-card .t-body { font-size: 12.3px; color: var(--text-muted); line-height: 1.55; }
+  .trigger-card .t-body .mono { color: var(--text); }
+
+  /* Incident callout */
+  .incident { border-radius: 14px; padding: 16px 18px; background: var(--danger-bg); border: 1px solid var(--danger-border); display: flex; flex-direction: column; gap: 8px; }
+  .incident .inc-head { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 14px; color: var(--danger); display: flex; align-items: center; gap: 8px; }
+  .incident p { color: var(--text); font-size: 13.5px; line-height: 1.6; margin: 0; }
+  .loop-bad, .loop-good { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .loop-node { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; font-weight: 600; padding: 6px 10px; border-radius: 8px; border: 1px solid; }
+  .loop-bad .loop-node { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger); }
+  .loop-good .loop-node { background: var(--running-bg); border-color: var(--running-border); color: var(--running); }
+  .loop-arrow { color: var(--text-faint); font-family: 'IBM Plex Mono', monospace; }
+  .fixed-banner { border-radius: 14px; padding: 16px 18px; background: var(--running-bg); border: 1px solid var(--running-border); display: flex; flex-direction: column; gap: 8px; }
+  .fixed-banner .fx-head { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 14px; color: var(--running); display: flex; align-items: center; gap: 8px; }
+  .fixed-banner p { color: var(--text); font-size: 13.5px; line-height: 1.6; margin: 0; }
+
+  /* Sequence list */
+  .seq { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+  .seq li { list-style: none; padding: 8px 11px; border-left: 3px solid var(--wake-border); background: var(--surface-alt); border-radius: 0 8px 8px 0; color: var(--text-muted); line-height: 1.55; }
+  .seq li b { color: var(--text); }
+  .seq li.dim { border-left-color: var(--border); opacity: 0.8; }
+
+  /* Resource table */
+  table.res { width: 100%; border-collapse: collapse; font-size: 12.8px; }
+  table.res th, table.res td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.res th { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-faint); }
+  table.res td.mono { color: var(--accent); }
+
+  .scroll-x { overflow-x: auto; }
+  footer { border-top: 1px solid var(--border); padding-top: 14px; font-size: 11.5px; color: var(--text-faint); line-height: 1.6; }
+</style>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">platform &amp; admin · overview, beginner-friendly</div>
+    <h1 class="display">AWS Pause/Resume Lifecycle</h1>
+    <p class="lede">How the 6 demo AWS App Runner services fall asleep to save money, and how they wake back up - written for an engineer who knows the business logic of this project well, but hasn't worked with App Runner, Lambda, or IAM before. Covers hrb_chatbot_service's own Phases 261/262/284/286/287/288.</p>
+    <div class="badge-row">
+      <span class="badge">AWS App Runner</span>
+      <span class="badge">AWS Lambda</span>
+      <span class="badge">Function URLs</span>
+      <span class="badge">IAM least-privilege</span>
+      <span class="badge">FinOps cost control</span>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head"><span class="panel-num">1</span><span class="panel-title">Why this exists</span></div>
+    <p>This project runs <b>6 separate backend services on AWS App Runner</b> (<span class="mono">hrb-chatbot</span>, <span class="mono">hrb-api-gateway</span>, <span class="mono">hrb-lms-mcp</span>, <span class="mono">rag-retrieval-service</span>, <span class="mono">rag-ingestion-service</span>, <span class="mono">hrb-platform-components</span>). App Runner bills for compute time <b>while a service is RUNNING</b> - whether or not anyone is actually using it. This is a personal/demo project with sporadic visitors, not 24/7 real traffic, so leaving all 6 running around the clock burns real money for nothing.</p>
+    <p>The fix: let every service <b>pause itself</b> when nobody's been active for a while, and <b>wake back up</b> automatically the moment someone actually shows up - without the visitor ever having to know any of this happened. Everything on this page exists to make that handoff reliable.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><span class="panel-num">2</span><span class="panel-title">Glossary - the AWS pieces this system is built from</span></div>
+    <div class="glossary">
+      <div class="gloss-card"><div class="term">App Runner</div><div class="def">AWS's "just run my container" service. Each of the 6 backends is one App Runner <b>service</b>. A service is either <span class="mono">RUNNING</span> (billed, reachable), <span class="mono">PAUSED</span> (not billed, not reachable - its own front door answers everything with a bare 404), or <span class="mono">OPERATION_IN_PROGRESS</span> (transitioning between the two, takes 30-90 seconds).</div></div>
+      <div class="gloss-card"><div class="term">Lambda</div><div class="def">A small function AWS runs <i>for you</i> on demand - no server to keep running. Billed per invocation (a few milliseconds of compute), not per hour. This project uses 2 Lambdas for this system: <span class="mono">hrb-idle-auto-pause</span> and <span class="mono">hrb-wake-up</span>.</div></div>
+      <div class="gloss-card"><div class="term">Function URL</div><div class="def">A public HTTPS address AWS gives a Lambda directly, with no separate API Gateway needed. <span class="mono">hrb-wake-up</span>'s Function URL is what the login page calls - it works even while <span class="mono">hrb-chatbot</span> itself is fully paused, because a Lambda has no "paused" state of its own.</div></div>
+      <div class="gloss-card"><div class="term">IAM role</div><div class="def">The specific list of AWS actions a Lambda (or any AWS identity) is allowed to perform. Each Lambda here gets its own narrow role - <span class="mono">hrb-wake-up</span>'s role can only <span class="mono">DescribeService</span>/<span class="mono">ResumeService</span> on <span class="mono">hrb-chatbot</span> specifically, nothing else.</div></div>
+      <div class="gloss-card"><div class="term">EventBridge</div><div class="def">AWS's scheduler - "run this Lambda every N minutes," like a managed cron job. <span class="mono">hrb-idle-auto-pause</span> runs on an EventBridge schedule, roughly every 15 minutes.</div></div>
+      <div class="gloss-card"><div class="term">Secrets Manager</div><div class="def">Where real credentials (Postgres password, Redis URL) are stored - Lambdas fetch them at runtime via the AWS SDK, never as plaintext environment variables, so a leaked Lambda config never leaks a password.</div></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><span class="panel-num">3</span><span class="panel-title">The 3 states every service moves through</span></div>
+    <div class="state-stage">
+      <div class="state-box state-running"><span class="state-label">RUNNING</span><span class="state-sub">billed · reachable</span></div>
+      <div class="state-arrow-col"><span class="arrow-glyph">&#8594;</span><span class="arrow-label">a pause trigger fires (section 4)</span></div>
+      <div class="state-box state-progress"><span class="state-label">OPERATION_<br>IN_PROGRESS</span><span class="state-sub">transitioning, ~30-90s</span></div>
+      <div class="state-arrow-col"><span class="arrow-glyph">&#8594;</span><span class="arrow-label">pause finishes</span></div>
+      <div class="state-box state-paused"><span class="state-label">PAUSED</span><span class="state-sub">free · unreachable</span></div>
+    </div>
+    <div class="state-stage">
+      <div class="state-box state-paused"><span class="state-label">PAUSED</span><span class="state-sub">free · unreachable</span></div>
+      <div class="state-arrow-col"><span class="arrow-glyph">&#8594;</span><span class="arrow-label">a wake trigger fires (section 5)</span></div>
+      <div class="state-box state-progress"><span class="state-label">OPERATION_<br>IN_PROGRESS</span><span class="state-sub">transitioning, ~30-90s</span></div>
+      <div class="state-arrow-col"><span class="arrow-glyph">&#8594;</span><span class="arrow-label">resume finishes</span></div>
+      <div class="state-box state-running"><span class="state-label">RUNNING</span><span class="state-sub">billed · reachable</span></div>
+    </div>
+    <p><b>Important nuance:</b> a PAUSED service doesn't time out or error when you hit it - its own AWS front door (the "envoy" proxy in front of every App Runner service) answers instantly with a plain, empty <span class="mono">404</span>, before your request ever reaches the actual container. That's by design, but it means a 404 here can mean two very different things: "this route doesn't exist" vs. "this whole service is asleep" - this system exists partly so a visitor never has to tell the difference.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><span class="panel-num">4</span><span class="panel-title">What can PAUSE a service</span></div>
+    <div class="trigger-grid">
+      <div class="trigger-card pause">
+        <div class="t-head">&#9203; Idle-auto-pause Lambda</div>
+        <div class="t-body">Runs on its own EventBridge schedule (~every 15 min). Checks a Postgres timestamp ("when did anyone last do anything?") and pauses <b>any</b> of the 6 services still <span class="mono">RUNNING</span> if that timestamp is older than the configured threshold (default <b>60 minutes</b>, now editable from Settings → Resiliency - Phase 288). Fails safe: any read error means "do nothing," never "pause by mistake."</div>
+      </div>
+      <div class="trigger-card pause">
+        <div class="t-head">&#128682; Sign-out accelerant</div>
+        <div class="t-body">Fires the instant someone clicks Sign Out, but <b>only</b> if the backend confirms zero other browser tabs/sessions are still active (tracked per-tab in Redis). Skips straight to "do nothing" otherwise - never pauses out from under someone else's live session.</div>
+      </div>
+      <div class="trigger-card pause">
+        <div class="t-head">&#128100; Manual admin action</div>
+        <div class="t-body">The Settings → AWS Demo tab lets an admin pause/resume any of the 6 services by hand, for demos or debugging. Same underlying <span class="mono">AppRunnerClient</span> code path as the two automatic triggers above.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><span class="panel-num">5</span><span class="panel-title">What can RESUME a service</span></div>
+    <div class="trigger-grid">
+      <div class="trigger-card resume">
+        <div class="t-head">&#128268; Wake-up Lambda (hrb-chatbot only)</div>
+        <div class="t-body">A standalone Lambda, its own public Function URL, called by the login page the <b>instant</b> "Sign In" is clicked - before any credential check. Resumes <b>only</b> <span class="mono">hrb-chatbot</span> (the service that hosts the login route itself), rate-limited per visitor IP (default 10/day, Settings → Resiliency). This is the Phase 287 piece - see section 6 for why it has to be separate from <span class="mono">hrb-chatbot</span>.</div>
+      </div>
+      <div class="trigger-card resume">
+        <div class="t-head">&#9989; Backend-activation flow (the other 5)</div>
+        <div class="t-body">Lives <i>inside</i> <span class="mono">hrb-chatbot</span> itself (routes <span class="mono">/v1/auth/backend-activation/*</span>). Runs only <b>after</b> a login actually succeeds - by then <span class="mono">hrb-chatbot</span> is guaranteed <span class="mono">RUNNING</span> (the wake-up Lambda above already confirmed it), so it's safe for this piece to live inside it. Resumes <span class="mono">hrb-api-gateway</span>, <span class="mono">hrb-lms-mcp</span>, and the 3 RAG services.</div>
+      </div>
+      <div class="trigger-card resume">
+        <div class="t-head">&#128100; Manual admin action</div>
+        <div class="t-body">Same AWS Demo Settings tab as above, in reverse.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="incident">
+      <div class="inc-head">&#9888; The real incident this system had to be redesigned around</div>
+      <p>Early versions of the idle-auto-pause Lambda and the sign-out accelerant treated all 6 services identically - including <span class="mono">hrb-chatbot</span> itself, the one service that hosts <i>every</i> route that could ever trigger a resume (login, backend-activation, the AWS Demo tab). The result, confirmed live in production:</p>
+      <div class="loop-bad">
+        <span class="loop-node">hrb-chatbot RUNNING</span>
+        <span class="loop-arrow">&#8594;</span>
+        <span class="loop-node">idle timer fires</span>
+        <span class="loop-arrow">&#8594;</span>
+        <span class="loop-node">hrb-chatbot PAUSED</span>
+        <span class="loop-arrow">&#8594;</span>
+        <span class="loop-node">no route left to resume it</span>
+        <span class="loop-arrow">&#8594;</span>
+        <span class="loop-node">&#128683; stuck</span>
+      </div>
+      <p>Every door out of the house was on the inside of a door that had just locked itself. The only way out was a human running <span class="mono">aws apprunner resume-service</span> directly from a terminal - not something a real visitor could ever do.</p>
+    </div>
+    <div class="fixed-banner">
+      <div class="fx-head">&#9989; The fix (Phase 287) - move the "spare key" outside the house</div>
+      <p>The standalone <span class="mono">hrb-wake-up</span> Lambda has <b>no "paused" state of its own</b> - it isn't an App Runner service, it's a Lambda, so it's always reachable regardless of what state <span class="mono">hrb-chatbot</span> is in. It holds exactly one key: permission to describe/resume <span class="mono">hrb-chatbot</span> specifically. <span class="mono">hrb-chatbot</span> went back to being a perfectly normal, auto-pausable service - the fix wasn't "stop pausing it," it was "make sure something outside it can always let it back in."</p>
+      <div class="loop-good">
+        <span class="loop-node">hrb-chatbot PAUSED</span>
+        <span class="loop-arrow">&#8594;</span>
+        <span class="loop-node">visitor clicks Sign In</span>
+        <span class="loop-arrow">&#8594;</span>
+        <span class="loop-node">hrb-wake-up Lambda (always reachable)</span>
+        <span class="loop-arrow">&#8594;</span>
+        <span class="loop-node">hrb-chatbot RUNNING</span>
+        <span class="loop-arrow">&#8594;</span>
+        <span class="loop-node">login proceeds normally</span>
+      </div>
+      <p style="margin-top:4px;"><b>This isn't hypothetical</b> - the exact failure mode above happened again for real on 2026-11-01, during this feature's own rollout (a config fix to the idle-pause Lambda caused it to genuinely pause <span class="mono">hrb-chatbot</span> for the first time in its life). The new wake-up Lambda resumed it cleanly with no human intervention - the first real proof the fix works, not just a unit test.</p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><span class="panel-num">6</span><span class="panel-title">End-to-end sequence - a visitor arrives at a fully paused site</span></div>
+    <ol class="seq">
+      <li><b>1.</b> Browser loads the login page. Nothing AWS-related happens yet - this is just static files from CloudFront/S3.</li>
+      <li><b>2.</b> Visitor clicks <b>Sign In</b>. The page shows "Waking up the chatbot service, please wait" and, in the background, <b>POST</b>s to the <span class="mono">hrb-wake-up</span> Function URL - before checking the typed-in credentials at all.</li>
+      <li><b>3.</b> The Lambda asks App Runner (<span class="mono">DescribeService</span>) what state <span class="mono">hrb-chatbot</span> is in. If it's already <span class="mono">RUNNING</span>, the Lambda does nothing else and returns immediately - this is the common case, and it resolves in well under a second.</li>
+      <li><b>4.</b> If it's <span class="mono">PAUSED</span>: the Lambda checks this visitor's IP against today's rate limit, then calls <span class="mono">ResumeService</span>. App Runner starts transitioning to <span class="mono">RUNNING</span> (30-90 seconds).</li>
+      <li><b>5.</b> The browser polls <span class="mono">hrb-chatbot</span>'s own <span class="mono">GET /ping</span> every few seconds - a tiny, no-login-needed "are you alive yet" check - until it finally answers <span class="mono">200</span>.</li>
+      <li><b>6.</b> <i>Now</i> the browser sends the actual login request (<span class="mono">employee_id</span>/<span class="mono">full_name</span>/<span class="mono">role</span>/secret code) to <span class="mono">hrb-chatbot</span>, which is now guaranteed reachable.</li>
+      <li class="dim"><b>7.</b> If login succeeds, the frontend separately checks whether the <i>other 5</i> services are running (the backend-activation flow) and resumes them too if needed - shown as its own "We are activating backend services" wait screen, unrelated to the wake-up Lambda above.</li>
+      <li class="dim"><b>8.</b> Chat page loads. From the visitor's point of view, none of the above was visible except two brief loading messages.</li>
+    </ol>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><span class="panel-num">7</span><span class="panel-title">Why a Lambda, and not just "keep hrb-chatbot always on"?</span></div>
+    <p>That was the first fix tried for the incident in section 6 - exclude <span class="mono">hrb-chatbot</span> from both pause triggers, so it never sleeps. It worked, but it defeated the whole point: App Runner bills for provisioned compute the entire time a service is <span class="mono">RUNNING</span>, even completely idle. Keeping one of the 6 services on 24/7 is a real, ongoing cost - exactly what this whole feature line exists to avoid.</p>
+    <p>A Lambda's billing model is the opposite: you pay for the few hundred milliseconds it actually runs, essentially nothing while nobody is logging in. That's the actual reason the fix is "add a tiny always-reachable Lambda," not "keep the big service always-reachable."</p>
+    <p><b>Other options considered and rejected</b> (recorded in <span class="mono">RAG-ROADMAP.md</span> Phase 287): routing through the existing <span class="mono">hrb-api-gateway</span> service instead - rejected, it's still a 24/7 App Runner service, same cost problem one level removed, and it isn't even wired into real traffic today. CloudFront + Lambda@Edge intercepting failed requests - rejected as disproportionate (this project has never used CloudFront on the backend side). A scheduled "always on during business hours" window - rejected, traffic here is sporadic and on-demand, not a predictable 9-to-5 pattern.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><span class="panel-num">8</span><span class="panel-title">Real AWS resources (as provisioned, 2026-11-01)</span></div>
+    <div class="scroll-x">
+      <table class="res">
+        <tr><th>Resource</th><th>Name</th><th>What it's scoped to</th></tr>
+        <tr><td>Lambda</td><td class="mono">hrb-idle-auto-pause</td><td>All 6 services: <span class="mono">DescribeService</span> + <span class="mono">PauseService</span></td></tr>
+        <tr><td>Lambda</td><td class="mono">hrb-wake-up</td><td><span class="mono">hrb-chatbot</span> only: <span class="mono">DescribeService</span> + <span class="mono">ResumeService</span></td></tr>
+        <tr><td>IAM role</td><td class="mono">hrb-idle-auto-pause-lambda-execution-role</td><td>Matches the Lambda above - all 6 service ARNs + 5 Postgres secrets</td></tr>
+        <tr><td>IAM role</td><td class="mono">hrb-wake-up-lambda-execution-role</td><td><span class="mono">hrb-chatbot</span>'s ARN only + 5 Postgres secrets + <span class="mono">REDIS_URL</span></td></tr>
+        <tr><td>Function URL</td><td class="mono">hrb-wake-up</td><td>Public (<span class="mono">AuthType: NONE</span>), CORS restricted to <span class="mono">https://hrb-chatbot-ui.rvsree.dev</span>, POST only</td></tr>
+        <tr><td>EventBridge rule</td><td>(idle-pause schedule)</td><td>Triggers <span class="mono">hrb-idle-auto-pause</span> every ~15 minutes</td></tr>
+      </table>
+    </div>
+    <p>Both Lambdas share the same container image (<span class="mono">hrb-chatbot-lambda</span> in ECR) - they're the same codebase, just invoked with a different entry-point command, and each gets its <b>own</b>, independently-scoped IAM role. Neither role can touch anything the other one can't already justify needing - least-privilege per function, not one shared "Lambda admin" identity.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><span class="panel-num">9</span><span class="panel-title">Nuances worth remembering</span></div>
+    <ul>
+      <li>A <span class="mono">RESUME_SERVICE</span>/<span class="mono">PAUSE_SERVICE</span> call succeeding doesn't mean traffic is routable <i>yet</i> - there's a short warm-up window right after App Runner reports <span class="mono">RUNNING</span> where a request can still bounce with a 404 from the front-door proxy. This is normal, not a bug; it's why the frontend polls <span class="mono">/ping</span> in a loop instead of firing one request and giving up.</li>
+      <li>Calling resume on a service that's already <span class="mono">RUNNING</span> is harmless (AWS just reports the current state back) - this project relies on that idempotence instead of special-casing "already running" everywhere.</li>
+      <li>Updating a Lambda's environment variables via the AWS CLI <b>replaces the whole variable map</b>, it doesn't merge - a real near-miss during this feature's rollout, where setting one new variable briefly wiped out an existing one until caught and corrected.</li>
+      <li>A public Function URL with <span class="mono">AuthType: NONE</span> still needs <b>two</b> separate permission statements to actually allow anonymous calls (<span class="mono">InvokeFunctionUrl</span> <i>and</i> a second <span class="mono">InvokeFunction</span> permission) - AWS's own CLI doesn't make this obvious, and getting only one of the two still produces a confusing 403.</li>
+      <li>The idle-pause Lambda silently did nothing for a while after it first shipped, because a configuration value it needed was never actually set - no error, no alarm, just an empty list of services to check. Nothing here raises loudly on a missing config by design (fail-safe toward "don't accidentally pause something"), which is exactly why this kind of gap can hide for a while - worth a periodic sanity check, not just trusting "no errors in the logs" as proof something is working.</li>
+    </ul>
+  </section>
+
+  <footer>hrb_chatbot_service — docs/dev-reference/hrb_chatbot_v3/platform-and-admin/aws-pause-resume-lifecycle/overview.html. Covers RAG-ROADMAP.md Phases 261, 262, 284, 286, 287, 288 and ROADMAP.md (hrb_chatbot_ui) Phases 19-25. Written 2026-11-01.</footer>
+</div>
