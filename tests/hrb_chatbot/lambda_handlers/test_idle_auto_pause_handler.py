@@ -21,7 +21,7 @@ def _skip_real_secrets_fetch(monkeypatch):
 
 
 _RUNNING_A = {"service_name": "rag-ingestion-service", "display_name": "RAG Ingestion", "status": "RUNNING", "url": "x", "error": None}
-_RUNNING_B = {"service_name": "hrb-api-gateway", "display_name": "API Gateway", "status": "RUNNING", "url": "x", "error": None}
+_RUNNING_B = {"service_name": "hrb-platform-components", "display_name": "Platform/Admin", "status": "RUNNING", "url": "x", "error": None}
 _PAUSED_A = {"service_name": "hrb-lms-mcp", "display_name": "MCP Server", "status": "PAUSED", "url": None, "error": None}
 
 
@@ -103,30 +103,31 @@ def test_idle_past_threshold_pauses_only_the_running_services(monkeypatch):
     assert result["results"] == paused_results
 
 
-def test_hrb_chatbot_can_now_be_auto_paused_like_any_other_service(monkeypatch):
-    """Phase 287 - hrb-chatbot is a normal, auto-pausable service again:
-    the standalone wake-up Lambda (its own Function URL, independent of
-    hrb-chatbot's own runtime state) replaces Phase 262/286's "never
-    pause it" stopgap with a real fix, so this Lambda no longer needs to
-    special-case it."""
+def test_hrb_chatbot_and_gateway_are_never_auto_paused(monkeypatch):
+    """Phase 290 - reinstated, widened from Phase 262/286's original
+    1-name version: the real, measured end-to-end wake time for these 2
+    specific, highest-traffic services (App Runner's own RESUME_SERVICE
+    transition plus the app's own cold start, ~90-100s in practice) was
+    judged not worth the FinOps saving, even though the standalone
+    wake-up Lambda (Phase 287/289) correctly resumes both when asked."""
     hrb_chatbot_running = {
         "service_name": "hrb-chatbot", "display_name": "Chatbot Backend", "status": "RUNNING", "url": "x", "error": None,
     }
-    captured = {}
-    stale = (datetime.now(UTC) - timedelta(minutes=90)).isoformat()
+    hrb_gateway_running = {
+        "service_name": "hrb-api-gateway", "display_name": "API Gateway", "status": "RUNNING", "url": "x", "error": None,
+    }
 
-    class _CapturingClient(_FakeAppRunnerClient):
+    class _ExplodingClient(_FakeAppRunnerClient):
         def pause(self, service_names=None):
-            captured["service_names"] = service_names
-            return [{**hrb_chatbot_running, "status": "OPERATION_IN_PROGRESS", "error": None}]
+            raise AssertionError("pause should never be called - both services are excluded")
 
-    fake_client = _CapturingClient(describe_result=[hrb_chatbot_running])
+    stale = (datetime.now(UTC) - timedelta(minutes=90)).isoformat()
+    fake_client = _ExplodingClient(describe_result=[hrb_chatbot_running, hrb_gateway_running])
     _wire(monkeypatch, last_seen_iso=stale, apprunner_client=fake_client, threshold_minutes=60)
 
     result = idle_auto_pause_handler.lambda_handler({}, None)
 
-    assert result["action"] == "paused"
-    assert captured["service_names"] == ["hrb-chatbot"]
+    assert result == {"action": "skipped", "reason": "already_paused", "idle_minutes": result["idle_minutes"]}
 
 
 def test_a_failed_pause_call_is_reported_in_the_result_but_does_not_raise(monkeypatch):

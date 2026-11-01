@@ -121,3 +121,35 @@ def test_invalid_config_json_results_in_zero_services(monkeypatch):
 
     assert client.services == []
     assert client.describe_all() == []
+
+
+# filter_out_auto_pause_excluded() - Phase 290 (reinstated, widened from
+# Phase 262/286's original 1-name version): hrb-chatbot and hrb-api-gateway
+# must never be targets of an *automated* pause path (the idle-timeout
+# Lambda, the sign-out accelerant) - the real measured end-to-end wake
+# time for these 2 specific services was judged not worth the FinOps
+# saving, even with the standalone wake-up Lambda (Phase 287/289) working
+# correctly. Manual admin pauses (AWS Demo Settings tab) are unaffected -
+# this helper is only ever called from the 2 automated paths.
+
+
+def test_filter_out_auto_pause_excluded_removes_hrb_chatbot_and_gateway():
+    from src.hrb_chatbot.common.clients.aws_client.apprunner_client import filter_out_auto_pause_excluded
+
+    result = filter_out_auto_pause_excluded(["hrb-chatbot", "hrb-api-gateway", "hrb-lms-mcp"])
+
+    assert result == ["hrb-lms-mcp"]
+
+
+def test_filter_out_auto_pause_excluded_is_a_noop_when_neither_is_present():
+    from src.hrb_chatbot.common.clients.aws_client.apprunner_client import filter_out_auto_pause_excluded
+
+    result = filter_out_auto_pause_excluded(["hrb-lms-mcp", "rag-retrieval-service"])
+
+    assert result == ["hrb-lms-mcp", "rag-retrieval-service"]
+
+
+def test_filter_out_auto_pause_excluded_on_an_empty_list():
+    from src.hrb_chatbot.common.clients.aws_client.apprunner_client import filter_out_auto_pause_excluded
+
+    assert filter_out_auto_pause_excluded([]) == []

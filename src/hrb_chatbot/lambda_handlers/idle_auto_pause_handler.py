@@ -21,12 +21,12 @@ own IAM execution role only grants secretsmanager:GetSecretValue on these
 access to any of the LLM/Pinecone/Redis/GitHub secrets that Lambda's own
 role has, since this one has no reason to touch any of them.
 
-Phase 287 - this Lambda no longer excludes hrb-chatbot from pausing.
-Phase 262/286 originally added that exclusion as a stopgap after
-hrb-chatbot auto-pausing itself left no application-level way to resume
-anything; Phase 287's new, standalone wake-up Lambda (its own Function
-URL, independent of hrb-chatbot's own runtime state) is the real fix, so
-hrb-chatbot goes back to being a normal, auto-pausable service here.
+Phase 290 - this Lambda excludes hrb-chatbot AND hrb-api-gateway from
+pausing again (Phase 287 had removed hrb-chatbot's own exclusion, relying
+on a standalone wake-up Lambda instead - that Lambda stays deployed and
+still works, but the user decided the real ~90-100s end-to-end wait for
+these 2 specific, highest-traffic services isn't worth the FinOps saving
+today). See apprunner_client.py's own AUTO_PAUSE_EXCLUDED_SERVICE_NAMES.
 
 Phase 288 - the idle threshold itself (`idle_auto_pause_threshold_minutes`)
 now reads from the shared Postgres app_settings table, not a Lambda env
@@ -37,7 +37,7 @@ import json
 import logging
 from datetime import UTC, datetime
 
-from src.hrb_chatbot.common.clients.aws_client.apprunner_client import AppRunnerClient
+from src.hrb_chatbot.common.clients.aws_client.apprunner_client import AppRunnerClient, filter_out_auto_pause_excluded
 from src.hrb_chatbot.common.clients.aws_client.lambda_secrets_bootstrap import load_secrets_into_env
 from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 
@@ -130,6 +130,7 @@ async def _check_and_pause_if_idle() -> dict:
 
     statuses = AppRunnerClient().describe_all()
     running_names = [service["service_name"] for service in statuses if service["status"] == "RUNNING"]
+    running_names = filter_out_auto_pause_excluded(running_names)
     if not running_names:
         logger.info("Idle %.1f min, but nothing is RUNNING - nothing to pause.", idle_minutes)
         return {"action": "skipped", "reason": "already_paused", "idle_minutes": round(idle_minutes, 1)}

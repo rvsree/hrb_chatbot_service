@@ -20,18 +20,37 @@ from src.hrb_chatbot.common.logging.logger import get_logger
 
 logger = get_logger("apprunner_client")
 
-# Phase 262/286 real incident, 2026-10-31 - RESOLVED by Phase 287, not
-# just documented history: the idle-timeout Lambda and the sign-out
-# accelerant both auto-paused ALL running services, including hrb-chatbot
-# itself - the one service hosting the login/resume/sign-out endpoints
-# that could ever bring things back. That left a real, self-inflicted
-# deadlock, recovered only via direct AWS CLI. The stopgap fix at the
-# time was a hrb-chatbot exclusion here, applied by both automated pause
-# paths before calling .pause(). Phase 287 replaces that stopgap with a
-# real fix - a standalone wake-up Lambda, independent of hrb-chatbot's
-# own runtime state, behind its own Function URL - so hrb-chatbot can go
-# back to being a normal, auto-pausable service. The exclusion constant/
-# helper that used to live here is gone; see RAG-ROADMAP.md Phase 287.
+# Phase 262/286 real incident, 2026-10-31: the idle-timeout Lambda and the
+# sign-out accelerant both auto-paused ALL running services, including
+# hrb-chatbot itself - the one service that hosts the login/resume/
+# sign-out endpoints that could ever bring things back. Once hrb-chatbot
+# paused itself, nothing application-level could resume it - a real,
+# self-inflicted deadlock, recovered only via direct AWS CLI. Phase 287
+# replaced the stopgap here with a real fix - a standalone wake-up
+# Lambda, independent of hrb-chatbot's own runtime state - and Phase 289
+# widened that Lambda to also cover hrb-api-gateway once a 2nd incident
+# showed the live frontend actually routes every request through it.
+#
+# Phase 290 reinstates this exclusion anyway, deliberately, alongside
+# keeping the wake-up Lambda deployed (not a contradiction - the Lambda
+# still live-verified correctly resuming both services twice from a
+# genuinely paused state). The real, measured end-to-end wait - App
+# Runner's own RESUME_SERVICE transition plus the app's own cold start -
+# came in at 90-100 seconds in practice, long enough that the user judged
+# the FinOps saving for these 2 specific, highest-traffic services not
+# worth the risk of a real visitor leaving before it finishes. The other
+# 4 services stay pause/resume-managed - Phase 26 already made sure
+# nothing blocks the chat page behind them, so there's no equivalent UX
+# cost to accept for continuing to pause those tactically on Sign-In.
+AUTO_PAUSE_EXCLUDED_SERVICE_NAMES = frozenset({"hrb-chatbot", "hrb-api-gateway"})
+
+
+def filter_out_auto_pause_excluded(service_names: list[str]) -> list[str]:
+    """Call this on the list an automated (non-admin-triggered) pause path
+    is about to act on - never on a manual admin pause (the AWS Demo
+    Settings tab keeps the ability to pause any of the 6, these 2
+    included, if an admin explicitly chooses to)."""
+    return [name for name in service_names if name not in AUTO_PAUSE_EXCLUDED_SERVICE_NAMES]
 
 
 class AppRunnerClient:

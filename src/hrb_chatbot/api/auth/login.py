@@ -12,7 +12,7 @@ from src.hrb_chatbot.api.dependencies import json_error
 from src.hrb_chatbot.api.gateway.activity_tracker import count_other_active_sessions, remove_session_presence
 from src.hrb_chatbot.api.gateway.rbac import require_role
 from src.hrb_chatbot.common import error_codes
-from src.hrb_chatbot.common.clients.aws_client.apprunner_client import AppRunnerClient
+from src.hrb_chatbot.common.clients.aws_client.apprunner_client import AppRunnerClient, filter_out_auto_pause_excluded
 from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 from src.hrb_chatbot.common.config.settings import get_app_environment, read_setting
 from src.hrb_chatbot.common.enums import Role
@@ -181,10 +181,12 @@ async def sign_out(payload: SignOutRequest):
 
         statuses = await asyncio.to_thread(AppRunnerClient().describe_all)
         running_names = [service["service_name"] for service in statuses if service["status"] == "RUNNING"]
-        # Phase 287 - hrb-chatbot is a normal, auto-pausable service again
-        # (no longer special-cased here) - the standalone wake-up Lambda
-        # is the real fix for "how does anything come back," replacing
-        # the Phase 262/286 "never pause it" stopgap.
+        # Phase 290 - hrb-chatbot and hrb-api-gateway are excluded from
+        # this automatic pause path again (Phase 287 had removed
+        # hrb-chatbot's own exclusion in favor of the standalone wake-up
+        # Lambda, which still works - the user decided the real end-to-end
+        # wait for these 2 specific services isn't worth it today).
+        running_names = filter_out_auto_pause_excluded(running_names)
         if not running_names:
             return SignOutResponse(paused=False)
 

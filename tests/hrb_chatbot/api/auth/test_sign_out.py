@@ -9,8 +9,8 @@ from src.hrb_chatbot.main import app
 client = TestClient(app)
 
 _RUNNING_SERVICE = {
-    "service_name": "hrb-api-gateway",
-    "display_name": "API Gateway",
+    "service_name": "hrb-lms-mcp",
+    "display_name": "MCP Server",
     "status": "RUNNING",
     "url": "x",
     "error": None,
@@ -89,20 +89,23 @@ def test_sign_out_pauses_when_truly_the_last_active_session(monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == {"paused": True}
-    assert captured["service_names"] == ["hrb-api-gateway"]
+    assert captured["service_names"] == ["hrb-lms-mcp"]
 
 
-def test_sign_out_can_now_pause_hrb_chatbot_like_any_other_service(monkeypatch):
-    """Phase 287 - hrb-chatbot is a normal, auto-pausable service again:
-    the standalone wake-up Lambda (its own Function URL, independent of
-    hrb-chatbot's own runtime state) replaces Phase 262/286's "never
-    pause it" stopgap with a real fix, so this route no longer needs to
-    special-case it."""
+def test_sign_out_never_pauses_hrb_chatbot_or_gateway(monkeypatch):
+    """Phase 290 - reinstated, widened from Phase 262/286's original
+    1-name version: the real, measured end-to-end wake time for these 2
+    specific, highest-traffic services was judged not worth the FinOps
+    saving, even though the standalone wake-up Lambda (Phase 287/289)
+    correctly resumes both when asked. This accelerant must never be the
+    one to pause them - same reasoning as the idle-timeout Lambda."""
     monkeypatch.setenv("APP_ENVIRONMENT", "production")
     hrb_chatbot_running = {
         "service_name": "hrb-chatbot", "display_name": "Chatbot Backend", "status": "RUNNING", "url": "x", "error": None,
     }
-    captured = {}
+    hrb_gateway_running = {
+        "service_name": "hrb-api-gateway", "display_name": "API Gateway", "status": "RUNNING", "url": "x", "error": None,
+    }
 
     async def _fake_remove(employee_id):
         pass
@@ -110,20 +113,16 @@ def test_sign_out_can_now_pause_hrb_chatbot_like_any_other_service(monkeypatch):
     async def _fake_count(excluding_employee_id):
         return 0
 
-    class _CapturingClient(_FakeAppRunnerClient):
-        def pause(self, service_names=None):
-            captured["service_names"] = service_names
-            return [{**hrb_chatbot_running, "status": "OPERATION_IN_PROGRESS", "error": None}]
-
     monkeypatch.setattr(login, "remove_session_presence", _fake_remove)
     monkeypatch.setattr(login, "count_other_active_sessions", _fake_count)
-    monkeypatch.setattr(login, "AppRunnerClient", lambda: _CapturingClient(describe_result=[hrb_chatbot_running]))
+    monkeypatch.setattr(
+        login, "AppRunnerClient", lambda: _FakeAppRunnerClient(describe_result=[hrb_chatbot_running, hrb_gateway_running])
+    )
 
     response = client.post("/v1/auth/sign-out", json={"employee_id": "EMP052"})
 
     assert response.status_code == 200
-    assert response.json() == {"paused": True}
-    assert captured["service_names"] == ["hrb-chatbot"]
+    assert response.json() == {"paused": False}
 
 
 def test_sign_out_skips_pause_when_everything_is_already_paused(monkeypatch):
