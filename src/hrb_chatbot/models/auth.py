@@ -42,8 +42,11 @@ class ResetSecretCodeResponse(BaseModel):
 
 
 class BackendActivationStatusResponse(BaseModel):
-    """Phase 284 - public status/resume contract, reusing the admin-only
-    AwsDemoStatusResponse's own per-service shape (Phase 261)."""
+    """Phase 284 - public resume contract, reusing the admin-only
+    AwsDemoStatusResponse's own per-service shape (Phase 261). A sibling
+    status-only GET route existed through Phase 287 but was removed as
+    dead code in Phase 26 (hrb_chatbot_ui's own Phase 26) once nothing
+    called it anymore."""
 
     all_running: bool
     services: list[AwsDemoServiceStatus]

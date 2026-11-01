@@ -130,22 +130,18 @@ async def reset_admin_secret_code(payload: ResetSecretCodeRequest):
     return ResetSecretCodeResponse(employee_id=payload.user_profile.employee_id, reset=True)
 
 
-@router_login.get("/backend-activation/status", response_model=BackendActivationStatusResponse)
-async def backend_activation_status():
-    """Phase 284 - public status check for a visitor hitting a paused AWS
-    demo environment. No-op outside production - never touches AWS."""
-    if get_app_environment() != "production":
-        return BackendActivationStatusResponse(all_running=True, services=[])
-
-    statuses = await asyncio.to_thread(AppRunnerClient().describe_all)
-    all_running = all(service["status"] == "RUNNING" for service in statuses)
-    return BackendActivationStatusResponse(all_running=all_running, services=statuses)
-
-
 @router_login.post("/backend-activation/resume", response_model=BackendActivationStatusResponse)
 async def backend_activation_resume(request: Request):
-    """Phase 284 - public resume counterpart to the status check above.
-    Skips the rate limiter entirely when nothing needs resuming."""
+    """Phase 284 - public resume endpoint for a visitor hitting a paused
+    AWS demo environment. No-op outside production - never touches AWS.
+    Skips the rate limiter entirely when nothing needs resuming.
+
+    Phase 26 (hrb_chatbot_ui's own Phase 26) removed this route's own
+    status-only sibling (GET /backend-activation/status) as dead code -
+    the frontend used to call it as a pre-check before deciding whether
+    to show a blocking wait screen; that whole flow was replaced with
+    calling this resume endpoint directly, fire-and-forget, right after
+    login, so the separate status check had no remaining caller."""
     if get_app_environment() != "production":
         return BackendActivationStatusResponse(all_running=True, services=[])
 

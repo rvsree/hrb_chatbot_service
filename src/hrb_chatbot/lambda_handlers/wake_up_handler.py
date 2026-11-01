@@ -1,15 +1,22 @@
 """Lambda entry point - public Function URL, called by the frontend the
-instant "Sign In" is clicked, before login validation runs. Resumes ONLY
-hrb-chatbot - the real fix for Phase 262/286's "hrb-chatbot paused itself
-into a dead end" incident (see apprunner_client.py and RAG-ROADMAP.md
-Phase 287). Everything else wakes up afterward through the existing
+instant "Sign In" is clicked, before login validation runs. Resumes
+hrb-chatbot AND hrb-api-gateway - the real fix for Phase 262/286's
+"hrb-chatbot paused itself into a dead end" incident (see
+apprunner_client.py and RAG-ROADMAP.md Phase 287), widened in Phase 289
+after the same deadlock recurred one layer up: the live frontend's
+VITE_API_BASE_URL actually points at hrb-api-gateway (not hrb-chatbot
+directly), so every request - including this Lambda's own target of
+"is the backend reachable yet" - was silently blocked by a paused
+gateway that Phase 287 never had permission to wake. Everything else
+(the other 4 services) wakes up afterward through the existing
 backend-activation flow (Phase 284, routes living on hrb-chatbot itself),
 once a login succeeds.
 
 Rate-limited per caller IP (wake_up_limiter.py, configurable via
-app_settings, default 10/day) - only when hrb-chatbot is actually PAUSED;
-a call that finds it already RUNNING or resuming never touches the
-limiter, so a visitor refreshing a few times never burns their quota.
+app_settings, default 10/day) - only when at least one target service is
+actually PAUSED; a call that finds both already RUNNING or resuming never
+touches the limiter, so a visitor refreshing a few times never burns
+their quota. One rate-limit check per invocation, not per service.
 
 Fails closed throughout: any unexpected error returns "resumed": false
 rather than raising. The frontend's own /ping poll against hrb-chatbot
@@ -19,8 +26,8 @@ actually reachable yet.
 Postgres/Redis credentials come from Secrets Manager via the shared
 lambda_secrets_bootstrap.py (same pattern as idle_auto_pause_handler.py).
 This Lambda's own IAM execution role only grants apprunner:DescribeService/
-ResumeService on hrb-chatbot's ARN specifically - narrower than the
-idle-pause Lambda's role, which needs all 6 services."""
+ResumeService on hrb-chatbot's and hrb-api-gateway's ARNs specifically -
+narrower than the idle-pause Lambda's role, which needs all 6 services."""
 
 import asyncio
 import json
@@ -30,7 +37,7 @@ from src.hrb_chatbot.common.clients.aws_client.apprunner_client import AppRunner
 from src.hrb_chatbot.common.clients.aws_client.lambda_secrets_bootstrap import load_secrets_into_env
 from src.hrb_chatbot.common.rate_limiting import wake_up_limiter
 
-TARGET_SERVICE_NAME = "hrb-chatbot"
+TARGET_SERVICE_NAMES = ["hrb-chatbot", "hrb-api-gateway"]
 
 _SECRET_ENV_MAP = {
     "POSTGRES_DB_HOST": "hrb-chatbot/POSTGRES_DB_HOST",
@@ -95,33 +102,56 @@ def _response(status_code: int, body: dict) -> dict:
 
 async def _resume_if_needed(source_ip: str | None) -> dict:
     statuses = AppRunnerClient().describe_all()
-    target = next((service for service in statuses if service["service_name"] == TARGET_SERVICE_NAME), None)
+    by_name = {service["service_name"]: service for service in statuses}
 
-    if target is None:
-        logger.error("WAKEUP_FAILURE: %r not found in configured services.", TARGET_SERVICE_NAME)
-        return _response(500, {"resumed": False, "error": "hrb-chatbot is not a configured service"})
+    missing = [name for name in TARGET_SERVICE_NAMES if name not in by_name]
+    if missing:
+        logger.error("WAKEUP_FAILURE: %r not found in configured services.", missing)
+        return _response(500, {"resumed": False, "error": f"not configured: {missing}"})
 
-    if target["status"] == "ERROR":
-        logger.warning("WAKEUP_FAILURE: describe_service errored for hrb-chatbot: %s", target.get("error"))
-        return _response(502, {"resumed": False, "status": "ERROR", "error": target.get("error")})
+    targets = [by_name[name] for name in TARGET_SERVICE_NAMES]
 
-    if target["status"] in ("RUNNING", "OPERATION_IN_PROGRESS"):
-        logger.info("hrb-chatbot already %s - nothing to resume.", target["status"])
-        return _response(200, {"resumed": False, "status": target["status"]})
+    errored = [target for target in targets if target["status"] == "ERROR"]
+    if errored:
+        logger.warning("WAKEUP_FAILURE: describe_service errored for %s", [target["service_name"] for target in errored])
+        return _response(
+            502,
+            {
+                "resumed": False,
+                "error": errored[0].get("error"),
+                "services": {target["service_name"]: target["status"] for target in targets},
+            },
+        )
+
+    paused = [target for target in targets if target["status"] == "PAUSED"]
+    if not paused:
+        logger.info("All target services already active - nothing to resume.")
+        return _response(200, {"resumed": False, "services": {target["service_name"]: target["status"] for target in targets}})
 
     under_cap = await wake_up_limiter.check_and_record(source_ip)
     if not under_cap:
         logger.warning("WAKEUP_RATE_LIMITED: IP %r exceeded its daily wake-up cap.", source_ip)
-        return _response(429, {"resumed": False, "status": target["status"], "error": "rate_limited"})
+        return _response(
+            429,
+            {
+                "resumed": False,
+                "error": "rate_limited",
+                "services": {target["service_name"]: target["status"] for target in targets},
+            },
+        )
 
-    results = AppRunnerClient().resume(service_names=[TARGET_SERVICE_NAME])
-    result = results[0] if results else {"status": "ERROR", "error": "no result returned"}
-    if result.get("error"):
-        logger.error("WAKEUP_FAILURE: resume_service failed for hrb-chatbot: %s", result["error"])
-        return _response(502, {"resumed": False, "status": "ERROR", "error": result["error"]})
+    results = AppRunnerClient().resume(service_names=[target["service_name"] for target in paused])
+    if not results or any(result.get("error") for result in results):
+        logger.error("WAKEUP_FAILURE: resume_service failed for %s: %s", [target["service_name"] for target in paused], results)
+        failed_error = next((result["error"] for result in results if result.get("error")), "no result returned")
+        return _response(502, {"resumed": False, "error": failed_error, "services": {result["service_name"]: result["status"] for result in results}})
 
-    logger.info("hrb-chatbot resume triggered - new status %s.", result["status"])
-    return _response(200, {"resumed": True, "status": result["status"]})
+    # Services that were already active keep their own status; the ones
+    # just resumed report resume_service's own fresh status.
+    merged = {target["service_name"]: target["status"] for target in targets if target["status"] != "PAUSED"}
+    merged.update({result["service_name"]: result["status"] for result in results})
+    logger.info("Resume triggered for %s.", [result["service_name"] for result in results])
+    return _response(200, {"resumed": True, "services": merged})
 
 
 def lambda_handler(event, context):

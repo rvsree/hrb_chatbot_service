@@ -1,5 +1,12 @@
-"""Tests for GET/POST /v1/auth/backend-activation/* (Phase 284) - public,
-no role gating. AppRunnerClient and the new rate limiter are faked."""
+"""Tests for POST /v1/auth/backend-activation/resume (Phase 284) - public,
+no role gating. AppRunnerClient and the new rate limiter are faked.
+
+Phase 26 (hrb_chatbot_ui's own Phase 26) removed this route's own GET
+/backend-activation/status sibling as dead code - its own tests
+(test_status_is_a_noop_outside_production,
+test_status_reports_all_running_in_production,
+test_status_reports_not_all_running_when_one_service_is_paused) were
+removed in the same pass."""
 
 from fastapi.testclient import TestClient
 
@@ -57,15 +64,6 @@ def _fail_if_called(*args, **kwargs):
 # Non-production no-op - the real security boundary for this phase.
 
 
-def test_status_is_a_noop_outside_production(monkeypatch):
-    monkeypatch.setattr(login, "AppRunnerClient", _ExplodingAppRunnerClient)
-
-    response = client.get("/v1/auth/backend-activation/status")
-
-    assert response.status_code == 200
-    assert response.json() == {"all_running": True, "services": []}
-
-
 def test_resume_is_a_noop_outside_production(monkeypatch):
     monkeypatch.setattr(login, "AppRunnerClient", _ExplodingAppRunnerClient)
     monkeypatch.setattr(backend_activation_limiter, "check_and_record", _fail_if_called)
@@ -77,18 +75,6 @@ def test_resume_is_a_noop_outside_production(monkeypatch):
 
 
 # Production - everything already running.
-
-
-def test_status_reports_all_running_in_production(monkeypatch):
-    monkeypatch.setenv("APP_ENVIRONMENT", "production")
-    monkeypatch.setattr(login, "AppRunnerClient", lambda: _FakeAppRunnerClient(describe_result=[_RUNNING_SERVICE]))
-
-    response = client.get("/v1/auth/backend-activation/status")
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["all_running"] is True
-    assert body["services"][0]["service_name"] == "hrb-chatbot"
 
 
 def test_resume_when_everything_already_running_skips_resume_and_rate_limiter(monkeypatch):
@@ -105,18 +91,6 @@ def test_resume_when_everything_already_running_skips_resume_and_rate_limiter(mo
 
 
 # Production - some services paused.
-
-
-def test_status_reports_not_all_running_when_one_service_is_paused(monkeypatch):
-    monkeypatch.setenv("APP_ENVIRONMENT", "production")
-    monkeypatch.setattr(
-        login, "AppRunnerClient", lambda: _FakeAppRunnerClient(describe_result=[_RUNNING_SERVICE, _PAUSED_SERVICE])
-    )
-
-    response = client.get("/v1/auth/backend-activation/status")
-
-    assert response.status_code == 200
-    assert response.json()["all_running"] is False
 
 
 def test_resume_only_resumes_the_non_running_subset_and_records_the_limiter(monkeypatch):

@@ -190,12 +190,12 @@
     <div class="panel-head"><span class="panel-num">5</span><span class="panel-title">What can RESUME a service</span></div>
     <div class="trigger-grid">
       <div class="trigger-card resume">
-        <div class="t-head">&#128268; Wake-up Lambda (hrb-chatbot only)</div>
-        <div class="t-body">A standalone Lambda, its own public Function URL, called by the login page the <b>instant</b> "Sign In" is clicked - before any credential check. Resumes <b>only</b> <span class="mono">hrb-chatbot</span> (the service that hosts the login route itself), rate-limited per visitor IP (default 10/day, Settings → Resiliency). This is the Phase 287 piece - see section 6 for why it has to be separate from <span class="mono">hrb-chatbot</span>.</div>
+        <div class="t-head">&#128268; Wake-up Lambda (hrb-chatbot + hrb-api-gateway)</div>
+        <div class="t-body">A standalone Lambda, its own public Function URL, called by the login page the <b>instant</b> "Sign In" is clicked - before any credential check. Resumes <b>both</b> <span class="mono">hrb-chatbot</span> and <span class="mono">hrb-api-gateway</span>, whichever of the two is actually <span class="mono">PAUSED</span>, rate-limited per visitor IP (default 10/day, Settings → Resiliency, one check per invocation, not per service). Phase 287 shipped with just <span class="mono">hrb-chatbot</span>; Phase 289 widened it to the gateway too - see the 2nd incident below for why.</div>
       </div>
       <div class="trigger-card resume">
-        <div class="t-head">&#9989; Backend-activation flow (the other 5)</div>
-        <div class="t-body">Lives <i>inside</i> <span class="mono">hrb-chatbot</span> itself (routes <span class="mono">/v1/auth/backend-activation/*</span>). Runs only <b>after</b> a login actually succeeds - by then <span class="mono">hrb-chatbot</span> is guaranteed <span class="mono">RUNNING</span> (the wake-up Lambda above already confirmed it), so it's safe for this piece to live inside it. Resumes <span class="mono">hrb-api-gateway</span>, <span class="mono">hrb-lms-mcp</span>, and the 3 RAG services.</div>
+        <div class="t-head">&#9989; Backend-activation flow (the other 4 - non-blocking)</div>
+        <div class="t-body">Lives <i>inside</i> <span class="mono">hrb-chatbot</span> itself (route <span class="mono">POST /v1/auth/backend-activation/resume</span>). Fired immediately after a successful login, <b>in the background, fire-and-forget</b> (Phase 26, 2026-11-01) - the chat page no longer waits on it. Resumes <span class="mono">hrb-lms-mcp</span> and the 2 standalone RAG services (confirmed, by reading the actual pipeline code, that none of the 3 are needed for a basic first chat message - only specific questions/pages touch them). The old pre-check (<span class="mono">GET /backend-activation/status</span>) was removed entirely as dead code once nothing blocked on its answer anymore.</div>
       </div>
       <div class="trigger-card resume">
         <div class="t-head">&#128100; Manual admin action</div>
@@ -240,35 +240,59 @@
   </section>
 
   <section class="panel">
+    <div class="incident">
+      <div class="inc-head">&#9888; The 2nd incident - the same deadlock, one layer higher (Phase 289)</div>
+      <p>The fix above shipped, got tested, and then a real visitor hit the exact same symptom again on a Sunday: "Waking up the chatbot service" hung for 2-3 minutes, then "Continue anyway" led straight to "Something went wrong reaching the backend." Phase 287's own live verification had curled <span class="mono">hrb-chatbot.rvsree.dev</span> directly to confirm the fix - but that's <b>not</b> what the real frontend actually calls. Checking the real deployed JS bundle found <span class="mono">VITE_API_BASE_URL</span> was <span class="mono">hrb-api-gateway</span>'s own App Runner URL, not <span class="mono">hrb-chatbot.rvsree.dev</span>. Every request - login, the wake-up Lambda's own <span class="mono">/ping</span> poll, everything - was actually going through the gateway first.</p>
+      <div class="loop-bad">
+        <span class="loop-node">hrb-wake-up resumes hrb-chatbot</span>
+        <span class="loop-arrow">&#8594;</span>
+        <span class="loop-node">/ping still routes through hrb-api-gateway</span>
+        <span class="loop-arrow">&#8594;</span>
+        <span class="loop-node">gateway is PAUSED too</span>
+        <span class="loop-arrow">&#8594;</span>
+        <span class="loop-node">nothing had permission to wake it</span>
+        <span class="loop-arrow">&#8594;</span>
+        <span class="loop-node">&#128683; stuck again</span>
+      </div>
+      <p><b>Two fix options were weighed, not assumed:</b> bypass the gateway (point the frontend straight at <span class="mono">hrb-chatbot.rvsree.dev</span> - <span class="mono">hrb-chatbot</span>'s own CORS already allows it, zero AWS change needed) vs. widen the wake-up Lambda to also resume the gateway. The bypass was rejected on purpose - the gateway is this project's intended long-term single entry point (RBAC/CORS/rate-limiting, for when more services sit behind it), and routing around it would have been a working shortcut that fights that direction rather than a real fix.</p>
+    </div>
+    <div class="fixed-banner">
+      <div class="fx-head">&#9989; The fix (Phase 289) - the Lambda gets a second key, not a detour</div>
+      <p><span class="mono">hrb-wake-up</span>'s own code was rewritten to target <b>both</b> <span class="mono">hrb-chatbot</span> and <span class="mono">hrb-api-gateway</span> - still just those 2 ARNs once its IAM role and AWS config catch up, still least-privilege, still nothing to do with the other 4 services. One rate-limit check per invocation either way, not doubled. The architecture stays exactly what it was designed to be; the Lambda just needs to hold the right number of keys for what the real frontend actually calls.</p>
+      <p style="margin-top:4px;"><b>Status, 2026-11-01:</b> code written and fully tested (15 unit tests, full suite green); the IAM role widening, the Lambda's own AWS config, and the image redeploy are confirmed but not yet applied in AWS, held deliberately until a full cleanup/testing pass is done first - this page will be updated again once it's actually live.</p>
+    </div>
+  </section>
+
+  <section class="panel">
     <div class="panel-head"><span class="panel-num">6</span><span class="panel-title">End-to-end sequence - a visitor arrives at a fully paused site</span></div>
     <ol class="seq">
       <li><b>1.</b> Browser loads the login page. Nothing AWS-related happens yet - this is just static files from CloudFront/S3.</li>
       <li><b>2.</b> Visitor clicks <b>Sign In</b>. The page shows "Waking up the chatbot service, please wait" and, in the background, <b>POST</b>s to the <span class="mono">hrb-wake-up</span> Function URL - before checking the typed-in credentials at all.</li>
-      <li><b>3.</b> The Lambda asks App Runner (<span class="mono">DescribeService</span>) what state <span class="mono">hrb-chatbot</span> is in. If it's already <span class="mono">RUNNING</span>, the Lambda does nothing else and returns immediately - this is the common case, and it resolves in well under a second.</li>
-      <li><b>4.</b> If it's <span class="mono">PAUSED</span>: the Lambda checks this visitor's IP against today's rate limit, then calls <span class="mono">ResumeService</span>. App Runner starts transitioning to <span class="mono">RUNNING</span> (30-90 seconds).</li>
-      <li><b>5.</b> The browser polls <span class="mono">hrb-chatbot</span>'s own <span class="mono">GET /ping</span> every few seconds - a tiny, no-login-needed "are you alive yet" check - until it finally answers <span class="mono">200</span>.</li>
-      <li><b>6.</b> <i>Now</i> the browser sends the actual login request (<span class="mono">employee_id</span>/<span class="mono">full_name</span>/<span class="mono">role</span>/secret code) to <span class="mono">hrb-chatbot</span>, which is now guaranteed reachable.</li>
-      <li class="dim"><b>7.</b> If login succeeds, the frontend separately checks whether the <i>other 5</i> services are running (the backend-activation flow) and resumes them too if needed - shown as its own "We are activating backend services" wait screen, unrelated to the wake-up Lambda above.</li>
-      <li class="dim"><b>8.</b> Chat page loads. From the visitor's point of view, none of the above was visible except two brief loading messages.</li>
+      <li><b>3.</b> The Lambda asks App Runner (<span class="mono">DescribeService</span>) what state <b>both</b> <span class="mono">hrb-chatbot</span> <i>and</i> <span class="mono">hrb-api-gateway</span> are in. If both are already <span class="mono">RUNNING</span>, the Lambda does nothing else and returns immediately - this is the common case, and it resolves in well under a second.</li>
+      <li><b>4.</b> For whichever of the two is <span class="mono">PAUSED</span>: the Lambda checks this visitor's IP against today's rate limit (once, not per service), then calls <span class="mono">ResumeService</span> on just the paused one(s). App Runner starts transitioning to <span class="mono">RUNNING</span> (30-90 seconds, in parallel if both needed it).</li>
+      <li><b>5.</b> The browser polls <span class="mono">GET /ping</span> every few seconds through <span class="mono">VITE_API_BASE_URL</span> (the gateway, which proxies to <span class="mono">hrb-chatbot</span>) - a tiny, no-login-needed "are you alive yet" check - until it finally answers <span class="mono">200</span>, meaning <b>both</b> services are actually up, not just one.</li>
+      <li><b>6.</b> <i>Now</i> the browser sends the actual login request (<span class="mono">employee_id</span>/<span class="mono">full_name</span>/<span class="mono">role</span>/secret code), which is now guaranteed reachable end to end.</li>
+      <li class="dim"><b>7.</b> If login succeeds, the frontend fires the backend-activation resume call for the other 4 services <b>in the background</b> (Phase 26) and goes straight to the chat page without waiting for it - no second wait screen anymore.</li>
+      <li class="dim"><b>8.</b> Chat page loads. From the visitor's point of view, none of the above was visible except one brief loading message.</li>
     </ol>
   </section>
 
   <section class="panel">
     <div class="panel-head"><span class="panel-num">7</span><span class="panel-title">Why a Lambda, and not just "keep hrb-chatbot always on"?</span></div>
-    <p>That was the first fix tried for the incident in section 6 - exclude <span class="mono">hrb-chatbot</span> from both pause triggers, so it never sleeps. It worked, but it defeated the whole point: App Runner bills for provisioned compute the entire time a service is <span class="mono">RUNNING</span>, even completely idle. Keeping one of the 6 services on 24/7 is a real, ongoing cost - exactly what this whole feature line exists to avoid.</p>
+    <p>That was the first fix tried for the 1st incident above - exclude <span class="mono">hrb-chatbot</span> from both pause triggers, so it never sleeps. It worked, but it defeated the whole point: App Runner bills for provisioned compute the entire time a service is <span class="mono">RUNNING</span>, even completely idle. Keeping one of the 6 services on 24/7 is a real, ongoing cost - exactly what this whole feature line exists to avoid.</p>
     <p>A Lambda's billing model is the opposite: you pay for the few hundred milliseconds it actually runs, essentially nothing while nobody is logging in. That's the actual reason the fix is "add a tiny always-reachable Lambda," not "keep the big service always-reachable."</p>
-    <p><b>Other options considered and rejected</b> (recorded in <span class="mono">RAG-ROADMAP.md</span> Phase 287): routing through the existing <span class="mono">hrb-api-gateway</span> service instead - rejected, it's still a 24/7 App Runner service, same cost problem one level removed, and it isn't even wired into real traffic today. CloudFront + Lambda@Edge intercepting failed requests - rejected as disproportionate (this project has never used CloudFront on the backend side). A scheduled "always on during business hours" window - rejected, traffic here is sporadic and on-demand, not a predictable 9-to-5 pattern.</p>
+    <p><b>Other options considered and rejected</b> (recorded in <span class="mono">RAG-ROADMAP.md</span> Phase 287): routing <i>all</i> traffic permanently through <span class="mono">hrb-api-gateway</span> and keeping that one service always-on instead - rejected for the same 24/7-cost reason as above. <b>Correction, 2026-11-01:</b> this page previously also claimed the gateway "isn't even wired into real traffic today" - that was wrong, confirmed by inspecting the real deployed frontend bundle (see the 2nd incident above) - it's actually in front of <i>every</i> request. CloudFront + Lambda@Edge intercepting failed requests - rejected as disproportionate (this project has never used CloudFront on the backend side). A scheduled "always on during business hours" window - rejected, traffic here is sporadic and on-demand, not a predictable 9-to-5 pattern.</p>
   </section>
 
   <section class="panel">
-    <div class="panel-head"><span class="panel-num">8</span><span class="panel-title">Real AWS resources (as provisioned, 2026-11-01)</span></div>
+    <div class="panel-head"><span class="panel-num">8</span><span class="panel-title">Real AWS resources (last confirmed live, 2026-11-01, before the Phase 289 widening below)</span></div>
     <div class="scroll-x">
       <table class="res">
         <tr><th>Resource</th><th>Name</th><th>What it's scoped to</th></tr>
         <tr><td>Lambda</td><td class="mono">hrb-idle-auto-pause</td><td>All 6 services: <span class="mono">DescribeService</span> + <span class="mono">PauseService</span></td></tr>
-        <tr><td>Lambda</td><td class="mono">hrb-wake-up</td><td><span class="mono">hrb-chatbot</span> only: <span class="mono">DescribeService</span> + <span class="mono">ResumeService</span></td></tr>
+        <tr><td>Lambda</td><td class="mono">hrb-wake-up</td><td><span class="mono">hrb-chatbot</span> only (live) - its own code already targets <span class="mono">hrb-api-gateway</span> too, pending the AWS config/IAM update below</td></tr>
         <tr><td>IAM role</td><td class="mono">hrb-idle-auto-pause-lambda-execution-role</td><td>Matches the Lambda above - all 6 service ARNs + 5 Postgres secrets</td></tr>
-        <tr><td>IAM role</td><td class="mono">hrb-wake-up-lambda-execution-role</td><td><span class="mono">hrb-chatbot</span>'s ARN only + 5 Postgres secrets + <span class="mono">REDIS_URL</span></td></tr>
+        <tr><td>IAM role</td><td class="mono">hrb-wake-up-lambda-execution-role</td><td><span class="mono">hrb-chatbot</span>'s ARN only (live) + 5 Postgres secrets + <span class="mono">REDIS_URL</span> - <b>pending:</b> add <span class="mono">hrb-api-gateway</span>'s ARN on the same 2 actions (Phase 289)</td></tr>
         <tr><td>Function URL</td><td class="mono">hrb-wake-up</td><td>Public (<span class="mono">AuthType: NONE</span>), CORS restricted to <span class="mono">https://hrb-chatbot-ui.rvsree.dev</span>, POST only</td></tr>
         <tr><td>EventBridge rule</td><td>(idle-pause schedule)</td><td>Triggers <span class="mono">hrb-idle-auto-pause</span> every ~15 minutes</td></tr>
       </table>
@@ -284,8 +308,9 @@
       <li>Updating a Lambda's environment variables via the AWS CLI <b>replaces the whole variable map</b>, it doesn't merge - a real near-miss during this feature's rollout, where setting one new variable briefly wiped out an existing one until caught and corrected.</li>
       <li>A public Function URL with <span class="mono">AuthType: NONE</span> still needs <b>two</b> separate permission statements to actually allow anonymous calls (<span class="mono">InvokeFunctionUrl</span> <i>and</i> a second <span class="mono">InvokeFunction</span> permission) - AWS's own CLI doesn't make this obvious, and getting only one of the two still produces a confusing 403.</li>
       <li>The idle-pause Lambda silently did nothing for a while after it first shipped, because a configuration value it needed was never actually set - no error, no alarm, just an empty list of services to check. Nothing here raises loudly on a missing config by design (fail-safe toward "don't accidentally pause something"), which is exactly why this kind of gap can hide for a while - worth a periodic sanity check, not just trusting "no errors in the logs" as proof something is working.</li>
+      <li><b>Biggest lesson from the 2nd incident:</b> verifying a fix by calling a backend service directly (<span class="mono">curl hrb-chatbot.rvsree.dev/ping</span>) is not the same as verifying the <i>real user path</i> - the live frontend's own <span class="mono">VITE_API_BASE_URL</span> turned out to be a different URL entirely. Checking the actual deployed JS bundle for the literal base URL it calls is a cheap, concrete way to confirm what "the real path" even is, rather than assuming it matches what the docs say it should be.</li>
     </ul>
   </section>
 
-  <footer>hrb_chatbot_service — docs/dev-reference/hrb_chatbot_v3/platform-and-admin/aws-pause-resume-lifecycle/overview.html. Covers RAG-ROADMAP.md Phases 261, 262, 284, 286, 287, 288 and ROADMAP.md (hrb_chatbot_ui) Phases 19-25. Written 2026-11-01.</footer>
+  <footer>hrb_chatbot_service — docs/dev-reference/hrb_chatbot_v3/platform-and-admin/aws-pause-resume-lifecycle/overview.html. Covers RAG-ROADMAP.md Phases 261, 262, 284, 286, 287, 288, 289 and ROADMAP.md (hrb_chatbot_ui) Phases 19-26. Updated 2026-11-01 (Phase 289's 2nd incident + fix, pending AWS deployment).</footer>
 </div>
