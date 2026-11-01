@@ -19,17 +19,22 @@ index_document_handler.py's own (earlier, Phase 88) Lambda. This Lambda's
 own IAM execution role only grants secretsmanager:GetSecretValue on these
 5 specific secret ARNs plus the 2 apprunner: actions it needs - it has no
 access to any of the LLM/Pinecone/Redis/GitHub secrets that Lambda's own
-role has, since this one has no reason to touch any of them."""
+role has, since this one has no reason to touch any of them.
+
+Phase 287 - this Lambda no longer excludes hrb-chatbot from pausing.
+Phase 262/286 originally added that exclusion as a stopgap after
+hrb-chatbot auto-pausing itself left no application-level way to resume
+anything; Phase 287's new, standalone wake-up Lambda (its own Function
+URL, independent of hrb-chatbot's own runtime state) is the real fix, so
+hrb-chatbot goes back to being a normal, auto-pausable service here."""
 
 import asyncio
 import json
 import logging
-import os
 from datetime import UTC, datetime
 
-import boto3
-
-from src.hrb_chatbot.common.clients.aws_client.apprunner_client import AppRunnerClient, filter_out_auto_pause_excluded
+from src.hrb_chatbot.common.clients.aws_client.apprunner_client import AppRunnerClient
+from src.hrb_chatbot.common.clients.aws_client.lambda_secrets_bootstrap import load_secrets_into_env
 from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 from src.hrb_chatbot.common.config.settings import read_setting
 
@@ -43,25 +48,6 @@ _SECRET_ENV_MAP = {
     "POSTGRES_DB_USER": "hrb-chatbot/POSTGRES_DB_USER",
     "POSTGRES_DB_PASSWORD": "hrb-chatbot/POSTGRES_DB_PASSWORD",
 }
-_secrets_loaded = False
-
-
-def _load_postgres_env_from_secrets_manager() -> None:
-    """Populates os.environ from Secrets Manager, once per warm execution
-    environment (a no-op on every invocation after the first on a reused
-    container - Lambda execution environments persist os.environ across
-    warm invocations). Skips any key already set (e.g. local/test runs
-    that already have a real .env - never calls AWS in that case)."""
-    global _secrets_loaded
-    if _secrets_loaded:
-        return
-    client = boto3.client("secretsmanager")
-    for env_name, secret_name in _SECRET_ENV_MAP.items():
-        if os.environ.get(env_name):
-            continue
-        response = client.get_secret_value(SecretId=secret_name)
-        os.environ[env_name] = response["SecretString"]
-    _secrets_loaded = True
 
 
 class _JsonFormatter(logging.Formatter):
@@ -134,11 +120,6 @@ async def _check_and_pause_if_idle() -> dict:
 
     statuses = AppRunnerClient().describe_all()
     running_names = [service["service_name"] for service in statuses if service["status"] == "RUNNING"]
-    # Real incident, 2026-10-31: hrb-chatbot auto-pausing itself left no
-    # application-level way to resume anything - see apprunner_client.py's
-    # own AUTO_PAUSE_EXCLUDED_SERVICE_NAMES docstring. Never pause it from
-    # this automated path, regardless of how idle it looks.
-    running_names = filter_out_auto_pause_excluded(running_names)
     if not running_names:
         logger.info("Idle %.1f min, but nothing is RUNNING - nothing to pause.", idle_minutes)
         return {"action": "skipped", "reason": "already_paused", "idle_minutes": round(idle_minutes, 1)}
@@ -153,7 +134,7 @@ async def _check_and_pause_if_idle() -> dict:
 
 def lambda_handler(event, context):
     try:
-        _load_postgres_env_from_secrets_manager()
+        load_secrets_into_env(_SECRET_ENV_MAP)
         result = asyncio.run(_check_and_pause_if_idle())
     except Exception as error:
         # Fail closed - never let an unexpected error surface as a raised

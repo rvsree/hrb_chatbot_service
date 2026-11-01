@@ -2,7 +2,6 @@
 AppRunnerClient and the Postgres-backed activity signal are faked - no real
 AWS/network call, matching this project's existing fake-based convention."""
 
-import os
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -12,19 +11,14 @@ from tests.conftest import FakeAppSettingsStore, FakeDBGateway
 
 
 @pytest.fixture(autouse=True)
-def _pretend_secrets_already_loaded():
-    """Every test below exercises the idle-check logic, not the Secrets
-    Manager fetch itself (that has its own dedicated tests further down,
-    with boto3 explicitly faked) - forcing _secrets_loaded = True here
-    means lambda_handler's own call to _load_postgres_env_from_secrets_manager()
-    is always a no-op in these tests, regardless of whether this machine's
-    ambient environment happens to have real Postgres env vars set. Without
-    this, a clean CI environment with no local .env would attempt a real,
-    unfaked boto3 Secrets Manager call - the exact zero-API-key guarantee
-    this project's test suite otherwise holds everywhere else."""
-    idle_auto_pause_handler._secrets_loaded = True
-    yield
-    idle_auto_pause_handler._secrets_loaded = False
+def _skip_real_secrets_fetch(monkeypatch):
+    """Every test below exercises the idle-check logic, not the shared
+    Secrets Manager bootstrap itself (that has its own dedicated tests in
+    test_lambda_secrets_bootstrap.py, with boto3 explicitly faked) -
+    no-op it here so a clean CI environment with no local .env can never
+    attempt a real, unfaked AWS call."""
+    monkeypatch.setattr(idle_auto_pause_handler, "load_secrets_into_env", lambda secret_env_map: None)
+
 
 _RUNNING_A = {"service_name": "rag-ingestion-service", "display_name": "RAG Ingestion", "status": "RUNNING", "url": "x", "error": None}
 _RUNNING_B = {"service_name": "hrb-api-gateway", "display_name": "API Gateway", "status": "RUNNING", "url": "x", "error": None}
@@ -109,24 +103,12 @@ def test_idle_past_threshold_pauses_only_the_running_services(monkeypatch):
     assert result["results"] == paused_results
 
 
-def test_hrb_chatbot_is_never_auto_paused_even_when_idle_and_running(monkeypatch):
-    """Real-incident regression test, 2026-10-31: hrb-chatbot hosts the
-    only routes that could ever resume anything (including itself) - an
-    automated pause of it is an unrecoverable deadlock, confirmed live.
-    Must be excluded even when it's the ONLY service reported RUNNING."""
-    hrb_chatbot_running = {
-        "service_name": "hrb-chatbot", "display_name": "Chatbot Backend", "status": "RUNNING", "url": "x", "error": None,
-    }
-    stale = (datetime.now(UTC) - timedelta(minutes=90)).isoformat()
-    fake_client = _FakeAppRunnerClient(describe_result=[hrb_chatbot_running])
-    _wire(monkeypatch, last_seen_iso=stale, apprunner_client=fake_client, threshold_minutes=60)
-
-    result = idle_auto_pause_handler.lambda_handler({}, None)
-
-    assert result == {"action": "skipped", "reason": "already_paused", "idle_minutes": 90.0}
-
-
-def test_hrb_chatbot_is_excluded_even_when_other_services_do_get_paused(monkeypatch):
+def test_hrb_chatbot_can_now_be_auto_paused_like_any_other_service(monkeypatch):
+    """Phase 287 - hrb-chatbot is a normal, auto-pausable service again:
+    the standalone wake-up Lambda (its own Function URL, independent of
+    hrb-chatbot's own runtime state) replaces Phase 262/286's "never
+    pause it" stopgap with a real fix, so this Lambda no longer needs to
+    special-case it."""
     hrb_chatbot_running = {
         "service_name": "hrb-chatbot", "display_name": "Chatbot Backend", "status": "RUNNING", "url": "x", "error": None,
     }
@@ -136,15 +118,15 @@ def test_hrb_chatbot_is_excluded_even_when_other_services_do_get_paused(monkeypa
     class _CapturingClient(_FakeAppRunnerClient):
         def pause(self, service_names=None):
             captured["service_names"] = service_names
-            return [{**_RUNNING_B, "status": "OPERATION_IN_PROGRESS", "error": None}]
+            return [{**hrb_chatbot_running, "status": "OPERATION_IN_PROGRESS", "error": None}]
 
-    fake_client = _CapturingClient(describe_result=[hrb_chatbot_running, _RUNNING_B])
+    fake_client = _CapturingClient(describe_result=[hrb_chatbot_running])
     _wire(monkeypatch, last_seen_iso=stale, apprunner_client=fake_client, threshold_minutes=60)
 
     result = idle_auto_pause_handler.lambda_handler({}, None)
 
     assert result["action"] == "paused"
-    assert captured["service_names"] == ["hrb-api-gateway"]
+    assert captured["service_names"] == ["hrb-chatbot"]
 
 
 def test_a_failed_pause_call_is_reported_in_the_result_but_does_not_raise(monkeypatch):
@@ -204,55 +186,18 @@ def test_an_unexpected_exception_is_caught_and_returned_not_raised(monkeypatch):
     assert "unexpected" in result["message"]
 
 
-# _load_postgres_env_from_secrets_manager() itself - boto3 explicitly
-# faked in every one of these, real AWS call never possible.
+def test_lambda_handler_calls_the_shared_secrets_bootstrap(monkeypatch):
+    """Integration-style check that the wiring to the shared bootstrap
+    (test_lambda_secrets_bootstrap.py covers its own internals) is
+    actually correct - this test deliberately does NOT use the autouse
+    no-op fixture above, so it would fail loudly if lambda_handler ever
+    stopped calling load_secrets_into_env with the right map."""
+    captured = {}
+    monkeypatch.setattr(
+        idle_auto_pause_handler, "load_secrets_into_env", lambda secret_env_map: captured.setdefault("map", secret_env_map)
+    )
+    _wire(monkeypatch, last_seen_iso=None)
 
+    idle_auto_pause_handler.lambda_handler({}, None)
 
-class _FakeSecretsManagerClient:
-    def __init__(self):
-        self.requested_secret_ids = []
-
-    def get_secret_value(self, SecretId):
-        self.requested_secret_ids.append(SecretId)
-        return {"SecretString": f"fake-value-for-{SecretId}"}
-
-
-def test_fetches_each_postgres_secret_when_none_are_already_set(monkeypatch):
-    idle_auto_pause_handler._secrets_loaded = False  # override the autouse fixture above - testing the fetch itself
-    for env_name in idle_auto_pause_handler._SECRET_ENV_MAP:
-        monkeypatch.delenv(env_name, raising=False)
-    fake_client = _FakeSecretsManagerClient()
-    monkeypatch.setattr(idle_auto_pause_handler.boto3, "client", lambda service: fake_client)
-
-    idle_auto_pause_handler._load_postgres_env_from_secrets_manager()
-
-    assert sorted(fake_client.requested_secret_ids) == sorted(idle_auto_pause_handler._SECRET_ENV_MAP.values())
-    assert os.environ["POSTGRES_DB_HOST"] == "fake-value-for-hrb-chatbot/POSTGRES_DB_HOST"
-
-
-def test_skips_any_key_already_set_without_calling_secrets_manager_for_it(monkeypatch):
-    idle_auto_pause_handler._secrets_loaded = False
-    for env_name in idle_auto_pause_handler._SECRET_ENV_MAP:
-        monkeypatch.delenv(env_name, raising=False)
-    monkeypatch.setenv("POSTGRES_DB_HOST", "already-set-locally")
-    fake_client = _FakeSecretsManagerClient()
-    monkeypatch.setattr(idle_auto_pause_handler.boto3, "client", lambda service: fake_client)
-
-    idle_auto_pause_handler._load_postgres_env_from_secrets_manager()
-
-    assert "hrb-chatbot/POSTGRES_DB_HOST" not in fake_client.requested_secret_ids
-    assert os.environ["POSTGRES_DB_HOST"] == "already-set-locally"
-
-
-def test_only_fetches_once_per_warm_container_not_on_every_call(monkeypatch):
-    idle_auto_pause_handler._secrets_loaded = False
-    for env_name in idle_auto_pause_handler._SECRET_ENV_MAP:
-        monkeypatch.delenv(env_name, raising=False)
-    fake_client = _FakeSecretsManagerClient()
-    monkeypatch.setattr(idle_auto_pause_handler.boto3, "client", lambda service: fake_client)
-
-    idle_auto_pause_handler._load_postgres_env_from_secrets_manager()
-    first_call_count = len(fake_client.requested_secret_ids)
-    idle_auto_pause_handler._load_postgres_env_from_secrets_manager()
-
-    assert len(fake_client.requested_secret_ids) == first_call_count
+    assert captured["map"] == idle_auto_pause_handler._SECRET_ENV_MAP

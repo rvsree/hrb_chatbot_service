@@ -20,27 +20,18 @@ from src.hrb_chatbot.common.logging.logger import get_logger
 
 logger = get_logger("apprunner_client")
 
-# Phase 262/286 real incident, 2026-10-31: the idle-timeout Lambda and the
-# sign-out accelerant both auto-paused ALL running services, including
-# hrb-chatbot itself - the one service that hosts the login/resume/
-# sign-out endpoints that could ever bring things back. Once hrb-chatbot
-# paused itself, nothing application-level could resume it: every route
-# that could call AppRunnerClient().resume() lives ON hrb-chatbot, and a
-# paused service answers nothing (a bare 404 from App Runner's own front
-# door, confirmed live) - a real, self-inflicted deadlock, recovered only
-# via direct AWS CLI. This constant is the fix: the 2 *automated* pause
-# paths (idle-timeout Lambda, sign-out accelerant) must filter it out
-# before ever calling .pause() - never inside AppRunnerClient.pause()
-# itself, since the ADMIN-triggered manual pause (Phase 261's AWS Demo
-# tab) is a deliberate, informed action and should keep the ability to
-# pause any of the 6, hrb-chatbot included, if an admin explicitly chooses to.
-AUTO_PAUSE_EXCLUDED_SERVICE_NAMES = frozenset({"hrb-chatbot"})
-
-
-def filter_out_auto_pause_excluded(service_names: list[str]) -> list[str]:
-    """Call this on the list an automated (non-admin-triggered) pause path
-    is about to act on - never on a manual admin pause."""
-    return [name for name in service_names if name not in AUTO_PAUSE_EXCLUDED_SERVICE_NAMES]
+# Phase 262/286 real incident, 2026-10-31 - RESOLVED by Phase 287, not
+# just documented history: the idle-timeout Lambda and the sign-out
+# accelerant both auto-paused ALL running services, including hrb-chatbot
+# itself - the one service hosting the login/resume/sign-out endpoints
+# that could ever bring things back. That left a real, self-inflicted
+# deadlock, recovered only via direct AWS CLI. The stopgap fix at the
+# time was a hrb-chatbot exclusion here, applied by both automated pause
+# paths before calling .pause(). Phase 287 replaces that stopgap with a
+# real fix - a standalone wake-up Lambda, independent of hrb-chatbot's
+# own runtime state, behind its own Function URL - so hrb-chatbot can go
+# back to being a normal, auto-pausable service. The exclusion constant/
+# helper that used to live here is gone; see RAG-ROADMAP.md Phase 287.
 
 
 class AppRunnerClient:

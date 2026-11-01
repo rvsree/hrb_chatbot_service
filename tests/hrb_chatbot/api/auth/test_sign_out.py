@@ -92,14 +92,17 @@ def test_sign_out_pauses_when_truly_the_last_active_session(monkeypatch):
     assert captured["service_names"] == ["hrb-api-gateway"]
 
 
-def test_sign_out_never_pauses_hrb_chatbot_even_as_the_sole_running_service(monkeypatch):
-    """Real-incident regression test, 2026-10-31: this accelerant
-    previously paused hrb-chatbot itself - the one service hosting this
-    very route - leaving no application-level way to resume anything."""
+def test_sign_out_can_now_pause_hrb_chatbot_like_any_other_service(monkeypatch):
+    """Phase 287 - hrb-chatbot is a normal, auto-pausable service again:
+    the standalone wake-up Lambda (its own Function URL, independent of
+    hrb-chatbot's own runtime state) replaces Phase 262/286's "never
+    pause it" stopgap with a real fix, so this route no longer needs to
+    special-case it."""
     monkeypatch.setenv("APP_ENVIRONMENT", "production")
     hrb_chatbot_running = {
         "service_name": "hrb-chatbot", "display_name": "Chatbot Backend", "status": "RUNNING", "url": "x", "error": None,
     }
+    captured = {}
 
     async def _fake_remove(employee_id):
         pass
@@ -107,14 +110,20 @@ def test_sign_out_never_pauses_hrb_chatbot_even_as_the_sole_running_service(monk
     async def _fake_count(excluding_employee_id):
         return 0
 
+    class _CapturingClient(_FakeAppRunnerClient):
+        def pause(self, service_names=None):
+            captured["service_names"] = service_names
+            return [{**hrb_chatbot_running, "status": "OPERATION_IN_PROGRESS", "error": None}]
+
     monkeypatch.setattr(login, "remove_session_presence", _fake_remove)
     monkeypatch.setattr(login, "count_other_active_sessions", _fake_count)
-    monkeypatch.setattr(login, "AppRunnerClient", lambda: _FakeAppRunnerClient(describe_result=[hrb_chatbot_running]))
+    monkeypatch.setattr(login, "AppRunnerClient", lambda: _CapturingClient(describe_result=[hrb_chatbot_running]))
 
     response = client.post("/v1/auth/sign-out", json={"employee_id": "EMP052"})
 
     assert response.status_code == 200
-    assert response.json() == {"paused": False}
+    assert response.json() == {"paused": True}
+    assert captured["service_names"] == ["hrb-chatbot"]
 
 
 def test_sign_out_skips_pause_when_everything_is_already_paused(monkeypatch):
