@@ -14,6 +14,13 @@ class UserProfile(BaseModel):
         None, max_length=100,
         description="Phase 265 - browser-reported (Intl.DateTimeFormat), not server-inferred - there is no reliable way to get this from HTTP alone.",
     )
+    tab_session_id: str | None = Field(
+        None, max_length=100,
+        description="Phase 286 - a random, per-browser-tab id (sessionStorage, never localStorage) so two "
+        "tabs signed in as the same persona count as 2 active sessions, not 1. Optional and additive - "
+        "absent on a caller that hasn't been updated to send it, which falls back to employee_id for "
+        "presence tracking exactly as before this field existed. Not a real auth/session token.",
+    )
 
 
 class IdentityPayload(BaseModel):

@@ -18,7 +18,7 @@ def test_known_combo_returns_200_with_the_matched_profile():
     assert response.json() == {
         "user_profile": {
             "employee_id": "EMP052", "full_name": "Eddy Employee", "role": "employee", "department": None,
-            "timezone": None,
+            "timezone": None, "tab_session_id": None,
         },
         "must_reset_secret_code": False,
     }
@@ -89,7 +89,8 @@ def test_admin_login_with_correct_one_time_code_returns_200_and_flags_must_reset
     assert response.status_code == 200
     body = response.json()
     assert body["user_profile"] == {
-        "employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "department": None, "timezone": None
+        "employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "department": None, "timezone": None,
+        "tab_session_id": None,
     }
     assert body["must_reset_secret_code"] is True
 

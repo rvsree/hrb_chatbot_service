@@ -47,3 +47,19 @@ class BackendActivationStatusResponse(BaseModel):
 
     all_running: bool
     services: list[AwsDemoServiceStatus]
+
+
+class SignOutRequest(BaseModel):
+    """Phase 286 - just enough to remove this identity's own presence
+    entry and check whether anyone else is still active. No secret_code/
+    role needed - this never reveals or changes anything sensitive."""
+
+    employee_id: str = Field(..., max_length=50)
+    # Optional, same fallback-to-employee_id reasoning as UserProfile's
+    # own tab_session_id field - a caller that doesn't send one just gets
+    # today's employee_id-based behavior.
+    tab_session_id: str | None = Field(None, max_length=100)
+
+
+class SignOutResponse(BaseModel):
+    paused: bool

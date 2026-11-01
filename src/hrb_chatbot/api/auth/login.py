@@ -9,6 +9,7 @@ import asyncio
 from fastapi import APIRouter, Request
 
 from src.hrb_chatbot.api.dependencies import json_error
+from src.hrb_chatbot.api.gateway.activity_tracker import count_other_active_sessions, remove_session_presence
 from src.hrb_chatbot.api.gateway.rbac import require_role
 from src.hrb_chatbot.common import error_codes
 from src.hrb_chatbot.common.clients.aws_client.apprunner_client import AppRunnerClient
@@ -16,6 +17,7 @@ from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 from src.hrb_chatbot.common.config.settings import get_app_environment, read_setting
 from src.hrb_chatbot.common.enums import Role
 from src.hrb_chatbot.common.known_personas import is_known_persona
+from src.hrb_chatbot.common.logging.logger import get_logger
 from src.hrb_chatbot.common.rate_limiting import backend_activation_limiter
 from src.hrb_chatbot.common.rate_limiting.rate_limiter import enforce_rate_limit
 from src.hrb_chatbot.common.utils.request_ip import resolve_client_ip
@@ -25,10 +27,13 @@ from src.hrb_chatbot.models.auth import (
     LoginResponse,
     ResetSecretCodeRequest,
     ResetSecretCodeResponse,
+    SignOutRequest,
+    SignOutResponse,
 )
 from src.hrb_chatbot.models.common import UserProfile
 
 router_login = APIRouter(tags=["auth"])
+logger = get_logger("auth.login")
 
 # Phase 180 (round 8) - moved out of a plaintext source literal into
 # ADMIN_SEED_SECRET_CODE (.env, never committed). The original literal
@@ -160,3 +165,31 @@ async def backend_activation_resume(request: Request):
     resumed = await asyncio.to_thread(AppRunnerClient().resume, non_running_names)
     all_running = all(service["status"] == "RUNNING" for service in resumed)
     return BackendActivationStatusResponse(all_running=all_running, services=resumed)
+
+
+@router_login.post("/sign-out", response_model=SignOutResponse)
+async def sign_out(payload: SignOutRequest):
+    """Phase 286 - the sign-out-triggered pause accelerant. Fails closed on
+    every step: never raises, never blocks the frontend's own (purely
+    client-side) sign-out, and skips pausing on any uncertain read."""
+    presence_key = payload.tab_session_id or payload.employee_id
+    try:
+        await remove_session_presence(presence_key)
+
+        if get_app_environment() != "production":
+            return SignOutResponse(paused=False)
+
+        other_active = await count_other_active_sessions(excluding_employee_id=presence_key)
+        if other_active > 0:
+            return SignOutResponse(paused=False)
+
+        statuses = await asyncio.to_thread(AppRunnerClient().describe_all)
+        running_names = [service["service_name"] for service in statuses if service["status"] == "RUNNING"]
+        if not running_names:
+            return SignOutResponse(paused=False)
+
+        await asyncio.to_thread(AppRunnerClient().pause, running_names)
+        return SignOutResponse(paused=True)
+    except Exception as error:
+        logger.warning("[sign_out] accelerant check failed, skipping: %s", error)
+        return SignOutResponse(paused=False)

@@ -2,7 +2,7 @@
 
 from fastapi import HTTPException, Query
 
-from src.hrb_chatbot.api.gateway.activity_tracker import track_activity_if_due
+from src.hrb_chatbot.api.gateway.activity_tracker import record_session_presence_if_due, track_activity_if_due
 from src.hrb_chatbot.common.enums import Role
 from src.hrb_chatbot.models.common import UserProfile
 
@@ -11,6 +11,7 @@ def identity_from_query_params(
     employee_id: str | None = Query(None),
     full_name: str | None = Query(None),
     role: str | None = Query(None),
+    tab_session_id: str | None = Query(None),
 ) -> UserProfile | None:
     """Phase 96, GET routes only - the Fetch spec forbids a body on GET/HEAD,
     so a real browser can never send identity the way every POST/DELETE
@@ -19,7 +20,7 @@ def identity_from_query_params(
     different transport."""
     if employee_id is None or full_name is None or role is None:
         return None
-    return UserProfile(employee_id=employee_id, full_name=full_name, role=role)
+    return UserProfile(employee_id=employee_id, full_name=full_name, role=role, tab_session_id=tab_session_id)
 
 
 def require_role(user_profile: UserProfile | None, *allowed_roles: Role) -> UserProfile:
@@ -45,4 +46,10 @@ def require_role(user_profile: UserProfile | None, *allowed_roles: Role) -> User
     # after both checks above, not before - an invalid/unauthorized
     # request shouldn't count as "someone using the app."
     track_activity_if_due()
+    # Phase 286 - the "is anyone else still here" signal the sign-out
+    # accelerant needs - a separate, per-identity presence set, same
+    # chokepoint, same reasoning as the line above. Prefers the per-tab
+    # tab_session_id (so 2 tabs on the same persona count as 2) when a caller
+    # sends one, falling back to employee_id exactly as before otherwise.
+    record_session_presence_if_due(user_profile.tab_session_id or user_profile.employee_id)
     return user_profile
