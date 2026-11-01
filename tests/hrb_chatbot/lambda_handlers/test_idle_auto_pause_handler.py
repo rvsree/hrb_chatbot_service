@@ -26,7 +26,7 @@ def _pretend_secrets_already_loaded():
     yield
     idle_auto_pause_handler._secrets_loaded = False
 
-_RUNNING_A = {"service_name": "hrb-chatbot", "display_name": "Chatbot Backend", "status": "RUNNING", "url": "x", "error": None}
+_RUNNING_A = {"service_name": "rag-ingestion-service", "display_name": "RAG Ingestion", "status": "RUNNING", "url": "x", "error": None}
 _RUNNING_B = {"service_name": "hrb-api-gateway", "display_name": "API Gateway", "status": "RUNNING", "url": "x", "error": None}
 _PAUSED_A = {"service_name": "hrb-lms-mcp", "display_name": "MCP Server", "status": "PAUSED", "url": None, "error": None}
 
@@ -107,6 +107,44 @@ def test_idle_past_threshold_pauses_only_the_running_services(monkeypatch):
 
     assert result["action"] == "paused"
     assert result["results"] == paused_results
+
+
+def test_hrb_chatbot_is_never_auto_paused_even_when_idle_and_running(monkeypatch):
+    """Real-incident regression test, 2026-10-31: hrb-chatbot hosts the
+    only routes that could ever resume anything (including itself) - an
+    automated pause of it is an unrecoverable deadlock, confirmed live.
+    Must be excluded even when it's the ONLY service reported RUNNING."""
+    hrb_chatbot_running = {
+        "service_name": "hrb-chatbot", "display_name": "Chatbot Backend", "status": "RUNNING", "url": "x", "error": None,
+    }
+    stale = (datetime.now(UTC) - timedelta(minutes=90)).isoformat()
+    fake_client = _FakeAppRunnerClient(describe_result=[hrb_chatbot_running])
+    _wire(monkeypatch, last_seen_iso=stale, apprunner_client=fake_client, threshold_minutes=60)
+
+    result = idle_auto_pause_handler.lambda_handler({}, None)
+
+    assert result == {"action": "skipped", "reason": "already_paused", "idle_minutes": 90.0}
+
+
+def test_hrb_chatbot_is_excluded_even_when_other_services_do_get_paused(monkeypatch):
+    hrb_chatbot_running = {
+        "service_name": "hrb-chatbot", "display_name": "Chatbot Backend", "status": "RUNNING", "url": "x", "error": None,
+    }
+    captured = {}
+    stale = (datetime.now(UTC) - timedelta(minutes=90)).isoformat()
+
+    class _CapturingClient(_FakeAppRunnerClient):
+        def pause(self, service_names=None):
+            captured["service_names"] = service_names
+            return [{**_RUNNING_B, "status": "OPERATION_IN_PROGRESS", "error": None}]
+
+    fake_client = _CapturingClient(describe_result=[hrb_chatbot_running, _RUNNING_B])
+    _wire(monkeypatch, last_seen_iso=stale, apprunner_client=fake_client, threshold_minutes=60)
+
+    result = idle_auto_pause_handler.lambda_handler({}, None)
+
+    assert result["action"] == "paused"
+    assert captured["service_names"] == ["hrb-api-gateway"]
 
 
 def test_a_failed_pause_call_is_reported_in_the_result_but_does_not_raise(monkeypatch):

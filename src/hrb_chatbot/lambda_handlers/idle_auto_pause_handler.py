@@ -29,7 +29,7 @@ from datetime import UTC, datetime
 
 import boto3
 
-from src.hrb_chatbot.common.clients.aws_client.apprunner_client import AppRunnerClient
+from src.hrb_chatbot.common.clients.aws_client.apprunner_client import AppRunnerClient, filter_out_auto_pause_excluded
 from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 from src.hrb_chatbot.common.config.settings import read_setting
 
@@ -134,6 +134,11 @@ async def _check_and_pause_if_idle() -> dict:
 
     statuses = AppRunnerClient().describe_all()
     running_names = [service["service_name"] for service in statuses if service["status"] == "RUNNING"]
+    # Real incident, 2026-10-31: hrb-chatbot auto-pausing itself left no
+    # application-level way to resume anything - see apprunner_client.py's
+    # own AUTO_PAUSE_EXCLUDED_SERVICE_NAMES docstring. Never pause it from
+    # this automated path, regardless of how idle it looks.
+    running_names = filter_out_auto_pause_excluded(running_names)
     if not running_names:
         logger.info("Idle %.1f min, but nothing is RUNNING - nothing to pause.", idle_minutes)
         return {"action": "skipped", "reason": "already_paused", "idle_minutes": round(idle_minutes, 1)}

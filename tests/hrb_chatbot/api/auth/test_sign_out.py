@@ -9,8 +9,8 @@ from src.hrb_chatbot.main import app
 client = TestClient(app)
 
 _RUNNING_SERVICE = {
-    "service_name": "hrb-chatbot",
-    "display_name": "Chatbot Backend",
+    "service_name": "hrb-api-gateway",
+    "display_name": "API Gateway",
     "status": "RUNNING",
     "url": "x",
     "error": None,
@@ -89,7 +89,32 @@ def test_sign_out_pauses_when_truly_the_last_active_session(monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == {"paused": True}
-    assert captured["service_names"] == ["hrb-chatbot"]
+    assert captured["service_names"] == ["hrb-api-gateway"]
+
+
+def test_sign_out_never_pauses_hrb_chatbot_even_as_the_sole_running_service(monkeypatch):
+    """Real-incident regression test, 2026-10-31: this accelerant
+    previously paused hrb-chatbot itself - the one service hosting this
+    very route - leaving no application-level way to resume anything."""
+    monkeypatch.setenv("APP_ENVIRONMENT", "production")
+    hrb_chatbot_running = {
+        "service_name": "hrb-chatbot", "display_name": "Chatbot Backend", "status": "RUNNING", "url": "x", "error": None,
+    }
+
+    async def _fake_remove(employee_id):
+        pass
+
+    async def _fake_count(excluding_employee_id):
+        return 0
+
+    monkeypatch.setattr(login, "remove_session_presence", _fake_remove)
+    monkeypatch.setattr(login, "count_other_active_sessions", _fake_count)
+    monkeypatch.setattr(login, "AppRunnerClient", lambda: _FakeAppRunnerClient(describe_result=[hrb_chatbot_running]))
+
+    response = client.post("/v1/auth/sign-out", json={"employee_id": "EMP052"})
+
+    assert response.status_code == 200
+    assert response.json() == {"paused": False}
 
 
 def test_sign_out_skips_pause_when_everything_is_already_paused(monkeypatch):

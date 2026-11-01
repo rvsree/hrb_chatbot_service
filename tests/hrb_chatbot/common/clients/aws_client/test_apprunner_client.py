@@ -121,3 +121,32 @@ def test_invalid_config_json_results_in_zero_services(monkeypatch):
 
     assert client.services == []
     assert client.describe_all() == []
+
+
+# filter_out_auto_pause_excluded() - the real-incident fix (2026-10-31):
+# hrb-chatbot must never be a target of an *automated* pause path (the
+# idle-timeout Lambda, the sign-out accelerant) - see this function's own
+# docstring for why (it hosts the only routes that could ever resume
+# anything, including itself).
+
+
+def test_filter_out_auto_pause_excluded_removes_hrb_chatbot():
+    from src.hrb_chatbot.common.clients.aws_client.apprunner_client import filter_out_auto_pause_excluded
+
+    result = filter_out_auto_pause_excluded(["hrb-chatbot", "hrb-api-gateway", "hrb-lms-mcp"])
+
+    assert result == ["hrb-api-gateway", "hrb-lms-mcp"]
+
+
+def test_filter_out_auto_pause_excluded_is_a_noop_when_hrb_chatbot_is_not_present():
+    from src.hrb_chatbot.common.clients.aws_client.apprunner_client import filter_out_auto_pause_excluded
+
+    result = filter_out_auto_pause_excluded(["hrb-api-gateway", "hrb-lms-mcp"])
+
+    assert result == ["hrb-api-gateway", "hrb-lms-mcp"]
+
+
+def test_filter_out_auto_pause_excluded_on_an_empty_list():
+    from src.hrb_chatbot.common.clients.aws_client.apprunner_client import filter_out_auto_pause_excluded
+
+    assert filter_out_auto_pause_excluded([]) == []
