@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 300" font-family="Arial, Helvetica, sans-serif">
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <polygon points="0 0, 7 3, 0 6" fill="#51607a" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1000" height="300" fill="#f7f8fa" />
+  <rect x="0" y="0" width="1000" height="64" fill="#16233f" />
+  <text x="28" y="28" fill="#ffffff" font-size="20" font-weight="700">Document Ingestion &#8212; How It Works</text>
+  <text x="28" y="48" fill="#e8b64a" font-size="12.5">Synchronous &#183; one file at a time &#183; not async or background</text>
+
+  <!-- Box 1: Upload -->
+  <g>
+    <rect x="49" y="130" width="150" height="120" rx="10" fill="#eaf1fb" stroke="#2f5fa8" stroke-width="1.5" />
+    <circle cx="73" cy="154" r="14" fill="#16233f" />
+    <text x="73" y="159" fill="#ffffff" font-size="13" font-weight="700" text-anchor="middle">1</text>
+    <text x="124" y="194" fill="#16233f" font-size="14.5" font-weight="700" text-anchor="middle">Upload</text>
+    <text x="124" y="214" fill="#51607a" font-size="11" text-anchor="middle">HR Support uploads</text>
+    <text x="124" y="229" fill="#51607a" font-size="11" text-anchor="middle">a document</text>
+  </g>
+  <line x1="199" y1="190" x2="231" y2="190" stroke="#51607a" stroke-width="1.5" marker-end="url(#arrowhead)" />
+
+  <!-- Box 2: Extract -->
+  <g>
+    <rect x="237" y="130" width="150" height="120" rx="10" fill="#eaf1fb" stroke="#2f5fa8" stroke-width="1.5" />
+    <circle cx="261" cy="154" r="14" fill="#16233f" />
+    <text x="261" y="159" fill="#ffffff" font-size="13" font-weight="700" text-anchor="middle">2</text>
+    <text x="312" y="194" fill="#16233f" font-size="14.5" font-weight="700" text-anchor="middle">Extract</text>
+    <text x="312" y="214" fill="#51607a" font-size="11" text-anchor="middle">Text pulled from</text>
+    <text x="312" y="229" fill="#51607a" font-size="11" text-anchor="middle">the file</text>
+  </g>
+  <line x1="387" y1="190" x2="419" y2="190" stroke="#51607a" stroke-width="1.5" marker-end="url(#arrowhead)" />
+
+  <!-- Box 3: Chunk -->
+  <g>
+    <rect x="425" y="130" width="150" height="120" rx="10" fill="#eaf1fb" stroke="#2f5fa8" stroke-width="1.5" />
+    <circle cx="449" cy="154" r="14" fill="#16233f" />
+    <text x="449" y="159" fill="#ffffff" font-size="13" font-weight="700" text-anchor="middle">3</text>
+    <text x="500" y="194" fill="#16233f" font-size="14.5" font-weight="700" text-anchor="middle">Chunk</text>
+    <text x="500" y="214" fill="#51607a" font-size="11" text-anchor="middle">Split into smaller</text>
+    <text x="500" y="229" fill="#51607a" font-size="11" text-anchor="middle">pieces</text>
+  </g>
+  <line x1="575" y1="190" x2="607" y2="190" stroke="#51607a" stroke-width="1.5" marker-end="url(#arrowhead)" />
+
+  <!-- Box 4: Embed -->
+  <g>
+    <rect x="613" y="130" width="150" height="120" rx="10" fill="#eaf1fb" stroke="#2f5fa8" stroke-width="1.5" />
+    <circle cx="637" cy="154" r="14" fill="#16233f" />
+    <text x="637" y="159" fill="#ffffff" font-size="13" font-weight="700" text-anchor="middle">4</text>
+    <text x="688" y="194" fill="#16233f" font-size="14.5" font-weight="700" text-anchor="middle">Embed</text>
+    <text x="688" y="214" fill="#51607a" font-size="11" text-anchor="middle">Each chunk becomes</text>
+    <text x="688" y="229" fill="#51607a" font-size="11" text-anchor="middle">a vector</text>
+  </g>
+  <line x1="763" y1="190" x2="795" y2="190" stroke="#51607a" stroke-width="1.5" marker-end="url(#arrowhead)" />
+
+  <!-- Box 5: Store (vector database) -->
+  <g>
+    <rect x="801" y="130" width="150" height="120" rx="10" fill="#e6f6ea" stroke="#2f8f4e" stroke-width="1.5" />
+    <circle cx="825" cy="154" r="14" fill="#2f8f4e" />
+    <text x="825" y="159" fill="#ffffff" font-size="13" font-weight="700" text-anchor="middle">5</text>
+    <text x="876" y="194" fill="#1d5c32" font-size="14.5" font-weight="700" text-anchor="middle">Store</text>
+    <text x="876" y="214" fill="#3c6b4c" font-size="11" text-anchor="middle">Saved to the vector</text>
+    <text x="876" y="229" fill="#3c6b4c" font-size="11" text-anchor="middle">database</text>
+  </g>
+
+  <text x="500" y="280" fill="#6b7280" font-size="11.5" font-style="italic" text-anchor="middle">
+    Uploading several files runs this same sequence one file at a time - not in parallel, not in the background.
+  </text>
+</svg>

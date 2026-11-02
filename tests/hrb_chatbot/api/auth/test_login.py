@@ -3,6 +3,7 @@
 from fastapi.testclient import TestClient
 
 from src.hrb_chatbot.api.auth import login
+from src.hrb_chatbot.services import auth_service
 from src.hrb_chatbot.main import app
 from tests.conftest import FakeAdminCredentialStore, FakeDBGateway
 
@@ -79,7 +80,7 @@ def test_every_real_known_persona_passes_the_character_pattern():
 
 
 def test_admin_login_with_correct_one_time_code_returns_200_and_flags_must_reset(monkeypatch):
-    monkeypatch.setattr(login, "get_db_gateway", lambda: FakeDBGateway())
+    monkeypatch.setattr(auth_service, "get_db_gateway", lambda: FakeDBGateway())
 
     response = client.post(
         "/v1/auth/login",
@@ -96,7 +97,7 @@ def test_admin_login_with_correct_one_time_code_returns_200_and_flags_must_reset
 
 
 def test_admin_login_with_wrong_secret_code_is_401(monkeypatch):
-    monkeypatch.setattr(login, "get_db_gateway", lambda: FakeDBGateway())
+    monkeypatch.setattr(auth_service, "get_db_gateway", lambda: FakeDBGateway())
 
     response = client.post(
         "/v1/auth/login",
@@ -108,7 +109,7 @@ def test_admin_login_with_wrong_secret_code_is_401(monkeypatch):
 
 
 def test_admin_login_with_missing_secret_code_is_401(monkeypatch):
-    monkeypatch.setattr(login, "get_db_gateway", lambda: FakeDBGateway())
+    monkeypatch.setattr(auth_service, "get_db_gateway", lambda: FakeDBGateway())
 
     response = client.post("/v1/auth/login", json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin"})
 
@@ -118,7 +119,7 @@ def test_admin_login_with_missing_secret_code_is_401(monkeypatch):
 
 def test_admin_login_after_reset_no_longer_flags_must_reset(monkeypatch):
     store = FakeAdminCredentialStore()
-    monkeypatch.setattr(login, "get_db_gateway", lambda: FakeDBGateway(admin_credential_store=store))
+    monkeypatch.setattr(auth_service, "get_db_gateway", lambda: FakeDBGateway(admin_credential_store=store))
 
     response = client.post(
         "/v1/auth/login",
@@ -151,7 +152,7 @@ def test_admin_login_after_reset_no_longer_flags_must_reset(monkeypatch):
 
 def test_wrong_codes_below_the_threshold_do_not_lock(monkeypatch):
     store = FakeAdminCredentialStore()
-    monkeypatch.setattr(login, "get_db_gateway", lambda: FakeDBGateway(admin_credential_store=store))
+    monkeypatch.setattr(auth_service, "get_db_gateway", lambda: FakeDBGateway(admin_credential_store=store))
 
     for _ in range(store.MAX_FAILED_ATTEMPTS - 1):
         response = client.post(
@@ -164,7 +165,7 @@ def test_wrong_codes_below_the_threshold_do_not_lock(monkeypatch):
 
 def test_reaching_the_threshold_locks_the_account_with_423(monkeypatch):
     store = FakeAdminCredentialStore()
-    monkeypatch.setattr(login, "get_db_gateway", lambda: FakeDBGateway(admin_credential_store=store))
+    monkeypatch.setattr(auth_service, "get_db_gateway", lambda: FakeDBGateway(admin_credential_store=store))
 
     for _ in range(store.MAX_FAILED_ATTEMPTS):
         response = client.post(
@@ -195,7 +196,7 @@ def test_speculative_check_count_as_attempt_false_never_locks(monkeypatch):
     through the lockout budget - a user's own typos while typing their
     correct code shouldn't lock them out before they finish."""
     store = FakeAdminCredentialStore()
-    monkeypatch.setattr(login, "get_db_gateway", lambda: FakeDBGateway(admin_credential_store=store))
+    monkeypatch.setattr(auth_service, "get_db_gateway", lambda: FakeDBGateway(admin_credential_store=store))
 
     for _ in range(store.MAX_FAILED_ATTEMPTS * 2):
         response = client.post(
@@ -225,7 +226,7 @@ def test_speculative_check_count_as_attempt_false_never_locks(monkeypatch):
 
 def test_correct_code_resets_the_failed_attempt_count(monkeypatch):
     store = FakeAdminCredentialStore()
-    monkeypatch.setattr(login, "get_db_gateway", lambda: FakeDBGateway(admin_credential_store=store))
+    monkeypatch.setattr(auth_service, "get_db_gateway", lambda: FakeDBGateway(admin_credential_store=store))
 
     for _ in range(store.MAX_FAILED_ATTEMPTS - 1):
         client.post(
@@ -256,7 +257,7 @@ def test_correct_code_resets_the_failed_attempt_count(monkeypatch):
 def test_recovery_code_clears_the_lock_and_forces_a_reset(monkeypatch):
     monkeypatch.setattr(login, "ADMIN_UNLOCK_CODE", "the-recovery-code")
     store = FakeAdminCredentialStore()
-    monkeypatch.setattr(login, "get_db_gateway", lambda: FakeDBGateway(admin_credential_store=store))
+    monkeypatch.setattr(auth_service, "get_db_gateway", lambda: FakeDBGateway(admin_credential_store=store))
 
     for _ in range(store.MAX_FAILED_ATTEMPTS):
         client.post(
@@ -284,7 +285,7 @@ def test_recovery_code_clears_the_lock_and_forces_a_reset(monkeypatch):
 def test_wrong_code_during_lockout_does_not_accidentally_match_the_recovery_code(monkeypatch):
     monkeypatch.setattr(login, "ADMIN_UNLOCK_CODE", "the-recovery-code")
     store = FakeAdminCredentialStore()
-    monkeypatch.setattr(login, "get_db_gateway", lambda: FakeDBGateway(admin_credential_store=store))
+    monkeypatch.setattr(auth_service, "get_db_gateway", lambda: FakeDBGateway(admin_credential_store=store))
 
     for _ in range(store.MAX_FAILED_ATTEMPTS):
         client.post(
@@ -304,7 +305,7 @@ def test_wrong_code_during_lockout_does_not_accidentally_match_the_recovery_code
 def test_recovery_disabled_when_unlock_code_not_configured(monkeypatch):
     monkeypatch.setattr(login, "ADMIN_UNLOCK_CODE", None)
     store = FakeAdminCredentialStore()
-    monkeypatch.setattr(login, "get_db_gateway", lambda: FakeDBGateway(admin_credential_store=store))
+    monkeypatch.setattr(auth_service, "get_db_gateway", lambda: FakeDBGateway(admin_credential_store=store))
 
     for _ in range(store.MAX_FAILED_ATTEMPTS):
         client.post(
@@ -322,7 +323,7 @@ def test_recovery_disabled_when_unlock_code_not_configured(monkeypatch):
 
 
 def test_non_admin_cannot_reset_the_secret_code(monkeypatch):
-    monkeypatch.setattr(login, "get_db_gateway", lambda: FakeDBGateway())
+    monkeypatch.setattr(auth_service, "get_db_gateway", lambda: FakeDBGateway())
 
     response = client.post(
         "/v1/auth/admin/reset-secret-code",
@@ -337,7 +338,7 @@ def test_non_admin_cannot_reset_the_secret_code(monkeypatch):
 
 
 def test_reset_with_wrong_current_code_is_401(monkeypatch):
-    monkeypatch.setattr(login, "get_db_gateway", lambda: FakeDBGateway())
+    monkeypatch.setattr(auth_service, "get_db_gateway", lambda: FakeDBGateway())
 
     response = client.post(
         "/v1/auth/admin/reset-secret-code",
@@ -355,7 +356,7 @@ def test_reset_with_wrong_current_code_is_401(monkeypatch):
 async def test_reset_with_correct_current_code_succeeds(monkeypatch):
     store = FakeAdminCredentialStore()
     await store.get_or_seed("ADM001", login.ADMIN_ONE_TIME_SEED_SECRET_CODE)  # simulates having already logged in once
-    monkeypatch.setattr(login, "get_db_gateway", lambda: FakeDBGateway(admin_credential_store=store))
+    monkeypatch.setattr(auth_service, "get_db_gateway", lambda: FakeDBGateway(admin_credential_store=store))
 
     response = client.post(
         "/v1/auth/admin/reset-secret-code",

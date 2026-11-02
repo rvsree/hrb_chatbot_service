@@ -279,25 +279,13 @@ other). **Tavily has a client
 `/health` yet** - a known gap, tracked in
 [docs/agent-reference/BACKLOG.md](docs/agent-reference/BACKLOG.md), not something broken.
 
-### How ingestion actually works (plain-language)
+### How ingestion actually works
 
-Every document the chatbot can answer from got there the same way:
+![Document ingestion pipeline: upload, extract, chunk, embed, store](docs/assets/ingestion-pipeline-overview.svg)
 
-```mermaid
-flowchart LR
-    A[HR Support uploads a document] --> B[Extract text from the file]
-    B --> C[Split the text into chunks]
-    C --> D[Each chunk is embedded\ninto a vector]
-    D --> E[(Vector database)]
-```
-
-Uploading several files at once runs this same sequence **one file at a
-time**, in the same request - not in the background, and not in parallel.
-Today's pipeline is deliberately simple (local disk, synchronous, in-request);
-a queue-based async design exists only as a documented, not-yet-built plan
-([docs/agent-reference/S3-ASYNC-UPLOAD-DESIGN.md](docs/agent-reference/S3-ASYNC-UPLOAD-DESIGN.md)).
-
-For the curl-level walkthrough and the developer-facing details, see below.
+A queue-based async version of this is a documented, not-yet-built plan -
+[S3-ASYNC-UPLOAD-DESIGN.md](docs/agent-reference/S3-ASYNC-UPLOAD-DESIGN.md).
+For the curl-level walkthrough, see below.
 
 ### Upload documents, index them, and ask the knowledge base
 

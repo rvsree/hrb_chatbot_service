@@ -13,7 +13,6 @@ from src.hrb_chatbot.api.gateway.activity_tracker import count_other_active_sess
 from src.hrb_chatbot.api.gateway.rbac import require_role
 from src.hrb_chatbot.common import error_codes
 from src.hrb_chatbot.common.clients.aws_client.apprunner_client import AppRunnerClient, filter_out_auto_pause_excluded
-from src.hrb_chatbot.common.clients.db_client.db_gateway import get_db_gateway
 from src.hrb_chatbot.common.config.settings import get_app_environment, read_setting
 from src.hrb_chatbot.common.enums import Role
 from src.hrb_chatbot.common.known_personas import is_known_persona
@@ -31,6 +30,7 @@ from src.hrb_chatbot.models.auth import (
     SignOutResponse,
 )
 from src.hrb_chatbot.models.common import UserProfile
+from src.hrb_chatbot.services import auth_service
 
 router_login = APIRouter(tags=["auth"])
 logger = get_logger("auth.login")
@@ -66,43 +66,26 @@ async def login(payload: LoginRequest, request: Request):
 
     must_reset_secret_code = False
     if payload.role in ("admin", "employee_admin"):
-        credential_store = get_db_gateway().admin_credential_store()
-        credential = await credential_store.get_or_seed(payload.employee_id, ADMIN_ONE_TIME_SEED_SECRET_CODE)
-
-        if credential["is_locked"]:
-            if ADMIN_UNLOCK_CODE and payload.secret_code == ADMIN_UNLOCK_CODE:
-                await credential_store.force_unlock_and_require_reset(payload.employee_id, ADMIN_UNLOCK_CODE)
-                must_reset_secret_code = True
-            else:
-                return json_error(
-                    423,
-                    f"Too many wrong secret codes - locked until {credential['locked_until'].isoformat()}.",
-                    code=error_codes.ADMIN_ACCOUNT_LOCKED,
-                )
-        elif not await credential_store.verify_secret_code(payload.employee_id, payload.secret_code):
-            if payload.count_as_attempt:
-                await credential_store.record_failed_attempt(payload.employee_id)
-                # Re-fetch rather than compute locally - the exact attempt
-                # that crosses the threshold must report the lock
-                # immediately, not leave the admin finding out only on
-                # their next (also-rejected) try. The DB's own count/clock
-                # stay the single source of truth, not a value guessed here.
-                refreshed = await credential_store.get_credential(payload.employee_id)
-                if refreshed["is_locked"]:
-                    return json_error(
-                        423,
-                        f"Too many wrong secret codes - locked until {refreshed['locked_until'].isoformat()}.",
-                        code=error_codes.ADMIN_ACCOUNT_LOCKED,
-                    )
+        try:
+            must_reset_secret_code = await auth_service.authenticate_admin(
+                payload.employee_id,
+                payload.secret_code,
+                ADMIN_ONE_TIME_SEED_SECRET_CODE,
+                ADMIN_UNLOCK_CODE,
+                payload.count_as_attempt,
+            )
+        except auth_service.AdminAccountLockedError as error:
+            return json_error(
+                423,
+                f"Too many wrong secret codes - locked until {error.locked_until.isoformat()}.",
+                code=error_codes.ADMIN_ACCOUNT_LOCKED,
+            )
+        except auth_service.InvalidAdminSecretCodeError:
             return json_error(
                 401,
                 "Incorrect secret code for the admin role.",
                 code=error_codes.INVALID_ADMIN_SECRET_CODE,
             )
-        else:
-            if payload.count_as_attempt:
-                await credential_store.reset_failed_attempts(payload.employee_id)
-            must_reset_secret_code = credential["must_reset"]
 
     return LoginResponse(
         user_profile=UserProfile(employee_id=payload.employee_id, full_name=payload.full_name, role=payload.role),
@@ -118,15 +101,17 @@ async def reset_admin_secret_code(payload: ResetSecretCodeRequest):
     session token alone can't silently change it."""
     require_role(payload.user_profile, Role.ADMIN, Role.EMPLOYEE_ADMIN)
 
-    credential_store = get_db_gateway().admin_credential_store()
-    if not await credential_store.verify_secret_code(payload.user_profile.employee_id, payload.current_secret_code):
+    try:
+        await auth_service.reset_secret_code(
+            payload.user_profile.employee_id, payload.current_secret_code, payload.new_secret_code
+        )
+    except auth_service.InvalidAdminSecretCodeError:
         return json_error(
             401,
             "Current secret code is incorrect.",
             code=error_codes.INVALID_ADMIN_SECRET_CODE,
         )
 
-    await credential_store.set_secret_code(payload.user_profile.employee_id, payload.new_secret_code)
     return ResetSecretCodeResponse(employee_id=payload.user_profile.employee_id, reset=True)
 
 
