@@ -493,8 +493,12 @@ async def get_app_setting(key: str, user_profile: UserProfile | None = Depends(i
     """Phase 257 - a generic runtime setting's current value. 404s if the
     key was never set and has no known default (app_settings_store's own
     get_setting() always needs a default - this route has none to pass, so
-    an unknown key is a real 404, not a silent fallback)."""
-    require_role(user_profile, Role.ADMIN)
+    an unknown key is a real 404, not a silent fallback).
+
+    Phase 293 - widened to every role, read-only - lets Settings' Memory/
+    Resiliency tabs show their real values to non-admins too. The PUT
+    sibling below stays ADMIN only - nothing here grants write access."""
+    require_role(user_profile, Role.ADMIN, Role.EMPLOYEE, Role.MANAGER, Role.HR_SUPPORT, Role.EMPLOYEE_ADMIN)
 
     _MISSING = object()
     value = await get_db_gateway().app_settings_store().get_setting(key, _MISSING)

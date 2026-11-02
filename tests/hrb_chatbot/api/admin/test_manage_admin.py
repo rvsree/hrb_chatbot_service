@@ -1522,9 +1522,16 @@ def test_golden_dataset_list_is_cached_and_force_refresh_bypasses_it(monkeypatch
     assert call_count["n"] == 2  # first call (miss) + third call (force_refresh) - second was a real cache hit
 
 
-def test_non_admin_cannot_read_a_setting(monkeypatch):
+def test_non_admin_can_read_a_setting_read_only(monkeypatch):
+    # Phase 293 - widened: every role can read, only ADMIN can write (see
+    # test_non_admin_cannot_update_a_setting below, unchanged).
+    store = FakeAppSettingsStore({"ltm_score_threshold": 0.6})
+    monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(app_settings_store=store))
+
     response = client.get("/v1/admin/app-settings/ltm_score_threshold", params=EMPLOYEE_PROFILE)
-    assert response.status_code == 403
+
+    assert response.status_code == 200
+    assert response.json()["value"] == 0.6
 
 
 def test_admin_reads_an_unset_setting_returns_404(monkeypatch):
