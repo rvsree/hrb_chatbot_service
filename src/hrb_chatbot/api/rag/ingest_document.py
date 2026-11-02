@@ -192,8 +192,10 @@ async def request_presigned_upload(body: PresignedUploadRequest, request: Reques
 
 @router_ingest_document.get("/documents", response_model=DocumentListResponse)
 async def list_documents(user_profile: UserProfile | None = Depends(identity_from_query_params)):
-    """List every uploaded document and its current status."""
-    require_role(user_profile, Role.HR_SUPPORT, Role.ADMIN, Role.EMPLOYEE_ADMIN)
+    """List every uploaded document and its current status. Phase 291 - read-only,
+    open to every role so any visitor can see what's actually indexed; every
+    mutating route on this router stays HR_SUPPORT/ADMIN/EMPLOYEE_ADMIN only."""
+    require_role(user_profile, Role.HR_SUPPORT, Role.ADMIN, Role.EMPLOYEE_ADMIN, Role.EMPLOYEE, Role.MANAGER)
     documents = await documents_service.list_documents()
     return DocumentListResponse(count=len(documents), documents=[DocumentRecord.from_row(doc) for doc in documents])
 

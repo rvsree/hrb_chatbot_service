@@ -302,6 +302,19 @@ def test_uploaded_document_appears_in_list_and_get_by_id():
     assert document["uploaded_by"] == "EMP051"
 
 
+def test_employee_and_manager_can_list_documents_read_only():
+    # Phase 291 - this one GET route is deliberately widened beyond the
+    # HR_SUPPORT/ADMIN/EMPLOYEE_ADMIN that every mutating route on this
+    # router still requires - read-only, so any signed-in visitor can see
+    # what's actually indexed.
+    for role in ("employee", "manager"):
+        response = _get(
+            "/v1/genai-rag/ingest-document/documents",
+            user_profile={"employee_id": "EMP052", "full_name": "Some Employee", "role": role},
+        )
+        assert response.status_code == 200, role
+
+
 def test_get_unknown_document_id_is_a_404_with_the_standard_error_shape():
     response = _get("/v1/genai-rag/ingest-document/documents/does-not-exist")
 
