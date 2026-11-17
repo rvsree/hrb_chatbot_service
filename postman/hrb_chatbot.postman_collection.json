@@ -1526,10 +1526,10 @@
                     "login"
                   ]
                 },
-                "description": "Validates employee_id/full_name/role against the known-personas roster (common/known_personas.py). Expect 200, user_profile echoed back - this is what the UI stores and sends as user_profile on every later request. Not real authentication - role stays self-asserted after this.",
+                "description": "Validates employee_id/full_name/role against the known-personas roster (common/known_personas.py). Expect 200, user_profile echoed back - this is what the UI stores and sends as user_profile on every later request. Not real authentication - role stays self-asserted after this. guest_user_name (Phase 296) is optional and unrelated to known_personas.py - a real visitor's own typed name, for Demo Visitors tracking only.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"employee_id\": \"EMP052\",\n  \"full_name\": \"Eddy Employee\",\n  \"role\": \"employee\"\n}"
+                  "raw": "{\n  \"employee_id\": \"EMP052\",\n  \"full_name\": \"Eddy Employee\",\n  \"role\": \"employee\",\n  \"guest_user_name\": \"Taylor Friend\"\n}"
                 }
               }
             }

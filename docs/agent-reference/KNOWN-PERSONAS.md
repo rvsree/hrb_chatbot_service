@@ -8,6 +8,15 @@ accepting anything typed into the login form - see `LoginPage.tsx`'s own
 note on this ("still isn't real authentication - role is self-asserted on
 every request", `docs/agent-reference/BACKLOG.md`).
 
+**Phase 296, 2026-11-17 - `guest_user_name` is deliberately NOT part of
+this roster.** It's a separate, optional login field (free text, no
+allowlist check) that only feeds Demo Visitors tracking - never identity,
+never RBAC, never an MCP call. `employee_id`/`full_name`/`role` still have
+to be one of the rows below; `guest_user_name` is additive on top, not a
+4th column to extend this table with. See
+`endpoint-request-response-contracts.md`'s own Phase 296 section for the
+full wire shape.
+
 **Every row below is a real employee in `hrb_emp_lms.employees`** - the MCP
 server's (`hrb_lms_mcp`) own Postgres table - queried directly before being
 added here, not invented. This matters because a login's `employee_id` is
