@@ -1403,6 +1403,32 @@ def test_admin_deleting_an_unknown_demo_visitor_reports_not_deleted(monkeypatch)
     assert body == {"conversation_id": "conv-unknown", "deleted": False}
 
 
+async def test_a_freshly_recorded_visitor_lists_cleanly(monkeypatch):
+    """A row that only ever went through record_query() (never pre-seeded
+    with every field by hand, like the test above does) must still survive
+    DemoVisitorSummary(**row) - this is exactly the shape check_and_record()
+    produces on a real query, so this is the regression test for the gap
+    found investigating the "Demo Visitors" grid showing 0 rows live."""
+    store = FakeDemoVisitorStore()
+    await store.record_query(
+        conversation_id="conv-live", employee_id="EMP060", full_name="New Visitor",
+        role="employee", ip_address="5.6.7.8", timezone="America/Chicago",
+    )
+    monkeypatch.setattr(
+        manage_admin, "get_db_gateway",
+        lambda: FakeDBGateway(demo_visitor_store=store, app_settings_store=FakeAppSettingsStore({"demo_query_limit": 15})),
+    )
+
+    response = client.get("/v1/admin/demo-visitors", params=ADMIN_PROFILE)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] == 1
+    assert body["visitors"][0]["conversation_id"] == "conv-live"
+    assert body["visitors"][0]["query_count"] == 1
+    assert body["visitors"][0]["effective_limit"] == 15
+
+
 def test_non_admin_cannot_grant_a_demo_waiver(monkeypatch):
     response = client.post(
         "/v1/admin/demo-visitors/conv-1/grant-waiver",

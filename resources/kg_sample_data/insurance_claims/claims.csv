@@ -1,0 +1,13 @@
+claim_id,employee_id,plan_type,carrier,provider_id,date_of_service,billed_amount,allowed_amount,paid_amount,status,denial_reason
+CLM001,EMP001,Medical,Aetna,PRV001,2026-02-10,450,320,256,Paid,
+CLM002,EMP001,Dental,Delta Dental,PRV002,2026-03-02,1800,1500,0,Denied,Exceeds annual maximum
+CLM003,EMP003,Vision,VSP,PRV003,2026-01-20,300,250,250,Paid,
+CLM004,EMP011,Medical,Cigna,PRV005,2026-04-05,900,0,0,Denied,Out-of-network - no authorization
+CLM005,EMP001,Medical,Aetna,PRV004,2026-05-18,600,480,384,Paid,
+CLM006,EMP006,Medical,UnitedHealthcare,PRV006,2026-02-28,220,180,144,Paid,
+CLM007,EMP006,Dental,MetLife,PRV007,2026-06-10,2400,1500,1200,Paid,
+CLM008,EMP009,Vision,VSP,PRV003,2026-07-01,310,250,250,Paid,
+CLM009,EMP010,Medical,Centivo,PRV008,2026-03-15,500,400,320,Paid,
+CLM010,EMP002,Dental,Delta Dental,PRV002,2026-08-05,600,480,384,Paid,
+CLM011,EMP004,Medical,Aetna,PRV001,2026-09-12,150,0,0,Denied,Missing prior authorization
+CLM012,EMP007,Vision,VSP,PRV003,2026-05-22,280,250,250,Paid,

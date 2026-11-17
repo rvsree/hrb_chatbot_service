@@ -1219,23 +1219,37 @@ class FakeDemoVisitorStore:
         self._visitors = visitors or {}
 
     async def record_query(self, conversation_id, employee_id, full_name, role, ip_address, timezone):
+        # Same keys the real store's _list_sync() always returns (including
+        # created_at/updated_at/last_query_at) - a row built only through
+        # this method must survive DemoVisitorSummary(**row) unchanged, the
+        # same as a row read back from Postgres would.
         row = self._visitors.setdefault(
             conversation_id,
             {
                 "conversation_id": conversation_id, "employee_id": employee_id, "full_name": full_name,
                 "role": role, "ip_address": ip_address, "timezone": timezone,
                 "query_count": 0, "waiver_count": 0,
+                "created_at": "2026-01-01T00:00:00+00:00", "updated_at": "2026-01-01T00:00:00+00:00",
+                "last_query_at": None,
             },
         )
         row["query_count"] += 1
+        row["last_query_at"] = "2026-01-01T00:00:00+00:00"
+        row["updated_at"] = "2026-01-01T00:00:00+00:00"
         return {"query_count": row["query_count"], "waiver_count": row["waiver_count"]}
 
     async def grant_waiver(self, conversation_id, increment=15):
         row = self._visitors.setdefault(
             conversation_id,
-            {"conversation_id": conversation_id, "query_count": 0, "waiver_count": 0},
+            {
+                "conversation_id": conversation_id, "employee_id": None, "full_name": None, "role": None,
+                "ip_address": None, "timezone": None, "query_count": 0, "waiver_count": 0,
+                "created_at": "2026-01-01T00:00:00+00:00", "updated_at": "2026-01-01T00:00:00+00:00",
+                "last_query_at": None,
+            },
         )
         row["waiver_count"] += increment
+        row["updated_at"] = "2026-01-01T00:00:00+00:00"
         return {"conversation_id": conversation_id, "query_count": row["query_count"], "waiver_count": row["waiver_count"]}
 
     async def list_visitors(self):

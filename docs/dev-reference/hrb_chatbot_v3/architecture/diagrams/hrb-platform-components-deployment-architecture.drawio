@@ -1,0 +1,56 @@
+<mxfile host="app.diagrams.net" agent="claude-code" version="24.0.0">
+  <diagram name="hrb_platform_components - Deployment" id="hpc-deploy">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="420" math="0" shadow="0">
+      <root>
+        <mxCell id="0" /><mxCell id="1" parent="0" />
+        <mxCell id="hdr_bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#1A2744;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="20" y="20" width="1060" height="92" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr_title" value="hrb_platform_components &#8212; AWS Deployment Architecture" style="text;html=1;fontColor=#FFFFFF;fontSize=22;fontStyle=1;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="28" width="950" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr_sub" value="Smallest instance of the 6 containerized services &#8212; internal dashboard traffic only. Verified via AWS CLI, 2026-10-24." style="text;html=1;fontColor=#AFC6F0;fontSize=13;fontStyle=2;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="64" width="950" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr_view_tag" value="VIEW &#183; AWS deployment" style="rounded=1;arcSize=40;whiteSpace=wrap;html=1;fillColor=#F4B942;strokeColor=none;fontColor=#1A2744;fontSize=11;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="860" y="32" width="180" height="24" as="geometry" />
+        </mxCell>
+
+        <mxCell id="pill_service" value="SERVICE" style="rounded=1;arcSize=100;whiteSpace=wrap;html=1;fillColor=#1A2744;strokeColor=none;fontColor=#FFFFFF;fontSize=8;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="64" y="172" width="70" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="n_apprunner" value="App Runner: hrb-platform-components&#10;256 CPU / 512 Memory &#8212; smallest of the 6&#10;Instance role: hrb-platform-components-apprunner-instance-role" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontColor=#262B36;fontStyle=1;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="40" y="180" width="340" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="badge_apprunner" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#ED7100;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.app_runner;" vertex="1" parent="1">
+          <mxGeometry x="356" y="172" width="24" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="n_url" value="https://pgmzxemv5z.us-east-1.awsapprunner.com" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontColor=#262B36;fontSize=10;align=center;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="280" width="340" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n_ecr" value="ECR: hrb-platform-components&#10;418884736369.dkr.ecr.us-east-1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontColor=#262B36;fontStyle=1;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="440" y="180" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="badge_ecr" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#945DF2;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.elastic_container_registry;" vertex="1" parent="1">
+          <mxGeometry x="706" y="172" width="24" height="24" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n_secrets" value="Secrets Manager&#10;Postgres creds, GITHUB_TOKEN" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C9792E;fontColor=#262B36;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="760" y="180" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="badge_secrets" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#DD344C;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.secrets_manager;" vertex="1" parent="1">
+          <mxGeometry x="1006" y="172" width="24" height="24" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n_footer" value="Verified via real AWS CLI calls, 2026-10-24 (describe-service, describe-repositories)." style="text;html=1;fontColor=#595959;fontSize=10;fontStyle=2;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="340" width="900" height="24" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="n_apprunner" target="n_url"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="n_ecr" target="n_apprunner"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;dashed=1;" edge="1" parent="1" source="n_apprunner" target="n_secrets"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

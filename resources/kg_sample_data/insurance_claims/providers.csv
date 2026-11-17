@@ -1,0 +1,9 @@
+provider_id,name,specialty,carrier_network,in_network
+PRV001,Dr. Lisa Chen,Primary Care,Aetna,true
+PRV002,Dr. Mark Alvarez,Dental - General,Delta Dental,true
+PRV003,Bright Eyes Vision Center,Vision,VSP,true
+PRV004,Dr. Priya Nair,Dermatology,Cigna,true
+PRV005,Riverside Urgent Care,Urgent Care,,false
+PRV006,Dr. Samuel Okafor,Primary Care,UnitedHealthcare,true
+PRV007,Smile Bright Dental Group,Dental - Orthodontics,MetLife,true
+PRV008,Dr. Angela Ruiz,Primary Care,Centivo,true

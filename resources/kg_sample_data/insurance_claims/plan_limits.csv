@@ -1,0 +1,8 @@
+plan_type,carrier,plan_year,deductible_individual,oop_max_individual,annual_max
+Medical,Aetna,2026,1500,6000,
+Medical,Cigna,2026,2000,7000,
+Medical,UnitedHealthcare,2026,1750,6500,
+Medical,Centivo,2026,1000,5000,
+Dental,Delta Dental,2026,50,,1500
+Dental,MetLife,2026,50,,1500
+Vision,VSP,2026,0,,250

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>04 · rag_ingestion_service Build Process</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --bg: #eef0f4; --surface: #ffffff; --surface-alt: #f4f5f9; --border: #d9dce4;
+    --text: #191d28; --text-muted: #565f72; --text-faint: #8992a4;
+    --now: #1f8a4c; --now-bg: #e6f5ec; --now-border: #b9e2c9;
+    --logical: #333f9e; --logical-bg: #e8eafc; --logical-border: #c7cdf5;
+    --ribbon-bg: #191d28; --ribbon-text: #ffffff;
+    --shadow: 0 2px 4px rgba(20,24,34,0.06), 0 12px 26px rgba(20,24,34,0.08);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1218; --surface: #1a1f29; --surface-alt: #1c212c; --border: #2b3140;
+      --text: #e8eaf0; --text-muted: #a3aac0; --text-faint: #6d7488;
+      --now: #4fbd80; --now-bg: #15281d; --now-border: #23492f;
+      --logical: #7c86e0; --logical-bg: #1c2140; --logical-border: #343d7a;
+      --ribbon-bg: #e8eaf0; --ribbon-text: #14161e;
+      --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1218; --surface: #1a1f29; --surface-alt: #1c212c; --border: #2b3140;
+    --text: #e8eaf0; --text-muted: #a3aac0; --text-faint: #6d7488;
+    --now: #4fbd80; --now-bg: #15281d; --now-border: #23492f;
+    --logical: #7c86e0; --logical-bg: #1c2140; --logical-border: #343d7a;
+    --ribbon-bg: #e8eaf0; --ribbon-text: #14161e;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 14px 30px rgba(0,0,0,0.42);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 32px 56px; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-faint); font-weight: 600; }
+  h1 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 900; font-size: clamp(22px, 3.6vw, 32px); letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { margin: 0; color: var(--text-muted); font-size: 13.5px; max-width: 80ch; line-height: 1.55; }
+  h2 { margin: 0; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 15.5px; display: flex; align-items: center; gap: 9px; }
+  .h2-num { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 700; background: var(--ribbon-bg); color: var(--ribbon-text); border-radius: 6px; padding: 2px 7px; flex: none; }
+  .h2-sub { font-size: 11.5px; font-weight: 500; color: var(--text-faint); }
+  section { display: flex; flex-direction: column; gap: 12px; }
+  .pipeline { display: flex; flex-direction: column; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; box-shadow: var(--shadow); }
+  .stage-label { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); margin-top: 6px; }
+  .step { background: var(--surface-alt); border: 1.5px solid var(--border); border-radius: 10px; padding: 11px 14px; display: flex; flex-direction: column; gap: 3px; }
+  .step .sname { font-weight: 700; font-size: 12.5px; font-family: 'IBM Plex Mono', monospace; color: var(--logical); }
+  .step .sdesc { font-size: 11.5px; color: var(--text-muted); line-height: 1.5; }
+  .arrow { text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 15px; color: var(--text-faint); line-height: 1; padding: 1px 0; }
+  .fix-note { display: flex; gap: 8px; align-items: flex-start; background: var(--surface-alt); border: 1px dashed var(--border); border-radius: 8px; padding: 9px 11px; font-size: 11.5px; color: var(--text-muted); line-height: 1.5; }
+  .fix-note b { color: var(--text); }
+  .nav-strip { display: flex; justify-content: space-between; gap: 10px; font-size: 11.5px; }
+  .nav-strip a { color: var(--logical); text-decoration: none; font-family: 'IBM Plex Mono', monospace; }
+  footer { font-size: 11px; color: var(--text-faint); text-align: center; padding-top: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="eyebrow">04 of 7 · rag_ingestion_service · build process · 2026-10-23</span>
+  <h1>Build Process — rag_ingestion_service</h1>
+  <p class="subtitle">The only service in this system with TWO real, independently deployed build artifacts from the same source code: a container image (Dockerfile) for the sync admin-triggered path, and a separate Lambda package (Dockerfile.lambda) for the async S3-triggered path.</p>
+</header>
+
+<section>
+  <h2><span class="h2-num">1</span>Sync path - container image <span class="h2-sub">Dockerfile - same 2-stage shape as hrb_api_gateway_service's own</span></h2>
+  <div class="pipeline">
+    <div class="step"><span class="sname">builder stage</span><span class="sdesc">apt-get git (for the hrb-common-libs pin) → pip install -r requirements.txt into /opt/venv</span></div>
+    <div class="arrow">↓</div>
+    <div class="step"><span class="sname">runtime stage</span><span class="sdesc">non-root user hrbingest (uid 10001) → COPY --from=builder /opt/venv → COPY src ./src → EXPOSE 8300</span></div>
+    <div class="arrow">↓</div>
+    <div class="step"><span class="sname">CMD uvicorn rag_ingestion.main:app --app-dir src</span><span class="sdesc">bare <code class="mono">from rag_ingestion...</code> import convention, same as the Gateway's own</span></div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="h2-num">2</span>Async path - Lambda package <span class="h2-sub">Dockerfile.lambda - a different base image, different runtime shape entirely</span></h2>
+  <div class="pipeline">
+    <div class="step"><span class="sname">AWS Lambda Python base image</span><span class="sdesc">dnf install git (not apt-get - this base is RPM-based, not Debian) - a real bug found live: the base image has no git by default, needed for the same hrb-common-libs pin</span></div>
+    <div class="arrow">↓</div>
+    <div class="step"><span class="sname">pip install -r requirements.txt into the Lambda task root</span><span class="sdesc">No spacy/presidio model download here - this repo's own pipeline never imports guardrails code (that stayed retrieval-side)</span></div>
+    <div class="arrow">↓</div>
+    <div class="step"><span class="sname">CMD lambda_handler.lambda_handler</span><span class="sdesc">Reads one SQS batch (each message wraps an S3 ObjectCreated event), downloads to /tmp, calls the same pipeline.index_document() the sync path uses, reports per-message failures via batchItemFailures</span></div>
+  </div>
+  <div class="fix-note"><span>⚠</span><div><b>Second real bug found live:</b> <code class="mono">indexing.py</code>'s LlamaIndex call fell back to its own default embed-model resolution, which reads <code class="mono">OPENAI_API_KEY</code> straight from <code class="mono">os.environ</code> - bypassing this service's own Secrets-Manager-only convention entirely. Worked by accident in <code class="mono">hrb_chatbot_service</code>'s own container (where that var genuinely is a plain env var) but not here. Fixed by constructing the embedding client explicitly with <code class="mono">read_secret()</code>.</div></div>
+</section>
+
+<section>
+  <h2><span class="h2-num">3</span>Real CI/CD <span class="h2-sub">two independent workflows, one repo</span></h2>
+  <div class="pipeline">
+    <div class="step"><span class="sname">deploy.yml - the sync container path</span><span class="sdesc">Same 7-step ECR/App Runner pipeline every containerized service uses</span></div>
+    <div class="step"><span class="sname">deploy-lambda.yml - the async path</span><span class="sdesc">Builds Dockerfile.lambda, pushes to its own ECR repo, updates the Lambda function's image - a genuinely separate pipeline, not a variant of the same one</span></div>
+  </div>
+</section>
+
+<div class="nav-strip"><a href="03b-hrb-chatbot-service-deployment-architecture.html">← 03 hrb_chatbot_service</a><a href="04b-rag-ingestion-service-deployment-architecture.html">Next: deployment architecture →</a></div>
+<footer>2026-10-23 · part of the 7-service build-and-deploy sequence</footer>
+</div>
+</body>
+</html>

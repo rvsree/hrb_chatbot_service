@@ -6,7 +6,7 @@ How this project decides what gets built, in what order, and how a gap in alread
 
 ## §1 — The idea in one sentence
 
-A **skill** is guidance the agent can choose to follow — like a runbook a teammate reads before starting. A **hook** runs on a fixed path the agent doesn't control — like a pre-commit check nobody can argue their way past. Neither alone stops drift; together, a spec gets written and reviewed *before* code, and the hooks make sure that order actually holds.
+A **skill** is guidance the agent can choose to follow — like a runbook a teammate reads before starting; it can still be skipped under deadline pressure, same as a human skimming a runbook too fast. A **hook** runs automatically, outside the agent's own reasoning — like a pre-commit check nobody can argue their way past; it can block an action outright, with no "choosing to follow it" involved. Neither alone is enough: a skill with no hook behind it can be skipped; a hook with no skill behind it just blocks things with no process telling anyone what to do instead. Paired together — as in Phase 16, below — a spec gets written and reviewed *before* code, and the hook is what makes that actually happen, not just usually happen.
 
 ## §2 — The lifecycle
 
@@ -57,6 +57,19 @@ flowchart TD
 ```
 
 *Not approved → back to `/spec-new`, not forward to code.*
+
+**Reading this diagram against the real Phase 16 case (full story in
+§5):** a duplicate-upload bug was *found* (`gap`) and the actual code
+was *investigated* (`invest` — `find_by_content_hash()` already
+existed, it just wasn't being called anymore). *Options* were laid
+out and the call was to fix it *now*, not park it in `BACKLOG.md`.
+That routed into **SPEC**: `/spec-new` wrote the fix into the roadmap,
+`/spec-review` checked it, and it was *approved*. Only then did
+`spec_gate.py` (`gate`) allow the actual code change — one call
+restored, two tests brought back, nothing else touched. Then
+**CLOSE**: `/spec-verify` confirmed all 89 tests passed and the exact
+reported scenario was fixed. Every abbreviated node above is a real
+step that really happened, not a hypothetical.
 
 **Why it's blocking:** Stage 2's first step, `spec_gate.py`, is a `PreToolUse` hook — it physically refuses to let the agent write to `src/hrb_chatbot/**` if no phase in the roadmap has an open, written spec. It only checks that *a* spec exists, not that this exact edit matches it — staying in scope is a rule the implementer follows, not something the hook can verify.
 
