@@ -1793,13 +1793,16 @@ feeds identity/RBAC, only demo-visitor tracking.
   (`conversation_id` stays separate too - one visitor can still open
   several chat threads).
 
-**Login is where "mandatory" is enforced** - `POST /v1/auth/login`
-rejects a request with a blank/missing `guest_user_name` with
-`422 {"error": "...", "code": "VALIDATION_ERROR"}`, same shape every other
-field-validation failure in this project already returns. Every other
-route treats both new fields exactly like `tab_session_id` today - optional,
-echoed back by a caller that already has them, absent for an old/non-UI
-caller with no new behavior change for that caller.
+**Corrected 2026-11-17, live incident:** `guest_user_name` was first shipped
+as a *required* field on `POST /v1/auth/login` - it 422'd every real login
+within minutes, because the live `hrb_chatbot_ui` has no such field yet and
+never sent one. `guest_user_name` is optional on `LoginRequest`, same
+additive pattern as `timezone`/`tab_session_id`/`user_session_id` -
+"mandatory" is `hrb_chatbot_ui`'s own form validation to add once it ships
+the field, not a backend requirement ahead of it. Every route treats both
+new fields the same way: optional, echoed back by a caller that already has
+them, absent for an old/non-UI caller with no new behavior change for that
+caller.
 
 **`hrb_query_capture.demo_visitors` re-keyed from `conversation_id` to
 `user_session_id`** - closes gap (2) above: the cap/visibility now

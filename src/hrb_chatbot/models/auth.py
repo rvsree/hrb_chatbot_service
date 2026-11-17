@@ -12,9 +12,15 @@ class LoginRequest(BaseModel):
     employee_id: str = Field(..., max_length=50, pattern=r"^[A-Za-z0-9]+$")
     full_name: str = Field(..., max_length=200, pattern=r"^[A-Za-z\s'\-]+$")
     role: str = Field(..., max_length=50)
-    # Phase 296 - mandatory, unrelated to full_name/known_personas.py - the
-    # real demo visitor's own typed name, for Demo Visitors tracking only.
-    guest_user_name: str = Field(..., max_length=200, pattern=r"^[A-Za-z\s'\-]+$")
+    # Phase 296 - unrelated to full_name/known_personas.py - the real demo
+    # visitor's own typed name, for Demo Visitors tracking only. Optional
+    # here, same additive pattern as every other new UserProfile field
+    # (timezone/tab_session_id/user_session_id) - 2026-11-17 incident:
+    # made required here first, which 422'd every real login because the
+    # live hrb_chatbot_ui has no such field yet and never sent one.
+    # "Mandatory" belongs in that UI's own form validation once it ships
+    # the field, not as a hard backend requirement ahead of it.
+    guest_user_name: str | None = Field(None, max_length=200, pattern=r"^[A-Za-z\s'\-]+$")
     # Phase 169 - only read/checked when role == "admin".
     secret_code: str | None = Field(default=None, max_length=50)
     # Milestone 3 - the login page's own speculative check (does the

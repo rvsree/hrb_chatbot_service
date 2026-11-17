@@ -25,15 +25,17 @@ def test_known_combo_returns_200_with_the_matched_profile():
     }
 
 
-def test_missing_guest_user_name_is_422():
-    """Phase 296 - guest_user_name is mandatory on login, unrelated to
-    full_name/known_personas.py."""
+def test_missing_guest_user_name_still_logs_in():
+    """Phase 296 - optional, same additive pattern as timezone/
+    tab_session_id/user_session_id. 2026-11-17 incident: this was first
+    made required, which 422'd every real login since the live
+    hrb_chatbot_ui has no such field yet and never sends one."""
     response = client.post(
         "/v1/auth/login", json={"employee_id": "EMP052", "full_name": "Eddy Employee", "role": "employee"}
     )
 
-    assert response.status_code == 422
-    assert response.json()["code"] == "VALIDATION_ERROR"
+    assert response.status_code == 200
+    assert response.json()["user_profile"]["guest_user_name"] is None
 
 
 def test_login_echoes_guest_user_name_back_on_the_user_profile():
