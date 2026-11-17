@@ -438,33 +438,36 @@ async def list_demo_visitors(user_profile: UserProfile | None = Depends(identity
     return DemoVisitorListResponse(count=len(rows), visitors=visitors)
 
 
-@router_manage_admin.delete("/demo-visitors/{conversation_id}", response_model=AdminDeleteDemoVisitorResponse)
-async def delete_demo_visitor_entry(conversation_id: str, identity: IdentityPayload, request: Request):
+@router_manage_admin.delete("/demo-visitors/{user_session_id}", response_model=AdminDeleteDemoVisitorResponse)
+async def delete_demo_visitor_entry(user_session_id: str, identity: IdentityPayload, request: Request):
     """Hard-deletes one tracked demo visitor - nothing else in the app
     could delete one at all, this is the first and only such path.
-    Phase 268."""
+    Phase 268. Phase 296 - keyed on user_session_id (one per visit),
+    not conversation_id."""
     require_role(identity.user_profile, Role.ADMIN)
     await enforce_rate_limit(request)
 
-    rows_deleted = await get_db_gateway().demo_visitor_store().delete_visitor(conversation_id)
-    return AdminDeleteDemoVisitorResponse(conversation_id=conversation_id, deleted=rows_deleted > 0)
+    rows_deleted = await get_db_gateway().demo_visitor_store().delete_visitor(user_session_id)
+    return AdminDeleteDemoVisitorResponse(user_session_id=user_session_id, deleted=rows_deleted > 0)
 
 
-@router_manage_admin.post("/demo-visitors/{conversation_id}/grant-waiver", response_model=GrantWaiverResponse)
-async def grant_demo_waiver(conversation_id: str, payload: GrantWaiverRequest, request: Request):
-    """Phase 265 - adds 15 extra queries to this conversation's effective
+@router_manage_admin.post("/demo-visitors/{user_session_id}/grant-waiver", response_model=GrantWaiverResponse)
+async def grant_demo_waiver(user_session_id: str, payload: GrantWaiverRequest, request: Request):
+    """Phase 265 - adds 15 extra queries to this visitor's effective
     demo limit, e.g. during a live interview demo. Repeatable - each call
     adds on top of any prior waiver, never resets the count. Body-based
     identity (not query-param) since this isn't a safe/idempotent GET,
-    same reasoning ingest_document.py's own DELETE routes already use."""
+    same reasoning ingest_document.py's own DELETE routes already use.
+    Phase 296 - keyed on user_session_id (one per visit), not
+    conversation_id."""
     require_role(payload.user_profile, Role.ADMIN)
     await enforce_rate_limit(request)
 
     gateway = get_db_gateway()
-    result = await gateway.demo_visitor_store().grant_waiver(conversation_id, increment=15)
+    result = await gateway.demo_visitor_store().grant_waiver(user_session_id, increment=15)
     per_conversation_limit = await gateway.app_settings_store().get_setting("demo_query_limit", 15)
     return GrantWaiverResponse(
-        conversation_id=result["conversation_id"],
+        user_session_id=result["user_session_id"],
         waiver_count=result["waiver_count"],
         effective_limit=per_conversation_limit + result["waiver_count"],
     )

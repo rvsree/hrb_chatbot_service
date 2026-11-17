@@ -122,9 +122,15 @@ class AdminDeleteLiveQueryResponse(BaseModel):
 
 
 class DemoVisitorSummary(BaseModel):
-    """Phase 265 - one tracked demo-conversation visitor."""
+    """Phase 265 - one tracked demo visitor. Phase 296 - keyed on
+    user_session_id (one row per visit, however many chat threads);
+    conversation_id is now just the most-recently-seen one, no longer
+    unique. guest_user_name is the visitor's own typed name, separate
+    from full_name (which stays tied to the known-personas roster)."""
 
-    conversation_id: str
+    user_session_id: str
+    conversation_id: str | None
+    guest_user_name: str | None
     employee_id: str | None
     full_name: str | None
     role: str | None
@@ -144,7 +150,7 @@ class DemoVisitorListResponse(BaseModel):
 
 
 class AdminDeleteDemoVisitorResponse(BaseModel):
-    conversation_id: str
+    user_session_id: str
     deleted: bool
 
 
@@ -153,7 +159,7 @@ class GrantWaiverRequest(BaseModel):
 
 
 class GrantWaiverResponse(BaseModel):
-    conversation_id: str
+    user_session_id: str
     waiver_count: int
     effective_limit: int
 

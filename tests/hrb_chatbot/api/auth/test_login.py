@@ -12,22 +12,47 @@ client = TestClient(app)
 
 def test_known_combo_returns_200_with_the_matched_profile():
     response = client.post(
-        "/v1/auth/login", json={"employee_id": "EMP052", "full_name": "Eddy Employee", "role": "employee"}
+        "/v1/auth/login", json={"employee_id": "EMP052", "full_name": "Eddy Employee", "guest_user_name": "Eddy Employee", "role": "employee"}
     )
 
     assert response.status_code == 200
     assert response.json() == {
         "user_profile": {
-            "employee_id": "EMP052", "full_name": "Eddy Employee", "role": "employee", "department": None,
-            "timezone": None, "tab_session_id": None,
+            "employee_id": "EMP052", "full_name": "Eddy Employee", "guest_user_name": "Eddy Employee", "role": "employee", "department": None,
+            "timezone": None, "tab_session_id": None, "user_session_id": None,
         },
         "must_reset_secret_code": False,
     }
 
 
+def test_missing_guest_user_name_is_422():
+    """Phase 296 - guest_user_name is mandatory on login, unrelated to
+    full_name/known_personas.py."""
+    response = client.post(
+        "/v1/auth/login", json={"employee_id": "EMP052", "full_name": "Eddy Employee", "role": "employee"}
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "VALIDATION_ERROR"
+
+
+def test_login_echoes_guest_user_name_back_on_the_user_profile():
+    response = client.post(
+        "/v1/auth/login",
+        json={
+            "employee_id": "EMP052", "full_name": "Eddy Employee", "guest_user_name": "Taylor Friend",
+            "role": "employee",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["user_profile"]["guest_user_name"] == "Taylor Friend"
+    assert response.json()["user_profile"]["full_name"] == "Eddy Employee"
+
+
 def test_unknown_employee_id_is_401():
     response = client.post(
-        "/v1/auth/login", json={"employee_id": "EMP999", "full_name": "Nobody", "role": "employee"}
+        "/v1/auth/login", json={"employee_id": "EMP999", "full_name": "Nobody", "guest_user_name": "Nobody", "role": "employee"}
     )
 
     assert response.status_code == 401
@@ -36,7 +61,7 @@ def test_unknown_employee_id_is_401():
 
 def test_right_employee_id_wrong_role_is_401():
     response = client.post(
-        "/v1/auth/login", json={"employee_id": "EMP052", "full_name": "Eddy Employee", "role": "hr_support"}
+        "/v1/auth/login", json={"employee_id": "EMP052", "full_name": "Eddy Employee", "guest_user_name": "Eddy Employee", "role": "hr_support"}
     )
 
     assert response.status_code == 401
@@ -51,7 +76,7 @@ def test_right_employee_id_wrong_role_is_401():
 def test_employee_id_with_disallowed_characters_is_422():
     response = client.post(
         "/v1/auth/login",
-        json={"employee_id": "<script>", "full_name": "Eddy Employee", "role": "employee"},
+        json={"employee_id": "<script>", "full_name": "Eddy Employee", "guest_user_name": "Eddy Employee", "role": "employee"},
     )
 
     assert response.status_code == 422
@@ -60,7 +85,7 @@ def test_employee_id_with_disallowed_characters_is_422():
 def test_full_name_with_disallowed_characters_is_422():
     response = client.post(
         "/v1/auth/login",
-        json={"employee_id": "EMP052", "full_name": "'; DROP TABLE users; --", "role": "employee"},
+        json={"employee_id": "EMP052", "full_name": "'; DROP TABLE users; --", "guest_user_name": "'; DROP TABLE users; --", "role": "employee"},
     )
 
     assert response.status_code == 422
@@ -71,7 +96,10 @@ def test_every_real_known_persona_passes_the_character_pattern():
     from src.hrb_chatbot.models.auth import LoginRequest
 
     for employee_id, persona in KNOWN_PERSONAS.items():
-        LoginRequest(employee_id=employee_id, full_name=persona["full_name"], role=persona["role"])
+        LoginRequest(
+            employee_id=employee_id, full_name=persona["full_name"], role=persona["role"],
+            guest_user_name=persona["full_name"],
+        )
 
 
 # Phase 169/171 - admin role also requires a correct secret_code, now
@@ -84,14 +112,14 @@ def test_admin_login_with_correct_one_time_code_returns_200_and_flags_must_reset
 
     response = client.post(
         "/v1/auth/login",
-        json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "secret_code": login.ADMIN_ONE_TIME_SEED_SECRET_CODE},
+        json={"employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin", "secret_code": login.ADMIN_ONE_TIME_SEED_SECRET_CODE},
     )
 
     assert response.status_code == 200
     body = response.json()
     assert body["user_profile"] == {
-        "employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "department": None, "timezone": None,
-        "tab_session_id": None,
+        "employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin", "department": None, "timezone": None,
+        "tab_session_id": None, "user_session_id": None,
     }
     assert body["must_reset_secret_code"] is True
 
@@ -101,7 +129,7 @@ def test_admin_login_with_wrong_secret_code_is_401(monkeypatch):
 
     response = client.post(
         "/v1/auth/login",
-        json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "secret_code": "wrong-code"},
+        json={"employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin", "secret_code": "wrong-code"},
     )
 
     assert response.status_code == 401
@@ -111,7 +139,7 @@ def test_admin_login_with_wrong_secret_code_is_401(monkeypatch):
 def test_admin_login_with_missing_secret_code_is_401(monkeypatch):
     monkeypatch.setattr(auth_service, "get_db_gateway", lambda: FakeDBGateway())
 
-    response = client.post("/v1/auth/login", json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin"})
+    response = client.post("/v1/auth/login", json={"employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin"})
 
     assert response.status_code == 401
     assert response.json()["code"] == "INVALID_ADMIN_SECRET_CODE"
@@ -123,14 +151,14 @@ def test_admin_login_after_reset_no_longer_flags_must_reset(monkeypatch):
 
     response = client.post(
         "/v1/auth/login",
-        json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "secret_code": login.ADMIN_ONE_TIME_SEED_SECRET_CODE},
+        json={"employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin", "secret_code": login.ADMIN_ONE_TIME_SEED_SECRET_CODE},
     )
     assert response.json()["must_reset_secret_code"] is True
 
     client.post(
         "/v1/auth/admin/reset-secret-code",
         json={
-            "user_profile": {"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin"},
+            "user_profile": {"employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin"},
             "current_secret_code": login.ADMIN_ONE_TIME_SEED_SECRET_CODE,
             "new_secret_code": "a-new-code",
         },
@@ -138,7 +166,7 @@ def test_admin_login_after_reset_no_longer_flags_must_reset(monkeypatch):
 
     response = client.post(
         "/v1/auth/login",
-        json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "secret_code": "a-new-code"},
+        json={"employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin", "secret_code": "a-new-code"},
     )
     assert response.status_code == 200
     assert response.json()["must_reset_secret_code"] is False
@@ -157,7 +185,7 @@ def test_wrong_codes_below_the_threshold_do_not_lock(monkeypatch):
     for _ in range(store.MAX_FAILED_ATTEMPTS - 1):
         response = client.post(
             "/v1/auth/login",
-            json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "secret_code": "wrong-code"},
+            json={"employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin", "secret_code": "wrong-code"},
         )
         assert response.status_code == 401
         assert response.json()["code"] == "INVALID_ADMIN_SECRET_CODE"
@@ -170,7 +198,7 @@ def test_reaching_the_threshold_locks_the_account_with_423(monkeypatch):
     for _ in range(store.MAX_FAILED_ATTEMPTS):
         response = client.post(
             "/v1/auth/login",
-            json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "secret_code": "wrong-code"},
+            json={"employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin", "secret_code": "wrong-code"},
         )
 
     assert response.status_code == 423
@@ -182,7 +210,7 @@ def test_reaching_the_threshold_locks_the_account_with_423(monkeypatch):
         "/v1/auth/login",
         json={
             "employee_id": "ADM001",
-            "full_name": "Sree Rad",
+            "full_name": "Sree Rad", "guest_user_name": "Sree Rad",
             "role": "admin",
             "secret_code": login.ADMIN_ONE_TIME_SEED_SECRET_CODE,
         },
@@ -203,7 +231,7 @@ def test_speculative_check_count_as_attempt_false_never_locks(monkeypatch):
             "/v1/auth/login",
             json={
                 "employee_id": "ADM001",
-                "full_name": "Sree Rad",
+                "full_name": "Sree Rad", "guest_user_name": "Sree Rad",
                 "role": "admin",
                 "secret_code": "wrong-code",
                 "count_as_attempt": False,
@@ -216,7 +244,7 @@ def test_speculative_check_count_as_attempt_false_never_locks(monkeypatch):
         "/v1/auth/login",
         json={
             "employee_id": "ADM001",
-            "full_name": "Sree Rad",
+            "full_name": "Sree Rad", "guest_user_name": "Sree Rad",
             "role": "admin",
             "secret_code": login.ADMIN_ONE_TIME_SEED_SECRET_CODE,
         },
@@ -231,13 +259,13 @@ def test_correct_code_resets_the_failed_attempt_count(monkeypatch):
     for _ in range(store.MAX_FAILED_ATTEMPTS - 1):
         client.post(
             "/v1/auth/login",
-            json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "secret_code": "wrong-code"},
+            json={"employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin", "secret_code": "wrong-code"},
         )
     client.post(
         "/v1/auth/login",
         json={
             "employee_id": "ADM001",
-            "full_name": "Sree Rad",
+            "full_name": "Sree Rad", "guest_user_name": "Sree Rad",
             "role": "admin",
             "secret_code": login.ADMIN_ONE_TIME_SEED_SECRET_CODE,
         },
@@ -248,7 +276,7 @@ def test_correct_code_resets_the_failed_attempt_count(monkeypatch):
     for _ in range(store.MAX_FAILED_ATTEMPTS - 1):
         response = client.post(
             "/v1/auth/login",
-            json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "secret_code": "wrong-code"},
+            json={"employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin", "secret_code": "wrong-code"},
         )
         assert response.status_code == 401
         assert response.json()["code"] == "INVALID_ADMIN_SECRET_CODE"
@@ -262,12 +290,12 @@ def test_recovery_code_clears_the_lock_and_forces_a_reset(monkeypatch):
     for _ in range(store.MAX_FAILED_ATTEMPTS):
         client.post(
             "/v1/auth/login",
-            json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "secret_code": "wrong-code"},
+            json={"employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin", "secret_code": "wrong-code"},
         )
 
     response = client.post(
         "/v1/auth/login",
-        json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "secret_code": "the-recovery-code"},
+        json={"employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin", "secret_code": "the-recovery-code"},
     )
 
     assert response.status_code == 200
@@ -277,7 +305,7 @@ def test_recovery_code_clears_the_lock_and_forces_a_reset(monkeypatch):
     # lock clears (auto-expiry) or the recovery code is used.
     response = client.post(
         "/v1/auth/login",
-        json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "secret_code": "the-recovery-code"},
+        json={"employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin", "secret_code": "the-recovery-code"},
     )
     assert response.status_code == 200
 
@@ -290,12 +318,12 @@ def test_wrong_code_during_lockout_does_not_accidentally_match_the_recovery_code
     for _ in range(store.MAX_FAILED_ATTEMPTS):
         client.post(
             "/v1/auth/login",
-            json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "secret_code": "wrong-code"},
+            json={"employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin", "secret_code": "wrong-code"},
         )
 
     response = client.post(
         "/v1/auth/login",
-        json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "secret_code": "still-wrong"},
+        json={"employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin", "secret_code": "still-wrong"},
     )
 
     assert response.status_code == 423
@@ -310,12 +338,12 @@ def test_recovery_disabled_when_unlock_code_not_configured(monkeypatch):
     for _ in range(store.MAX_FAILED_ATTEMPTS):
         client.post(
             "/v1/auth/login",
-            json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "secret_code": "wrong-code"},
+            json={"employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin", "secret_code": "wrong-code"},
         )
 
     response = client.post(
         "/v1/auth/login",
-        json={"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin", "secret_code": "anything-at-all"},
+        json={"employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin", "secret_code": "anything-at-all"},
     )
 
     assert response.status_code == 423
@@ -328,7 +356,7 @@ def test_non_admin_cannot_reset_the_secret_code(monkeypatch):
     response = client.post(
         "/v1/auth/admin/reset-secret-code",
         json={
-            "user_profile": {"employee_id": "EMP052", "full_name": "Eddy Employee", "role": "employee"},
+            "user_profile": {"employee_id": "EMP052", "full_name": "Eddy Employee", "guest_user_name": "Eddy Employee", "role": "employee"},
             "current_secret_code": "whatever",
             "new_secret_code": "new-code",
         },
@@ -343,7 +371,7 @@ def test_reset_with_wrong_current_code_is_401(monkeypatch):
     response = client.post(
         "/v1/auth/admin/reset-secret-code",
         json={
-            "user_profile": {"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin"},
+            "user_profile": {"employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin"},
             "current_secret_code": "wrong-code",
             "new_secret_code": "new-code",
         },
@@ -361,7 +389,7 @@ async def test_reset_with_correct_current_code_succeeds(monkeypatch):
     response = client.post(
         "/v1/auth/admin/reset-secret-code",
         json={
-            "user_profile": {"employee_id": "ADM001", "full_name": "Sree Rad", "role": "admin"},
+            "user_profile": {"employee_id": "ADM001", "full_name": "Sree Rad", "guest_user_name": "Sree Rad", "role": "admin"},
             "current_secret_code": login.ADMIN_ONE_TIME_SEED_SECRET_CODE,
             "new_secret_code": "a-new-code",
         },

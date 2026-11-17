@@ -22,6 +22,7 @@ async def _fake_run_agent(
     query, employee_id, max_iterations, enable_conversation_memory=False, conversation_id=None, request_id=None,
     judge_model=None, eval_score_threshold=None, search_strategy=None, role=None, department=None,
     guardrails_model=None, full_name=None, ip_address=None, timezone=None,
+    capture_as_live_query=True, user_session_id=None, guest_user_name=None,
 ):
     return {
         "answer": "The match is 100% up to 5%.",
@@ -80,6 +81,7 @@ def test_guardrail_blocked_input_is_422(monkeypatch):
         query, employee_id, max_iterations, enable_conversation_memory=False, conversation_id=None, request_id=None,
         judge_model=None, eval_score_threshold=None, search_strategy=None, role=None, department=None,
         guardrails_model=None, full_name=None, ip_address=None, timezone=None,
+        capture_as_live_query=True, user_session_id=None, guest_user_name=None,
     ):
         raise GuardrailBlockedError("This request was blocked by a safety check.")
 

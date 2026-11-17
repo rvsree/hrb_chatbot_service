@@ -12,6 +12,9 @@ class LoginRequest(BaseModel):
     employee_id: str = Field(..., max_length=50, pattern=r"^[A-Za-z0-9]+$")
     full_name: str = Field(..., max_length=200, pattern=r"^[A-Za-z\s'\-]+$")
     role: str = Field(..., max_length=50)
+    # Phase 296 - mandatory, unrelated to full_name/known_personas.py - the
+    # real demo visitor's own typed name, for Demo Visitors tracking only.
+    guest_user_name: str = Field(..., max_length=200, pattern=r"^[A-Za-z\s'\-]+$")
     # Phase 169 - only read/checked when role == "admin".
     secret_code: str | None = Field(default=None, max_length=50)
     # Milestone 3 - the login page's own speculative check (does the

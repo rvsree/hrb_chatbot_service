@@ -148,3 +148,57 @@ async def test_postgres_failure_fails_open_entirely(monkeypatch):
 
     assert result.blocked is False
     assert result.to_response_dict() is None
+
+
+async def test_user_session_id_aggregates_across_different_conversation_ids(monkeypatch):
+    """Phase 296 - the whole point of user_session_id: a visitor who starts
+    a new conversation (new conversation_id) mid-visit must not reset the
+    cap, as long as the same user_session_id is sent both times."""
+    monkeypatch.setenv("APP_DEMO_QUERY_LIMIT_ENABLED", "true")
+    _patch_gateway(monkeypatch, app_settings={"demo_query_limit": 2, "demo_query_limit_per_ip_per_day": 50})
+    _patch_redis(monkeypatch)
+
+    await demo_query_limiter.check_and_record(
+        "conv-1", "EMP052", "Eddy Employee", "employee", "1.2.3.4", user_session_id="sess-1",
+    )
+    result = await demo_query_limiter.check_and_record(
+        "conv-2", "EMP052", "Eddy Employee", "employee", "1.2.3.4", user_session_id="sess-1",
+    )
+
+    assert result.blocked is False
+    assert result.query_count == 2
+    result = await demo_query_limiter.check_and_record(
+        "conv-3", "EMP052", "Eddy Employee", "employee", "1.2.3.4", user_session_id="sess-1",
+    )
+    assert result.blocked is True
+
+
+async def test_user_session_id_absent_falls_back_to_conversation_id(monkeypatch):
+    """A caller that never sends user_session_id (old UI build, direct API
+    caller) keeps today's exact per-conversation behavior - starting a new
+    conversation_id resets the cap for that caller, unchanged."""
+    monkeypatch.setenv("APP_DEMO_QUERY_LIMIT_ENABLED", "true")
+    _patch_gateway(monkeypatch, app_settings={"demo_query_limit": 2, "demo_query_limit_per_ip_per_day": 50})
+    _patch_redis(monkeypatch)
+
+    await demo_query_limiter.check_and_record("conv-1", "EMP052", "Eddy Employee", "employee", "1.2.3.4")
+    await demo_query_limiter.check_and_record("conv-1", "EMP052", "Eddy Employee", "employee", "1.2.3.4")
+    result = await demo_query_limiter.check_and_record("conv-2", "EMP052", "Eddy Employee", "employee", "1.2.3.4")
+
+    assert result.blocked is False
+    assert result.query_count == 1
+
+
+async def test_guest_user_name_is_recorded(monkeypatch):
+    monkeypatch.setenv("APP_DEMO_QUERY_LIMIT_ENABLED", "true")
+    demo_visitors = FakeDemoVisitorStore()
+    gateway = _patch_gateway(monkeypatch, app_settings={"demo_query_limit": 15}, demo_visitors=demo_visitors)
+    _patch_redis(monkeypatch)
+
+    await demo_query_limiter.check_and_record(
+        "conv-1", "EMP052", "Eddy Employee", "employee", "1.2.3.4",
+        user_session_id="sess-1", guest_user_name="Taylor Friend",
+    )
+
+    rows = await gateway.demo_visitor_store().list_visitors()
+    assert rows[0]["guest_user_name"] == "Taylor Friend"

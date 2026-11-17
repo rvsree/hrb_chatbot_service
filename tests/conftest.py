@@ -1212,37 +1212,44 @@ class FakeSyntheticDatasetStore:
 
 class FakeDemoVisitorStore:
     """Stands in for DemoVisitorStore (Phase 265) - plain in-memory dict
-    keyed by conversation_id, same async interface as the real
-    Postgres-backed one, never touches a real database."""
+    keyed by user_session_id (Phase 296 - one row per visit, not per chat
+    thread), same async interface as the real Postgres-backed one, never
+    touches a real database."""
 
     def __init__(self, visitors: dict[str, dict] | None = None):
         self._visitors = visitors or {}
 
-    async def record_query(self, conversation_id, employee_id, full_name, role, ip_address, timezone):
+    async def record_query(
+        self, user_session_id, conversation_id, guest_user_name, employee_id, full_name, role, ip_address, timezone,
+    ):
         # Same keys the real store's _list_sync() always returns (including
         # created_at/updated_at/last_query_at) - a row built only through
         # this method must survive DemoVisitorSummary(**row) unchanged, the
         # same as a row read back from Postgres would.
         row = self._visitors.setdefault(
-            conversation_id,
+            user_session_id,
             {
-                "conversation_id": conversation_id, "employee_id": employee_id, "full_name": full_name,
+                "user_session_id": user_session_id, "conversation_id": conversation_id,
+                "guest_user_name": guest_user_name, "employee_id": employee_id, "full_name": full_name,
                 "role": role, "ip_address": ip_address, "timezone": timezone,
                 "query_count": 0, "waiver_count": 0,
                 "created_at": "2026-01-01T00:00:00+00:00", "updated_at": "2026-01-01T00:00:00+00:00",
                 "last_query_at": None,
             },
         )
+        row["conversation_id"] = conversation_id
+        row["guest_user_name"] = guest_user_name
         row["query_count"] += 1
         row["last_query_at"] = "2026-01-01T00:00:00+00:00"
         row["updated_at"] = "2026-01-01T00:00:00+00:00"
         return {"query_count": row["query_count"], "waiver_count": row["waiver_count"]}
 
-    async def grant_waiver(self, conversation_id, increment=15):
+    async def grant_waiver(self, user_session_id, increment=15):
         row = self._visitors.setdefault(
-            conversation_id,
+            user_session_id,
             {
-                "conversation_id": conversation_id, "employee_id": None, "full_name": None, "role": None,
+                "user_session_id": user_session_id, "conversation_id": None, "guest_user_name": None,
+                "employee_id": None, "full_name": None, "role": None,
                 "ip_address": None, "timezone": None, "query_count": 0, "waiver_count": 0,
                 "created_at": "2026-01-01T00:00:00+00:00", "updated_at": "2026-01-01T00:00:00+00:00",
                 "last_query_at": None,
@@ -1250,14 +1257,14 @@ class FakeDemoVisitorStore:
         )
         row["waiver_count"] += increment
         row["updated_at"] = "2026-01-01T00:00:00+00:00"
-        return {"conversation_id": conversation_id, "query_count": row["query_count"], "waiver_count": row["waiver_count"]}
+        return {"user_session_id": user_session_id, "query_count": row["query_count"], "waiver_count": row["waiver_count"]}
 
     async def list_visitors(self):
         return list(self._visitors.values())
 
-    async def delete_visitor(self, conversation_id):
-        if conversation_id in self._visitors:
-            del self._visitors[conversation_id]
+    async def delete_visitor(self, user_session_id):
+        if user_session_id in self._visitors:
+            del self._visitors[user_session_id]
             return 1
         return 0
 

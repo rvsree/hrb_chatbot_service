@@ -53,6 +53,8 @@ async def query(payload: MultiAgenticRagRequest, request: Request):
                 full_name=userProfile.full_name,
                 ip_address=resolve_client_ip(request),
                 timezone=userProfile.timezone,
+                user_session_id=userProfile.user_session_id,
+                guest_user_name=userProfile.guest_user_name,
             ),
             lambda r: None,
         )

@@ -22,6 +22,8 @@ class RagQueryParams:
     full_name: str | None = None  # Phase 265: demo-visitor tracking
     ip_address: str | None = None  # Phase 265: demo-visitor tracking
     timezone: str | None = None  # Phase 265: demo-visitor tracking
+    user_session_id: str | None = None  # Phase 296: demo-visitor tracking, per visit
+    guest_user_name: str | None = None  # Phase 296: demo-visitor tracking, per visit
     enable_conversation_memory: bool = False  # Phase 58
     conversation_id: str | None = None  # Phase 58
     judge_model: str | None = None  # Phase 215

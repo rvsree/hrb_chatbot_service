@@ -60,43 +60,45 @@ async def test_record_query_returns_counts_from_the_upsert(monkeypatch):
     store, conn = _store_with_fake_connection(monkeypatch, {"query_count": 3, "waiver_count": 0})
 
     result = await store.record_query(
-        conversation_id="conv-1", employee_id="EMP052", full_name="Eddy Employee",
+        user_session_id="sess-1", conversation_id="conv-1", guest_user_name="Taylor Friend",
+        employee_id="EMP052", full_name="Eddy Employee",
         role="employee", ip_address="1.2.3.4", timezone="America/New_York",
     )
 
     assert result == {"query_count": 3, "waiver_count": 0}
     assert conn.committed is True
     _sql, params = conn.cur.queries[0]
-    assert params == ("conv-1", "EMP052", "Eddy Employee", "employee", "1.2.3.4", "America/New_York")
+    assert params == ("sess-1", "conv-1", "Taylor Friend", "EMP052", "Eddy Employee", "employee", "1.2.3.4", "America/New_York")
 
 
 async def test_grant_waiver_adds_the_increment_and_returns_new_counts(monkeypatch):
     store, conn = _store_with_fake_connection(
-        monkeypatch, {"conversation_id": "conv-1", "query_count": 10, "waiver_count": 15}
+        monkeypatch, {"user_session_id": "sess-1", "query_count": 10, "waiver_count": 15}
     )
 
-    result = await store.grant_waiver("conv-1", increment=15)
+    result = await store.grant_waiver("sess-1", increment=15)
 
-    assert result == {"conversation_id": "conv-1", "query_count": 10, "waiver_count": 15}
+    assert result == {"user_session_id": "sess-1", "query_count": 10, "waiver_count": 15}
     assert conn.committed is True
     _sql, params = conn.cur.queries[0]
-    assert params == ("conv-1", 15, 15)
+    assert params == ("sess-1", 15, 15)
 
 
 async def test_grant_waiver_defaults_to_an_increment_of_fifteen(monkeypatch):
     store, conn = _store_with_fake_connection(
-        monkeypatch, {"conversation_id": "conv-1", "query_count": 0, "waiver_count": 15}
+        monkeypatch, {"user_session_id": "sess-1", "query_count": 0, "waiver_count": 15}
     )
 
-    await store.grant_waiver("conv-1")
+    await store.grant_waiver("sess-1")
 
     _sql, params = conn.cur.queries[0]
-    assert params == ("conv-1", 15, 15)
+    assert params == ("sess-1", 15, 15)
 
 
 async def test_list_visitors_converts_timestamps_to_isoformat_strings(monkeypatch):
     row = {
-        "conversation_id": "conv-1", "employee_id": "EMP052", "full_name": "Eddy Employee",
+        "user_session_id": "sess-1", "conversation_id": "conv-1", "guest_user_name": "Taylor Friend",
+        "employee_id": "EMP052", "full_name": "Eddy Employee",
         "role": "employee", "ip_address": "1.2.3.4", "timezone": "America/New_York",
         "query_count": 5, "waiver_count": 0,
         "last_query_at": datetime(2026, 10, 28, 12, 0, 0, tzinfo=timezone.utc),
@@ -115,7 +117,8 @@ async def test_list_visitors_converts_timestamps_to_isoformat_strings(monkeypatc
 
 async def test_list_visitors_with_no_last_query_at_leaves_it_none(monkeypatch):
     row = {
-        "conversation_id": "conv-1", "employee_id": None, "full_name": None, "role": None,
+        "user_session_id": "sess-1", "conversation_id": None, "guest_user_name": None,
+        "employee_id": None, "full_name": None, "role": None,
         "ip_address": None, "timezone": None, "query_count": 0, "waiver_count": 0,
         "last_query_at": None,
         "created_at": datetime(2026, 10, 28, 11, 0, 0, tzinfo=timezone.utc),

@@ -515,6 +515,8 @@ async def answer_query(
         role=params.role,
         ip_address=params.ip_address,
         timezone=params.timezone,
+        user_session_id=params.user_session_id,
+        guest_user_name=params.guest_user_name,
     )
     result["eval_scores"], result["latency_ms"]["eval"] = await _score_live_answer(
         checked_query, result["answer"], result["sources"],

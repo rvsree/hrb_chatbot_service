@@ -89,6 +89,8 @@ async def check_and_record(
     role: str | None,
     ip_address: str | None,
     timezone: str | None = None,
+    user_session_id: str | None = None,
+    guest_user_name: str | None = None,
 ) -> DemoLimitResult:
     """Call once per query, after the input guardrail has already passed
     (a blocked query never reaches here, so it never counts against the
@@ -96,8 +98,16 @@ async def check_and_record(
     triggers a wasted LLM call). ADMIN/EMPLOYEE_ADMIN/HR_SUPPORT are
     exempt entirely - self-asserted role, same caveat as the rest of this
     project's RBAC, not a cryptographic guarantee, but a casual anonymous
-    visitor won't think to claim it."""
-    if not _is_enabled() or role in EXEMPT_ROLES or not conversation_id:
+    visitor won't think to claim it.
+
+    Phase 296 - tracks per *visit* (user_session_id), not per chat thread:
+    a caller that sends user_session_id gets the cap aggregated across
+    every conversation in that one visit, closing the "New Conversation
+    resets the cap" gap. A caller that never sends one (an old UI build, a
+    direct API/Postman caller) falls back to conversation_id - today's
+    exact prior behavior, unchanged for that caller."""
+    effective_key = user_session_id or conversation_id
+    if not _is_enabled() or role in EXEMPT_ROLES or not effective_key:
         return DemoLimitResult(blocked=False, query_count=None, effective_limit=None, remaining=None)
 
     gateway = get_db_gateway()
@@ -108,7 +118,9 @@ async def check_and_record(
 
     try:
         result = await gateway.demo_visitor_store().record_query(
+            user_session_id=effective_key,
             conversation_id=conversation_id,
+            guest_user_name=guest_user_name,
             employee_id=employee_id,
             full_name=full_name,
             role=role,

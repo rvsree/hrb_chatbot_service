@@ -1760,3 +1760,96 @@ polling or a websocket push - real infrastructure for a personal-project
 demo gate. With Submit always clickable, the waiver takes effect the
 moment the visitor's next click reaches the server - no sync mechanism
 needed at all.
+
+## Guest Name + per-session (not per-conversation) demo tracking (Phase 296) - Finalized
+
+**Why:** Phase 265's demo cap/visibility is keyed on `conversation_id`.
+Two real gaps found 2026-11-17, live: (1) the login screen only offers
+`employee_id`/`full_name` matched against `known_personas.py`'s fixed
+18-persona roster (`is_known_persona()`) - a real friend typing their own
+name gets a 401, so every Demo Visitors row today is one of those 18 fixed
+names, never an actual guest's name. (2) starting a new conversation resets
+`conversation_id`, and with it the per-conversation query cap - a visitor
+can bypass Phase 265's 15-question limit indefinitely by clicking "New
+Conversation" repeatedly.
+
+**Decided:** `full_name`/`employee_id` stay exactly as they are (still
+validated against `known_personas.py` - MCP-backed features like leave
+balance need a real backing employee row, so this isn't relaxed). A new,
+separate, additive field carries the real guest's name instead - it never
+feeds identity/RBAC, only demo-visitor tracking.
+
+**`UserProfile` gains 2 new optional fields** (same additive pattern as
+`timezone`/`tab_session_id`):
+- `guest_user_name: str | None` (max 200, same character-class pattern as
+  `full_name`) - free text, not validated against `known_personas.py`.
+- `user_session_id: str | None` (max 100) - client-generated once per
+  login as a random id (`crypto.randomUUID()`), not a `guest_user_name`+
+  timestamp concatenation - decided 2026-11-17, avoids a guessable id and
+  avoids leaking the typed name into every request/log line as an
+  identifier rather than as its own labeled field. Not per-tab
+  (`tab_session_id`, Phase 286, stays separate and unrelated - different
+  purpose, multi-tab presence counting) and not per-conversation
+  (`conversation_id` stays separate too - one visitor can still open
+  several chat threads).
+
+**Login is where "mandatory" is enforced** - `POST /v1/auth/login`
+rejects a request with a blank/missing `guest_user_name` with
+`422 {"error": "...", "code": "VALIDATION_ERROR"}`, same shape every other
+field-validation failure in this project already returns. Every other
+route treats both new fields exactly like `tab_session_id` today - optional,
+echoed back by a caller that already has them, absent for an old/non-UI
+caller with no new behavior change for that caller.
+
+**`hrb_query_capture.demo_visitors` re-keyed from `conversation_id` to
+`user_session_id`** - closes gap (2) above: the cap/visibility now
+aggregates per *visit*, not per chat thread. New column `guest_user_name
+text`. `conversation_id` stops being the primary key - kept as a plain,
+nullable column recording the *most recent* conversation_id seen for that
+session (reference/debugging only, no longer unique). Full proposed shape:
+
+```
+user_session_id    text PRIMARY KEY
+conversation_id      text   -- most recent only, no longer unique/keyed
+guest_user_name       text
+employee_id            text
+full_name                text
+role                      text
+ip_address                text
+timezone                  text NULL
+query_count                integer NOT NULL DEFAULT 0
+waiver_count                integer NOT NULL DEFAULT 0
+last_query_at                 timestamptz
+created_at                     timestamptz NOT NULL DEFAULT now()
+updated_at                     timestamptz NOT NULL DEFAULT now()
+```
+
+**Backward compatibility:** `demo_query_limiter.check_and_record()`'s
+effective key becomes `user_session_id or conversation_id` - a caller that
+never sends `user_session_id` (an old UI build, a direct API/Postman
+caller) keeps today's exact per-conversation behavior, not a 422/break.
+
+**Admin routes' path param renamed** `{conversation_id}` -> `{user_session_id}`
+on both: `GET /v1/admin/demo-visitors` (list response gains
+`"guest_user_name"`, keeps `"conversation_id"` as the last-seen one, same
+other fields unchanged) and `POST /v1/admin/demo-visitors/{user_session_id}/grant-waiver`
+(unchanged body/response shape otherwise). `DELETE /v1/admin/demo-visitors/{conversation_id}`
+(Phase 268) renamed the same way, to `{user_session_id}`.
+
+**Logging:** `demo_visitor_store.py`'s existing `log_backend_call(...)`
+sites gain `guest_user_name`/`user_session_id` among their logged fields
+(same convention as `conversation_id` today), so this new identity trail
+is visible in CloudWatch, not just in the table.
+
+**Decided 2026-11-17:** `user_session_id` is a random UUID (see above, not
+name+timestamp). The `demo_visitors` PRIMARY KEY change (`conversation_id`
+-> `user_session_id`) is confirmed - no live data to preserve across the
+migration, so a straightforward drop-and-recreate of the table is
+acceptable at this project's scale, not a staged `ALTER TABLE`/backfill.
+
+**Open, not yet confirmed:**
+1. `hrb_chatbot_ui`'s own login-screen change (new mandatory field, that
+   repo's own request-body shape) is out of this repo's spec - needs its
+   own spec in that repo, per this project's existing split (every other
+   Phase 265/266/268 frontend half above was "built and verified
+   separately" there).

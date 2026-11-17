@@ -32,6 +32,8 @@ async def run_guarded_pipeline(
     role: str | None = None,
     ip_address: str | None = None,
     timezone: str | None = None,
+    user_session_id: str | None = None,
+    guest_user_name: str | None = None,
 ) -> dict:
     """Input guardrail -> load history -> generate (mode-specific) -> output
     guardrail -> save turn. `generate` returns at least {"answer": str} -
@@ -61,10 +63,14 @@ async def run_guarded_pipeline(
     # Phase 265 - after the input guardrail (a blocked query never reaches
     # here, so it never counts against the demo limit) and before
     # generation (so an over-limit visitor never triggers a wasted LLM
-    # call). Keyed on conversation_id - falls back to a per-request id if
-    # conversation memory is off, since the demo limit still applies.
-    demo_limit_key = resolved_conversation_id or conversation_memory.new_conversation_id()
-    demo_limit_result = await check_and_record(demo_limit_key, employee_id, full_name, role, ip_address, timezone)
+    # call). Phase 296 - keyed on user_session_id (one per visit, however
+    # many conversations) when the caller sends one; check_and_record()
+    # itself falls back to conversation_id otherwise.
+    demo_limit_conversation_id = resolved_conversation_id or conversation_memory.new_conversation_id()
+    demo_limit_result = await check_and_record(
+        demo_limit_conversation_id, employee_id, full_name, role, ip_address, timezone,
+        user_session_id=user_session_id, guest_user_name=guest_user_name,
+    )
     if demo_limit_result.blocked:
         raise DemoQueryLimitExceededError(
             f"You have reached the demo limit of {demo_limit_result.effective_limit} questions for this session. "

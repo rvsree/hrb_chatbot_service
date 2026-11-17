@@ -36,6 +36,7 @@ router_retrieve_document = APIRouter(tags=["query"])
 def _params_from_request(
     payload: RagQueryRequest, employee_id: str | None = None, role: str | None = None, department: str | None = None,
     full_name: str | None = None, ip_address: str | None = None, timezone: str | None = None,
+    user_session_id: str | None = None, guest_user_name: str | None = None,
 ) -> RagQueryParams:
     """Map the nested request into the flat dataclass ai/rag_pipeline/ actually uses."""
     search_options = payload.search_options
@@ -61,6 +62,8 @@ def _params_from_request(
         full_name=full_name,
         ip_address=ip_address,
         timezone=timezone,
+        user_session_id=user_session_id,
+        guest_user_name=guest_user_name,
         enable_conversation_memory=payload.enable_conversation_memory,
         conversation_id=payload.conversation_id,
         judge_model=eval_options.judge_model if eval_options else None,
@@ -73,8 +76,11 @@ def _params_from_request(
 async def _answer_query(
     payload: RagQueryRequest, employee_id: str | None = None, role: str | None = None, department: str | None = None,
     full_name: str | None = None, ip_address: str | None = None, timezone: str | None = None,
+    user_session_id: str | None = None, guest_user_name: str | None = None,
 ) -> RagQueryResponse | object:
-    params = _params_from_request(payload, employee_id, role, department, full_name, ip_address, timezone)
+    params = _params_from_request(
+        payload, employee_id, role, department, full_name, ip_address, timezone, user_session_id, guest_user_name
+    )
     try:
         result = await time_and_log(
             "/v1/genai-rag-retrieval/query",
@@ -140,4 +146,6 @@ async def query(payload: RagQueryRequest, request: Request):
         full_name=userProfile.full_name,
         ip_address=resolve_client_ip(request),
         timezone=userProfile.timezone,
+        user_session_id=userProfile.user_session_id,
+        guest_user_name=userProfile.guest_user_name,
     )

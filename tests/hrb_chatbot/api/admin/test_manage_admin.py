@@ -1342,8 +1342,9 @@ def test_non_admin_cannot_list_demo_visitors(monkeypatch):
 def test_admin_lists_demo_visitors(monkeypatch):
     store = FakeDemoVisitorStore(
         {
-            "conv-1": {
-                "conversation_id": "conv-1", "employee_id": "EMP052", "full_name": "Eddy Employee",
+            "sess-1": {
+                "user_session_id": "sess-1", "conversation_id": "conv-1", "guest_user_name": "Taylor Friend",
+                "employee_id": "EMP052", "full_name": "Eddy Employee",
                 "role": "employee", "ip_address": "1.2.3.4", "timezone": "America/New_York",
                 "query_count": 5, "waiver_count": 0,
                 "last_query_at": "2026-10-28T12:00:00Z",
@@ -1361,21 +1362,23 @@ def test_admin_lists_demo_visitors(monkeypatch):
     assert response.status_code == 200
     body = response.json()
     assert body["count"] == 1
-    assert body["visitors"][0]["conversation_id"] == "conv-1"
+    assert body["visitors"][0]["user_session_id"] == "sess-1"
+    assert body["visitors"][0]["guest_user_name"] == "Taylor Friend"
     assert body["visitors"][0]["query_count"] == 5
     assert body["visitors"][0]["effective_limit"] == 15
 
 
 def test_non_admin_cannot_delete_a_demo_visitor(monkeypatch):
-    response = client.request("DELETE", "/v1/admin/demo-visitors/conv-1", json={"user_profile": EMPLOYEE_PROFILE})
+    response = client.request("DELETE", "/v1/admin/demo-visitors/sess-1", json={"user_profile": EMPLOYEE_PROFILE})
     assert response.status_code == 403
 
 
 def test_admin_deletes_a_demo_visitor(monkeypatch):
     store = FakeDemoVisitorStore(
         {
-            "conv-1": {
-                "conversation_id": "conv-1", "employee_id": "EMP052", "full_name": "Eddy Employee",
+            "sess-1": {
+                "user_session_id": "sess-1", "conversation_id": "conv-1", "guest_user_name": "Taylor Friend",
+                "employee_id": "EMP052", "full_name": "Eddy Employee",
                 "role": "employee", "ip_address": "1.2.3.4", "timezone": "America/New_York",
                 "query_count": 5, "waiver_count": 0,
                 "last_query_at": "2026-10-28T12:00:00Z",
@@ -1385,22 +1388,22 @@ def test_admin_deletes_a_demo_visitor(monkeypatch):
     )
     monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(demo_visitor_store=store))
 
-    response = client.request("DELETE", "/v1/admin/demo-visitors/conv-1", json={"user_profile": ADMIN_PROFILE})
+    response = client.request("DELETE", "/v1/admin/demo-visitors/sess-1", json={"user_profile": ADMIN_PROFILE})
 
     assert response.status_code == 200
     body = response.json()
-    assert body == {"conversation_id": "conv-1", "deleted": True}
+    assert body == {"user_session_id": "sess-1", "deleted": True}
 
 
 def test_admin_deleting_an_unknown_demo_visitor_reports_not_deleted(monkeypatch):
     store = FakeDemoVisitorStore({})
     monkeypatch.setattr(manage_admin, "get_db_gateway", lambda: FakeDBGateway(demo_visitor_store=store))
 
-    response = client.request("DELETE", "/v1/admin/demo-visitors/conv-unknown", json={"user_profile": ADMIN_PROFILE})
+    response = client.request("DELETE", "/v1/admin/demo-visitors/sess-unknown", json={"user_profile": ADMIN_PROFILE})
 
     assert response.status_code == 200
     body = response.json()
-    assert body == {"conversation_id": "conv-unknown", "deleted": False}
+    assert body == {"user_session_id": "sess-unknown", "deleted": False}
 
 
 async def test_a_freshly_recorded_visitor_lists_cleanly(monkeypatch):
@@ -1411,7 +1414,8 @@ async def test_a_freshly_recorded_visitor_lists_cleanly(monkeypatch):
     found investigating the "Demo Visitors" grid showing 0 rows live."""
     store = FakeDemoVisitorStore()
     await store.record_query(
-        conversation_id="conv-live", employee_id="EMP060", full_name="New Visitor",
+        user_session_id="sess-live", conversation_id="conv-live", guest_user_name="New Visitor",
+        employee_id="EMP060", full_name="New Visitor",
         role="employee", ip_address="5.6.7.8", timezone="America/Chicago",
     )
     monkeypatch.setattr(
@@ -1424,14 +1428,14 @@ async def test_a_freshly_recorded_visitor_lists_cleanly(monkeypatch):
     assert response.status_code == 200
     body = response.json()
     assert body["count"] == 1
-    assert body["visitors"][0]["conversation_id"] == "conv-live"
+    assert body["visitors"][0]["user_session_id"] == "sess-live"
     assert body["visitors"][0]["query_count"] == 1
     assert body["visitors"][0]["effective_limit"] == 15
 
 
 def test_non_admin_cannot_grant_a_demo_waiver(monkeypatch):
     response = client.post(
-        "/v1/admin/demo-visitors/conv-1/grant-waiver",
+        "/v1/admin/demo-visitors/sess-1/grant-waiver",
         json={"user_profile": EMPLOYEE_PROFILE},
     )
     assert response.status_code == 403
@@ -1439,7 +1443,7 @@ def test_non_admin_cannot_grant_a_demo_waiver(monkeypatch):
 
 def test_admin_grants_a_demo_waiver(monkeypatch):
     store = FakeDemoVisitorStore(
-        {"conv-1": {"conversation_id": "conv-1", "query_count": 15, "waiver_count": 0}}
+        {"sess-1": {"user_session_id": "sess-1", "query_count": 15, "waiver_count": 0}}
     )
     monkeypatch.setattr(
         manage_admin, "get_db_gateway",
@@ -1447,13 +1451,13 @@ def test_admin_grants_a_demo_waiver(monkeypatch):
     )
 
     response = client.post(
-        "/v1/admin/demo-visitors/conv-1/grant-waiver",
+        "/v1/admin/demo-visitors/sess-1/grant-waiver",
         json={"user_profile": ADMIN_PROFILE},
     )
 
     assert response.status_code == 200
     body = response.json()
-    assert body["conversation_id"] == "conv-1"
+    assert body["user_session_id"] == "sess-1"
     assert body["waiver_count"] == 15
     assert body["effective_limit"] == 30
 

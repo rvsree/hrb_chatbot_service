@@ -88,7 +88,10 @@ async def login(payload: LoginRequest, request: Request):
             )
 
     return LoginResponse(
-        user_profile=UserProfile(employee_id=payload.employee_id, full_name=payload.full_name, role=payload.role),
+        user_profile=UserProfile(
+            employee_id=payload.employee_id, full_name=payload.full_name, role=payload.role,
+            guest_user_name=payload.guest_user_name,
+        ),
         must_reset_secret_code=must_reset_secret_code,
     )
 

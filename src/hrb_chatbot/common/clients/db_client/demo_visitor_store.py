@@ -1,4 +1,4 @@
-"""Phase 265 - tracks one row per live-demo conversation: who (self-
+"""Phase 265 - tracks one row per live-demo visitor: who (self-
 asserted identity + IP + browser timezone), how many queries they've made,
 and any admin-granted waiver on top of the configured limit. Deliberately
 NOT an extension of live_query_store.py's live_queries table - that
@@ -6,7 +6,17 @@ capture is fire-and-forget and gated on groundedness eval having actually
 run (confirmed by reading maybe_capture_live_query() directly), the wrong
 reliability tradeoff for a hard limit that must count every attempt.
 Same psycopg + asyncio.to_thread() + psycopg.sql.Identifier pattern as
-every other store in this module."""
+every other store in this module.
+
+Phase 296 - re-keyed from conversation_id to user_session_id: one row per
+*visit* (one login, however many chat threads/conversations within it),
+not one row per chat thread - closes the "New Conversation resets the
+cap" gap Phase 265 had. conversation_id is now a plain, non-unique column
+recording the most-recently-seen one, kept for reference/debugging only.
+Which key a caller's query actually lands under (user_session_id, or a
+fallback to conversation_id for an old/non-UI caller) is decided one
+layer up, in demo_query_limiter.py - this store just takes whatever final
+key it's given."""
 
 import asyncio
 
@@ -27,7 +37,9 @@ CREATE_SCHEMA = sql.SQL("CREATE SCHEMA IF NOT EXISTS {}").format(sql.Identifier(
 CREATE_DEMO_VISITORS_TABLE = sql.SQL(
     """
 CREATE TABLE IF NOT EXISTS {table} (
-    conversation_id TEXT PRIMARY KEY,
+    user_session_id TEXT PRIMARY KEY,
+    conversation_id TEXT,
+    guest_user_name TEXT,
     employee_id TEXT,
     full_name TEXT,
     role TEXT,
@@ -91,11 +103,12 @@ class DemoVisitorStore:
         return lambda values: dict(zip(columns, values, strict=True))
 
     def _record_query_sync(
-        self, conversation_id: str, employee_id: str | None, full_name: str | None, role: str | None,
+        self, user_session_id: str, conversation_id: str | None, guest_user_name: str | None,
+        employee_id: str | None, full_name: str | None, role: str | None,
         ip_address: str | None, timezone: str | None,
     ) -> dict:
         # Single atomic upsert - never read-then-write, so two
-        # near-simultaneous requests for the same conversation_id can't
+        # near-simultaneous requests for the same user_session_id can't
         # both slip through right at the limit boundary.
         with self._connect() as conn:
             with conn.cursor(row_factory=self._dict_row_factory) as cur:
@@ -103,9 +116,12 @@ class DemoVisitorStore:
                     sql.SQL(
                         """
                         INSERT INTO {table}
-                            (conversation_id, employee_id, full_name, role, ip_address, timezone, query_count, last_query_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, 1, now())
-                        ON CONFLICT (conversation_id) DO UPDATE SET
+                            (user_session_id, conversation_id, guest_user_name, employee_id, full_name, role,
+                             ip_address, timezone, query_count, last_query_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 1, now())
+                        ON CONFLICT (user_session_id) DO UPDATE SET
+                            conversation_id = EXCLUDED.conversation_id,
+                            guest_user_name = EXCLUDED.guest_user_name,
                             employee_id = EXCLUDED.employee_id,
                             full_name = EXCLUDED.full_name,
                             role = EXCLUDED.role,
@@ -117,51 +133,56 @@ class DemoVisitorStore:
                         RETURNING query_count, waiver_count
                         """
                     ).format(table=_TABLE),
-                    (conversation_id, employee_id, full_name, role, ip_address, timezone),
+                    (user_session_id, conversation_id, guest_user_name, employee_id, full_name, role, ip_address, timezone),
                 )
                 row = cur.fetchone()
                 conn.commit()
                 return row
 
     async def record_query(
-        self, conversation_id: str, employee_id: str | None, full_name: str | None, role: str | None,
+        self, user_session_id: str, conversation_id: str | None, guest_user_name: str | None,
+        employee_id: str | None, full_name: str | None, role: str | None,
         ip_address: str | None, timezone: str | None,
     ) -> dict:
         """Returns {"query_count": int, "waiver_count": int} - the counts
         AFTER this query was counted."""
         await self._ensure_table()
-        with log_backend_call(logger, "postgres", "demo_visitors.record_query", conversation_id=conversation_id):
+        with log_backend_call(
+            logger, "postgres", "demo_visitors.record_query",
+            user_session_id=user_session_id, guest_user_name=guest_user_name,
+        ):
             return await asyncio.to_thread(
-                self._record_query_sync, conversation_id, employee_id, full_name, role, ip_address, timezone
+                self._record_query_sync, user_session_id, conversation_id, guest_user_name,
+                employee_id, full_name, role, ip_address, timezone,
             )
 
-    def _grant_waiver_sync(self, conversation_id: str, increment: int) -> dict | None:
+    def _grant_waiver_sync(self, user_session_id: str, increment: int) -> dict | None:
         with self._connect() as conn:
             with conn.cursor(row_factory=self._dict_row_factory) as cur:
                 cur.execute(
                     sql.SQL(
                         """
-                        INSERT INTO {table} (conversation_id, query_count, waiver_count)
+                        INSERT INTO {table} (user_session_id, query_count, waiver_count)
                         VALUES (%s, 0, %s)
-                        ON CONFLICT (conversation_id) DO UPDATE SET
+                        ON CONFLICT (user_session_id) DO UPDATE SET
                             waiver_count = {table}.waiver_count + %s,
                             updated_at = now()
-                        RETURNING conversation_id, query_count, waiver_count
+                        RETURNING user_session_id, query_count, waiver_count
                         """
                     ).format(table=_TABLE),
-                    (conversation_id, increment, increment),
+                    (user_session_id, increment, increment),
                 )
                 row = cur.fetchone()
                 conn.commit()
                 return row
 
-    async def grant_waiver(self, conversation_id: str, increment: int = 15) -> dict:
+    async def grant_waiver(self, user_session_id: str, increment: int = 15) -> dict:
         """Admin-only action (enforced at the route layer) - adds `increment`
-        extra queries to this conversation's effective limit. Repeatable -
+        extra queries to this visitor's effective limit. Repeatable -
         each call adds on top of any prior waiver, never resets it."""
         await self._ensure_table()
-        with log_backend_call(logger, "postgres", "demo_visitors.grant_waiver", conversation_id=conversation_id):
-            return await asyncio.to_thread(self._grant_waiver_sync, conversation_id, increment)
+        with log_backend_call(logger, "postgres", "demo_visitors.grant_waiver", user_session_id=user_session_id):
+            return await asyncio.to_thread(self._grant_waiver_sync, user_session_id, increment)
 
     def _list_sync(self) -> list[dict]:
         with self._connect() as conn:
@@ -180,18 +201,18 @@ class DemoVisitorStore:
         with log_backend_call(logger, "postgres", "demo_visitors.list"):
             return await asyncio.to_thread(self._list_sync)
 
-    def _delete_visitor_sync(self, conversation_id: str) -> int:
+    def _delete_visitor_sync(self, user_session_id: str) -> int:
         with self._connect() as conn:
             cur = conn.execute(
-                sql.SQL("DELETE FROM {table} WHERE conversation_id = %s").format(table=_TABLE), (conversation_id,)
+                sql.SQL("DELETE FROM {table} WHERE user_session_id = %s").format(table=_TABLE), (user_session_id,)
             )
             conn.commit()
             return cur.rowcount
 
-    async def delete_visitor(self, conversation_id: str) -> int:
+    async def delete_visitor(self, user_session_id: str) -> int:
         """Phase 268 - admin-only hard delete. Nothing in this store could
         delete anything before this - record_query()/grant_waiver()/
         list_visitors() were the only 3 operations that existed."""
         await self._ensure_table()
-        with log_backend_call(logger, "postgres", "demo_visitors.delete", conversation_id=conversation_id):
-            return await asyncio.to_thread(self._delete_visitor_sync, conversation_id)
+        with log_backend_call(logger, "postgres", "demo_visitors.delete", user_session_id=user_session_id):
+            return await asyncio.to_thread(self._delete_visitor_sync, user_session_id)

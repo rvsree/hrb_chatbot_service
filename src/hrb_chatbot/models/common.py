@@ -21,6 +21,18 @@ class UserProfile(BaseModel):
         "absent on a caller that hasn't been updated to send it, which falls back to employee_id for "
         "presence tracking exactly as before this field existed. Not a real auth/session token.",
     )
+    guest_user_name: str | None = Field(
+        None, max_length=200, pattern=r"^[A-Za-z\s'\-]+$",
+        description="Phase 296 - a real demo visitor's own typed name, captured at login alongside the "
+        "existing known-persona full_name (unrelated, unchanged) - never fed into identity/RBAC, only "
+        "demo-visitor tracking. Mandatory at POST /v1/auth/login only; optional/echoed everywhere else.",
+    )
+    user_session_id: str | None = Field(
+        None, max_length=100,
+        description="Phase 296 - a random id (client-generated, e.g. crypto.randomUUID()) created once per "
+        "login, distinct from tab_session_id (per-tab presence counting) and conversation_id (per chat "
+        "thread) - identifies one demo visit for query-cap/visibility tracking.",
+    )
 
 
 class IdentityPayload(BaseModel):
